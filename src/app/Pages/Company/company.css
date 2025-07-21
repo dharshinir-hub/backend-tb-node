@@ -1,0 +1,20 @@
+.dashboard-container {
+display: flex;
+    margin: 0;
+    padding: 0;
+    padding-left:10px;
+}
+
+.body {
+    
+     padding-top: 10px;
+}
+
+.head {
+  padding-left: 10px;
+  font-family: sans-serif ;
+  font-size: 25px;
+  margin-top: 10px;
+  margin-bottom:0;
+  
+}

@@ -1,0 +1,46 @@
+// src/Routes.js
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import Layout from './app/Nav/layout';
+import Login from './app/Pages/Login/login';
+import Andondashboard from './app/Pages/Andon-Dashboard/andondashboard';
+import Shift from './app/Pages/Shift/shift';
+import MachineCard from '../src/app/Pages/Machinecard/machinecard';
+import ShiftRegistration from './app/Pages/Shiftregistration/shiftreg';
+import ComponentRegistration from './app/Pages/Componentregistration/componentreg';
+import OperatorRegistration from './app/Pages/Operatorregistration/operatorreg';
+import ReasonRegistration from './app/Pages/Reasonregistration/reasonreg';
+import MachineList from './app/Pages/Machines/machine';
+import Company from './app/Pages/Company/company';
+import CurrentShift from './app/Pages/CurrentShift/CurrentShift';
+import Alarm from './app/Pages/Alarm/Alarm';
+import Allocation from './app/Pages/Allocations/allocation';
+import OperatorDetails from './app/Pages/Operatordetails/operatordeatil'
+// Import other components for your routes
+
+const AppRoutes = () => (
+    <Routes>
+      <Route path="/" element={<Login />} />
+      <Route path="/" element={<Layout />}>
+        <Route path="andon-dashboard" element={<Andondashboard />} />
+        <Route path="/shift" element={<Shift />} />
+        <Route path="/machine-card" element={<MachineCard />} />
+        <Route path="/shift-registration" element={<ShiftRegistration />} />
+        <Route path="/component-registration" element={<ComponentRegistration />} />
+        <Route path="/operator-registration" element={<OperatorRegistration />} />
+        <Route path="/reason-registration" element={<ReasonRegistration/>} />
+         <Route path="/machines" element={<MachineList/>} />
+         <Route path="/company" element={<Company/>} />
+         <Route path="/CurrentShift" element={<CurrentShift/>} />
+         <Route path="/Alarm" element={<Alarm/>} />
+         <Route path="/allocation" element={<Allocation/>} />
+         <Route path="/operator-details" element={<OperatorDetails/>} />
+
+        {/* Define other routes here */}
+        {/* Define other routes here */}
+        {/* <Route path="other-page" element={<OtherPage />} /> */}
+      </Route>
+    </Routes>
+);
+
+export default AppRoutes;

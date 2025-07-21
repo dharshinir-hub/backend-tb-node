@@ -1,0 +1,169 @@
+/* General Styles */
+.container-fluid {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  background-color: #2c2f34;
+  height: 100vh;
+  display: flex;
+  /* background-image: url('../../../assets/yantra.png'); */
+  background-size: cover;
+  background-position: center;
+}
+.css-14s5rfu-MuiFormLabel-root-MuiInputLabel-root{
+  color:black !important;
+}
+.left-column {
+  flex: 1;
+  background-size: cover;
+  height: 100vh;
+}
+
+.right-column {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  padding: 0;
+  display: flex;
+}
+
+.login-card {
+  background-color: #5756562e !important;
+  backdrop-filter: blur(10px) !important;
+  border: 2px solid white;
+  margin: 0 auto;
+  border-radius: 12px !important;
+  width: 500px;
+  max-width: 500px;
+}
+
+.login-card-header {
+  background-color: white !important;
+  color:black;
+  font-weight: bold;
+  margin-bottom: 25px;
+  backdrop-filter: blur(10px) !important;
+  font-size: 26px !important;
+  animation: pulse 3s infinite;
+  text-align: center;
+}
+.css-1jy569b-MuiFormLabel-root-MuiInputLabel-root.Mui-focused {
+  color: #ec6e17 !important;
+
+}
+.css-1jy569b-MuiFormLabel-root-MuiInputLabel-root {
+  color:black !important;
+}
+
+.outlinedInput-root-fieldset {
+  border-color: black;
+}
+
+.outlinedInput-root-input {
+  color: black;
+}
+
+.outlinedInput-root-focused-fieldset {
+  border-color: #ec6e17;
+}
+
+.custom-placeholder::placeholder {
+  color:  black;
+  opacity: 1;
+}
+
+.icon-button-custom {
+  color: green;
+  background-color: black;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #3c2a2a00 inset !important;
+  -webkit-text-fill-color: black !important;
+  transition: background-color 1000s ease-in-out 0s !important;
+}
+
+/* Responsive Styles */
+@media (max-width: 767px) {
+  /* Mobile View */
+  .container-fluid {
+    height: auto;
+    min-height: 100vh;
+    flex-direction: column;
+  }
+
+  .left-column {
+    display: none;
+  }
+
+  .right-column {
+    flex: unset;
+    padding: 20px;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  /* Tablet View */
+  .container-fluid {
+    flex-direction: row;
+  }
+
+  .left-column {
+    flex: 1;
+  }
+
+  .right-column {
+    flex: 1;
+    padding: 20px;
+  }
+
+  .login-card {
+    width: 80%;
+    max-width: 80%;
+  }
+}
+
+@media (min-width: 992px) {
+  /* Desktop View */
+  .container-fluid {
+    flex-direction: row;
+  }
+
+  .left-column {
+    flex: 1;
+  }
+
+  .right-column {
+    flex: 1;
+    padding: 20px;
+  }
+
+  .login-card {
+    width: 500px;
+    max-width: 500px;
+  }
+}
+.button{
+  text-align: center;
+}

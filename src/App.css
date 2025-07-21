@@ -1,0 +1,167 @@
+/* .App {
+  text-align: center;
+} */
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+.css-1chwz6k-MuiPaper-root-MuiDialog-paper {
+  background-color: #fff;
+  color: rgba(0, 0, 0, 0.87);
+  -webkit-transition: box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
+  transition: box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
+  border-radius: 4px;
+  box-shadow: 0px 11px 15px -7px rgba(0, 0, 0, 0.2), 0px 24px 38px 3px rgba(0, 0, 0, 0.14), 0px 9px 46px 8px rgba(0, 0, 0, 0.12);
+  width: 600px;
+  margin: 32px;
+  position: relative;
+  overflow-y: auto;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex
+;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+  max-height: calc(100% - 64px);
+  max-width: undefinedpx;
+  /* //width: calc(100% - 64px); */
+  width: 50vw !important;
+}
+.btn-outline-info {
+  --bs-btn-color:#ec6e17;
+  --bs-btn-border-color:#ec6e17;
+  --bs-btn-hover-color: #000;
+  --bs-btn-hover-bg:#ec6e17;
+  --bs-btn-hover-border-color:#ec6e17;
+  --bs-btn-focus-shadow-rgb: 13, 202, 240;
+  --bs-btn-active-color: #000;
+  --bs-btn-active-bg:#ec6e17;
+  --bs-btn-active-border-color:#ec6e17;
+  --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+  --bs-btn-disabled-color:#ec6e17;
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color:#ec6e17;
+  --bs-gradient: none;
+}
+.btn {
+  --bs-btn-padding-x: 0.75rem;
+  --bs-btn-padding-y: 0.375rem;
+  --bs-btn-font-family: ;
+  --bs-btn-font-size: 1rem;
+  --bs-btn-font-weight: 400;
+  --bs-btn-line-height: 1.5;
+  --bs-btn-color: var(--bs-body-color);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-width: var(--bs-border-width);
+  --bs-btn-border-color: transparent;
+  --bs-btn-border-radius: var(--bs-border-radius);
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 1px 1px rgba(0, 0, 0, 0.075);
+  --bs-btn-disabled-opacity: 0.65;
+  --bs-btn-focus-box-shadow: 0 0 0 0.25rem rgba(var(--bs-btn-focus-shadow-rgb), .5);
+  display: inline-block;
+  padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x);
+  font-family: var(--bs-btn-font-family);
+  font-size: var(--bs-btn-font-size);
+  font-weight: var(--bs-btn-font-weight);
+  line-height: var(--bs-btn-line-height);
+  color: var(--bs-btn-color);
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  border: var(--bs-btn-border-width) solid var(--bs-btn-border-color);
+  border-radius: var(--bs-btn-border-radius);
+  background-color: var(--bs-btn-bg);
+  transition: color .15s ease-in-out, background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+[type=button], [type=reset], [type=submit], button {
+  -webkit-appearance: button;
+}
+.btn-outline-info {
+  --bs-btn-color:#ec6e17 !important;
+  --bs-btn-border-color:#ec6e17 !important;
+  --bs-btn-hover-color: #000;
+  --bs-btn-hover-bg:#ec6e17 !important;
+  --bs-btn-hover-border-color:#ec6e17 !important;
+  --bs-btn-focus-shadow-rgb: 13, 202, 240;
+  --bs-btn-active-color: #000;
+  --bs-btn-active-bg:#ec6e17 !important;
+  --bs-btn-active-border-color:#ec6e17 !important;
+  --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+  --bs-btn-disabled-color:#ec6e17 !important;
+  --bs-btn-disabled-bg: transparent !important;
+  --bs-btn-disabled-border-color:#ec6e17 !important;
+  --bs-gradient: none;
+}
+.App-header {
+  background-color:#ededed;
+  min-height: 100vh;
+ /* // display: flex; */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: black;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.swal2-title {
+  color: black!important;
+  font-weight: 400!important;
+}
+.swal2-popup {
+  background: #ededed!important;
+  border: 1px solid #f7f7f7!important;
+}
+.swal2-styled.swal2-confirm {
+  background-color:#ec6e17 !important;
+  color: #fff;
+
+.cdk-overlay-pane mat-icon.eye {
+  color: #fff;
+}
+
+
+}
+.add_new {
+  color: #ffffff;
+  display: inline-flex; /* Use inline-flex to enable flexbox alignment */
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
+  background: #FB8C0C;
+  border: 1px solid #fb8c0c;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  position: relative;
+  cursor: pointer;
+}
+
+.circle {
+  font-weight: 400;
+  font-size: 24px;
+}
