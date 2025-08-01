@@ -211,12 +211,12 @@ const OperatorRegistration = () => {
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                             <Tooltip title="Edit Operator">
                                                 <IconButton onClick={() => handleOpenEditDialog(row)}> 
-                                                    <EditIcon sx={{ color: 'black' }} />
+                                                    <EditIcon sx={{ color: '#454545' }} />
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Delete Operator">
                                                 <IconButton onClick={() => deleteshift(row,datasource)}>
-                                                    <DeleteIcon sx={{ color: 'black' }} />
+                                                    <DeleteIcon sx={{ color: '#454545' }} />
                                                 </IconButton>
                                             </Tooltip>
                                         </TableCell>

@@ -132,9 +132,9 @@ margin:auto;
                     position: sticky;
                     border-bottom: 1px solid rgba(224, 224, 224, 1);
                     background-color: #ffffff;
-                    font-size:18px;
+                    font-size:50px;
                     font-weight: 500;
-                    color: black;
+                    color: #242424;
                     font-family: 'Barlow Condensed', sans-serif;
                     line-height: 20px;
                     padding: 0.75rem;
@@ -151,7 +151,7 @@ margin:auto;
                 background-color: #3b25e6 !important;
     
                 td {
-                    font-size: 14px;
+                    font-size: 24px;
                     color:black;
                     padding: 0.75rem;
                     border-bottom: none;

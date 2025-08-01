@@ -310,7 +310,7 @@ console.log("Today's Shift To (ms):", to);
 
   return (
     <div className="classbody" style={{ padding: '10px', background: '#fff', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '35px', flexWrap: 'wrap' }}>
         <h4 className="classhead"><b>Company Dashboard</b></h4>
         <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto', alignItems: 'center' }}>
           <FormControl size="small" style={{ minWidth: 160, background: '#fff' }}>

@@ -807,7 +807,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
              
               </div>
             </LocalizationProvider>
-            <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
+            <div className="form-button text-right" align="end" style={{ marginRight: '65px' }}>
               <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning" >
                 Save
               </Button>

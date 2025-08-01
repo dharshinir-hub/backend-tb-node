@@ -18,21 +18,21 @@
 }
 
 .icons {
-    width: 60px;
-    height: 60px;
+    width: 40px;
+    height: 40px;
     background: #d4d4d4;
     border-radius: 50%;
     position: relative;
-    min-width: 60px;
+    min-width: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-     font-size: 25px !important;
+     font-size: 18px !important;
     font-weight: 600;
 }
 
 .icon.icon-text {
-    font-size: 25px;
+    font-size: 18px;
     font-weight: 600;
 }
 
@@ -77,12 +77,12 @@
     -o-align-items: center;
     align-items: center;
     position: absolute;
-    top: -10px;
+    top: 15px;
     right: 5px;
 }
 /* Hover state for icons */
 .user_action li a:hover i {
-    color: #000; /* Change color on hover */
+    color: #000000; /* Change color on hover */
 }
 
 /* Additional styles */

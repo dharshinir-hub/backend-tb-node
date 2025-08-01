@@ -44,7 +44,7 @@
   align-items: center;
   padding: 10px;
   margin: 5px 0;
-  color: white;
+  color: rgb(255, 255, 255);
   text-decoration: none;
   transition: color 0.3s;
 }
@@ -210,7 +210,7 @@
   margin-bottom: 1px;
 }
  .person{
-  margin-right:5px;
+  margin: right 10px;
   cursor: pointer;
 }
 .circles-icon{
@@ -245,9 +245,10 @@
   .person{
     display: none;
   }
-  .rightsidecontents p {
-   display: none;
-  }
+  .rightsidecontents {
+  padding-right: 50px; /* or any value you prefer */
+}
+
   .navbarcontent span {
     /* // flex-grow: 1; */
      text-align: center;
@@ -261,7 +262,7 @@
     }
     .circles-icon{
       margin-right:0px;
-     color:orangered;
+     color:orange;
     }
      .sidebar-closed {
       display: none;
@@ -271,5 +272,5 @@
     }
  }
  .link_text{
-  color: black;
+  color: rgb(0, 0, 0);
  }

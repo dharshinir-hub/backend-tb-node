@@ -756,13 +756,13 @@ console.log('All Devices Data:', allDevicesData);
 
         <div className="col-7">
     <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>      
-      <div className='panel' style={{width: '100%',height:'160px'}}>
+      <div className='panel' style={{width: '100%',height:'170px'}}>
         <h5 style={{textAlign:'center'}}> Machine Status</h5>
         {iframeurlsss && (
           <iframe
             src={iframeurlsss}
             width="100%"
-            height="100%"
+            height="210px"
             frameBorder="0"
             allowFullScreen
             style={{ pointerEvents: 'auto' }}
@@ -797,7 +797,7 @@ console.log('All Devices Data:', allDevicesData);
   </div>&nbsp;&nbsp;
 
   <div className="col-5 panel">
-    <h5 style={{textAlign:'center'}}> OEE Analysis : {oeedevicename}</h5>
+    <h5 style={{textAlign:'center'}}> OEE Analysiss : {oeedevicename}</h5>
     {oeeIframeUrl && (
       <iframe
         title="OEE Analysis"

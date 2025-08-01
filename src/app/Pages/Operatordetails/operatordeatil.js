@@ -2159,19 +2159,27 @@ const handleReasonChange = (index, val) => {
               Submit
             </Button>
            
-          {selectedassignmode === 'Operator' && (
-            <Button
-              variant="contained"
-               color="secondary"
-              className="filter_btn btn_blue"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenEditDialog(selectedDevicename,selectedDevice);
-            }} 
-            >
-              Assign Operator
-            </Button>
-          )}
+{selectedassignmode === 'Operator' && (
+  <Button
+    variant="contained"
+    sx={{
+      backgroundColor: '#D84315',
+      color: '#fff',
+      fontWeight: 600,
+      borderRadius: '6px',
+      paddingX: 3,
+      '&:hover': {
+        backgroundColor: '#BF360C',
+      },
+    }}
+    onClick={(e) => {
+      e.stopPropagation();
+      handleOpenEditDialog(selectedDevicename, selectedDevice);
+    }}
+  >
+    Assign Operator
+  </Button>
+)}
           
           {selectedassignmode === 'Component' && (
             <Button
@@ -2672,7 +2680,7 @@ const handleReasonChange = (index, val) => {
                         />
                         </div>
                         <br></br>
-                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px'}}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '25px'}}>
                         <LocalizationProvider dateAdapter={AdapterDayjs}>
                         <DesktopTimePicker
   value={startTime}

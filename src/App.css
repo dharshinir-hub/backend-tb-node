@@ -140,13 +140,15 @@
 .swal2-styled.swal2-confirm {
   background-color:#ec6e17 !important;
   color: #fff;
+  box-shadow: none !important;
+}
 
 .cdk-overlay-pane mat-icon.eye {
   color: #fff;
 }
 
 
-}
+
 .add_new {
   color: #ffffff;
   display: inline-flex; /* Use inline-flex to enable flexbox alignment */
