@@ -1,22 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { MenuItem, Select, FormControl, InputLabel} from '@mui/material';
-import { cleanCustomerId,telemetrylatestdata,customerbaseddevices, customerbasedshift} from '../../Services/app/companyservice';
-import './company.css';
-import dayjs from 'dayjs';
+import { MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import dayjs from 'dayjs';
 
+import {
+  cleanCustomerId,
+  telemetrylatestdata,
+  customerbaseddevices,
+  customerbasedshift,
+} from '../../Services/app/companyservice';
+import './company.css';
 
 const CompanyDashboard = () => {
   const customerId = localStorage.getItem('CustomerID');
   const newToken = localStorage.getItem('newToken');
 
   const [devices, setDevices] = useState([]);
-  const [deviceNames, setDeviceNames] = useState([]);
+  const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
   const [shifts, setShifts] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('all');
   const [selectedShift, setSelectedShift] = useState('allshift');
   const [selectedShiftData, setSelectedShiftData] = useState(null);
-  const [selectedShiftName, setSelectedShiftName] = useState('');
   const [utilizationData, setUtilizationData] = useState([]);
   const [formattedUtilization, setFormattedUtilization] = useState('');
   const [grafanaURL, setGrafanaURL] = useState('');
@@ -24,14 +30,13 @@ const CompanyDashboard = () => {
   const [formattedTime, setFormattedTime] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-   const [fromTime, setFromTime] = useState(null);
+  const [fromTime, setFromTime] = useState(null);
   const [toTime, setToTime] = useState(null);
+  const [from, setFrom] = useState(null);
+  const [to, setTo] = useState(null);
+const [selectedDate, setSelectedDate] = useState(dayjs());
 
-
-
-
-
-  useEffect(() => {
+useEffect(() => {
     if (customerId) {
       fetchShifts();
       fetchDevices();
@@ -41,31 +46,28 @@ const CompanyDashboard = () => {
   useEffect(() => {
     if (devices.length > 0) {
       fetchAverageUtilizationForAllDevices();
+      fetchTimeTelemetryForAllDevices();
     }
   }, [devices, selectedDevice]);
 
   useEffect(() => {
     updateGrafanaURL();
-  }, [selectedDevice, formattedUtilization, selectedShiftData]);
+  }, [selectedDevice, formattedUtilization, formattedTime, selectedShiftData, fromTime, toTime, from, to]);
 
-  
+  useEffect(() => {
+    if (shifts.length > 0) {
+      const { from, to } = getShiftTimes(shifts, selectedShift);
+      setFrom(from);
+      setTo(to);
+      setShiftTimingForSelected();
+    }
+  }, [shifts, selectedShift]);
 
   const fetchShifts = async () => {
     try {
       const result = await customerbasedshift(customerId, 'allShift');
       const shiftList = result[0]?.value || [];
       setShifts(shiftList);
-
-      localStorage.setItem('shifts', JSON.stringify(shiftList));
-
-
-      if (shiftList.length > 0) {
-        const firstShift = shiftList[0];
-        setSelectedShift(firstShift.shift_no);
-        setSelectedShiftData(firstShift);
-        setSelectedShiftName(`${firstShift.shift_no}`);
-      }
-      console.log('ShiftList',shifts);
     } catch (err) {
       console.error('Failed to fetch shifts', err);
     }
@@ -75,251 +77,266 @@ const CompanyDashboard = () => {
     try {
       const result = await customerbaseddevices(customerId, 100, 0);
       const devicesList = result.data || [];
+
       setDevices(devicesList);
-      const names = devicesList.map((device, index) => device.name || `machine-${index + 1}`);
-      setDeviceNames(names);
+
+      // Extract device name and id into JSON
+      const nameIdMap = devicesList.reduce((acc, device) => {
+        acc[device.name] = device.id.id;
+        return acc;
+      }, {});
+      
+      setDeviceNameIdJson(nameIdMap); // store in global state
     } catch (err) {
-      console.error('Failed to fetch devices', err);
+      console.error("Failed to fetch devices", err);
+    }
+  };
+console.log('Device Id',deviceNameIdJson);
+  // Global variable to store device name and id
+
+
+
+  const fetchAverageUtilizationForAllDevices = async () => {
+    try {
+      const devicesToFetch =
+        selectedDevice === 'all' ? devices : devices.filter((device) => device.id?.id === selectedDevice);
+
+      const utilizationList = await Promise.all(
+        devicesToFetch.map(async (device) => {
+          const deviceId = device.id?.id;
+          const deviceName = device.name;
+
+          try {
+            const response = await telemetrylatestdata(deviceId, 'DEVICE', 'utilization');
+            const rawValue = response?.utilization?.[0]?.value ?? 0;
+            const value = Number(rawValue).toFixed(2);
+            return { label: deviceName, value };
+          } catch {
+            return { label: deviceName, value: '0.00' };
+          }
+        })
+      );
+
+      setUtilizationData(utilizationList);
+      setFormattedUtilization(encodeURIComponent(JSON.stringify(utilizationList)));
+    } catch (error) {
+      console.error('Error fetching utilization:', error);
+    }
+  };
+  console.log('Utilization List', formattedUtilization);
+
+  const fetchTimeTelemetryForAllDevices = async () => {
+    try {
+      const devicesToFetch =
+        selectedDevice === 'all' ? devices : devices.filter((device) => device.id?.id === selectedDevice);
+
+      const timeList = await Promise.all(
+        devicesToFetch.map(async (device) => {
+          try {
+            const response = await telemetrylatestdata(device.id?.id, 'DEVICE', 'time');
+            const timeValue = response?.time?.[0]?.value || '{}';
+            return { label: device.name, time: timeValue };
+          } catch {
+            return { label: device.name, time: '{}' };
+          }
+        })
+      );
+
+      setTimeData(timeList);
+      setFormattedTime(encodeURIComponent(JSON.stringify(timeList)));
+    } catch (error) {
+      console.error('Error fetching time telemetry:', error);
+    }
+  };
+  console.log('Time List', formattedTime);
+
+  const setShiftTimingForSelected = () => {
+    try {
+      let starttime = '';
+      let endtime = '';
+      let shiftData = null;
+
+      if (selectedShift === 'allshift') {
+        shiftData = shifts.find((shift) => shift.shift_no === 1);
+        if (shiftData) {
+          starttime = shiftData.start_time;
+          const now = new Date();
+          endtime = now.toTimeString().split(' ')[0];
+        }
+      } else {
+        shiftData = shifts.find((shift) => String(shift.shift_no) === String(selectedShift));
+        if (shiftData) {
+          starttime = shiftData.start_time;
+          endtime = shiftData.end_time;
+        }
+      }
+
+      if (shiftData) {
+        setSelectedShiftData(shiftData);
+      }
+
+      setStartTime(starttime);
+      setEndTime(endtime);
+    } catch (error) {
+      console.error('Error setting shift timing:', error);
     }
   };
 
-const fetchAverageUtilizationForAllDevices = async () => {
-  try {
-    const devicesToFetch =
-      selectedDevice === 'all'
-        ? devices
-        : devices.filter((device) => device.id?.id === selectedDevice);
+  function combineDateAndTimeToMs(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null;
+  return new Date(`${dateStr}T${timeStr}`).getTime();
+}
 
-    const utilizationList = await Promise.all(
-      devicesToFetch.map(async (device) => {
-        const deviceId = device.id?.id;
-        const deviceName = device.name;
-
-        try {
-          const response = await telemetrylatestdata(deviceId, 'DEVICE', 'utilization');
-
-          console.log("Telemetry Response:", response);
-
-          // Access first element's value
-          const rawValue = response?.utilization?.[0]?.value ?? 0;
-          const value = Number(rawValue).toFixed(2);
-
-          return {
-            label: deviceName,
-            value
-          };
-        } catch (err) {
-          console.error(`Error fetching utilization for ${deviceName}`, err);
-          return {
-            label: deviceName,
-            value: "0.00"
-          };
-        }
-      })
-    );
-
-    setUtilizationData(utilizationList);
-
-    const formatted = encodeURIComponent(JSON.stringify(utilizationList));
-    setFormattedUtilization(formatted);
-
-    console.log('Utilization List:', utilizationList);
-  } catch (error) {
-    console.error('Error fetching utilization for selected devices:', error);
+function getShiftTimes(shifts, selectedShift, selectedDate) {
+  if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
+    return { from: null, to: null };
   }
-};
 
+  const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
+  const nextDayStr = dayjs(selectedDate).add(1, 'day').format("YYYY-MM-DD");
 
+  let from = null;
+  let to = null;
 
-  useEffect(() => {
-  fetchTimeTelemetryForAllDevices();
-}, [selectedDevice]);
+  const normalizedShift = selectedShift.trim().toLowerCase();
 
+  if (normalizedShift === 'allshift' || normalizedShift === 'all shift') {
+    const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
+    const firstShiftStart = sortedShifts[0]?.start_time;
+    const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
 
+    if (firstShiftStart && lastShiftEnd) {
+      const fromStr = `${todayStr}T${firstShiftStart}`;
+      const toStr = lastShiftEnd <= firstShiftStart
+        ? `${nextDayStr}T${lastShiftEnd}`
+        : `${todayStr}T${lastShiftEnd}`;
 
-const fetchTimeTelemetryForAllDevices = async () => {
-  try {
-    const devicesToFetch = selectedDevice === 'all'
-      ? devices
-      : devices.filter((device) => device.id?.id === selectedDevice);
+      from = new Date(fromStr).getTime(); // ✅ ms
+      to = new Date(toStr).getTime();     // ✅ ms
+    }
+  } else {
+    const shiftData = shifts.find((s) => String(s.shift_no) === String(selectedShift));
+    if (shiftData) {
+      const shiftStart = shiftData.start_time;
+      const shiftEnd = shiftData.end_time;
 
-    const timeList = await Promise.all(
-      devicesToFetch.map(async (device) => {
-        const deviceId = device.id?.id;
-        const deviceName = device.name;
+      const fromStr = `${todayStr}T${shiftStart}`;
+      const toStr = shiftEnd <= shiftStart
+        ? `${nextDayStr}T${shiftEnd}`
+        : `${todayStr}T${shiftEnd}`;
 
-        try {
-          const response = await telemetrylatestdata(deviceId, 'DEVICE', 'time');
-          const timeValue = response?.time?.[0]?.value || '{}'; // Default to empty JSON string if missing
-
-          return {
-            label: deviceName,
-            time: timeValue
-          };
-        } catch (err) {
-          console.error(`Error fetching time telemetry for ${deviceName}`, err);
-          return {
-            label: deviceName,
-            time: '{}'
-          };
-        }
-      })
-    );
-
-    setTimeData(timeList); // <- You should define `timeData` state
-    const formattedTime = encodeURIComponent(JSON.stringify(timeList));
-    setFormattedTime(formattedTime); // <- You should define `formattedTime` state
-    console.log('Time List', formattedTime);
-  } catch (error) {
-    console.error('Error fetching time telemetry for selected devices:', error);
+      from = new Date(fromStr).getTime(); // ✅ ms
+      to = new Date(toStr).getTime();     // ✅ ms
+    }
   }
-};
+
+  return { from, to }; // ✅ both in ms
+}
+
+
+  console.log('From', from, 'to', to);
+
+function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
+  if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
+    return { fromEpoch: null, toEpoch: null };
+  }
+
+  const baseDate = dayjs(selectedDate).subtract(1, 'day').format("YYYY-MM-DD");
+  const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
+
+  let fromEpoch = null;
+  let toEpoch = null;
+
+  const normalizedShift = selectedShift?.trim().toLowerCase() || "";
+
+  if (normalizedShift === "allshift" || normalizedShift === "all shift") {
+    const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
+    const firstShiftStart = sortedShifts[0]?.start_time;
+    const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
+
+    if (firstShiftStart && lastShiftEnd) {
+      fromEpoch = new Date(`${baseDate}T${firstShiftStart}`).getTime();
+      toEpoch = new Date(`${baseDate}T${lastShiftEnd}`).getTime();
+
+      if (lastShiftEnd <= firstShiftStart) {
+        toEpoch = new Date(`${todayStr}T${lastShiftEnd}`).getTime();
+      }
+    }
+  } else {
+    const shiftData = shifts.find((s) => String(s.shift_no) === String(selectedShift));
+    if (shiftData) {
+      const shiftStart = shiftData.start_time;
+      const shiftEnd = shiftData.end_time;
+
+      fromEpoch = new Date(`${baseDate}T${shiftStart}`).getTime();
+      toEpoch = new Date(`${baseDate}T${shiftEnd}`).getTime();
+
+      if (shiftEnd <= shiftStart) {
+        toEpoch = new Date(`${todayStr}T${shiftEnd}`).getTime();
+      }
+    }
+  }
+
+  return { fromEpoch, toEpoch };
+}
+
+
+  console.log("FromTime (epoch):", fromTime);
+  console.log("ToTime (epoch):", toTime);
+  console.log("Shifts data type:", typeof shifts, shifts);
 
 useEffect(() => {
-  fetchShiftTiming();
-}, [shifts, selectedShift]); // call when shifts or selection changes
+  if (!shifts.length || !selectedShift || !selectedDate) return;
 
+  const { fromEpoch, toEpoch } = calculateShiftTimesWithDate(shifts, selectedShift, selectedDate);
+  const { from, to } = getShiftTimes(shifts, selectedShift, selectedDate);
 
-const fetchShiftTiming = () => {
-  try {
-    let starttime = '';
-    let endtime = '';
-    let shiftData = null;
+  if (fromEpoch && toEpoch && from && to) {
+    setFromTime(fromEpoch);
+    setToTime(toEpoch);
+    setFrom(from);
+    setTo(to);
 
-    if (selectedShift === 'allshift') {
-      // Use Shift 1 details from already-fetched shifts
-      shiftData = shifts.find(shift => shift.shift_no === 1);
-      if (shiftData) {
-        starttime = shiftData.start_time;
-
-        // Get current time as HH:mm:ss
-        const now = new Date();
-        const currentTime = now.toTimeString().split(' ')[0];
-        endtime = currentTime;
-      }
-    } else {
-      shiftData = shifts.find(shift => shift.shift_no === selectedShift);
-      if (shiftData) {
-        starttime = shiftData.start_time;
-        endtime = shiftData.end_time;
-      }
-    }
-
-    if (shiftData) {
-      setSelectedShiftData(shiftData);
-    }
-
-    console.log('Start Time:', starttime);
-    console.log('End Time:', endtime);
-
-    setStartTime(starttime);
-    setEndTime(endtime);
-  } catch (error) {
-    console.error('Error in fetchShiftTiming:', error);
+    console.log("✅ fromTime:", fromEpoch);
+    console.log("✅ toTime:", toEpoch);
+    console.log("✅ from:", from);
+    console.log("✅ to:", to);
   }
-};
+}, [shifts, selectedShift, selectedDate]);
 
 
-function combineDateAndTimeToMs(dateStr, timeStr) {
-  if (!dateStr || !timeStr) return null;
-  const dateTimeStr = `${dateStr}T${timeStr}`;
-  return new Date(dateTimeStr).getTime();
-}
-
-function getTodayShiftTimes(selectedShiftData) {
-  if (!selectedShiftData) return { from: null, to: null };
-
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-
-  let from = selectedShiftData?.start_time ?? null;
-  let to = selectedShiftData?.end_time ?? null;
-
-  // If values are in hh:mm:ss, combine with today's date
-  if (typeof from === 'string' && from.includes(':')) {
-    from = combineDateAndTimeToMs(todayStr, from);
-  }
-  if (typeof to === 'string' && to.includes(':')) {
-    to = combineDateAndTimeToMs(todayStr, to);
-  }
-
-  return { from, to };
-}
-
-// ✅ Usage
-const { from, to } = getTodayShiftTimes(selectedShiftData);
-console.log("Today's Shift From (ms):", from);
-console.log("Today's Shift To (ms):", to);
 
 
 
 
   const updateGrafanaURL = () => {
     const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
-    console.log('Bearer Token',bearerToken);
-    const shiftListSerialized = encodeURIComponent(JSON.stringify(shifts)); // shifts is the shiftList state
-  console.log('Shift List:', shiftListSerialized);
+    const shiftListSerialized = encodeURIComponent(JSON.stringify(shifts));
     const cleanedId = cleanCustomerId(customerId);
-    console.log('Customer Id',cleanedId);
+    const encodedid = encodeURIComponent(JSON.stringify(deviceNameIdJson))
+    console.log('id',encodedid);
 
     let entityType = 'CUSTOMER';
     let entityId = cleanedId;
-
     if (selectedDevice !== 'all') {
       entityType = 'DEVICE';
       entityId = selectedDevice;
     }
 
-    let FromTime = '';
-    let ToTime = '';
-
-    const selectedShift = selectedShiftData;
-
-    if (selectedShift && selectedShift.start_time && selectedShift.end_time) {
-      const now = new Date();
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
-      const todayStr = now.toISOString().split('T')[0];
-
-      const fromDateTimeStr = `${yesterdayStr}T${selectedShift.start_time}`;
-      const toDateTimeStr = `${todayStr}T${selectedShift.end_time}`;
-
-      const fromDateTime = new Date(fromDateTimeStr);
-      let toDateTime = new Date(toDateTimeStr);
-
-      const shiftStartToday = new Date(`${todayStr}T${selectedShift.start_time}`);
-      if (toDateTime <= shiftStartToday) {
-        toDateTime.setDate(toDateTime.getDate() + 1);
-      }
-
-      if (!isNaN(fromDateTime.getTime()) && !isNaN(toDateTime.getTime())) {
-        FromTime = fromDateTime.getTime();
-        ToTime = toDateTime.getTime();
-      }
-      console.log('from time',FromTime);
-      console.log('to time ', ToTime);
-    }
-
-    const fullURL = `http://demo.yantra24x7.com:3000/d/a7c6259b-3acb-45ed-92bb-0170e2dd0e9ff/company-dashboard-copy-1?orgId=1&var-utilization=${formattedUtilization}&var-token=${bearerToken}&var-customerid=${cleanedId}&var-shift=${shiftListSerialized}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${FromTime}&var-toTime=${ToTime}&var-timeList=${formattedTime}&from=${from}&to=${to}&theme=light&kiosk`;
+    const fullURL = `http://demo.yantra24x7.com:3000/d/a7c6259b-3acb-45ed-92bb-0170e2dd0e9ff/company-dashboard-copy-1?orgId=1&var-utilization=${formattedUtilization}&var-token=${bearerToken}&var-customerid=${cleanedId}&var-shift=${shiftListSerialized}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-timeList=${formattedTime}&from=${from}&to=${to}&var-allid=${encodedid}&theme=light&kiosk`;
 
     setGrafanaURL(fullURL);
-    console.log('Grafana Url',fullURL);
   };
+  console.log('Grafana Url', grafanaURL);
 
   return (
-    <div className="classbody" style={{ padding: '10px', background: '#fff', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '35px', flexWrap: 'wrap' }}>
-        <h4 className="classhead"><b>Company Dashboard</b></h4>
+    <div style={{ padding: '10px', background: '#fff', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', flexWrap: 'wrap' }}>
+        <h4><b>Company Dashboard</b></h4>
         <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto', alignItems: 'center' }}>
           <FormControl size="small" style={{ minWidth: 160, background: '#fff' }}>
             <InputLabel>Machines</InputLabel>
-            <Select
-              value={selectedDevice}
-              onChange={(e) => setSelectedDevice(e.target.value)}
-              label="Machines"
-            >
+            <Select value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)}>
               <MenuItem value="all">All Machines</MenuItem>
               {devices.map((d) => (
                 <MenuItem key={d.id.id} value={d.id.id}>{d.name}</MenuItem>
@@ -331,14 +348,7 @@ console.log("Today's Shift To (ms):", to);
             <InputLabel>Shifts</InputLabel>
             <Select
               value={selectedShift}
-              onChange={(e) => {
-                const selected = e.target.value;
-                setSelectedShift(selected);
-                const shiftData = shifts.find(s => s.shift_no === selected);
-                setSelectedShiftData(shiftData || null);
-                setSelectedShiftName(`${selected}`);
-              }}
-              label="Shifts"
+              onChange={(e) => setSelectedShift(e.target.value)}
             >
               <MenuItem value="allshift">All Shifts</MenuItem>
               {shifts.map((s) => (
@@ -348,26 +358,21 @@ console.log("Today's Shift To (ms):", to);
               ))}
             </Select>
           </FormControl>
+
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <DatePicker
+  label="Select Date"
+  value={selectedDate}
+  onChange={(newValue) => setSelectedDate(newValue)}
+  format="DD-MM-YYYY"
+/>
+
+          </LocalizationProvider>
         </div>
       </div>
 
-      <div className="iframe-panel" style={{ width: '100%', height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
-        <iframe
-          src={grafanaURL}
-          title="Grafana Dashboard"
-          style={{ width: '100%', height: '100%', border: 'none' }}
-        />
-      </div>
-
-      <div style={{ padding: '20px' }}>
-        <h4>Average Utilization</h4>
-        <ul>
-          {utilizationData.map((item, idx) => (
-            <li key={idx}>
-              {item.label}: {item.value}%
-            </li>
-          ))}
-        </ul>
+      <div style={{ width: '100%', height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+        <iframe src={grafanaURL} title="Grafana Dashboard" style={{ width: '100%', height: '100%', border: 'none' }} />
       </div>
     </div>
   );
