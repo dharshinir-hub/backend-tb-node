@@ -71,7 +71,7 @@ export default function PersistentDrawerLeft({ children }) {
     { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
     { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
     { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
-     { path: "/Alarm", name: "Machines", icon: <BiChip /> },
+     { path: "/Alarm", name: "Analytics", icon: <BiChip /> },
      { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
 
 
@@ -152,6 +152,7 @@ export default function PersistentDrawerLeft({ children }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                marginRight: '10px',
               }}
             >
               <PersonOutlineIcon

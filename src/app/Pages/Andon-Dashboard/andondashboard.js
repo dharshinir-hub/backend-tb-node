@@ -834,7 +834,7 @@ console.log('All Devices Data:', allDevicesData);
                   const fromForIframe = epochRange.from != null ? epochRange.from : defaultFrom;
                   const toForIframe = epochRange.to != null ? epochRange.to : defaultTo;
                   const iframeUrl = `${window._env_.GRAFANA_URL}/d/e82e4712-5af0-43cf-b7eb-7c0fc940f378/machine-card?orgId=1&var-data=${machineStatus}&var-data1=${encodeURIComponent(barDataSum)}&var-data2=${liveOperator} &var-data3=${liveComponent}&from=${fromForIframe}&to=${toForIframe}&kiosk&theme=light`;
-
+                   console.log('iframeurl', iframeUrl);
                   return (
                     <div key={deviceId || index} className="device-panel">
                       {/* <div style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>
