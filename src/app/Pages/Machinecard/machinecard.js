@@ -36,9 +36,9 @@ const MachineCard = () => {
     }
 
     if (deviceId && fromTime && toTime) {
-      telemetrykeydata(deviceId, 'DEVICE', 'machineStatus', fromTime, toTime)
+      telemetrykeydata(deviceId, 'DEVICE', 'machine_status', fromTime, toTime)
       .then(async machineStatusResponse => {
-        const machineData = machineStatusResponse?.machineStatus || [];      
+        const machineData = machineStatusResponse?.machine_status || [];      
         
         const statusMapping = {
           0: { state: "Idle", color: "#FFEB3B" },

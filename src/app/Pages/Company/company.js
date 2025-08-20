@@ -10,6 +10,7 @@ import {
   telemetrylatestdata,
   customerbaseddevices,
   customerbasedshift,
+  telemetrykeydata
 } from '../../Services/app/companyservice';
 import './company.css';
 
@@ -46,7 +47,6 @@ useEffect(() => {
   useEffect(() => {
     if (devices.length > 0) {
       fetchAverageUtilizationForAllDevices();
-      fetchTimeTelemetryForAllDevices();
     }
   }, [devices, selectedDevice]);
 
@@ -96,59 +96,153 @@ console.log('Device Id',deviceNameIdJson);
 
 
 
-  const fetchAverageUtilizationForAllDevices = async () => {
-    try {
-      const devicesToFetch =
-        selectedDevice === 'all' ? devices : devices.filter((device) => device.id?.id === selectedDevice);
 
-      const utilizationList = await Promise.all(
-        devicesToFetch.map(async (device) => {
-          const deviceId = device.id?.id;
-          const deviceName = device.name;
+const fetchAverageUtilizationForAllDevices = async () => {
+    const customerId = localStorage.getItem('CustomerID');
 
-          try {
-            const response = await telemetrylatestdata(deviceId, 'DEVICE', 'utilization');
-            const rawValue = response?.utilization?.[0]?.value ?? 0;
-            const value = Number(rawValue).toFixed(2);
-            return { label: deviceName, value };
-          } catch {
-            return { label: deviceName, value: '0.00' };
-          }
-        })
-      );
+  try {
+    const cleanedId = cleanCustomerId(customerId);
+ 
 
-      setUtilizationData(utilizationList);
-      setFormattedUtilization(encodeURIComponent(JSON.stringify(utilizationList)));
-    } catch (error) {
-      console.error('Error fetching utilization:', error);
+    const lowerUtilResponse = await telemetrykeydata(cleanedId, 'CUSTOMER', 'lowerutilization', from, to);
+    const timeseries = lowerUtilResponse?.lowerutilization || [];
+
+    if (!timeseries.length) {
+      console.warn('No lowerutilization timeseries found.');
+      return;
     }
-  };
-  console.log('Utilization List', formattedUtilization);
+    
+
+    const devicesToFetch =
+      selectedDevice === 'all'
+        ? devices.map(d => d.name)
+        : devices.filter(d => d.id?.id === selectedDevice).map(d => d.name);
+
+    const utilizationList = devicesToFetch.map(deviceName => {
+      const hourlyBuckets = {};
+
+
+      // Group by hour
+      timeseries.forEach(({ ts, value }) => {
+        try {
+          const hour = new Date(ts).getHours();
+          const parsed = JSON.parse(value);
+          const deviceData = parsed?.[deviceName];
+          if (!deviceData) return;
+        
+
+
+          if (!hourlyBuckets[hour]) hourlyBuckets[hour] = [];
+          hourlyBuckets[hour].push({
+            ts,
+            utilization: deviceData.utilization,
+            expected: deviceData.expected_utilization
+          });
+        } catch (e) {
+          console.error(`❌ Error parsing telemetry at ts=${ts}`, e);
+        }
+      });
+
+      const hourlyUtilValues = [];
+      const hourlyExpectedValues = [];
+
+      console.log(`\n📍 Device: ${deviceName}`);
+
+      Object.entries(hourlyBuckets).forEach(([hour, entries]) => {
+        const sorted = entries.sort((a, b) => b.ts - a.ts);
+
+        for (const entry of sorted) {
+          const uVal = parseFloat(entry.utilization);
+          const eVal = parseFloat(entry.expected);
+          if (uVal !== 0 || eVal !== 0) {
+            if (uVal !== 0) hourlyUtilValues.push(uVal);
+            if (eVal !== 0) hourlyExpectedValues.push(eVal);
+
+            console.log(`✅ Hour ${hour}: ${new Date(entry.ts).toLocaleTimeString()} — Util=${uVal}, Expected=${eVal}`);
+            break;
+          }
+        }
+      });
+
+      const utilizationAvg = hourlyUtilValues.reduce((a, b) => a + b, 0) / hourlyUtilValues.length || 0;
+      const expectedAvg = hourlyExpectedValues.reduce((a, b) => a + b, 0) / hourlyExpectedValues.length || 0;
+
+      console.log(`📊 Averages for ${deviceName} — Util=${utilizationAvg.toFixed(2)}, Expected=${expectedAvg.toFixed(2)}`);
+
+      return {
+        label: deviceName,
+        utilization: utilizationAvg.toFixed(2),
+        expected_utilization: expectedAvg.toFixed(2)
+      };
+    });
+
+    console.log('\n✅ Final Utilization List:', utilizationList);
+    setUtilizationData(utilizationList);
+    setFormattedUtilization(encodeURIComponent(JSON.stringify(utilizationList)));
+    console.log('Utilization list',utilizationList)
+
+  } catch (error) {
+    console.error('❌ Error fetching average utilization:', error);
+  }
+};
+
+    console.log('Utilization list',formattedUtilization)
+
+
+useEffect(() => {
+  if (devices.length > 0) {
+    fetchAverageUtilizationForAllDevices();
+  }
+}, [devices, selectedDevice]);
+
 
   const fetchTimeTelemetryForAllDevices = async () => {
-    try {
-      const devicesToFetch =
-        selectedDevice === 'all' ? devices : devices.filter((device) => device.id?.id === selectedDevice);
+  try {
+    // Determine devices to fetch
+    const devicesToFetch =
+      selectedDevice === 'all'
+        ? devices
+        : devices.filter((device) => device.id?.id === selectedDevice);
 
-      const timeList = await Promise.all(
-        devicesToFetch.map(async (device) => {
-          try {
-            const response = await telemetrylatestdata(device.id?.id, 'DEVICE', 'time');
-            const timeValue = response?.time?.[0]?.value || '{}';
-            return { label: device.name, time: timeValue };
-          } catch {
-            return { label: device.name, time: '{}' };
-          }
-        })
-      );
+    // Fetch telemetry for each device
+    const timeList = await Promise.all(
+      devicesToFetch.map(async (device) => {
+        try {
+          const response = await telemetrylatestdata(device.id?.id, 'DEVICE', 'time');
+          const timeValue = response?.time?.[0]?.value || '{}';
+          return { label: device.name, id: device.id?.id, time: timeValue };
+        } catch {
+          return { label: device.name, id: device.id?.id, time: '{}' };
+        }
+      })
+    );
 
-      setTimeData(timeList);
-      setFormattedTime(encodeURIComponent(JSON.stringify(timeList)));
-    } catch (error) {
-      console.error('Error fetching time telemetry:', error);
-    }
-  };
-  console.log('Time List', formattedTime);
+    setTimeData(timeList);
+
+    // Format based on selection
+    const filteredFormattedTime =
+      selectedDevice === 'all'
+        ? timeList // show all
+        : timeList.filter((entry) => entry.id === selectedDevice); // show only selected
+
+    setFormattedTime(encodeURIComponent(JSON.stringify(filteredFormattedTime)));
+  } catch (error) {
+    console.error('Error fetching time telemetry:', error);
+  }
+};
+
+useEffect(() => {
+  if (devices.length > 0) {
+    fetchTimeTelemetryForAllDevices();
+  }
+}, [devices, selectedDevice]);
+
+useEffect(() => {
+  console.log('Formatted Time:', decodeURIComponent(formattedTime));
+}, [formattedTime]);
+
+
+
 
   const setShiftTimingForSelected = () => {
     try {
@@ -182,6 +276,8 @@ console.log('Device Id',deviceNameIdJson);
     }
   };
 
+
+
   function combineDateAndTimeToMs(dateStr, timeStr) {
   if (!dateStr || !timeStr) return null;
   return new Date(`${dateStr}T${timeStr}`).getTime();
@@ -205,6 +301,8 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
     const firstShiftStart = sortedShifts[0]?.start_time;
     const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
 
+
+    
     if (firstShiftStart && lastShiftEnd) {
       const fromStr = `${todayStr}T${firstShiftStart}`;
       const toStr = lastShiftEnd <= firstShiftStart
@@ -280,7 +378,6 @@ function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
   return { fromEpoch, toEpoch };
 }
 
-
   console.log("FromTime (epoch):", fromTime);
   console.log("ToTime (epoch):", toTime);
   console.log("Shifts data type:", typeof shifts, shifts);
@@ -302,7 +399,7 @@ useEffect(() => {
     console.log("✅ from:", from);
     console.log("✅ to:", to);
   }
-}, [shifts, selectedShift, selectedDate]);
+}, [shifts, selectedShift, selectedDate]); 
 
 
 
@@ -315,6 +412,7 @@ useEffect(() => {
     const cleanedId = cleanCustomerId(customerId);
     const encodedid = encodeURIComponent(JSON.stringify(deviceNameIdJson))
     console.log('id',encodedid);
+     
 
     let entityType = 'CUSTOMER';
     let entityId = cleanedId;
@@ -323,11 +421,23 @@ useEffect(() => {
       entityId = selectedDevice;
     }
 
-    const fullURL = `http://demo.yantra24x7.com:3000/d/a7c6259b-3acb-45ed-92bb-0170e2dd0e9ff/company-dashboard-copy-1?orgId=1&var-utilization=${formattedUtilization}&var-token=${bearerToken}&var-customerid=${cleanedId}&var-shift=${shiftListSerialized}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-timeList=${formattedTime}&from=${from}&to=${to}&var-allid=${encodedid}&theme=light&kiosk`;
+
+    const baseUrl = window._env_.SERVER_URL;
+ console.log('baseurl',baseUrl);
+
+ const GRAFANA_URL = window._env_. GRAFANA_URL;
+ console.log('GRAFANA_URL',GRAFANA_URL);
+
+
+
+    const fullURL = `http://192.168.0.224:3000/d/a7c6259b-3acb-45ed-92bb-0170e2dd0e9ff/company-dashboard-copy-1?orgId=1&var-utilization=${formattedUtilization}&var-token=${bearerToken}&var-customerid=${cleanedId}&var-shift=${shiftListSerialized}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-timeList=${formattedTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&theme=light&kiosk`;
+
 
     setGrafanaURL(fullURL);
+
   };
   console.log('Grafana Url', grafanaURL);
+  
 
   return (
     <div style={{ padding: '10px', background: '#fff', minHeight: '100vh' }}>

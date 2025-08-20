@@ -53,6 +53,11 @@ const handleConfigurationClick = () => {
 
   const menuItem = useMemo(() => [
     ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
+        { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
+    { path: "/machinemm", name: "Machines", icon: <BiSolidDashboard /> },
+    { path: "/Alarm", name: "Analytics", icon: <BiChip /> },
+    { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
+    { path: "/report", name: "Reports", icon: <BiSolidDashboard /> },
     { path: "/andon-dashboard", name: "Andon Dashboard", icon: <BiSolidDashboard /> },
     { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
     { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
@@ -60,9 +65,9 @@ const handleConfigurationClick = () => {
     { path: "/reason-registration", name: "Reason", icon: <MdList /> },
     { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
     { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
-    { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
-    { path: "/Alarm", name: "Analytics", icon: <BiChip /> },
-    { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
+    
+
+
   ], [user]);
 
   useEffect(() => {

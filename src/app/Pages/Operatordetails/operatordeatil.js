@@ -146,21 +146,47 @@ const OperatorDetails = () => {
     return (time.isAfter(start) && time.isBefore(end)) || time.isSame(start) || time.isSame(end);
   };
   const handleStartTimeChange = async (value) => {
-    if (!value || !isTimeInShift(value, selectedShiftData)) {
+    if (!value) return;
+  
+    // 1. Check if start time equals end time (to the second)
+    if (dayjs(value).isSame(endTime, 'second')) {
       setOpenEditDialog(false);
+      setOpenEditDialog4(false);
+      setOpenEditDialog1(false);
+      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
+      return;
+    }
+  
+    // 2. Check if start time is within shift range
+    if (!isTimeInShift(value, selectedShiftData)) {
+      setOpenEditDialog(false);
+      setOpenEditDialog1(false);
+      setOpenEditDialog4(false);
       Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
       return;
     }
   
+    // 3. Proceed
     setStartTime(value);
   
+    // 4. Check overlap if endTime exists
     if (endTime) {
       await validateAndCheckOverlap(value, endTime);
     }
   };
+  
   const handleStartTimeChange1 = async (value) => {
+    if (dayjs(value).isSame(endTime, 'second')) {
+      setOpenEditDialog(false);
+      setOpenEditDialog1(false);
+      setOpenEditDialog4(false);
+      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
+      return;
+    }
     if (!value || !isTimeInShift(value, selectedShiftData)) {
       setOpenEditDialog(false);
+      setOpenEditDialog1(false);
+      setOpenEditDialog4(false);
       Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
       return;
     }
@@ -172,7 +198,7 @@ const OperatorDetails = () => {
     }
   };
   const validateAndCheckOverlap = async (newStart, newEnd) => {
-    if (!selectedDate || !selectedDeviceId?.id) return;
+    if (!selectedDate || !selectedDeviceId?.id) return false;
   
     const fromEpoch = dayjs(selectedDate).hour(newStart.hour()).minute(newStart.minute()).second(newStart.second()).valueOf();
     const toEpoch = dayjs(selectedDate).hour(newEnd.hour()).minute(newEnd.minute()).second(newEnd.second()).valueOf();
@@ -180,21 +206,18 @@ const OperatorDetails = () => {
     // Ensure start time is before end time
     if (fromEpoch >= toEpoch) {
       Swal.fire('Error', 'Start time must be before end time.', 'error');
-      setStartTime(null);
-      setEndTime(null);
-      return;
+      return false;
     }
   
     const hasOverlap = await checkOperatorTimeOverlap(selectedDeviceId.id, fromEpoch, toEpoch);
   
     if (hasOverlap) {
       Swal.fire('Error', 'Selected time overlaps with an already assigned operator.', 'error');
-      setStartTime(null);
-      setEndTime(null);
+      return false;
     }
   };
   const validateAndCheckOverlap1 = async (newStart, newEnd) => {
-    if (!selectedDate || !selectedDeviceId?.id) return;
+    if (!selectedDate || !selectedDeviceId?.id) return false;
   
     const fromEpoch = dayjs(selectedDate).hour(newStart.hour()).minute(newStart.minute()).second(newStart.second()).valueOf();
     const toEpoch = dayjs(selectedDate).hour(newEnd.hour()).minute(newEnd.minute()).second(newEnd.second()).valueOf();
@@ -202,9 +225,7 @@ const OperatorDetails = () => {
     // Ensure start time is before end time
     if (fromEpoch >= toEpoch) {
       Swal.fire('Error', 'Start time must be before end time.', 'error');
-      setStartTime(null);
-      setEndTime(null);
-      return;
+      return false;
     }
   
     const hasOverlap = await checkOperatorTimeOverlap1(selectedDeviceId.id, fromEpoch, toEpoch);
@@ -301,11 +322,21 @@ const OperatorDetails = () => {
     }
   };
   const handleEndTimeChange = async (value) => {
+    if (dayjs(value).isSame(startTime, 'second')) {
+      setOpenEditDialog(false);
+      setOpenEditDialog1(false);
+      setOpenEditDialog4(false);
+      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
+      return;
+    }
     if (!value || !isTimeInShift(value, selectedShiftData)) {
       setOpenEditDialog(false);
+      setOpenEditDialog1(false);
+      setOpenEditDialog4(false);
       Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
       return;
     }
+   
   
     setEndTime(value);
   
@@ -314,8 +345,17 @@ const OperatorDetails = () => {
     }
   };
   const handleEndTimeChange1 = async (value) => {
+   if (dayjs(value).isSame(startTime, 'second')) {
+    setOpenEditDialog(false);
+    setOpenEditDialog1(false);
+    setOpenEditDialog4(false);
+      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
+      return;
+    }
     if (!value || !isTimeInShift(value, selectedShiftData)) {
+      setOpenEditDialog(false);
       setOpenEditDialog1(false);
+      setOpenEditDialog4(false);
       Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
       return;
     }
@@ -458,6 +498,7 @@ const OperatorDetails = () => {
       const key = 'component';
       const operatorData = await customerbasedshift(customerId, key);
       const allShifts = operatorData[0]?.value || [];
+      console.log('componentss',allShifts)
       setcomponentslist(allShifts);
   
       console.log('All Shifts:', allShifts);
@@ -493,7 +534,7 @@ const OperatorDetails = () => {
         setselectedcomponent('');
       }
   
-      setOpenEditDialog(true);
+      setOpenEditDialog1(true);
     } catch (error) {
       console.error('Error in operatorvaluechange1:', error);
     }
@@ -673,7 +714,7 @@ const handleFormChange3 = (event) => {
         const operatorData = await customerbasedshift(customerId, key);
         const allShifts = operatorData[0]?.value || [];
         setcomponentslist(allShifts);
-        console.log('allshifts',allShifts)
+        console.log('componentss',allShifts)
         const reasons = allShifts.map(shift => ({
             value: shift.component_name,
             label: shift.component_name
@@ -787,6 +828,9 @@ const handleOpenEditDialog4= async ()=>{
       console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:',  dayjs());
      
       setfilteredResult([]);
+      setStartTime(null);
+      setEndTime(null);
+
       const key = 'alloperator';
   customerbasedshift(customerId, key)
       .then(async (data) => {
@@ -818,6 +862,7 @@ const handleOpenEditDialog4= async ()=>{
             } catch (error) {
 
               setselectedsupervisor('');
+              
             }
           setOpenEditDialog4(true);
       })
@@ -940,7 +985,7 @@ const handleSaveThreshold3 = async() =>{
                   const cleancustomerid1=  cleanCustomerId(customerId);
 
                   // First delete existing data in the time range
-                  const deleteResponse = await DowntimeaddDelete1('CUSTOMER', cleancustomerid1, 'live_supervisor', fromEpoch, toEpoch);
+                  const deleteResponse = await DowntimeaddDelete1('CUSTOMER', cleancustomerid1, 'live_supervisor', fromtime, totime);
                 
                   if (deleteResponse !== true) {
                     throw new Error('Failed to delete existing data for the specified time range.');
@@ -976,8 +1021,8 @@ const handleSaveThreshold3 = async() =>{
                     });
                     
                     setTimeout(() => {
-                      window.location.reload();
-                    }, 10);
+                      handleSubmit();
+                    }, 2000);
                   }
                   // Then proceed to add new operator data
                 
@@ -1028,8 +1073,8 @@ const handleSaveThreshold3 = async() =>{
 
     Swal.fire('Success', 'Supervisor assigned successfully.', 'success');    
     setTimeout(() => {
-      window.location.reload();
-    }, 10);
+      handleSubmit();
+    }, 2000);
   } catch (err) {
     console.error('Update error:', err);
     Swal.fire('Error', 'Failed to assign Supervisor.', 'error');
@@ -1052,9 +1097,9 @@ const downtimereason = async () => {
   const deviceId = selectedDeviceId;
   try {
       if (deviceId && fromTime && toTime) {
-          telemetrykeydata(deviceId, 'DEVICE', 'machineStatus', fromTime, toTime)
+          telemetrykeydata(deviceId, 'DEVICE', 'machine_status', fromTime, toTime)
           .then(async machineStatusResponse => {
-            const machineData = machineStatusResponse?.machineStatus || [];      
+            const machineData = machineStatusResponse?.machine_status || [];      
             
             const statusMapping = {
               0: { state: "Idle", color: "#FFEB3B" },
@@ -1684,11 +1729,12 @@ const handleReasonChange = (index, val) => {
                         allowEnterKey: false
                       });
                       setTimeout(() => {
-                        getiframedata();
+                        handleSubmit();
                       }, 2000);
-                      setTimeout(() => {
-                        window.location.reload();
-                      }, 10);
+                      // setTimeout(() => {
+                      //   window.location.reload()
+                      // ;
+                      // }, 10);
                     }
                     // Then proceed to add new operator data
                   
@@ -1716,6 +1762,7 @@ const handleReasonChange = (index, val) => {
           
           return;
         }
+        
       }
   
       // ✅ Proceed to save if no overlap
@@ -1744,11 +1791,8 @@ const handleReasonChange = (index, val) => {
   
       Swal.fire('Success', 'Operator assigned successfully.', 'success');
       setTimeout(() => {
-        getiframedata();
+        handleSubmit();
       }, 2000);
-      setTimeout(() => {
-        window.location.reload();
-      }, 10);
     } catch (err) {
       console.error('Update error:', err);
       Swal.fire('Error', 'Failed to assign operator.', 'error');
@@ -1879,6 +1923,8 @@ const handleReasonChange = (index, val) => {
                       const cycle_time=operator ? operator.cycle_time : null;;
                       const handling_time= operator ? operator.handling_time : null;
                       const setupTime= operator ? operator.setupTime : null;
+                      const factorvalue= operator ? operator.factorval : null;
+                      const factors= operator ? operator.factor : null;
                       const key = {
                         ts: fromEpoch,
                         values: {
@@ -1889,6 +1935,9 @@ const handleReasonChange = (index, val) => {
                             end_time: toEpoch,
                             duration: durations,
                             cycle_time:cycle_time,handling_time:handling_time,setup_time:setupTime,
+                            factorval:factorvalue,
+                            factor:factors,
+                            
                           }
                         }
                       };
@@ -1909,8 +1958,8 @@ const handleReasonChange = (index, val) => {
                         allowEnterKey: false
                       });                     
                       setTimeout(() => {
-                        window.location.reload();
-                      }, 10);
+                        handleSubmit();
+                      }, 2000);
                     }
                     // Then proceed to add new operator data
                   
@@ -1946,6 +1995,8 @@ const handleReasonChange = (index, val) => {
       const cycle_time=operator ? operator.cycle_time : null;;
       const handling_time= operator ? operator.handling_time : null;
       const setupTime= operator ? operator.setupTime : null;
+      const factorvalue= operator ? operator.factorval : null;
+      const factors= operator ? operator.factor : null;
       const key = {
         ts: fromEpoch,
         values: {
@@ -1956,6 +2007,9 @@ const handleReasonChange = (index, val) => {
             end_time: toEpoch,
             duration: durations,
             cycle_time:cycle_time,handling_time:handling_time,setup_time:setupTime,
+            factorval:factorvalue,
+            factor:factors,
+            
           }
         }
       };
@@ -1968,11 +2022,8 @@ const handleReasonChange = (index, val) => {
   
       Swal.fire('Success', 'Component assigned successfully.', 'success');
       setTimeout(() => {
-        getiframedata();
+        handleSubmit();
       }, 2000);
-      setTimeout(() => {
-        window.location.reload();
-      }, 10);
     } catch (err) {
       console.error('Update error:', err);
       Swal.fire('Error', 'Failed to assign Component.', 'error');
@@ -2159,27 +2210,19 @@ const handleReasonChange = (index, val) => {
               Submit
             </Button>
            
-{selectedassignmode === 'Operator' && (
-  <Button
-    variant="contained"
-    sx={{
-      backgroundColor: '#D84315',
-      color: '#fff',
-      fontWeight: 600,
-      borderRadius: '6px',
-      paddingX: 3,
-      '&:hover': {
-        backgroundColor: '#BF360C',
-      },
-    }}
-    onClick={(e) => {
-      e.stopPropagation();
-      handleOpenEditDialog(selectedDevicename, selectedDevice);
-    }}
-  >
-    Assign Operator
-  </Button>
-)}
+          {selectedassignmode === 'Operator' && (
+            <Button
+              variant="contained"
+               color="secondary"
+              className="filter_btn btn_blue"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenEditDialog(selectedDevicename,selectedDevice);
+            }} 
+            >
+              Assign Operator
+            </Button>
+          )}
           
           {selectedassignmode === 'Component' && (
             <Button
@@ -2680,7 +2723,7 @@ const handleReasonChange = (index, val) => {
                         />
                         </div>
                         <br></br>
-                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '25px'}}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px'}}>
                         <LocalizationProvider dateAdapter={AdapterDayjs}>
                         <DesktopTimePicker
   value={startTime}

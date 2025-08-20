@@ -72,6 +72,25 @@
       throw error;
     }
   };
+
+  export const userbasedrole = async (customerId,key) => {
+    try {
+        const baseUrl = window._env_.SERVER_URL.replace(/\/$/, ''); // Remove trailing slash if any
+        const cleanedCustomerId = cleanCustomerId(customerId);
+
+        const url = `${baseUrl}/api/plugins/telemetry/USER/${cleanedCustomerId}/values/attributes?keys=${key}`;
+
+      console.log('Shift API URL:', url);
+  
+      const response = await axiosInstance.get(url);
+      console.log('Shift API Response:', response); // <-- Add this
+  
+      return response.data;
+    } catch (error) {
+      console.error('Error during Shift latest data:', error);
+      throw error;
+    }
+  };
   export const telemetrylatestdata = async (deviceId, entitytype, key) => {
     try {
         const baseUrl = window._env_.SERVER_URL.replace(/\/$/, ''); // Remove trailing slash if any
@@ -116,6 +135,9 @@
       console.log('Telemetry Key API Response:', response); // <-- Add this
       console.log(response.data);
       return response.data;
+      
+
+    
     } catch (error) {
       console.error('Error during telemetry key data:', error);
       throw error;

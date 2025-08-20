@@ -4,7 +4,7 @@ import './andondasboard.css';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { CustomDateSelect, CustomDaySelect } from '../Inputfield/inputfield';
-import { customerbaseddevices, telemetrylatestdata, customerbasedshift } from '../../Services/app/andondashboardservice';
+import { customerbaseddevices, telemetrylatestdata, customerbasedshift, userbasedrole } from '../../Services/app/andondashboardservice';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { IconButton, Tooltip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,7 @@ dayjs.extend(relativeTime); // Correctly extend dayjs with relativeTime plugin
 
 const Home = () => {
   const customerId = localStorage.getItem('CustomerID');
+  const userId=localStorage.getItem('userid');
   const [devices, setDevices] = useState([]);
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [selectedShift, setSelectedShift] = useState('');
@@ -24,6 +25,7 @@ const Home = () => {
   const [deviceStatuses2, setDeviceStatuses2] = useState({});
   const [deviceStatuses3, setDeviceStatuses3] = useState({});
   const [shifts, setShifts] = useState([]);
+  const [userrole, setuserrole] = useState([]);
   const [shiftOptions, setShiftOptions] = useState([]);
   const [epochRange, setEpochRange] = useState({ from: null, to: null });
   const [deviceWiseConcatenated, setDeviceWiseConcatenated] = useState({});
@@ -166,7 +168,18 @@ const Home = () => {
   useEffect(() => {
     if (customerId && pagesize && page >= 0 && epochRange.from != null && epochRange.to != null) {
       setLoading(true);
-
+      const keyss='role';
+      userbasedrole(userId, keyss)
+      .then(async (data) => {
+        const allShifts = data[0].value || [];
+        console.log('alluser',allShifts)
+        setuserrole(allShifts);
+        
+      })
+      .catch((err) => {
+        console.error('Error loading shifts:', err);
+      })
+      .finally(() => setLoading(false));
       customerbaseddevices(customerId, pagesize, page)
         .then(async (data) => {
           const allDevices = data.data || [];
@@ -216,6 +229,7 @@ const Home = () => {
               statusMap1[deviceId] = 'Error';
             }
             setDeviceStatuses1(prev => ({ ...prev, [deviceId]: statusMap1[deviceId] }));
+            
             //Fetch live operator
             try {
               const response = await telemetrykeydata(deviceId, entitytype, key2, from, to);
@@ -226,12 +240,79 @@ const Home = () => {
             
               if (operators.length === 1) {
                 try {
-                  const valueObj = JSON.parse(operators[0].value);
-                  console.log('Parsed value (single):', valueObj);
-                  operator = valueObj.name || 'No Operator';
+                  const now = new Date();
+                  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                
+                  let latestRecord = null;
+                  let latestEndMinutes = 0;
+                
+                  const shiftFromEpoch = from; // e.g., 1722067200000
+                  const shiftToEpoch = to;     // e.g., 1722110400000
+                  const shiftStartDate = new Date(shiftFromEpoch);
+                  const shiftEndDate = new Date(shiftToEpoch);
+                  
+                  const shiftStart = shiftStartDate.getHours() * 60 + shiftStartDate.getMinutes();
+                  const shiftEnd = shiftEndDate.getHours() * 60 + shiftEndDate.getMinutes();
+                  
+                  console.log("Shift Start:", shiftStart, "Shift End:", shiftEnd);
+                  
+                  for (const item of operators) {
+                    try {
+                      const parsed = JSON.parse(item.value);
+                
+                      if (!parsed.name) continue;
+                
+                      const name = parsed.name;
+                      const startEpoch = parsed.start_time;
+                      const endEpoch = parsed.end_time;
+                
+                      if (!startEpoch || !endEpoch) continue;
+                
+                      const start = new Date(startEpoch);
+                      const end = new Date(endEpoch);
+                
+                      const startMinutes = start.getHours() * 60 + start.getMinutes();
+                      const endMinutes = end.getHours() * 60 + end.getMinutes();
+                
+                      console.log(`Checking name: ${name}, from ${startMinutes} to ${endMinutes}, now ${nowMinutes}`);
+                
+                      // ✅ Exact match check — operator's timing exactly matches shift timing
+                      if (startMinutes === shiftStart && endMinutes === shiftEnd) {
+                        operator = name;
+                        break;
+                      }
+                
+                      // ✅ General shift match, handle cross-midnight
+                      const isCrossMidnight = startMinutes > endMinutes;
+                
+                      const inRange = isCrossMidnight
+                        ? nowMinutes >= startMinutes || nowMinutes <= endMinutes
+                        : nowMinutes >= startMinutes && nowMinutes <= endMinutes;
+                
+                      if (inRange) {
+                        operator = name;
+                        break;
+                      }
+                
+                      // ✅ Track latest end time fallback
+                      if (endMinutes > latestEndMinutes) {
+                        latestEndMinutes = endMinutes;
+                        latestRecord = parsed;
+                      }
+                
+                    } catch (parseError) {
+                      console.error('JSON parse error (multiple name operators):', parseError);
+                    }
+                  }
+                
+                  if (!operator && latestRecord) {
+                    operator = latestRecord.name || 'No Operator';
+                  }
+                
                 } catch (parseError) {
                   console.error('JSON parse error (single operator):', parseError);
                 }
+                
               }
               else if (operators.length > 1) {
                 const now = new Date();
@@ -306,13 +387,80 @@ const Home = () => {
             
               if (operators.length === 1) {
                 try {
-                  const valueObj = JSON.parse(operators[0].value);
-                  console.log('Parsed value (single):', valueObj);
-                  operator = valueObj.name || 'No Component';
+                  const now = new Date();
+                  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                
+                  let latestRecord = null;
+                  let latestEndMinutes = 0;
+                
+                  const shiftFromEpoch = from; // e.g., 1722067200000
+                  const shiftToEpoch = to;     // e.g., 1722110400000
+                  const shiftStartDate = new Date(shiftFromEpoch);
+                  const shiftEndDate = new Date(shiftToEpoch);
+                  
+                  const shiftStart = shiftStartDate.getHours() * 60 + shiftStartDate.getMinutes();
+                  const shiftEnd = shiftEndDate.getHours() * 60 + shiftEndDate.getMinutes();
+                  
+                  console.log("Shift Start:", shiftStart, "Shift End:", shiftEnd);
+                  
+                  for (const item of operators) {
+                    try {
+                      const parsed = JSON.parse(item.value);
+                
+                      if (!parsed.name) continue;
+                
+                      const name = parsed.name;
+                      const startEpoch = parsed.start_time;
+                      const endEpoch = parsed.end_time;
+                
+                      if (!startEpoch || !endEpoch) continue;
+                
+                      const start = new Date(startEpoch);
+                      const end = new Date(endEpoch);
+                
+                      const startMinutes = start.getHours() * 60 + start.getMinutes();
+                      const endMinutes = end.getHours() * 60 + end.getMinutes();
+                
+                      console.log(`Checking name: ${name}, from ${startMinutes} to ${endMinutes}, now ${nowMinutes}`);
+                
+                      // ✅ Exact match check — operator's timing exactly matches shift timing
+                      if (startMinutes === shiftStart && endMinutes === shiftEnd) {
+                        operator = name;
+                        break;
+                      }
+                
+                      // ✅ General shift match, handle cross-midnight
+                      const isCrossMidnight = startMinutes > endMinutes;
+                
+                      const inRange = isCrossMidnight
+                        ? nowMinutes >= startMinutes || nowMinutes <= endMinutes
+                        : nowMinutes >= startMinutes && nowMinutes <= endMinutes;
+                
+                      if (inRange) {
+                        operator = name;
+                        break;
+                      }
+                
+                      // ✅ Track latest end time fallback
+                      if (endMinutes > latestEndMinutes) {
+                        latestEndMinutes = endMinutes;
+                        latestRecord = parsed;
+                      }
+                
+                    } catch (parseError) {
+                      console.error('JSON parse error (multiple name operators):', parseError);
+                    }
+                  }
+                
+                  if (!operator && latestRecord) {
+                    operator = latestRecord.name || 'No Operator';
+                  }
+                
                 } catch (parseError) {
                   console.error('JSON parse error (single operator):', parseError);
                 }
-              } 
+                
+              }
               else if (operators.length > 1) {
                 const now = new Date();
                 const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -360,15 +508,15 @@ const Home = () => {
               
                 // Fallback to the latest name record if no match found
                 if (!operator && latestRecord) {
-                  operator = latestRecord.name || 'No Operator';
+                  operator = latestRecord.name || 'No Component';
                 }
               
-                console.log('Final operator:', operator);
+                console.log('Final component:', operator);
               }
               
               
             
-              console.log('Final operator:', operator);
+              console.log('Final component:', operator);
               statusMap3[deviceId] = operator;
             } catch (error) {
               console.error('Telemetry fetch error:', error);
@@ -477,12 +625,22 @@ console.log('All Devices Data:', allDevicesData);
           
           console.log('Total Bar Data Sum:', totalBarDataSum);
           console.log('All Devices Data:', allDevicesData);
-          
+          // Calculate running, idle, and disconnected counts from deviceStatuses
+          const statusValues = Object.values(statusMap).map(status =>
+            status === null ? 'Disconnected' : status
+          );
+        
+          const RunningMachines = statusValues.filter(s => s === 'Running').length;
+          const IdleMachines = statusValues.filter(s => s === 'Idle').length;
+          const DisconnectedMachines = statusValues.filter(s =>
+            ['Disconnected', 'Unknown', 'Error'].includes(s)
+          ).length;
+          const TotalMachines = allDevices.length;
           const statusCounts = {
-            "RunningMachines": mCountData.active || 0,
-            "IdleMachines": mCountData.idle || 0,
-            "DisconnectedMachines": mCountData.disconnect || 0,
-            "TotalMachines": mCountData.total || 0,
+            "RunningMachines": RunningMachines,
+            "IdleMachines": IdleMachines,
+            "DisconnectedMachines": DisconnectedMachines,
+            "TotalMachines": TotalMachines,
             "ProductionCount": totalBarDataSum || 0
           };
           console.log('statuscount', statusCounts);
@@ -738,8 +896,12 @@ console.log('All Devices Data:', allDevicesData);
       .trim();               // Remove whitespace
   };
   
-  
+  const allUsersAreAdmin = userrole.length > 0 && (userrole === 'admin');
+  const filteredDevices = allUsersAreAdmin
+    ? devices
+    : devices.filter(device => device.name !== 'ROTOG');
   return (
+    
     <div className="pages">
       <div className="pagecontents">
         <div className="left-labels">
@@ -756,13 +918,13 @@ console.log('All Devices Data:', allDevicesData);
 
         <div className="col-7">
     <div style={{display: 'flex', flexDirection: 'column', height: '100%'}}>      
-      <div className='panel' style={{width: '100%',height:'170px'}}>
-        <h5 style={{textAlign:'center'}}> Machine Status</h5>
+      <div className='panel' style={{width: '100%',height:'160px'}}>
+        <h5 style={{textAlign:'center'}}> Machine Live Status</h5>
         {iframeurlsss && (
           <iframe
             src={iframeurlsss}
             width="100%"
-            height="210px"
+            height="100%"
             frameBorder="0"
             allowFullScreen
             style={{ pointerEvents: 'auto' }}
@@ -797,7 +959,7 @@ console.log('All Devices Data:', allDevicesData);
   </div>&nbsp;&nbsp;
 
   <div className="col-5 panel">
-    <h5 style={{textAlign:'center'}}> OEE Analysiss : {oeedevicename}</h5>
+    <h5 style={{textAlign:'center'}}> OEE Analysis : {oeedevicename}</h5>
     {oeeIframeUrl && (
       <iframe
         title="OEE Analysis"
@@ -816,8 +978,9 @@ console.log('All Devices Data:', allDevicesData);
 
           <div className='col-12'>
             <div className="iframe-panels">
-              {devices?.length > 0 &&
-                devices.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((device, index) => {
+         
+              {filteredDevices?.length > 0 &&
+                filteredDevices.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((device, index) => {
                   const deviceId = device.id?.id;
                   const deviceName = device.name || `machine-${index + 1}`;
                   const machineStatus = deviceStatuses[deviceId] === null ? 'Disconnected' : deviceStatuses[deviceId];
@@ -834,7 +997,7 @@ console.log('All Devices Data:', allDevicesData);
                   const fromForIframe = epochRange.from != null ? epochRange.from : defaultFrom;
                   const toForIframe = epochRange.to != null ? epochRange.to : defaultTo;
                   const iframeUrl = `${window._env_.GRAFANA_URL}/d/e82e4712-5af0-43cf-b7eb-7c0fc940f378/machine-card?orgId=1&var-data=${machineStatus}&var-data1=${encodeURIComponent(barDataSum)}&var-data2=${liveOperator} &var-data3=${liveComponent}&from=${fromForIframe}&to=${toForIframe}&kiosk&theme=light`;
-                   console.log('iframeurl', iframeUrl);
+
                   return (
                     <div key={deviceId || index} className="device-panel">
                       {/* <div style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>

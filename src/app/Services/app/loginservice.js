@@ -16,9 +16,15 @@ export default axiosInstance1;
 
 export const Loginapi = async (username,password) => {
   try {
-    const response = await axios.post(`${window._env_.SERVER_URL}api/auth/login`, {
-      username,password
+   const response = await axios.post(`${window._env_.SERVER_URL}api/auth/login`, {
+     username,password
     });
+//    const response = await axios.post(`http://192.168.2.164:8080/api/auth/login`, {
+//   username: "tenant@thingsboard.org",
+//   password: "tenant"
+// });
+
+
     console.log('Response' ,response)
     return response.data; // Return the response data
   } 
@@ -32,7 +38,7 @@ export const refreshTokenApi = async () => {
   try {
     const refreshToken = localStorage.getItem('refreshToken');
 
-    const response = await axios.post(`http://74.224.122.231:8080/api/auth/token`, {
+    const response = await axios.post(`${window._env_.SERVER_URL}api/auth/token`, {
       refreshToken
     });
 

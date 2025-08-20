@@ -16,6 +16,8 @@ import CurrentShift from './app/Pages/CurrentShift/CurrentShift';
 import Alarm from './app/Pages/Alarm/Alarm';
 import Allocation from './app/Pages/Allocations/allocation';
 import OperatorDetails from './app/Pages/Operatordetails/operatordeatil'
+import GrafanaEmbed from './app/Pages/MachinesMM/machinemm';
+import MachineReport from './app/Pages/Reports/report';
 // Import other components for your routes
 
 const AppRoutes = () => (
@@ -35,6 +37,9 @@ const AppRoutes = () => (
          <Route path="/Alarm" element={<Alarm/>} />
          <Route path="/allocation" element={<Allocation/>} />
          <Route path="/operator-details" element={<OperatorDetails/>} />
+        <Route path="/machinemm" element={<GrafanaEmbed/>} />
+         <Route path="/report" element={<MachineReport/>} />
+
 
         {/* Define other routes here */}
         {/* Define other routes here */}
