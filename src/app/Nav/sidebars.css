@@ -18,15 +18,15 @@
 }
 
 
-/* Sidebar default styles */
+/* Sidebar default styles 
 .sidebar {
-/*  width: 60px;  closed width */
-}
+ width: 60px;  closed width 
+}*/ 
 
-/* When sidebar is open */
+/* When sidebar is open 
 .sidebar-open {
-/*  width: 180px; reduced open width */
-}
+ width: 180px; reduced open width 
+} */
 
 
 .top_section {
