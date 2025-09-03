@@ -378,9 +378,20 @@ const Home = () => {
             
 
             //Fetch live component
+
+            
             try {
               const response = await telemetrykeydata(deviceId, entitytype, key3, from, to);
-              const operators = response?.live_component || [];
+              // Filter out "No Component" dummy data
+              const operators = (response?.live_component || []).filter(item => {
+                try {
+                  const parsed = JSON.parse(item.value);
+                  // Exclude if name is "N0 Component" (typo in your example) or "No Component"
+                  return parsed.name && parsed.name !== "N0 Component" && parsed.name !== "No Component";
+                } catch {
+                  return false;
+                }
+              });
               console.log('components:', operators);
             
               let operator = 'No Component';
@@ -453,7 +464,7 @@ const Home = () => {
                   }
                 
                   if (!operator && latestRecord) {
-                    operator = latestRecord.name || 'No Operator';
+                    operator = latestRecord.name || 'No Component';
                   }
                 
                 } catch (parseError) {

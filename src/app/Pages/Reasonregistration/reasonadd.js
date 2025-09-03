@@ -300,7 +300,7 @@ export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCoun
                 </div>
               </div>
             </LocalizationProvider>
-            <div className="form-button text-right" align="end" style={{ marginRight: '25px' }}>
+            <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
               <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning" >
                 Save
               </Button>

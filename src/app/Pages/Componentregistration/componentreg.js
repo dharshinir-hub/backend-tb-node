@@ -223,12 +223,12 @@ const ComponentRegistration = () => {
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                             <Tooltip title="Edit Component">
                                                 <IconButton onClick={() => handleOpenEditDialog(row)}>
-                                                    <EditIcon sx={{ color: '#454545' }} />
+                                                    <EditIcon sx={{ color: 'black' }} />
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Delete Component">
                                                 <IconButton onClick={() => deleteshift(row, datasource)}>
-                                                    <DeleteIcon sx={{ color: '#454545' }} />
+                                                    <DeleteIcon sx={{ color: 'black' }} />
                                                 </IconButton>
                                             </Tooltip>
                                         </TableCell>

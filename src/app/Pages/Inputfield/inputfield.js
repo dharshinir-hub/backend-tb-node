@@ -122,45 +122,65 @@ export const CustomPasswordField = ({ register, name, rules, errors, trigger, ..
 
 
 //dropdown filed
-export const CustomDaySelect = forwardRef(({ inputRef, name, value, onChange, label, options, ...props }, ref) => {
+export const CustomDaySelect = forwardRef(({ inputRef,name, value, onChange, label, options,...props }, ref) => {
   return (
     <FormControl variant="outlined" fullWidth {...props}>
-      <InputLabel htmlFor={name} ref={inputRef || ref} sx={{ color: 'black' }}>
+      <InputLabel
+        htmlFor={name}
+        shrink
+        inputRef={inputRef || ref}
+        sx={{
+          color: 'black',
+          pointerEvents: 'none',
+          transform: value? 'translate(14px, 0px) scale(0.75)' : 'translate(14px, 20px) scale(1)',
+          transition: 'transform 0.2s ease-out',
+          '&.Mui-focused': {
+            color: 'orange',
+            transform: 'translate(14px, 0px) scale(0.75)',
+          },
+        }}
+      >
         {label}
       </InputLabel>
-      
       <Select
-        labelId={`${name}-label`}
-        id={name}
         name={name}
         value={value}
         onChange={onChange}
-        label={label} // <== This is important
-        input={
-          <OutlinedInput
-            label={label} // <== This is important
-            sx={{
-              '& .MuiOutlinedInput-notchedOutline': {
+        placeholder={label}
+        ref={ref}
+        input={<OutlinedInput
+          sx={{
+            '&.MuiOutlinedInput-root': {
+              '& fieldset': {
                 borderColor: 'black',
               },
-              '&:hover .MuiOutlinedInput-notchedOutline': {
+              '&:hover fieldset': {
                 borderColor: 'black',
               },
-              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              '&.Mui-focused fieldset': {
                 borderColor: 'orange',
               },
+              '&.MuiInputBase-input': {
+                color: 'black', // Adjusted input text color
+              },
+              '&.Mui-focused.MuiInputBase-input': {
+                caretColor: 'orange',
+              },
+              '&.MuiInputBase-input::placeholder': {
+                color: 'black',
+                opacity: 1,
+              },
+             
+            },
+            
+            '&.MuiSelect-icon': {
               color: 'black',
-            }}
-          />
-        }
-        sx={{
-          '& .MuiSelect-icon': {
-            color: 'black',
-          },
-          '&.Mui-focused .MuiSelect-icon': {
-            color: 'orange',
-          },
-        }}
+            },
+            '&.Mui-focused.MuiSelect-icon': {
+              color: 'orange',
+            },
+          }}
+        />}
       >
         {options.map((option) => (
           <MenuItem key={option.value} value={option.value}>
@@ -171,7 +191,6 @@ export const CustomDaySelect = forwardRef(({ inputRef, name, value, onChange, la
     </FormControl>
   );
 });
-
 
 //Date picker
 export const CustomDateSelect = forwardRef(
@@ -247,4 +266,3 @@ export const convertTo24Hour=(time) =>{
 
   return `${hoursStr}:${minutesStr}:${secondsStr}`;
 }
-

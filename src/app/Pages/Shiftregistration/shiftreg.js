@@ -220,13 +220,13 @@ const ShiftRegistration = () => {
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                             <Tooltip title="Edit Shift">
                                                 <IconButton onClick={() => handleOpenEditDialog(row)}> {/* Use new handler, pass row data */}
-                                                    <EditIcon sx={{ color: '#454545' }} />
+                                                    <EditIcon sx={{ color: 'black' }} />
                                                 </IconButton>
                                             </Tooltip>
                                             {/* ShiftEdit component is now rendered conditionally outside the map loop */}
                                             <Tooltip title="Delete Shift">
                                                 <IconButton onClick={() => deleteshift(row,datasource)}>
-                                                    <DeleteIcon sx={{ color: '#454545' }} />
+                                                    <DeleteIcon sx={{ color: 'black' }} />
                                                 </IconButton>
                                             </Tooltip>
                                         </TableCell>

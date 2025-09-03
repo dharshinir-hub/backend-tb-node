@@ -167,14 +167,14 @@ const ReasonRegistration = () => {
                                                 <li>
                                                     <Tooltip title="Edit Reason">
                                                         <IconButton onClick={() => handleOpenEditDialog(item)}>
-                                                            <EditIcon sx={{ color: '#454545' }} />
+                                                            <EditIcon sx={{ color: 'black' }} />
                                                         </IconButton>
                                                     </Tooltip>
                                                 </li>
                                                 <li>
                                                     <Tooltip title="Delete Reason">
                                                         <IconButton onClick={() => deleteshift(item)}>
-                                                            <DeleteIcon sx={{ color: '#454545' }} />
+                                                            <DeleteIcon sx={{ color: 'black' }} />
                                                         </IconButton>
                                                     </Tooltip>
                                                 </li>

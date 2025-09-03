@@ -15,7 +15,7 @@ import { shiftgetmodule } from '../../Services/app/shiftservice';
 import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
-
+import dayjs from 'dayjs';
 export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId }) {
   const customDaySelectRef = useRef();
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
@@ -48,9 +48,9 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
     factor: '',
     jobcard:'',
     drawingcode:'',
-    cycle_time: null,
-    handling_time: null,
-    setupTime: null
+    cycle_time: dayjs('00:00:00', 'HH:mm:ss'),
+  handling_time: dayjs('00:00:00', 'HH:mm:ss'),
+  setupTime: dayjs('00:00:00', 'HH:mm:ss')
   }), []);
 
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
@@ -108,6 +108,15 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
 
   const onSubmit = async (data) => {
     try {
+      if (
+        !data.cycle_time||
+        data.cycle_time.format('HH:mm:ss') === '00:00:00'
+       
+      ) {
+        handleClose();
+        Swal.fire('Error', 'Cycle Time must not be 00:00:00.', 'error');
+        return;
+      }
       const id = Math.random().toString(36).substr(2, 9); // Generate a new ID
   
       const currentShiftData = {
@@ -128,15 +137,24 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
   
       // 🔍 Check for duplicate based on component_name & component_number
-      const isDuplicate = existingShifts.some(
-        shift =>
-          shift.component_name.trim().toLowerCase() === data.component_name.trim().toLowerCase() &&
-          shift.component_number.trim().toLowerCase() === data.component_number.trim().toLowerCase()
+      const duplicateName = existingShifts.find(
+        shift => shift.component_name.trim().toLowerCase() === data.component_name.trim().toLowerCase()
       );
-  
-      if (isDuplicate) {
+      const duplicateNumber = existingShifts.find(
+        shift => shift.component_number.trim().toLowerCase() === data.component_number.trim().toLowerCase()
+      );
+
+      if (duplicateName || duplicateNumber) {
         handleClose();
-        Swal.fire("Duplicate entry", "Component Name and Number already exist", "error");
+        let errorMessage = "Duplicate entry: ";
+        if (duplicateName && duplicateNumber) {
+          errorMessage += "Component Name and Number already exist";
+        } else if (duplicateName) {
+          errorMessage += "Component Name already exists";
+        } else {
+          errorMessage += "Component Number already exists";
+        }
+        Swal.fire("Duplicate entry", errorMessage, "error");
         return;
       }
   
@@ -423,8 +441,8 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   <TextField
                     {...register("factorval", {
                       maxLength: {
-                        value: 100,
-                        message: "Maximum length is 100 characters"
+                        value: 4,
+                        message: "Maximum length is 4 digits"
                       },
                       setValueAs: v => v === "" ? "" : Number(v),
                       validate: value => {
@@ -437,11 +455,13 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                         if (value <= 0) {
                           return "Factor must be greater than 0";
                         }
+                        if (value.toString().length > 4) {
+                          return "Maximum 4 digits allowed";
+                        }
                         return true;
                       }
                     })}
                     
-                               
                     onBlur={() => trigger('factorval')}
                     label="Factor Value(No.of cavity)"
                     type="number"
@@ -449,7 +469,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                     value={shiftForm.factorval}
                     onChange={handleFormChange}
                     error={!!errors.factorval}
-                    inputProps={{ maxLength: 100, min: 1 }}
+                    inputProps={{ maxLength: 4, min: 1 }}
                     InputLabelProps={{
                       required: true, 
                       sx: {
@@ -807,7 +827,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
              
               </div>
             </LocalizationProvider>
-            <div className="form-button text-right" align="end" style={{ marginRight: '65px' }}>
+            <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
               <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning" >
                 Save
               </Button>
