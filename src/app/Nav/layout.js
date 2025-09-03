@@ -12,13 +12,15 @@ const Layout = () => {
                       location.pathname === '/reason-registration'||
                       location.pathname === '/company'||
                       location.pathname === '/CurrentShift'||
-                      location.pathname === '/Alarm'||
+                      location.pathname === '/analytics'||
                       location.pathname === '/machines'||
                       location.pathname === '/operator-registration'||
                       location.pathname === '/operator-details'||
                       location.pathname === '/allocation' ||
                       location.pathname === '/machinemm' ||
-                      location.pathname === '/report';
+                      location.pathname === '/report' ||
+                      location.pathname === '/machineutilization';
+
 
 
 

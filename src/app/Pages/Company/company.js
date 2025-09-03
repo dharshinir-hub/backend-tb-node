@@ -4,6 +4,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
+import { useNavigate } from "react-router-dom";
 
 import {
   cleanCustomerId,
@@ -22,11 +23,10 @@ const CompanyDashboard = () => {
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
   const [shifts, setShifts] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('all');
-  const [selectedShift, setSelectedShift] = useState('allshift');
   const [selectedShiftData, setSelectedShiftData] = useState(null);
   const [utilizationData, setUtilizationData] = useState([]);
   const [formattedUtilization, setFormattedUtilization] = useState('');
-  const [grafanaURL, setGrafanaURL] = useState('');
+  const [grafanaUrls, setGrafanaUrls] = useState([]);
   const [timeData, setTimeData] = useState([]);
   const [formattedTime, setFormattedTime] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -35,7 +35,15 @@ const CompanyDashboard = () => {
   const [toTime, setToTime] = useState(null);
   const [from, setFrom] = useState(null);
   const [to, setTo] = useState(null);
-const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [lowerUtilization, setLowerUtilization] = useState({});
+const [selectedDate, setSelectedDate] = useState((dayjs) );
+const [selectedShift, setSelectedShift] = useState(() => {
+  const savedShift = localStorage.getItem("selectedShift");
+  return savedShift ? savedShift : "allshift";
+});
+const [selectedMachineId, setSelectedMachineId] = useState(null);
+  const [filteredDevices, setFilteredDevices] = useState([]);
+
 
 useEffect(() => {
     if (customerId) {
@@ -44,11 +52,7 @@ useEffect(() => {
     }
   }, [customerId]);
 
-  useEffect(() => {
-    if (devices.length > 0) {
-      fetchAverageUtilizationForAllDevices();
-    }
-  }, [devices, selectedDevice]);
+ 
 
   useEffect(() => {
     updateGrafanaURL();
@@ -95,105 +99,14 @@ console.log('Device Id',deviceNameIdJson);
   // Global variable to store device name and id
 
 
-
-
-const fetchAverageUtilizationForAllDevices = async () => {
-    const customerId = localStorage.getItem('CustomerID');
-
-  try {
-    const cleanedId = cleanCustomerId(customerId);
- 
-
-    const lowerUtilResponse = await telemetrykeydata(cleanedId, 'CUSTOMER', 'lowerutilization', from, to);
-    const timeseries = lowerUtilResponse?.lowerutilization || [];
-
-    if (!timeseries.length) {
-      console.warn('No lowerutilization timeseries found.');
-      return;
-    }
-    
-
-    const devicesToFetch =
-      selectedDevice === 'all'
-        ? devices.map(d => d.name)
-        : devices.filter(d => d.id?.id === selectedDevice).map(d => d.name);
-
-    const utilizationList = devicesToFetch.map(deviceName => {
-      const hourlyBuckets = {};
-
-
-      // Group by hour
-      timeseries.forEach(({ ts, value }) => {
-        try {
-          const hour = new Date(ts).getHours();
-          const parsed = JSON.parse(value);
-          const deviceData = parsed?.[deviceName];
-          if (!deviceData) return;
-        
-
-
-          if (!hourlyBuckets[hour]) hourlyBuckets[hour] = [];
-          hourlyBuckets[hour].push({
-            ts,
-            utilization: deviceData.utilization,
-            expected: deviceData.expected_utilization
-          });
-        } catch (e) {
-          console.error(`❌ Error parsing telemetry at ts=${ts}`, e);
-        }
-      });
-
-      const hourlyUtilValues = [];
-      const hourlyExpectedValues = [];
-
-      console.log(`\n📍 Device: ${deviceName}`);
-
-      Object.entries(hourlyBuckets).forEach(([hour, entries]) => {
-        const sorted = entries.sort((a, b) => b.ts - a.ts);
-
-        for (const entry of sorted) {
-          const uVal = parseFloat(entry.utilization);
-          const eVal = parseFloat(entry.expected);
-          if (uVal !== 0 || eVal !== 0) {
-            if (uVal !== 0) hourlyUtilValues.push(uVal);
-            if (eVal !== 0) hourlyExpectedValues.push(eVal);
-
-            console.log(`✅ Hour ${hour}: ${new Date(entry.ts).toLocaleTimeString()} — Util=${uVal}, Expected=${eVal}`);
-            break;
-          }
-        }
-      });
-
-      const utilizationAvg = hourlyUtilValues.reduce((a, b) => a + b, 0) / hourlyUtilValues.length || 0;
-      const expectedAvg = hourlyExpectedValues.reduce((a, b) => a + b, 0) / hourlyExpectedValues.length || 0;
-
-      console.log(`📊 Averages for ${deviceName} — Util=${utilizationAvg.toFixed(2)}, Expected=${expectedAvg.toFixed(2)}`);
-
-      return {
-        label: deviceName,
-        utilization: utilizationAvg.toFixed(2),
-        expected_utilization: expectedAvg.toFixed(2)
-      };
+// Function to filter devices based on some condition
+  const filterDevices = () => {
+    const filtered = devices.filter((device) => {
+      // Example: Filter active devices, you can adjust based on your condition
+      return device.status === "active";  // Adjust filter condition
     });
-
-    console.log('\n✅ Final Utilization List:', utilizationList);
-    setUtilizationData(utilizationList);
-    setFormattedUtilization(encodeURIComponent(JSON.stringify(utilizationList)));
-    console.log('Utilization list',utilizationList)
-
-  } catch (error) {
-    console.error('❌ Error fetching average utilization:', error);
-  }
-};
-
-    console.log('Utilization list',formattedUtilization)
-
-
-useEffect(() => {
-  if (devices.length > 0) {
-    fetchAverageUtilizationForAllDevices();
-  }
-}, [devices, selectedDevice]);
+    setFilteredDevices(filtered);  // Set filtered devices state
+  };
 
 
   const fetchTimeTelemetryForAllDevices = async () => {
@@ -236,11 +149,6 @@ useEffect(() => {
     fetchTimeTelemetryForAllDevices();
   }
 }, [devices, selectedDevice]);
-
-useEffect(() => {
-  console.log('Formatted Time:', decodeURIComponent(formattedTime));
-}, [formattedTime]);
-
 
 
 
@@ -402,88 +310,735 @@ useEffect(() => {
 }, [shifts, selectedShift, selectedDate]); 
 
 
+const [finalUtilizationData, setFinalUtilizationData] = useState({});
 
+useEffect(() => {
+  const fetchUtilizationData = async () => {
+    if (!from || !to || devices.length === 0) return;
 
+    const results = {};
+    const devicesToFetch =
+      selectedDevice === "all"
+        ? devices
+        : devices.filter(d => d.id?.id === selectedDevice);
 
+    // Toggle these while debugging:
+    const useLocalHour = true;      // true => bucket by local day+hour; false => UTC epoch-hour
+    const includeMissingHoursAsZero = false; // set true if you want hours with NO samples counted as 0
 
-  const updateGrafanaURL = () => {
-    const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
-    const shiftListSerialized = encodeURIComponent(JSON.stringify(shifts));
-    const cleanedId = cleanCustomerId(customerId);
-    const encodedid = encodeURIComponent(JSON.stringify(deviceNameIdJson))
-    console.log('id',encodedid);
-     
+    // Helper: normalize numeric string like "4%", " 4.0 " -> 4
+    const toNumber = (v) => {
+      if (v === null || v === undefined) return 0;
+      const s = String(v).replace(/[^\d\.\-]/g, "");
+      return s === "" ? 0 : parseFloat(s);
+    };
 
-    let entityType = 'CUSTOMER';
-    let entityId = cleanedId;
-    if (selectedDevice !== 'all') {
-      entityType = 'DEVICE';
-      entityId = selectedDevice;
-    }
+    // Helper: try to locate the device's data inside parsed value
+    const extractDeviceEntry = (parsed, machine) => {
+      if (!parsed || typeof parsed !== "object") return null;
+      if (parsed[machine.name]) return parsed[machine.name];
+      if (machine.id?.id && parsed[machine.id.id]) return parsed[machine.id.id];
+      // If parsed itself looks like an entry
+      if ("utilization" in parsed || "expected_utilization" in parsed || "expected" in parsed) {
+        return parsed;
+      }
+      // Otherwise scan for first nested object that looks like an entry
+      for (const k of Object.keys(parsed)) {
+        const v = parsed[k];
+        if (v && typeof v === "object" && ("utilization" in v || "expected_utilization" in v || "expected" in v)) {
+          return v;
+        }
+      }
+      return null;
+    };
 
+    await Promise.all(
+      devicesToFetch.map(async (machine) => {
+        try {
+          const resp = await telemetrykeydata(
+            machine.id.id,
+            "DEVICE",
+            "lowerutilization",
+            from,
+            to
+          );
 
-    const baseUrl = window._env_.SERVER_URL;
- console.log('baseurl',baseUrl);
+          const rows = Array.isArray(resp?.lowerutilization) ? resp.lowerutilization : [];
+          if (rows.length === 0) {
+            results[machine.name] = { lower_utilization: 0, lower_expected_utilization: 0 };
+            return;
+          }
 
- const GRAFANA_URL = window._env_. GRAFANA_URL;
- console.log('GRAFANA_URL',GRAFANA_URL);
+          // Build hour buckets (string key for local day+hour avoids different days colliding)
+          const perHour = new Map(); // hourKey -> { ts, util, expected }
 
+          for (const row of rows) {
+            const tsNum = Number(row.ts);
+            if (!Number.isFinite(tsNum)) continue;
 
+            let parsed;
+            try {
+              parsed = typeof row.value === "string" ? JSON.parse(row.value) : row.value;
+            } catch (err) {
+              // if parsing fails, skip this row
+              console.warn("failed parse row.value", row.value, err);
+              continue;
+            }
 
-    const fullURL = `http://192.168.0.224:3000/d/a7c6259b-3acb-45ed-92bb-0170e2dd0e9ff/company-dashboard-copy-1?orgId=1&var-utilization=${formattedUtilization}&var-token=${bearerToken}&var-customerid=${cleanedId}&var-shift=${shiftListSerialized}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-timeList=${formattedTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&theme=light&kiosk`;
+            const dev = extractDeviceEntry(parsed, machine);
+            if (!dev) continue;
 
+            // Choose hour key: local day+hour or UTC epoch-hour
+            let hourKey;
+            if (useLocalHour) {
+              const d = new Date(tsNum);
+              // e.g. "2025-8-26-14" (year-month-day-hour) — avoids mixing same hour on different days
+              hourKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}-${d.getHours()}`;
+            } else {
+              hourKey = String(Math.floor(tsNum / 3600000)); // epoch hour (UTC)
+            }
 
-    setGrafanaURL(fullURL);
+            const current = perHour.get(hourKey);
+            if (!current || tsNum > current.ts) {
+              const util = toNumber(dev.utilization ?? dev.util ?? dev.u ?? 0);
+              const expected = toNumber(dev.expected_utilization ?? dev.expected ?? dev.expectedUtilization ?? 0);
+              perHour.set(hourKey, { ts: tsNum, util, expected });
+            }
+          }
+
+          // If you want to include hours that had NO samples as zeros, compute number of hours in range
+          let hoursToConsider = Array.from(perHour.keys());
+          if (includeMissingHoursAsZero) {
+            const fromTs = Number(from);
+            const toTs = Number(to);
+            const startHour = useLocalHour
+              ? Math.floor((new Date(fromTs).getTime() - new Date(fromTs).getTimezoneOffset() * 60000) / 3600000)
+              : Math.floor(fromTs / 3600000);
+            const endHour = useLocalHour
+              ? Math.floor((new Date(toTs).getTime() - new Date(toTs).getTimezoneOffset() * 60000) / 3600000)
+              : Math.floor(toTs / 3600000);
+            const allHourKeys = [];
+            for (let h = startHour; h <= endHour; h++) {
+              allHourKeys.push(String(h));
+            }
+            // Map missing keys to zero entries (only for the UTC-epochKey mode). For local-hour mode we would need to generate the string keys similarly.
+            if (!useLocalHour) {
+              for (const hk of allHourKeys) {
+                if (!perHour.has(hk)) perHour.set(hk, { ts: Number(hk) * 3600000, util: 0, expected: 0 });
+              }
+              hoursToConsider = Array.from(perHour.keys());
+            } else {
+              // For local mode, easier to skip this complexity while debugging; you can enable includeMissingHoursAsZero=false for local mode
+            }
+          }
+
+          // Compute averages across per-hour latest samples (only hours that have at least one sample)
+          let sumU = 0, sumE = 0, cnt = 0;
+          for (const { util, expected } of perHour.values()) {
+            // we count that hour if we have a finite number (including 0)
+            if (Number.isFinite(util) && Number.isFinite(expected)) {
+              sumU += util;
+              sumE += expected;
+              cnt += 1;
+            }
+          }
+
+          const avgU = cnt ? +(sumU / cnt).toFixed(1) : 0;
+          const avgE = cnt ? +(sumE / cnt).toFixed(0) : 0;
+
+          results[machine.name] = {
+            lower_utilization: avgU,
+            lower_expected_utilization: avgE,
+          };
+
+          // Attach debug info for quick inspection (remove in production)
+          results[machine.name]._debug = {
+            rowsSample: rows.slice(0, 6),
+            hoursCount: perHour.size,
+            perHourSample: Array.from(perHour.entries()).slice(0, 6)
+          };
+
+        } catch (err) {
+          console.error("Error for", machine.name, err);
+          results[machine.name] = { lower_utilization: 0, lower_expected_utilization: 0 };
+        }
+      })
+    );
+
+    // After building results for all machines
+// Filter only machines where lower_utilization < lower_expected_utilization
+const filteredResults = Object.fromEntries(
+  Object.entries(results).filter(([machine, data]) => {
+    return data.lower_utilization < data.lower_expected_utilization;
+  })
+);
+
+// Save ALL data
+setFinalUtilizationData(filteredResults);
+window.FinalLowerUtilization = results;
+
+console.log("✅ All Lower utilization:", results);
+console.log("⚠️ Filtered (util < expected):", filteredResults);
+
+// If you also want to store filtered globally:
+window.FilteredLowerUtilization = filteredResults;
 
   };
-  console.log('Grafana Url', grafanaURL);
+
+  fetchUtilizationData();
+}, [devices, selectedDevice, from, to]);
+
+
+console.log('Final Lower utilization', finalUtilizationData);
+
+
+
+const [allMachinesData, setAllMachinesData] = useState({});
+
+useEffect(() => {
+  const fetchAllMachinesData = async () => {
+    const results = {};
+
+    // ✅ Decide which devices to fetch
+    const devicesToFetch =
+      selectedDevice === "all"
+        ? devices
+        : devices.filter((d) => d.id?.id === selectedDevice);
+
+    await Promise.all(
+      devicesToFetch.map(async (machine) => {
+        try {
+          const resp = await telemetrykeydata(
+            machine.id.id,
+            "DEVICE",
+            "time", // 👈 telemetry key
+            from,
+            to
+          );
+
+          const rows = Array.isArray(resp?.time) ? resp.time : [];
+          if (rows.length === 0) {
+            results[machine.name] = {};
+            return;
+          }
+
+          // ✅ take latest row
+          const latestRow = rows[rows.length - 1];
+
+          let parsed = {};
+          try {
+            parsed =
+              typeof latestRow.value === "string"
+                ? JSON.parse(latestRow.value)
+                : latestRow.value;
+          } catch (err) {
+            console.warn("❌ Parse error for", machine.name, latestRow.value);
+          }
+
+          // ✅ Store machine data under machine name
+          results[machine.name] = parsed;
+        } catch (err) {
+          console.error("⚠️ Error fetching for", machine.name, err);
+          results[machine.name] = {};
+        }
+      })
+    );
+
+    // ✅ If single machine was selected → directly set that machine’s JSON
+    if (selectedDevice !== "all" && Object.keys(results).length === 1) {
+      const onlyMachine = Object.values(results)[0];
+      setAllMachinesData(onlyMachine);
+      window.AllMachinesData = onlyMachine;
+      console.log("✅ Single Machine Data:", JSON.stringify(onlyMachine, null, 2));
+    } else {
+      setAllMachinesData(results);
+      window.AllMachinesData = results;
+      console.log("✅ All Machines Data:", JSON.stringify(results, null, 2));
+    }
+  };
+
+  fetchAllMachinesData();
+}, [devices, selectedDevice, from, to]);
+
+
+
+
+console.log('Lower CycleTime',allMachinesData);
+
+
+
+
+
+
+
+const updateGrafanaURL = () => {
+  const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
+  const shiftListSerialized = encodeURIComponent(JSON.stringify(shifts));
+  const cleanedId = cleanCustomerId(customerId);
+  const encodedid = encodeURIComponent(JSON.stringify(deviceNameIdJson));
+
+  let entityType = "CUSTOMER";
+  let entityId = cleanedId;
+  if (selectedDevice !== "all") {
+    entityType = "DEVICE";
+    entityId = selectedDevice;
+  }
+
+  const baseUrl = window._env_.SERVER_URL;
+  const GRAFANA_URL = window._env_.GRAFANA_URL;
+
   
 
+  const grafanaUrls = [
+    `${window._env_.GRAFANA_URL}d/ee6814b1-edf0-4361-ba7b-c2fe16bb1f64/todayyesterdayseries-1?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+
+    `${window._env_.GRAFANA_URL}d/e05288c8-81a1-4f19-bf5d-d8da502b49b8/lower-utilization-dashboard-3?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+
+    `${window._env_.GRAFANA_URL}d/f862d350-2f94-45a6-a561-f7622a57bf7a/piecharts-dasboard-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+
+    `${window._env_.GRAFANA_URL}d/dd09d336-9d3f-44b7-81bd-5fe2179ac504/lower-cycletime-dashboard-4?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+
+    `${window._env_.GRAFANA_URL}d/f34170d9-5263-4837-9805-e1cda5cd5abd/mm-production-utilization-2-copy?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`
+  ];
+
+  setGrafanaUrls(grafanaUrls);
+
+  grafanaUrls.forEach((url, i) => {
+    console.log(`Iframe url ${i + 1}:`, url);
+  });
+
+  
+
+};
+
+
+
+  
+
+
+
+  useEffect(() => {
+    const savedDate = localStorage.getItem("selectedDate");
+    if (savedDate) {
+      setSelectedDate(dayjs(savedDate));
+    }
+  }, []);
+
+  // ✅ Save to localStorage whenever date changes
+  useEffect(() => {
+    if (selectedDate) {
+      localStorage.setItem("selectedDate", selectedDate.toISOString());
+    }
+  }, [selectedDate]);
+
+  // ✅ Save to localStorage whenever shift changes
+  useEffect(() => {
+    if (selectedShift) {
+      localStorage.setItem("selectedShift", selectedShift);
+    }
+  }, [selectedShift]);
+
+
+  const navigate = useNavigate(); // For navigation
+
+
+const handleViewMachineCard = (deviceName) => {
+    console.log("Device name passed:", deviceName);
+
+  // Get the deviceId using the deviceName from the map
+  const deviceId = deviceNameIdJson[deviceName];
+  console.log('clicked device id', deviceId);
+
+  // Check if all required variables are defined
+  if (deviceId && fromTime && toTime && from && to) {
+    // Assume you already have these variables from props/context/state
+    const baseUrl = window._env_.SERVER_URL;
+    const GRAFANA_URL = window._env_.GRAFANA_URL;
+    const grafanaUrl = grafanaUrls[4];
+    const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
+
+    // Construct the Grafana iframe URL
+    const url = `${grafanaUrl}&var-deviceId=${deviceId}&var-deviceName=${encodeURIComponent(deviceName)}`;
+
+    console.log('Navigating to /machineutilization with:', { url, deviceId, deviceName, fromTime, toTime, baseUrl, grafanaUrl });
+
+    // Navigate with query params + state
+    navigate(`/machineutilization?deviceId=${deviceId}&token=${bearerToken}&fromTime=${fromTime}&toTime=${toTime}&from=${from}&to=${to}&grafanaurl=${GRAFANA_URL}&baseurl=${baseUrl}&deviceName=${encodeURIComponent(deviceName)}`);
+  } else {
+    console.error("Missing required variables or device ID not found for:", deviceName);
+  }
+};
+
+
+
+
+
+
+ // Use effect to filter devices when the component mounts or devices change
+  useEffect(() => {
+    if (devices?.length > 0) {
+      filterDevices(); // Call filterDevices when devices are available
+    }
+  }, [devices]); 
+
+
+
   return (
-    <div style={{ padding: '10px', background: '#fff', minHeight: '100vh' }}>
+    <div style={{ padding: '30px', background: '#fefcfcff', minHeight: '100vh' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', flexWrap: 'wrap' }}>
         <h4><b>Company Dashboard</b></h4>
         <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto', alignItems: 'center' }}>
-          <FormControl size="small" style={{ minWidth: 160, background: '#fff' }}>
-            <InputLabel>Machines</InputLabel>
-            <Select value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)}>
-              <MenuItem value="all">All Machines</MenuItem>
-              {devices.map((d) => (
-                <MenuItem key={d.id.id} value={d.id.id}>{d.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
 
-          <FormControl size="small" style={{ minWidth: 160, background: '#fff' }}>
-            <InputLabel>Shifts</InputLabel>
-            <Select
-              value={selectedShift}
-              onChange={(e) => setSelectedShift(e.target.value)}
-            >
-              <MenuItem value="allshift">All Shifts</MenuItem>
-              {shifts.map((s) => (
-                <MenuItem key={s.shift_no} value={s.shift_no}>
-                  {s.shift_name || `Shift ${s.shift_no}`}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+         <FormControl 
+  size="small" 
+  style={{ minWidth: 160, background: '#fff' }} 
+  variant="outlined"
+>
+  <InputLabel id="machines-label">Machines</InputLabel>
+  <Select
+    labelId="machines-label"
+    value={selectedDevice}
+    onChange={(e) => setSelectedDevice(e.target.value)}
+    label="Machines"
+  >
+    <MenuItem value="all">All Machines</MenuItem>
+    {devices.map((d) => (
+      <MenuItem key={d.id.id} value={d.id.id}>
+        {d.name}
+      </MenuItem>
+    ))}
+  </Select>
+</FormControl>
 
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <DatePicker
-  label="Select Date"
-  value={selectedDate}
-  onChange={(newValue) => setSelectedDate(newValue)}
-  format="DD-MM-YYYY"
-/>
 
-          </LocalizationProvider>
+          <FormControl
+  size="small"
+  style={{ minWidth: 160, background: '#fff' }}
+  variant="outlined"
+>
+  <InputLabel id="shifts-label">Shifts</InputLabel>
+  <Select
+    labelId="shifts-label"
+    value={selectedShift}
+    onChange={(e) => setSelectedShift(e.target.value)}
+    label="Shifts"   // ✅ fixes label overlap
+  >
+    <MenuItem value="allshift">All Shifts</MenuItem>
+    {shifts.map((s) => (
+      <MenuItem key={s.shift_no} value={s.shift_no}>
+        {s.shift_name || `Shift ${s.shift_no}`}
+      </MenuItem>
+    ))}
+  </Select>
+</FormControl>
+
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+  <DatePicker
+    label="Select Date"
+    value={selectedDate}
+    onChange={(newValue) => setSelectedDate(newValue)}
+    format="DD-MM-YYYY"
+    slotProps={{
+      textField: {
+        size: "small",            // ✅ match dropdown height
+        fullWidth: false,
+        sx: { minWidth: 160, background: "#fff" } // ✅ same width & style as others
+      }
+    }}
+  />
+</LocalizationProvider>
+
         </div>
       </div>
 
-      <div style={{ width: '100%', height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
-        <iframe src={grafanaURL} title="Grafana Dashboard" style={{ width: '100%', height: '100%', border: 'none' }} />
+
+
+
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "70% 30%", // Left side wide, right side small
+    gap: "10px",
+    height: "190vh",
+  }}
+>
+  {/* Left Column */}
+  <div
+    style={{
+      display: "grid",
+      gridTemplateRows: "auto auto auto", // Top iframe + Utilization + Cycle Time
+      gap: "30px",
+    }}
+  >
+    {/* Top iframe */}
+    <iframe
+      src={grafanaUrls[0]}
+      style={{ width: "100%", height: "400px", border: "0" }}
+      title="Grafana Left Top"
+    />
+
+    {/* Legend Row */}
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        alignItems: "center",
+        gap: "20px",
+        padding: "0 4px",
+        fontSize: "16px",
+        color: "#444",
+        lineHeight: "1",
+      }}
+    >
+      {/* Historical Baseline */}
+      <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+        <span
+          style={{
+            width: "20px",
+            height: "2px",
+            background: "#666",
+            borderTop: "2px dashed #666",
+            display: "inline-block",
+          }}
+        />
+        <span style={{ color: "black" }}>Historical baseline</span>
+      </span>
+
+      {/* Yesterday */}
+      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <svg width="30" height="4">
+          <line
+            x1="0"
+            y1="2"
+            x2="30"
+            y2="2"
+            stroke="orange"
+            strokeWidth="2"
+            strokeDasharray="6,4"
+          />
+        </svg>
+        <span style={{ color: "black" }}>Yesterday</span>
+      </span>
+
+      {/* Today */}
+      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <span
+          style={{
+            width: "30px",
+            height: "2px",
+            background: "orange",
+            display: "inline-block",
+          }}
+        />
+        <span style={{ color: "black" }}>Today</span>
+      </span>
+    </div>
+
+<h3
+        style={{
+          textAlign: "left",
+          marginBottom: "0px",
+          marginTop: "0px",
+          fontSize: "20px",
+          fontWeight: "600",
+          color: "#333",
+        }}
+      >
+        Utilization Lower than Expected
+      </h3>
+    {/* Utilization Section */}
+    <div style={{ width: "100%", height: "210px", overflowY: "auto" }}>
+      
+
+      {(() => {
+        const iframeHeight = 200;
+
+        const validEntries = Object.entries(finalUtilizationData).filter(
+          ([_, values]) => Object.keys(values).length > 0
+        );
+
+        if (validEntries.length === 0) {
+          return (
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "18px",
+                fontWeight: "500",
+                color: "#666",
+                padding: "40px 0",
+              }}
+            >
+              No Operations
+            </div>
+          );
+        }
+
+        return (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "10px",
+              width: "100%",
+              gridAutoRows: `${iframeHeight}px`,
+            }}
+          >
+            {validEntries.map(([machine, values], index) => {
+              const machineData = encodeURIComponent(
+                JSON.stringify({
+                  machine,
+                  utilization: values.lower_utilization,
+                  expected: values.lower_expected_utilization,
+                })
+              );
+
+              const url = `${grafanaUrls[1]}&var-lowerutilization=${machineData}`;
+              console.log("utilization machine Data", machineData);
+              const deviceId = encodeURIComponent(values?.deviceId || machine);
+              const deviceName = encodeURIComponent(
+                values?.deviceName || machine
+              );
+
+              return (
+                <div
+                  key={index}
+                  style={{
+                    position: "relative",
+                    width: "100%",
+                    height: `${iframeHeight}px`,
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => handleViewMachineCard(deviceName)}
+                >
+                  <iframe
+                    src={url}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      border: "0",
+                    }}
+                    title={`Utilization-${deviceName}`}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "transparent",
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+    </div>
+
+
+ <h3
+        style={{
+          textAlign: "left",
+          marginBottom: "0px",
+          marginTop: "0px",
+          fontSize: "20px",
+          fontWeight: "600",
+          color: "#333",
+        }}
+      >
+        Cycle Time Lower than Expected
+      </h3>
+
+    {/* Cycle Time Section */}
+ <div style={{ width: "100%", height: "210px", overflowY: "auto" }}>
+  {(() => {
+    // Normalize allMachinesData into a consistent object
+    let machines =
+      allMachinesData && !Array.isArray(allMachinesData) && typeof allMachinesData === "object"
+        ? (allMachinesData.machinename ? { [allMachinesData.machinename]: allMachinesData } : allMachinesData)
+        : {};
+
+    if (Object.keys(machines).length === 0) {
+      return (
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: "18px",
+            fontWeight: "500",
+            color: "#666",
+            padding: "20px 0",
+          }}
+        >
+          No Operations
+        </div>
+      );
+    }
+
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "10px",
+          width: "100%",
+        }}
+      >
+        {Object.entries(machines).map(([machineKey, v], index) => {
+          const machineDataObj = {
+            machine: v.machinename,
+            actualTime: v.actualTime,
+            referenceTime: v.referenceTime,
+            component: v.component,
+            partnumber: v.partnumber,
+          };
+
+          const machineData = encodeURIComponent(JSON.stringify(machineDataObj));
+          console.log("machine data cycletime", machineDataObj, machineData);
+
+          const url = `${grafanaUrls[3]}&var-cycletime=${machineData}`;
+
+          return (
+            <iframe
+              key={index}
+              src={url}
+              style={{
+                width: "100%",
+                height: "200px",
+                border: "0",
+                borderRadius: "8px",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+              }}
+              title={`Machine-${machineKey}`}
+            />
+          );
+        })}
       </div>
+    );
+  })()}
+</div>
+
+
+  </div>
+
+  {/* Right Column */}
+  <div>
+    <iframe
+      src={grafanaUrls[2]}
+      style={{ width: "100%", height: "100%", border: "0" }}
+      title="Grafana Right"
+    />
+  </div>
+</div>
+
+
+
+
+
+
+
+
     </div>
   );
 };

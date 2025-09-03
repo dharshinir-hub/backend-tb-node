@@ -4,7 +4,7 @@ import dayjs from "dayjs";
 import {
   Card, CardContent, Typography, Chip,  Button, Popover,
   FormControl, InputLabel, Select, MenuItem, TextField, IconButton,
-  List, ListItem, ListItemIcon, ListItemText, Checkbox, Collapse
+  List, ListItem, ListItemIcon,ListItemButton, ListItemText, Checkbox, Collapse
 } from "@mui/material";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import SearchIcon from "@mui/icons-material/Search";
@@ -32,9 +32,9 @@ import './machinemm.css';
 
 
 export default function MachineDashboard() {
-  const grafanaURL =
+ const grafanaURL =
     "http://demo.yantra24x7.com:3000/d/feff3544-eecf-4d2b-8185-f02d94aaf4b1/machine-dashboard?orgId=1&from=1754874810269&to=1754896410269&theme=light&kiosk&var-from=${from}&var-to=${to}";
-    console.log('Grafana url',grafanaURL);
+   console.log('Grafana url',grafanaURL);
 
   const [selectedDevice, setSelectedDevice] = useState("all");
   const [searchText, setSearchText] = useState("");
@@ -48,7 +48,6 @@ export default function MachineDashboard() {
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
 const [activeTab, setActiveTab] = useState("overview");
 const [iframeSrc, setIframeSrc] = useState("");
-  const [selectedShift, setSelectedShift] = useState("allshift");
   const [value, setValue] = useState(0);
   const [viewedMachine, setViewedMachine] = useState(null);
   const [idleTime, setIdleTime] = useState("00:00:00");
@@ -60,8 +59,14 @@ const [iframeSrc, setIframeSrc] = useState("");
   const [machineDurations, setMachineDurations] = useState({});
   const [machineUtilization, setMachineUtilization] = useState({});
   const [selectedMachineId, setSelectedMachineId] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(dayjs());
-  
+const [selectedDate, setSelectedDate] = useState(() => {
+  const savedDate = localStorage.getItem("selectedDate");
+  return savedDate ? dayjs(savedDate) : dayjs();  // fallback to today
+});  
+const [selectedShift, setSelectedShift] = useState(() => {
+  const savedShift = localStorage.getItem("selectedShift");
+  return savedShift ? savedShift : "allshift";
+});
 
 
 
@@ -105,22 +110,15 @@ const [iframeSrc, setIframeSrc] = useState("");
     }
   }, [customerId, newToken]);
 
-  const machineStatusOptions = ["running", "idle", "disconnect", "alarm"];
 
-  const toggleMachineSelection = (name) => {
-    setSelectedMachines((prev) =>
-      prev.includes(name) ? prev.filter((m) => m !== name) : [...prev, name]
-    );
-  };
-
-  const toggleStatusSelection = (status) => {
-    setSelectedStatus((prev) =>
-      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
-    );
-  };
 
 // state for dropdown selection
 const [filteredDevices, setFilteredDevices] = useState([]);
+
+
+
+
+/*state for dropdown selection
 
 useEffect(() => {
   const filtered = devices.filter((d) => {
@@ -135,7 +133,7 @@ useEffect(() => {
   });
 
   setFilteredDevices(filtered);
-}, [devices, selectedDevice, searchText, selectedMachines, selectedStatus]);
+}, [devices, selectedDevice, searchText, selectedMachines, selectedStatus]);  */
 
 
   // Fetch durations for all filtered devices
@@ -293,8 +291,14 @@ const handleTabClick = (tab, machine) => {
   const newToken = localStorage.getItem("newToken");
       const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
 
+       const GRAFANA_URL = window._env_. GRAFANA_URL;
+ console.log('GRAFANA_URL',GRAFANA_URL);
 
-  let url = `${baseUrls[tab]}?orgId=1&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-from=${from}&var-to=${to}&var-deviceId=${machineId}&var-deviceName=${machineName}&theme=light&kiosk`;
+    const baseUrl = window._env_.SERVER_URL;
+ console.log('baseurl',baseUrl);
+
+
+  let url = `${baseUrls[tab]}?orgId=1&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-from=${from}&var-to=${to}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
 
   if (tab === "diagnostics") {
     url = `${baseUrls[tab]}?from=${fromTime}&to=${toTime}&var-from=${fromTime}&var-to=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
@@ -685,6 +689,160 @@ useEffect(() => {
   }
 }, [filteredDevices, selectedMachineId, activeTab]);
 
+ useEffect(() => {
+    const savedDate = localStorage.getItem("selectedDate");
+    if (savedDate) {
+      setSelectedDate(dayjs(savedDate));
+    }
+  }, []);
+
+  // ✅ Save to localStorage whenever date changes
+  useEffect(() => {
+    if (selectedDate) {
+      localStorage.setItem("selectedDate", selectedDate.toISOString());
+    }
+  }, [selectedDate]);
+
+
+// ✅ Save to localStorage whenever shift changes
+useEffect(() => {
+  if (selectedShift) {
+    localStorage.setItem("selectedShift", selectedShift);
+  }
+}, [selectedShift]);
+
+
+const [machineStatuses, setMachineStatuses] = useState({});
+
+useEffect(() => {
+  const fetchMachineStatus = async () => {
+    if (!from || !to || filteredDevices.length === 0) return;
+
+    const results = {};
+
+    await Promise.all(
+      filteredDevices.map(async (machine) => {
+        try {
+          const data = await telemetrykeydata(
+            machine.id.id,
+            "DEVICE",
+            "machine_Status", // <-- status key
+            from,
+            to
+          );
+
+          const values = data?.machine_Status || [];
+          if (!Array.isArray(values) || values.length === 0) {
+            results[machine.id.id] = { machineName: machine.name, status: "No Data" };
+            console.log(`Machine: ${machine.name} → No status data`);
+            return;
+          }
+
+          // ✅ Get latest point (max timestamp)
+          const latestPoint = values.reduce((max, point) =>
+            point.ts > max.ts ? point : max
+          );
+
+          let status = "Unknown";
+          if (latestPoint?.value) {
+            try {
+              status = typeof latestPoint.value === "string"
+                ? latestPoint.value
+                : String(latestPoint.value);
+            } catch (err) {
+              console.error(`Error parsing machine status for ${machine.name}`, err);
+            }
+          }
+
+          // ✅ Store result with machine name
+          results[machine.id.id] = {
+            machineName: machine.name,
+            status
+          };
+
+          console.log(
+            `Machine: ${machine.name} → Latest Status = ${results[machine.id.id].status}`
+          );
+
+        } catch (error) {
+          console.error("Error fetching machine status for", machine.name, error);
+          results[machine.id.id] = { machineName: machine.name, status: "Error" };
+        }
+      })
+    );
+
+    setMachineStatuses(results); // <-- You'll need a state for this
+  };
+
+  fetchMachineStatus();
+}, [filteredDevices, from, to]);
+
+console.log('Machine Status', machineStatuses);
+
+
+
+useEffect(() => {
+  const filtered = devices.filter((d) => {
+    const matchDropdown =
+      selectedDevice === "all" || d.id.id === selectedDevice;
+
+    const matchSearch = (d.name || "")
+      .toLowerCase()
+      .includes(searchText.toLowerCase());
+
+    const machineName = d.name || "";
+    const status = machineStatuses[d.id.id]?.status || "";  // ✅ get from machineStatuses
+
+    const machineMatch =
+      selectedMachines.length === 0 || selectedMachines.includes(machineName);
+
+    const statusMatch =
+      selectedStatus.length === 0 || selectedStatus.includes(status);
+
+    return matchDropdown && matchSearch && machineMatch && statusMatch;
+  });
+
+  setFilteredDevices(filtered);
+}, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses]);
+
+
+const machineStatusOptions = ["Running", "Idle", "Disconnect", "Alarm"];
+
+// Toggle machine selection
+const toggleMachineSelection = (name) => {
+  setSelectedMachines((prev) =>
+    prev.includes(name)
+      ? prev.filter((m) => m !== name)
+      : [...prev, name]
+  );
+};
+
+// Toggle status selection
+const toggleStatusSelection = (status) => {
+  setSelectedStatus((prev) =>
+    prev.includes(status)
+      ? prev.filter((s) => s !== status)
+      : [...prev, status]
+  );
+};
+
+
+// All machines from your state
+const machineList = Object.values(machineStatuses);
+
+// Filter machines based on status & machine selection
+const filteredMachines = machineList.filter((m) => {
+  const statusMatch =
+    selectedStatus.length === 0 || selectedStatus.includes(m.status);
+  const machineMatch =
+    selectedMachines.length === 0 || selectedMachines.includes(m.machineName);
+  return statusMatch && machineMatch;
+});
+
+
+
+
+
 
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "20px" }}>
@@ -766,170 +924,217 @@ useEffect(() => {
 
     {/* Machine List */}
     <div style={{ overflowY: "auto", flexGrow: 1 }}>
-      {filteredDevices.map((machine) => {
-        const changePositive = machine.changeFromBaseline >= 0;
-        const { run = 0, idle = 0  , total= 0} = machineDurations[machine.id.id] || {};
-      const firstActiveTime = machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
-    const isSelected = machine.id.id === selectedMachineId; // ✅ Check if selected
-
-        return (
-            <Card
-        key={machine.id.id}
-        onClick={() => {
-          setViewedMachine(machine);
-          setSelectedMachineId(machine.id.id); // ✅ Store clicked machine
-          setSelectedMachine(machine);
-          handleTabClick(activeTab, machine);
-        }}
-        sx={{
-          mb: 2,
-          borderLeft: `4px solid ${
-            changePositive ? "#4caf50" : "#f44336"
-          }`,
-          boxShadow: 1,
-          cursor: "pointer",
-          backgroundColor: isSelected ? "#e6edf4ff" : "#fff", // ✅ Persistent light green background
-          "&:hover": {
-            backgroundColor: isSelected ? "#e6ecf3ff" : "#f5f5f5", // Hover only changes if not selected
-          },
-        }}
-      >
-            <CardContent>
-              {/* Machine Name */}
-              <Typography variant="h6" sx={{ fontWeight: "bold" }}>
-                {machine.name}
-              </Typography>
-
-              {/* Run / Idle Durations */}
-{/* Run / Idle Durations */}
-<Box sx={{ display: "flex", alignItems: "center", mt: 0.5 }}>
-  <Box
-    sx={{
-      width: 8,
-      height: 8,
-      borderRadius: "50%",
-      bgcolor: "#4caf50",
-      mr: 1,
-    }}
-  />
- <Typography
-    variant="body2"
-    color="textSecondary"
-    sx={{ mr: 2, fontSize: "0.75rem" ,color: "black"}} // smaller text
-  >
-    Active: {formatTime(total)}
-  </Typography>
-
- <Typography
-  variant="body2"
-  color="textSecondary"
-  sx={{ fontSize: "0.75rem", display: "flex", alignItems: "center",color: "black",}}
->
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="16"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="black"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    style={{ marginRight: "4px" }}
-  >
-    <polyline points="0 12 5 12 8 4 12 20 16 8 19 12 24 12" />
-  </svg>
-  First Active: {firstActiveTime}
-</Typography>
-
-</Box>
-
-
-
-
-              {/* Count Chip */}
-             {/* Count Chip */}
-
-
-{/* Component Chip */}
-{(() => {
-  const componentName = liveComponent[machine.id.id]?.componentName ?? "N/A";
-
-  return (
-    <Chip
-      label={` ${componentName}`}
-      size="small"
-      sx={{
-        mt: 1,
-        ml: -1,
-        fontSize: "0.75rem",      // smaller font
-        height: 20,         
-        fontWeight: "bold",
-        paddingLeft: '4px',
-        bgcolor: componentName !== "N/A" ? "#e8f5e9" : "#ffebee",
-        color: componentName !== "N/A" ? "#2e7d32" : "#c62828",
-      }}
-    />
-  );
-})()}
-
-
-              
-
-              {/* Utilization Rate */}
-  {(() => {
-    const avgUtil = machineUtilization[machine.id.id]?.avgUtilization ?? 0;
-    const baseline = utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0;
-    const changeFromBaseline = parseFloat((avgUtil - baseline).toFixed(1));
-    const changePositive = changeFromBaseline >= 0;
-
-   return (
-  <Box sx={{ mt: 1 }}>
-    {/* Top Row: Label */}
+  {filteredDevices.length === 0 ? (
     <Typography
       variant="body2"
-      sx={{ fontWeight: "bold", fontSize: "14px" }}
+      sx={{ textAlign: "center", color: "gray", mt: 2 }}
     >
-      Utilization Rate
+      No machines in{" "}
+      {[...selectedMachines, ...selectedStatus].length > 0
+        ? `(${[...selectedMachines, ...selectedStatus].join(", ")})`
+        : "filter"}
     </Typography>
+  ) : (
+    filteredDevices.map((machine) => {
+      const changePositive = machine.changeFromBaseline >= 0;
+      const { run = 0, idle = 0, total = 0 } =
+        machineDurations[machine.id.id] || {};
+      const firstActiveTime =
+        machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
+      const isSelected = machine.id.id === selectedMachineId; // ✅ Check if selected
 
-    {/* Bottom Row: Percentage + Change */}
-    <Box sx={{ display: "flex", alignItems: "center" }}>
-      {/* Big % value */}
-      <Typography
-        sx={{ fontWeight: "bold", fontSize: "26px", lineHeight: 1 }}
-      >
-        {avgUtil}%
-      </Typography>
-
-      {/* Change info */}
-      <Box sx={{ display: "flex", alignItems: "center", ml: 5 }}>
-        {changePositive ? (
-          <ArrowUpwardIcon fontSize="small" sx={{ color: "#4caf50" }} />
-        ) : (
-          <ArrowDownwardIcon fontSize="small" sx={{ color: "#f44336" }} />
-        )}
-        <Typography
-          variant="body2"
+      return (
+        <Card
+          key={machine.id.id}
+          onClick={() => {
+            setViewedMachine(machine);
+            setSelectedMachineId(machine.id.id); // ✅ Store clicked machine
+            setSelectedMachine(machine);
+            handleTabClick(activeTab, machine);
+          }}
           sx={{
-            color: changePositive ? "#4caf50" : "#f44336",
-            ml: 0.5,
+            mb: 2,
+           borderLeft: `4px solid ${
+      machineStatuses[machine.id.id]?.status === "Running"
+        ? "#4caf50" // Green
+        : machineStatuses[machine.id.id]?.status === "Idle"
+        ? "#f1a014ff" // Yellow
+        : "#f44336" // Red (Disconnect or others)
+    }`,
+            boxShadow: 1,
+            cursor: "pointer",
+            backgroundColor: isSelected ? "#e6edf4ff" : "#fff", // ✅ Persistent selection background
+            "&:hover": {
+              backgroundColor: isSelected
+                ? "#e6ecf3ff"
+                : "#f5f5f5", // Hover only if not selected
+            },
           }}
         >
-          {Math.abs(changeFromBaseline)} pp{" "}
-          {changePositive ? "up" : "down"} from baseline
-        </Typography>
-      </Box>
-    </Box>
-  </Box>
-);
+          <CardContent>
+            {/* Machine Name */}
+            <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+              {machine.name}
+            </Typography>
 
-  })()}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
+            {/* Run / Idle Durations */}
+            <Box sx={{ display: "flex", alignItems: "center", mt: 0.5 }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  bgcolor: "#4caf50",
+                  mr: 1,
+                }}
+              />
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                sx={{
+                  mr: 2,
+                  fontSize: "0.75rem",
+                  color: "black",
+                }}
+              >
+                Active: {formatTime(total)}
+              </Typography>
+
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                sx={{
+                  fontSize: "0.75rem",
+                  display: "flex",
+                  alignItems: "center",
+                  color: "black",
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="black"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ marginRight: "4px" }}
+                >
+                  <polyline points="0 12 5 12 8 4 12 20 16 8 19 12 24 12" />
+                </svg>
+                First Active: {firstActiveTime}
+              </Typography>
+            </Box>
+
+            {/* Component Chip */}
+            {(() => {
+              const componentName =
+                liveComponent[machine.id.id]?.componentName ?? "N/A";
+
+              return (
+                <Chip
+                  label={` ${componentName}`}
+                  size="small"
+                  sx={{
+                    mt: 1,
+                    ml: -1,
+                    fontSize: "0.75rem",
+                    height: 20,
+                    fontWeight: "bold",
+                    paddingLeft: "4px",
+                    bgcolor:
+                      componentName !== "N/A" ? "#e8f5e9" : "#ffebee",
+                    color:
+                      componentName !== "N/A" ? "#2e7d32" : "#c62828",
+                  }}
+                />
+              );
+            })()}
+
+            {/* Utilization Rate */}
+            {(() => {
+              const avgUtil =
+                machineUtilization[machine.id.id]?.avgUtilization ?? 0;
+              const baseline =
+                utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0;
+              const changeFromBaseline = parseFloat(
+                (avgUtil - baseline).toFixed(1)
+              );
+              const changePositive = changeFromBaseline >= 0;
+
+              return (
+                <Box sx={{ mt: 1 }}>
+                  {/* Top Row: Label */}
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: "bold", fontSize: "14px" }}
+                  >
+                    Utilization Rate
+                  </Typography>
+
+                  {/* Bottom Row: Percentage + Change */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    {/* Big % value */}
+                    <Typography
+                      sx={{
+                        fontWeight: "bold",
+                        fontSize: "26px",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {avgUtil}%
+                    </Typography>
+
+                    {/* Change info */}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        ml: 5,
+                      }}
+                    >
+                      {changePositive ? (
+                        <ArrowUpwardIcon
+                          fontSize="small"
+                          sx={{ color: "#4caf50" }}
+                        />
+                      ) : (
+                        <ArrowDownwardIcon
+                          fontSize="small"
+                          sx={{ color: "#f44336" }}
+                        />
+                      )}
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: changePositive
+                            ? "#4caf50"
+                            : "#f44336",
+                          ml: 0.5,
+                        }}
+                      >
+                        {Math.abs(changeFromBaseline)} pp{" "}
+                        {changePositive ? "up" : "down"} from baseline
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      );
+    })
+  )}
+</div>
+
   </div>
 
   {/* Right Panel */}
@@ -990,7 +1195,7 @@ useEffect(() => {
       </div>
 
       {/* Tab Buttons */}
-      <div style={{ marginTop: "10px", display: "flex", gap: "15px" }}>
+      <div style={{ marginTop: "10px", display: "flex", gap: "30px" }}>
        <Button
   variant={activeTab === "overview" ? "contained" : "text"}
   onClick={() => handleTabClick("overview", selectedMachine)}
@@ -1005,26 +1210,14 @@ useEffect(() => {
   Timeline
 </Button>
 
-<Button
-  variant={activeTab === "diagnostics" ? "contained" : "text"}
-  onClick={() => handleTabClick("diagnostics", selectedMachine)}
->
-  Diagnostics
-</Button>
 
-<Button
-  variant={activeTab === "toolMonitoring" ? "contained" : "text"}
-  onClick={() => handleTabClick("toolMonitoring", selectedMachine)}
->
-  Tool Monitoring
-</Button>
 
 
 
       </div>
 
       {/* Date Picker + Shift Dropdown */}
-      {activeTab === "overview" && (
+{(activeTab === "overview" ) && (
         <div style={{ marginTop: "15px", display: "flex", gap: "15px" }}>
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DatePicker
@@ -1071,18 +1264,20 @@ useEffect(() => {
   </div>
 
   {/* Filter Popover */}
-  <Popover
-    open={Boolean(filterAnchor)}
-    anchorEl={filterAnchor}
-    onClose={handleFilterClose}
-    anchorOrigin={{
-      vertical: "bottom",
-      horizontal: "right",
-    }}
-  >
-    <div style={{ width: "250px", padding: "10px" }}>
-      {/* Machines */}
-      <div
+     
+
+      <Popover
+        open={Boolean(filterAnchor)}
+        anchorEl={filterAnchor}
+        onClose={handleFilterClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+      >
+        <div style={{ width: "250px", padding: "10px" }}>
+          {/* Machines */}
+          <div
         onClick={() => setOpenMachines(!openMachines)}
         style={{
           display: "flex",
@@ -1110,66 +1305,67 @@ useEffect(() => {
           ))}
         </List>
       </Collapse>
-
       {/* Machine Status */}
-      <div
-        onClick={() => setOpenStatus(!openStatus)}
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          cursor: "pointer",
-          marginTop: "10px",
-        }}
-      >
-        <Typography variant="subtitle1">Machine Status</Typography>
-        {openStatus ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-      </div>
-      <Collapse in={openStatus}>
-        <List>
-          {machineStatusOptions.map((status) => (
-            <ListItem
-              key={status}
-              dense
-              button
-              onClick={() => toggleStatusSelection(status)}
-            >
-              <ListItemIcon>
-                <Checkbox checked={selectedStatus.includes(status)} />
-              </ListItemIcon>
-              <ListItemText primary={status} />
-            </ListItem>
-          ))}
-        </List>
-      </Collapse>
+{/* Machine Status */}
+<div
+  onClick={() => setOpenStatus(!openStatus)}
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    cursor: "pointer",
+    marginTop: "10px",
+  }}
+>
+  <Typography variant="subtitle1">Machine Status</Typography>
+  {openStatus ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+</div>
 
-      {/* Filter Buttons */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginTop: "10px",
-        }}
+<Collapse in={openStatus}>
+  {/* Status Checkboxes */}
+  <List>
+    {["Running", "Idle", "Disconnect", "Alarm"].map((status) => (
+      <ListItem
+        key={status}
+        dense
+        button
+        onClick={() => toggleStatusSelection(status)}
       >
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={() => {
-            setSelectedMachines([]);
-            setSelectedStatus([]);
-          }}
-        >
-          Clear
-        </Button>
-        <Button
-          variant="contained"
-          size="small"
-          onClick={handleFilterClose}
-        >
-          Done
-        </Button>
-      </div>
-    </div>
-  </Popover>
+        <ListItemIcon>
+          <Checkbox checked={selectedStatus.includes(status)} />
+        </ListItemIcon>
+        <ListItemText primary={status} />
+      </ListItem>
+    ))}
+  </List>
+
+ 
+</Collapse>
+
+
+          {/* Filter Buttons */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: "10px",
+            }}
+          >
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                setSelectedMachines([]);
+                setSelectedStatus([]);
+              }}
+            >
+              Clear
+            </Button>
+            <Button variant="contained" size="small" onClick={handleFilterClose}>
+              Done
+            </Button>
+          </div>
+        </div>
+      </Popover>
 </div>
 
   );

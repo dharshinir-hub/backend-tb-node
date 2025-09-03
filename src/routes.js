@@ -13,11 +13,13 @@ import ReasonRegistration from './app/Pages/Reasonregistration/reasonreg';
 import MachineList from './app/Pages/Machines/machine';
 import Company from './app/Pages/Company/company';
 import CurrentShift from './app/Pages/CurrentShift/CurrentShift';
-import Alarm from './app/Pages/Alarm/Alarm';
+import Analytics from './app/Pages/Analytics/analytics';
 import Allocation from './app/Pages/Allocations/allocation';
 import OperatorDetails from './app/Pages/Operatordetails/operatordeatil'
 import GrafanaEmbed from './app/Pages/MachinesMM/machinemm';
 import MachineReport from './app/Pages/Reports/report';
+import MachineUtilization from './app/Pages/Machineutilization/machineutilization';
+
 // Import other components for your routes
 
 const AppRoutes = () => (
@@ -34,11 +36,13 @@ const AppRoutes = () => (
          <Route path="/machines" element={<MachineList/>} />
          <Route path="/company" element={<Company/>} />
          <Route path="/CurrentShift" element={<CurrentShift/>} />
-         <Route path="/Alarm" element={<Alarm/>} />
+         <Route path="/analytics" element={<Analytics/>} />
          <Route path="/allocation" element={<Allocation/>} />
          <Route path="/operator-details" element={<OperatorDetails/>} />
         <Route path="/machinemm" element={<GrafanaEmbed/>} />
          <Route path="/report" element={<MachineReport/>} />
+           <Route path="/machineutilization" element={<MachineUtilization />} />
+
 
 
         {/* Define other routes here */}

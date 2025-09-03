@@ -55,7 +55,7 @@ const handleConfigurationClick = () => {
     ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
         { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
     { path: "/machinemm", name: "Machines", icon: <BiSolidDashboard /> },
-    { path: "/Alarm", name: "Analytics", icon: <BiChip /> },
+    { path: "/analytics", name: "Analytics", icon: <BiChip /> },
     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
     { path: "/report", name: "Reports", icon: <BiSolidDashboard /> },
     { path: "/andon-dashboard", name: "Andon Dashboard", icon: <BiSolidDashboard /> },
@@ -64,7 +64,7 @@ const handleConfigurationClick = () => {
     { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
     { path: "/reason-registration", name: "Reason", icon: <MdList /> },
     { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
-    { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
+    { path: "/operatordeatil", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
     
 
 
@@ -100,7 +100,7 @@ const handleConfigurationClick = () => {
             <span className="menu-icon">&#9776;</span>
           </Button>
           <img className="Logo" src={logo} alt="Logo" />
-          <span style={{ fontWeight: '500', fontSize: '20px' }}>Smart Supervisor</span>
+         <span style={{ fontWeight: '500', fontSize: '20px' }}></span>
           <div className="rightsidecontents">
             <span className="person" style={{
               backgroundColor: 'black',
@@ -160,7 +160,7 @@ const handleConfigurationClick = () => {
 
       <main
         className="main-content"
-        style={{ paddingLeft: isOpen ? '230px' : '100px', transition: 'padding-left 0.3s ease' }}
+        style={{ paddingLeft: isOpen ? '230px' : '90px', transition: 'padding-left 0.3s ease' }}
       >
         <Outlet />
       </main>

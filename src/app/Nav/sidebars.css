@@ -1,28 +1,32 @@
 /* Sidebar */
 .sidebar {
-  /* //height: calc( 96vh - 50px); */
-  background-color:#f7f7f7; /* Light blue color */
+  background-color: #f7f7f7;
   color: black;
   transition: width 0.3s;
   display: flex;
   flex-direction: column;
   padding: 5px;
-  margin-top: 30px;
-  height: 100vh;
+  height: 100vh;         /* use viewport height instead of 210vh */
   box-sizing: border-box;
   overflow-y: auto;
   scrollbar-width: thin;
-  left:0;
-  position: absolute;
+  position: fixed;        /* fixed keeps it aligned with navbar */
+  top: 50px;              /* height of your navbar */
+  left: 0;
+  margin-top: 0;          /* ⬅️ remove margin */
   z-index: 999;
 }
 
-.sidebar-open {
-  /* width: 192px; */
+
+/* Sidebar default styles */
+.sidebar {
+/*  width: 60px;  closed width */
 }
 
-/* .sidebar-closed {
-  /* width: 60px; */
+/* When sidebar is open */
+.sidebar-open {
+/*  width: 180px; reduced open width */
+}
 
 
 .top_section {
