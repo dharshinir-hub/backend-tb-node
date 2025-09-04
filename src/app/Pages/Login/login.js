@@ -50,8 +50,8 @@ function LoginForm() {
       localStorage.setItem('firstName', JSON.stringify(userResponse.firstName));
       localStorage.setItem('lastName', JSON.stringify(userResponse.lastName));
 
-      const secondUsername = "tenant@thingsboard.org";
-      const secondPassword = "tenant";
+      const secondUsername = "officeuser@gmail.com";
+      const secondPassword = "yantra";
       const secondResponse = await Loginapi(secondUsername, secondPassword);
       localStorage.setItem('email1', secondUsername);
       localStorage.setItem('token1', secondResponse.token);
@@ -73,7 +73,7 @@ function LoginForm() {
     <div
       className="container-fluid"
       style={{
-        backgroundImage: `url(${window._env_.SERVER_URL}api/images/public/lUb2coqs3KgjaQuzKBjWj3cS9OrlrTnt)`,
+        backgroundImage: `url(${window._env_.SERVER_URL}api/images/public/76qC9HzBmPBNFqTBaHGwF40Wka0Ri03C)`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         minHeight: "100vh",
@@ -87,7 +87,7 @@ function LoginForm() {
         <Card className="login-card">
           <div style={{ padding: '15px 0' }}>
             <img
-              src={`${window._env_.SERVER_URL}api/images/public/5XqkTd5jus0PQVcW7gauNgtES6WMa4XN`}
+              src={`${window._env_.SERVER_URL}api/images/public/b0coVWpU9C1Ztg9CrjtkHgi87ia4gFxH`}
               alt="yantra-logo.png"
               style={{ maxWidth: '300px', display: 'block', margin: '0 auto', height: '80px' }}
             />
