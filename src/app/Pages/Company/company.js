@@ -598,7 +598,7 @@ const updateGrafanaURL = () => {
 
     `${window._env_.GRAFANA_URL}d/dd09d336-9d3f-44b7-81bd-5fe2179ac504/lower-cycletime-dashboard-4?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
 
-    `${window._env_.GRAFANA_URL}d/f34170d9-5263-4837-9805-e1cda5cd5abd/mm-production-utilization-2-copy?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`
+    `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`
   ];
 
   setGrafanaUrls(grafanaUrls);

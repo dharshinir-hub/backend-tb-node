@@ -281,7 +281,7 @@ const handleTabClick = (tab, machine) => {
       `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy`,
 
     timeline:
-      `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c0/valve-c-56-timeline-copy`,
+      `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy`,
 
     diagnostics: `http://example.com/diagnostics`,
 
@@ -1217,7 +1217,7 @@ const filteredMachines = machineList.filter((m) => {
       </div>
 
       {/* Date Picker + Shift Dropdown */}
-{(activeTab === "overview" ) && (
+{(activeTab === "overview") && (
         <div style={{ marginTop: "15px", display: "flex", gap: "15px" }}>
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DatePicker
