@@ -50,8 +50,8 @@ function LoginForm() {
       localStorage.setItem('firstName', JSON.stringify(userResponse.firstName));
       localStorage.setItem('lastName', JSON.stringify(userResponse.lastName));
 
-      const secondUsername = "officeuser@gmail.com";
-      const secondPassword = "yantra";
+      const secondUsername = "pms@gmail.com";
+      const secondPassword = "pmspms";
       const secondResponse = await Loginapi(secondUsername, secondPassword);
       localStorage.setItem('email1', secondUsername);
       localStorage.setItem('token1', secondResponse.token);
