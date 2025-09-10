@@ -655,7 +655,7 @@ console.log('All Devices Data:', allDevicesData);
             "ProductionCount": totalBarDataSum || 0
           };
           console.log('statuscount', statusCounts);
-          const iframeurlsss = `${window._env_.GRAFANA_URL}/d/a612538d-e25a-4c99-a704-95a50265dc43/legends-total?orgId=1&from=${epochRange.from}&to=${epochRange.to}&var-data=${encodeURIComponent(JSON.stringify(statusCounts))}&kiosk&theme=light`;
+          const iframeurlsss = `${window._env_.GRAFANA_URL}d/a612538d-e25a-4c99-a704-95a50265dc43/legends-total?orgId=1&from=${epochRange.from}&to=${epochRange.to}&var-data=${encodeURIComponent(JSON.stringify(statusCounts))}&kiosk&theme=light`;
           setiframeurlsss(iframeurlsss);
         })
       
@@ -892,7 +892,7 @@ console.log('All Devices Data:', allDevicesData);
       const token = localStorage.getItem('token');
       const customerId1 = localStorage.getItem('CustomerID');
       const cleanedCustomerId = cleanCustomerId(customerId1);
-      const newIframeUrl = `${window._env_.GRAFANA_URL}/d/e40cb218-8486-4c8e-9d81-b4bf47d7a768/oee-analysis?orgId=1&var-device_id=${deviceId}&var-token=${token}&var-customer_id=${cleanedCustomerId}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
+      const newIframeUrl = `${window._env_.GRAFANA_URL}d/e40cb218-8486-4c8e-9d81-b4bf47d7a768/oee-analysis?orgId=1&var-device_id=${deviceId}&var-token=${token}&var-customer_id=${cleanedCustomerId}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
       setOeeIframeUrl(newIframeUrl);
     } catch (error) {
       console.error('Error fetching OEE data:', error);
@@ -1007,7 +1007,7 @@ console.log('All Devices Data:', allDevicesData);
 
                   const fromForIframe = epochRange.from != null ? epochRange.from : defaultFrom;
                   const toForIframe = epochRange.to != null ? epochRange.to : defaultTo;
-                  const iframeUrl = `${window._env_.GRAFANA_URL}/d/e82e4712-5af0-43cf-b7eb-7c0fc940f378/machine-card?orgId=1&var-data=${machineStatus}&var-data1=${encodeURIComponent(barDataSum)}&var-data2=${liveOperator} &var-data3=${liveComponent}&from=${fromForIframe}&to=${toForIframe}&kiosk&theme=light`;
+                  const iframeUrl = `${window._env_.GRAFANA_URL}d/e82e4712-5af0-43cf-b7eb-7c0fc940f378/machine-card?orgId=1&var-data=${machineStatus}&var-data1=${encodeURIComponent(barDataSum)}&var-data2=${liveOperator} &var-data3=${liveComponent}&from=${fromForIframe}&to=${toForIframe}&kiosk&theme=light`;
 
                   return (
                     <div key={deviceId || index} className="device-panel">

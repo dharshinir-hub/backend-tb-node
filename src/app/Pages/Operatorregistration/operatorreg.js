@@ -191,8 +191,8 @@ const OperatorRegistration = () => {
                                     <TableCell>User Name</TableCell>                                   
                                     <TableCell>User ID</TableCell>                                   
                                     <TableCell>Role</TableCell>
-                                    <TableCell>Experience Level</TableCell>
-                                    <TableCell>Languages</TableCell>
+                                    {/* <TableCell>Experience Level</TableCell> */}
+                                    {/* <TableCell>Languages</TableCell> */}
                                     <TableCell>Action</TableCell>
                                 </TableRow>
                             </TableHead>
@@ -202,12 +202,12 @@ const OperatorRegistration = () => {
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operatorname || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operatorid || '---'}</TableCell>                                        
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.mode || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                        {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                             {row.experiencelevel || '---'}
                                         </TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                             {row.language || '---'}
-                                        </TableCell>
+                                        </TableCell> */}
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                             <Tooltip title="Edit Operator">
                                                 <IconButton onClick={() => handleOpenEditDialog(row)}> 

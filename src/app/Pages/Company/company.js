@@ -37,10 +37,8 @@ const CompanyDashboard = () => {
   const [to, setTo] = useState(null);
   const [lowerUtilization, setLowerUtilization] = useState({});
 const [selectedDate, setSelectedDate] = useState((dayjs) );
-const [selectedShift, setSelectedShift] = useState(() => {
-  const savedShift = localStorage.getItem("selectedShift");
-  return savedShift ? savedShift : "allshift";
-});
+const [selectedShift, setSelectedShift] = useState(() => getCurrentShift(shifts));
+
 const [selectedMachineId, setSelectedMachineId] = useState(null);
   const [filteredDevices, setFilteredDevices] = useState([]);
 
@@ -58,14 +56,18 @@ useEffect(() => {
     updateGrafanaURL();
   }, [selectedDevice, formattedUtilization, formattedTime, selectedShiftData, fromTime, toTime, from, to]);
 
-  useEffect(() => {
-    if (shifts.length > 0) {
-      const { from, to } = getShiftTimes(shifts, selectedShift);
-      setFrom(from);
-      setTo(to);
-      setShiftTimingForSelected();
-    }
-  }, [shifts, selectedShift]);
+ useEffect(() => {
+  if (shifts.length > 0 && selectedDate) {
+    const { from, to } = getShiftTimes(shifts, selectedShift, selectedDate);
+    console.log('From', from, 'To', to); // ✅ now correctly logs
+    setFrom(from);
+    setTo(to);
+    setShiftTimingForSelected(); // make sure this uses latest from/to if needed
+  }
+}, [shifts, selectedShift, selectedDate]);
+
+
+
 
   const fetchShifts = async () => {
     try {
@@ -76,6 +78,45 @@ useEffect(() => {
       console.error('Failed to fetch shifts', err);
     }
   };
+
+  console.log('Fetched Shifts', shifts);
+
+
+   // ⏰ Find the current shift based on start_time / end_time
+  function getCurrentShift(shifts) {
+  if (!Array.isArray(shifts) || shifts.length === 0) return null;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  for (const s of shifts) {
+    const [fromH, fromM] = s.start_time.split(":").map(Number);
+    const [toH, toM] = s.end_time.split(":").map(Number);
+
+    const fromMinutes = fromH * 60 + fromM;
+    const toMinutes = toH * 60 + toM;
+
+    // normal or overnight
+    if (
+      (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
+      (fromMinutes > toMinutes &&
+        (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
+    ) {
+      return String(s.shift_no);
+    }
+  }
+
+  return String(shifts[0].shift_no);
+}
+
+
+  // set default shift only once when data arrives
+    useEffect(() => {
+    if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
+      const cur = getCurrentShift(shifts); // string
+      setSelectedShift(cur);
+    }
+    // intentionally omit selectedShift from deps so this runs once when shifts load
+  }, [shifts]);
 
   const fetchDevices = async () => {
     try {
@@ -197,46 +238,56 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
   }
 
   const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
-  const nextDayStr = dayjs(selectedDate).add(1, 'day').format("YYYY-MM-DD");
+  const nextDayStr = dayjs(selectedDate).add(1, "day").format("YYYY-MM-DD");
 
-  let from = null;
-  let to = null;
+  // normalize safely
+  const normalizedShift =
+    typeof selectedShift === "string"
+      ? selectedShift.trim().toLowerCase()
+      : selectedShift == null
+      ? ""
+      : String(selectedShift);
 
-  const normalizedShift = selectedShift.trim().toLowerCase();
+  // if no shift selected (empty string), return nulls
+  if (normalizedShift === "") return { from: null, to: null };
 
-  if (normalizedShift === 'allshift' || normalizedShift === 'all shift') {
-    const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
+  // keep allshift logic as-is
+  if (normalizedShift === "allshift" || normalizedShift === "all shift") {
+    const sortedShifts = [...shifts].sort(
+      (a, b) => Number(a.shift_no) - Number(b.shift_no)
+    );
     const firstShiftStart = sortedShifts[0]?.start_time;
-    const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
+    const lastShiftEnd =
+      sortedShifts[sortedShifts.length - 1]?.end_time;
 
-
-    
     if (firstShiftStart && lastShiftEnd) {
       const fromStr = `${todayStr}T${firstShiftStart}`;
-      const toStr = lastShiftEnd <= firstShiftStart
-        ? `${nextDayStr}T${lastShiftEnd}`
-        : `${todayStr}T${lastShiftEnd}`;
+      const toStr =
+        lastShiftEnd <= firstShiftStart
+          ? `${nextDayStr}T${lastShiftEnd}`
+          : `${todayStr}T${lastShiftEnd}`;
 
-      from = new Date(fromStr).getTime(); // ✅ ms
-      to = new Date(toStr).getTime();     // ✅ ms
+      return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
     }
-  } else {
-    const shiftData = shifts.find((s) => String(s.shift_no) === String(selectedShift));
-    if (shiftData) {
-      const shiftStart = shiftData.start_time;
-      const shiftEnd = shiftData.end_time;
 
-      const fromStr = `${todayStr}T${shiftStart}`;
-      const toStr = shiftEnd <= shiftStart
-        ? `${nextDayStr}T${shiftEnd}`
-        : `${todayStr}T${shiftEnd}`;
-
-      from = new Date(fromStr).getTime(); // ✅ ms
-      to = new Date(toStr).getTime();     // ✅ ms
-    }
+    return { from: null, to: null };
   }
 
-  return { from, to }; // ✅ both in ms
+  // single shift selected (match by shift_no)
+  const shiftData = shifts.find(
+    (s) => String(s.shift_no) === normalizedShift
+  );
+
+  if (!shiftData) return { from: null, to: null };
+
+  const shiftStart = shiftData.start_time;
+  const shiftEnd = shiftData.end_time;
+
+  const fromStr = `${todayStr}T${shiftStart}`;
+  const toStr =
+    shiftEnd <= shiftStart ? `${nextDayStr}T${shiftEnd}` : `${todayStr}T${shiftEnd}`;
+
+  return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
 }
 
 
@@ -322,10 +373,6 @@ useEffect(() => {
         ? devices
         : devices.filter(d => d.id?.id === selectedDevice);
 
-    // Toggle these while debugging:
-    const useLocalHour = true;      // true => bucket by local day+hour; false => UTC epoch-hour
-    const includeMissingHoursAsZero = false; // set true if you want hours with NO samples counted as 0
-
     // Helper: normalize numeric string like "4%", " 4.0 " -> 4
     const toNumber = (v) => {
       if (v === null || v === undefined) return 0;
@@ -338,11 +385,9 @@ useEffect(() => {
       if (!parsed || typeof parsed !== "object") return null;
       if (parsed[machine.name]) return parsed[machine.name];
       if (machine.id?.id && parsed[machine.id.id]) return parsed[machine.id.id];
-      // If parsed itself looks like an entry
       if ("utilization" in parsed || "expected_utilization" in parsed || "expected" in parsed) {
         return parsed;
       }
-      // Otherwise scan for first nested object that looks like an entry
       for (const k of Object.keys(parsed)) {
         const v = parsed[k];
         if (v && typeof v === "object" && ("utilization" in v || "expected_utilization" in v || "expected" in v)) {
@@ -365,124 +410,61 @@ useEffect(() => {
 
           const rows = Array.isArray(resp?.lowerutilization) ? resp.lowerutilization : [];
           if (rows.length === 0) {
-            results[machine.name] = { lower_utilization: 0, lower_expected_utilization: 0 };
+            results[machine.name] = {};
             return;
           }
 
-          // Build hour buckets (string key for local day+hour avoids different days colliding)
-          const perHour = new Map(); // hourKey -> { ts, util, expected }
-
-          for (const row of rows) {
+          // ✅ pick latest row only
+          let latestRow = rows.reduce((latest, row) => {
             const tsNum = Number(row.ts);
-            if (!Number.isFinite(tsNum)) continue;
+            return (!latest || tsNum > Number(latest.ts)) ? row : latest;
+          }, null);
 
-            let parsed;
-            try {
-              parsed = typeof row.value === "string" ? JSON.parse(row.value) : row.value;
-            } catch (err) {
-              // if parsing fails, skip this row
-              console.warn("failed parse row.value", row.value, err);
-              continue;
-            }
-
-            const dev = extractDeviceEntry(parsed, machine);
-            if (!dev) continue;
-
-            // Choose hour key: local day+hour or UTC epoch-hour
-            let hourKey;
-            if (useLocalHour) {
-              const d = new Date(tsNum);
-              // e.g. "2025-8-26-14" (year-month-day-hour) — avoids mixing same hour on different days
-              hourKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}-${d.getHours()}`;
-            } else {
-              hourKey = String(Math.floor(tsNum / 3600000)); // epoch hour (UTC)
-            }
-
-            const current = perHour.get(hourKey);
-            if (!current || tsNum > current.ts) {
-              const util = toNumber(dev.utilization ?? dev.util ?? dev.u ?? 0);
-              const expected = toNumber(dev.expected_utilization ?? dev.expected ?? dev.expectedUtilization ?? 0);
-              perHour.set(hourKey, { ts: tsNum, util, expected });
-            }
+          if (!latestRow) {
+            results[machine.name] = {};
+            return;
           }
 
-          // If you want to include hours that had NO samples as zeros, compute number of hours in range
-          let hoursToConsider = Array.from(perHour.keys());
-          if (includeMissingHoursAsZero) {
-            const fromTs = Number(from);
-            const toTs = Number(to);
-            const startHour = useLocalHour
-              ? Math.floor((new Date(fromTs).getTime() - new Date(fromTs).getTimezoneOffset() * 60000) / 3600000)
-              : Math.floor(fromTs / 3600000);
-            const endHour = useLocalHour
-              ? Math.floor((new Date(toTs).getTime() - new Date(toTs).getTimezoneOffset() * 60000) / 3600000)
-              : Math.floor(toTs / 3600000);
-            const allHourKeys = [];
-            for (let h = startHour; h <= endHour; h++) {
-              allHourKeys.push(String(h));
-            }
-            // Map missing keys to zero entries (only for the UTC-epochKey mode). For local-hour mode we would need to generate the string keys similarly.
-            if (!useLocalHour) {
-              for (const hk of allHourKeys) {
-                if (!perHour.has(hk)) perHour.set(hk, { ts: Number(hk) * 3600000, util: 0, expected: 0 });
-              }
-              hoursToConsider = Array.from(perHour.keys());
-            } else {
-              // For local mode, easier to skip this complexity while debugging; you can enable includeMissingHoursAsZero=false for local mode
-            }
+          let parsed;
+          try {
+            parsed = typeof latestRow.value === "string" ? JSON.parse(latestRow.value) : latestRow.value;
+          } catch (err) {
+            console.warn("failed parse row.value", latestRow.value, err);
+            results[machine.name] = {};
+            return;
           }
 
-          // Compute averages across per-hour latest samples (only hours that have at least one sample)
-          let sumU = 0, sumE = 0, cnt = 0;
-          for (const { util, expected } of perHour.values()) {
-            // we count that hour if we have a finite number (including 0)
-            if (Number.isFinite(util) && Number.isFinite(expected)) {
-              sumU += util;
-              sumE += expected;
-              cnt += 1;
-            }
+          const dev = extractDeviceEntry(parsed, machine);
+          if (!dev) {
+            results[machine.name] = {};
+            return;
           }
 
-          const avgU = cnt ? +(sumU / cnt).toFixed(1) : 0;
-          const avgE = cnt ? +(sumE / cnt).toFixed(0) : 0;
-
-          results[machine.name] = {
-            lower_utilization: avgU,
-            lower_expected_utilization: avgE,
-          };
-
-          // Attach debug info for quick inspection (remove in production)
-          results[machine.name]._debug = {
-            rowsSample: rows.slice(0, 6),
-            hoursCount: perHour.size,
-            perHourSample: Array.from(perHour.entries()).slice(0, 6)
-          };
+          // ✅ Store full latest JSON
+          results[machine.name] = dev;
 
         } catch (err) {
           console.error("Error for", machine.name, err);
-          results[machine.name] = { lower_utilization: 0, lower_expected_utilization: 0 };
+          results[machine.name] = {};
         }
       })
     );
 
-    // After building results for all machines
-// Filter only machines where lower_utilization < lower_expected_utilization
-const filteredResults = Object.fromEntries(
-  Object.entries(results).filter(([machine, data]) => {
-    return data.lower_utilization < data.lower_expected_utilization;
-  })
-);
+    // ✅ Filter only machines where utilization < expected
+    const filteredResults = Object.fromEntries(
+      Object.entries(results).filter(([_, dev]) => {
+        const util = toNumber(dev.utilization ?? dev.util ?? dev.u ?? 0);
+        const expected = toNumber(dev.expected_utilization ?? dev.expected ?? dev.expectedUtilization ?? 0);
+        return util < expected;
+      })
+    );
 
-// Save ALL data
-setFinalUtilizationData(filteredResults);
-window.FinalLowerUtilization = results;
+    setFinalUtilizationData(filteredResults);
+    window.FinalLowerUtilization = results;
+    window.FilteredLowerUtilization = filteredResults;
 
-console.log("✅ All Lower utilization:", results);
-console.log("⚠️ Filtered (util < expected):", filteredResults);
-
-// If you also want to store filtered globally:
-window.FilteredLowerUtilization = filteredResults;
-
+    console.log("✅ All latest lower utilization JSON:", results);
+    console.log("⚠️ Filtered (util < expected):", filteredResults);
   };
 
   fetchUtilizationData();
@@ -596,7 +578,7 @@ const updateGrafanaURL = () => {
 
     `${window._env_.GRAFANA_URL}d/f862d350-2f94-45a6-a561-f7622a57bf7a/piecharts-dasboard-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
 
-    `${window._env_.GRAFANA_URL}d/dd09d336-9d3f-44b7-81bd-5fe2179ac504/lower-cycletime-dashboard-4?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+    `${window._env_.GRAFANA_URL}d-solo/dd09d336-9d3f-44b7-81bd-5fe2179ac504/lower-cycletime-dashboard-4?orgId=1&panelId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
 
     `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`
   ];
@@ -685,9 +667,9 @@ const handleViewMachineCard = (deviceName) => {
 
   return (
     <div style={{ padding: '30px', background: '#fefcfcff', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px', flexWrap: 'wrap' }} className='company-dashboard'>
         <h4><b>Company Dashboard</b></h4>
-        <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
 
          <FormControl 
   size="small" 
@@ -711,26 +693,26 @@ const handleViewMachineCard = (deviceName) => {
 </FormControl>
 
 
-          <FormControl
+        <FormControl
   size="small"
-  style={{ minWidth: 160, background: '#fff' }}
   variant="outlined"
+  sx={{ minWidth: 160, backgroundColor: "#fff" }}
 >
   <InputLabel id="shifts-label">Shifts</InputLabel>
   <Select
     labelId="shifts-label"
-    value={selectedShift}
+    value={selectedShift || ""}
     onChange={(e) => setSelectedShift(e.target.value)}
-    label="Shifts"   // ✅ fixes label overlap
+    label="Shifts"
   >
-    <MenuItem value="allshift">All Shifts</MenuItem>
     {shifts.map((s) => (
-      <MenuItem key={s.shift_no} value={s.shift_no}>
+      <MenuItem key={s.id} value={s.shift_no}>
         {s.shift_name || `Shift ${s.shift_no}`}
       </MenuItem>
     ))}
   </Select>
 </FormControl>
+
 
             <LocalizationProvider dateAdapter={AdapterDayjs}>
   <DatePicker
@@ -754,14 +736,8 @@ const handleViewMachineCard = (deviceName) => {
 
 
 
-<div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "70% 30%", // Left side wide, right side small
-    gap: "10px",
-    height: "190vh",
-  }}
->
+<div className='two-column-layout'>
+
   {/* Left Column */}
   <div
     style={{
@@ -952,15 +928,35 @@ const handleViewMachineCard = (deviceName) => {
       </h3>
 
     {/* Cycle Time Section */}
- <div style={{ width: "100%", height: "210px", overflowY: "auto" }}>
+<div style={{ width: "100%", height: "210px", overflowY: "auto" }}>
   {(() => {
     // Normalize allMachinesData into a consistent object
-    let machines =
-      allMachinesData && !Array.isArray(allMachinesData) && typeof allMachinesData === "object"
-        ? (allMachinesData.machinename ? { [allMachinesData.machinename]: allMachinesData } : allMachinesData)
-        : {};
+    let machines = {};
 
-    if (Object.keys(machines).length === 0) {
+    if (allMachinesData) {
+      if (!Array.isArray(allMachinesData) && typeof allMachinesData === "object") {
+        machines = allMachinesData.machinename
+          ? { [allMachinesData.machinename]: allMachinesData }
+          : allMachinesData;
+      } else if (Array.isArray(allMachinesData)) {
+        machines = allMachinesData.reduce((acc, item) => {
+          if (item && item.machinename) acc[item.machinename] = item;
+          return acc;
+        }, {});
+      }
+    }
+
+    // Filter out machines with empty object or both times as 0
+const validMachines = Object.fromEntries(
+  Object.entries(machines).filter(([_, v]) => {
+    if (!v || Object.keys(v).length === 0) return false;
+    if (v.actualTime === 0 && v.referenceTime === 0) return false;
+    return true;
+  })
+);
+
+
+    if (Object.keys(validMachines).length === 0) {
       return (
         <div
           style={{
@@ -968,7 +964,7 @@ const handleViewMachineCard = (deviceName) => {
             fontSize: "18px",
             fontWeight: "500",
             color: "#666",
-            padding: "20px 0",
+            padding: "40px 0",
           }}
         >
           No Operations
@@ -985,7 +981,7 @@ const handleViewMachineCard = (deviceName) => {
           width: "100%",
         }}
       >
-        {Object.entries(machines).map(([machineKey, v], index) => {
+        {Object.entries(validMachines).map(([machineKey, v], index) => {
           const machineDataObj = {
             machine: v.machinename,
             actualTime: v.actualTime,
@@ -995,8 +991,6 @@ const handleViewMachineCard = (deviceName) => {
           };
 
           const machineData = encodeURIComponent(JSON.stringify(machineDataObj));
-          console.log("machine data cycletime", machineDataObj, machineData);
-
           const url = `${grafanaUrls[3]}&var-cycletime=${machineData}`;
 
           return (
@@ -1018,6 +1012,7 @@ const handleViewMachineCard = (deviceName) => {
     );
   })()}
 </div>
+
 
 
   </div>

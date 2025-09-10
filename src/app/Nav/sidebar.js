@@ -7,7 +7,7 @@ import {
 } from "react-icons/bi";
 import {
   MdPowerSettingsNew, MdInsertInvitation, MdMarkunreadMailbox, MdAccountCircle,
-  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn
+  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment
 } from "react-icons/md";
 import { Tooltip } from '@mui/material';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
@@ -55,16 +55,16 @@ const handleConfigurationClick = () => {
     ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
         { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
     { path: "/machinemm", name: "Machines", icon: <BiSolidDashboard /> },
-    { path: "/analytics", name: "Analytics", icon: <BiChip /> },
-    { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
+    // { path: "/analytics", name: "Analytics", icon: <BiChip /> },
+    // { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
     { path: "/report", name: "Reports", icon: <BiSolidDashboard /> },
-    { path: "/andon-dashboard", name: "Andon Dashboard", icon: <BiSolidDashboard /> },
+    // { path: "/andon-dashboard", name: "Andon Dashboard", icon: <BiSolidDashboard /> },
     { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
     { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
     { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
     { path: "/reason-registration", name: "Reason", icon: <MdList /> },
     { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
-    { path: "/operatordeatil", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
+    { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
     
 
 
@@ -160,7 +160,7 @@ const handleConfigurationClick = () => {
 
       <main
         className="main-content"
-        style={{ paddingLeft: isOpen ? '230px' : '90px', transition: 'padding-left 0.3s ease' }}
+        style={{ paddingLeft: isOpen ? '180px' : '90px', transition: 'padding-left 0.3s ease' }}
       >
         <Outlet />
       </main>

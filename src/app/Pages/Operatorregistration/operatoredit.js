@@ -59,8 +59,8 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
         operatorname: '',
         operatorid: '',
         mode: '',
-        language:'',
-        experiencelevel: ''
+        // language:'',
+        // experiencelevel: ''
     }), []);
    
     const [shiftForm, setShiftForm] = useState(defaultShiftForm);
@@ -114,8 +114,8 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
           operatorname: shiftForm.operatorname,
           operatorid: shiftForm.operatorid,
           mode: shiftForm.mode,
-          language: shiftForm.language,
-          experiencelevel: shiftForm.experiencelevel,
+          // language: shiftForm.language,
+          // experiencelevel: shiftForm.experiencelevel,
         };
     
         existingShifts[existingShiftIndex] = updatedShiftData;
@@ -312,9 +312,15 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                       },
                     }}
                   />
-                  {errors.operatorid && <div className="mat-error">{errors.operatorid.message}</div>} {/* Changed to div and mat-error */}
+                  {errors.operatorid && <div className="mat-error">{errors.operatorid.message}</div>} 
+                  
+                  
+                  {/* Changed to div and mat-error */}
                 </div>
-                <div className={`form_field  ${errors.experiencelevel ? 'error-outline' : ''}`}>
+
+
+
+                {/* <div className={`form_field  ${errors.experiencelevel ? 'error-outline' : ''}`}>
                   <TextField
                   inputRef={componentNameRef}
                     {...register("experiencelevel", { required: "Experience Level is required",
@@ -370,9 +376,11 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                       },
                     }}
                   />
-                  {errors.experiencelevel && <div className="mat-error">{errors.experiencelevel.message}</div>} {/* Changed to div and mat-error */}
-                </div>
-                <div className={`form_field  ${errors.language ? 'error-outline' : ''}`}>
+                  {errors.experiencelevel && <div className="mat-error">{errors.experiencelevel.message}</div>}
+                </div>    */}
+
+
+                {/* <div className={`form_field  ${errors.language ? 'error-outline' : ''}`}>
                   <TextField
                     {...register("language", { required: "Language is required",validate: value =>
                       /^[a-zA-Z0-9\s]*$/.test(value) || "Special characters are not allowed",maxLength: {
@@ -421,8 +429,10 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                       },
                     }}
                   />
-                  {errors.language && <div className="mat-error">{errors.language.message}</div>} {/* Changed to div and mat-error */}
-                </div>
+                  {errors.language && <div className="mat-error">{errors.language.message}</div>} 
+                </div> */}
+
+                
                 <div className={`form_field  ${errors.mode ? 'error-outline' : ''}`}>
                 <CustomDaySelect
                     {...register("mode", { required: "Mode is required" })}
@@ -439,6 +449,8 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                   {errors.mode && <div className="mat-error">Mode is required</div>} {/* Changed to div and mat-error */}
                 </div>
               </div>
+
+
                         </LocalizationProvider>
                         <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
                             <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning">

@@ -194,10 +194,10 @@ const ComponentRegistration = () => {
                                 <TableRow>
                                     <TableCell>Component Name</TableCell>
                                     <TableCell>Component Number</TableCell>
-                                    <TableCell>Job Card</TableCell>
-                                    <TableCell>Drawing Code</TableCell>
-                                    <TableCell>Mould Name</TableCell>
-                                    <TableCell>Mould Number</TableCell>
+                                    {/* <TableCell>Route Card</TableCell> */}
+                                    {/* <TableCell>Drawing Code</TableCell> */}
+                                    {/* <TableCell>Mould Name</TableCell> */}
+                                    {/* <TableCell>Mould Number</TableCell> */}
                                     <TableCell>Factor</TableCell>
                                     <TableCell>Factor Value</TableCell>
                                     <TableCell>Cycle Time</TableCell>
@@ -211,10 +211,10 @@ const ComponentRegistration = () => {
                                     <TableRow key={index}>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.component_name || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.component_number || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.jobcard || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.drawingcode || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operation_name || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operation_number || '---'}</TableCell>
+                                        {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.jobcard || '---'}</TableCell> */}
+                                        {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.drawingcode || '---'}</TableCell> */}
+                                        {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operation_name || '---'}</TableCell>
+                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operation_number || '---'}</TableCell> */}
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.factor || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.factorval || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.cycle_time || '---'}</TableCell>

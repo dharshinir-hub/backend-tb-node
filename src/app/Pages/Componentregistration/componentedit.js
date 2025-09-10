@@ -458,7 +458,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                 </div>
 
 
-                {/* Operation Number Field */}
+                {/* Operation Number Field 
                 <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>
                   <TextField
                    inputRef={modeSelectRef}
@@ -517,9 +517,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     }}
                   />
                   {errors.operation_number && <div className="mat-error">{errors.operation_number.message}</div>}
-                </div>
+                </div>   */}
 
-                {/* Operation Name Field */}
+                {/* Operation Name Field 
              
                  <div className={`form_field  ${errors.operation_name ? 'error-outline' : ''}`}>
                   <TextField
@@ -576,7 +576,11 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                  {errors.operation_name && (
   <div className="mat-error">{errors.operation_name.message}</div>
 )}
-                </div>
+                </div>  */}
+
+
+
+
                 <div className={`form_field  ${errors.factorval ? 'error-outline' : ''}`}>
                   <TextField
                     {...register("factorval", {
@@ -599,7 +603,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       }
                     })}
                     onBlur={() => trigger('factorval')}
-                    label="Factor Value(No.of cavity)"
+                    label="Factor Value"
                     type="number"
                     name="factorval"
                     value={shiftForm.factorval}
@@ -852,7 +856,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                 </div>
               
                                
-                {/* Operation Number Field */}
+                {/* Operation Number Field 
                 <div className={`form_field ${errors.jobcard ? 'error-outline' : ''}`}>
                   <TextField
                     {...register("jobcard", { required: "Job Card is required",
@@ -904,7 +908,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     }}
                   />
                   {errors.jobcard && <div className="mat-error">{errors.jobcard.message}</div>}
-                </div>
+                </div>  
+
+
                 <div className={`form_field ${errors.drawingcode ? 'error-outline' : ''}`}>
                   <TextField
                     {...register("drawingcode", { required: "Drawingcode is required",
@@ -960,7 +966,10 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     }}
                   />
                   {errors.drawingcode && <div className="mat-error">{errors.drawingcode.message}</div>}
-                </div>
+                </div>  */}
+
+
+
              {/* Rest of the form fields remain the same */}
               </div>
             </LocalizationProvider>

@@ -299,13 +299,13 @@ const MachineCard = () => {
         // const toyesterday = new Date(toTime);
         // toyesterday.setDate(toyesterday.getDate() - 1);
         if(deviceNameParam!='ROTOG'){
-          const baseGrafanaUrl = `${window._env_.GRAFANA_URL}/d/e40cb218-8486-4c8e-9d81-b4bf47d8978/machine-status`;
+          const baseGrafanaUrl = `${window._env_.GRAFANA_URL}d/e40cb218-8486-4c8e-9d81-b4bf47d8978/machine-status`;
           const fullUrl = `${baseGrafanaUrl}?orgId=1&var-data1=${encodedData}&var-data2=${encodedBarData}&var-data3=${encodedOeeData}&var-data4=${encodedTotalShotsData}&var-data5=${downtimedatas}&var-device_id=${deviceId1}&var-token=${token}&var-from=${fromYesterdayEpoch}&var-to=${toYesterdayEpoch}&from=${fromTime}&to=${toTime}&kiosk&theme=light`;
           setGrafanaUrl(fullUrl);
           console.log('fullurl',fullUrl)
         }
         else{
-          const baseGrafanaUrl = `${window._env_.GRAFANA_URL}/d/f7aef44e-5c9d-4ff8-8c73-386d4fb908ec/machine-status-roto`;
+          const baseGrafanaUrl = `${window._env_.GRAFANA_URL}d/f7aef44e-5c9d-4ff8-8c73-386d4fb908ec/machine-status-roto`;
           const fullUrl = `${baseGrafanaUrl}?orgId=1&var-data1=${encodedData}&var-data2=${encodedBarData}&var-data3=${encodedOeeData}&var-data4=${encodedTotalShotsData}&var-data5=${downtimedatas}&var-device_id=${deviceId1}&var-token=${token}&var-from=${fromYesterdayEpoch}&var-to=${toYesterdayEpoch}&from=${fromTime}&to=${toTime}&kiosk&theme=light`;
           setGrafanaUrl(fullUrl);
           console.log('fullurl',fullUrl)

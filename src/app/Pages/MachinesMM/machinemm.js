@@ -137,6 +137,7 @@ useEffect(() => {
 
 
   // Fetch durations for all filtered devices
+// Fetch durations for all filtered devices
 useEffect(() => {
   const fetchAllDurations = async () => {
     if (!from || !to || filteredDevices.length === 0) return;
@@ -156,12 +157,18 @@ useEffect(() => {
 
           const values = data?.total_duration || [];
           if (!Array.isArray(values) || values.length === 0) {
-            results[machine.id.id] = { run: 0, idle: 0, total: 0, firstActiveTime: null };
+            results[machine.id.id] = {
+              run: 0,
+              idle: 0,
+              total: 0,
+              disconnect: 0,
+              firstActiveTime: null
+            };
             console.log(`Machine: ${machine.name} → No data`);
             return;
           }
 
-          // ✅ Find first active time (earliest ts in range)
+          // ✅ Find first active time (earliest timestamp)
           let firstActiveTime = null;
           const earliestPoint = values.reduce((min, point) =>
             point.ts < min.ts ? point : min
@@ -174,60 +181,48 @@ useEffect(() => {
             firstActiveTime = `${hours}:${minutes}:${seconds}`;
           }
 
-          // Group latest per hour
-          const groupedByHour = {};
-          values.forEach((point) => {
-            const date = new Date(point.ts);
-            const hourKey = date.getHours();
-            if (
-              !groupedByHour[hourKey] ||
-              date > new Date(groupedByHour[hourKey].ts)
-            ) {
-              groupedByHour[hourKey] = point;
-            }
-          });
-
-          let totalRunSeconds = 0;
-          let totalIdleSeconds = 0;
-
-          // Log last value per hour
-          console.log(`\nMachine: ${machine.name} — Hourly last values:`);
-          Object.entries(groupedByHour).forEach(([hour, point]) => {
-            let durations = point.value;
-            if (typeof durations === "string") {
-              try {
-                durations = JSON.parse(durations);
-              } catch {
-                durations = {};
-              }
-            }
-            const { total_run_duration = 0, total_idle_duration = 0 } = durations;
-
-            console.log(
-              `Hour ${hour}: Run = ${total_run_duration}, Idle = ${total_idle_duration}`
-            );
-
-            totalRunSeconds += total_run_duration;
-            totalIdleSeconds += total_idle_duration;
-          });
-
-          const totalSeconds = totalRunSeconds + totalIdleSeconds;
-
-          results[machine.id.id] = {
-            run: totalRunSeconds,
-            idle: totalIdleSeconds,
-            total: totalSeconds,
-            firstActiveTime // ✅ Added here
-          };
-
-          // Log final totals
-          console.log(
-            `Final Totals for ${machine.name}: Run = ${totalRunSeconds}, Idle = ${totalIdleSeconds}, Total = ${totalSeconds}, First Active Time = ${firstActiveTime}`
+          // ✅ Get the latest point for durations
+          const latestPoint = values.reduce((latest, point) =>
+            new Date(point.ts) > new Date(latest.ts) ? point : latest
           );
 
+          let durations = latestPoint.value;
+          if (typeof durations === "string") {
+            try {
+              durations = JSON.parse(durations);
+            } catch {
+              durations = {};
+            }
+          }
+
+          const {
+            total_run_duration = 0,
+            total_idle_duration = 0,
+            total_disconnect_duration = 0
+          } = durations;
+
+          const totalSeconds = total_run_duration + total_idle_duration;
+
+          results[machine.id.id] = {
+            run: total_run_duration,
+            idle: total_idle_duration,
+            total: totalSeconds,
+            disconnect: total_disconnect_duration,
+            firstActiveTime
+          };
+
+          console.log(
+            `Final Totals for ${machine.name}: Run = ${total_run_duration}, Idle = ${total_idle_duration}, Disconnect = ${total_disconnect_duration}, Total = ${totalSeconds}, First Active Time = ${firstActiveTime}`
+          );
         } catch (error) {
           console.error("Error fetching durations for", machine.name, error);
-          results[machine.id.id] = { run: 0, idle: 0, total: 0, firstActiveTime: null };
+          results[machine.id.id] = {
+            run: 0,
+            idle: 0,
+            total: 0,
+            disconnect: 0,
+            firstActiveTime: null
+          };
         }
       })
     );
@@ -280,8 +275,8 @@ const handleTabClick = (tab, machine) => {
     overview:
       `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy`,
 
-    timeline:
-      `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy`,
+   timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?from=${from}&to=${to}`,
+
 
     diagnostics: `http://example.com/diagnostics`,
 
@@ -479,68 +474,43 @@ useEffect(() => {
           );
 
           const values = data?.utilization || [];
-          if (!Array.isArray(values) || values.length === 0) {
-            results[machine.id.id] = { avgUtilization: 0 };
-            console.log(`Machine: ${machine.name} → No utilization data`);
+
+          // 📌 Console the full array of data
+          console.log(`\n🔹 Full utilization array for ${machine.name}:`, values);
+
+             if (!Array.isArray(values) || values.length === 0) {
+            results[machine.id.id] = { utilization: 0 };
+            console.log(`⚠️ Machine: ${machine.name} → No utilization data`);
             return;
           }
 
-          // Group last value per hour
-          const groupedByHour = {};
-          values.forEach((point) => {
-            const date = new Date(point.ts);
-            const hourKey = date.getHours();
-            if (
-              !groupedByHour[hourKey] ||
-              date > new Date(groupedByHour[hourKey].ts)
-            ) {
-              groupedByHour[hourKey] = point;
-            }
-          });
+          const latestPoint = values.reduce((latest, point) =>
+            new Date(point.ts) > new Date(latest.ts) ? point : latest
+          );
 
-          // Calculate average utilization
-          let sumUtilization = 0;
-          let count = 0;
+          console.log(`✅ Latest utilization point for ${machine.name}:`, latestPoint);
 
-          console.log(`\nMachine: ${machine.name} — Hourly last utilization:`);
-          Object.entries(groupedByHour).forEach(([hour, point]) => {
-            let utilizationValue = point.value;
-            if (typeof utilizationValue === "string") {
-              utilizationValue = parseFloat(utilizationValue);
-            }
-            if (!isNaN(utilizationValue)) {
-              console.log(`Hour ${hour}: Utilization = ${utilizationValue}`);
-              sumUtilization += utilizationValue;
-              count++;
-            }
-          });
+          let utilizationValue = Number(latestPoint.value);
+          if (!isNaN(utilizationValue)) {
+            utilizationValue = parseFloat(utilizationValue.toFixed(1));
+          } else {
+            utilizationValue = 0;
+          }
 
-          const avgUtilization = count > 0 ? sumUtilization / count : 0;
-
-// ✅ Round to 1 decimal place
-const roundedAvgUtilization = parseFloat(avgUtilization.toFixed(1));
-
-results[machine.id.id] = {
-  avgUtilization: roundedAvgUtilization
-};
-
-console.log(
-  `Final Avg Utilization for ${machine.name} = ${roundedAvgUtilization}`
-);
-
-
+          results[machine.id.id] = { utilization: utilizationValue };
         } catch (error) {
-          console.error("Error fetching utilization for", machine.name, error);
-          results[machine.id.id] = { avgUtilization: 0 };
+          console.error("❌ Error fetching utilization for", machine.name, error);
+          results[machine.id.id] = { utilization: 0 };
         }
       })
     );
 
-    setMachineUtilization(results); // <-- You'll need a state for this
+    setMachineUtilization(results);
   };
 
   fetchAllUtilization();
 }, [filteredDevices, from, to]);
+
 
 
 useEffect(() => {
@@ -584,7 +554,6 @@ useEffect(() => {
             }
           }
 
-          // ✅ Store rounded to 1 decimal
           results[machine.id.id] = {
             utilizationBaseline: parseFloat(utilizationBaseline.toFixed(1))
           };
@@ -937,7 +906,7 @@ const filteredMachines = machineList.filter((m) => {
   ) : (
     filteredDevices.map((machine) => {
       const changePositive = machine.changeFromBaseline >= 0;
-      const { run = 0, idle = 0, total = 0 } =
+      const { run = 0, idle = 0, total = 0 , disconnect = 0} =
         machineDurations[machine.id.id] || {};
       const firstActiveTime =
         machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
@@ -997,8 +966,42 @@ const filteredMachines = machineList.filter((m) => {
                   color: "black",
                 }}
               >
-                Active: {formatTime(total)}
+                Run: {formatTime(run)}
               </Typography>
+              {/* <Typography
+                variant="body2"
+                color="textSecondary"
+                sx={{
+                  mr: 2,
+                  fontSize: "0.75rem",
+                  color: "black",
+                }}
+              >
+                Idle: {formatTime(idle)}
+              </Typography>
+               <Typography
+                variant="body2"
+                color="textSecondary"
+                sx={{
+                  mr: 2,
+                  fontSize: "0.75rem",
+                  color: "black",
+                }}
+              >
+                Disconnect: {formatTime(run)}
+              </Typography>
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                sx={{
+                  mr: 2,
+                  fontSize: "0.75rem",
+                  color: "black",
+                }}
+              >
+                Active: {formatTime(disconnect)}
+              </Typography> */}
+
 
               <Typography
                 variant="body2"
@@ -1055,12 +1058,12 @@ const filteredMachines = machineList.filter((m) => {
 
             {/* Utilization Rate */}
             {(() => {
-              const avgUtil =
-                machineUtilization[machine.id.id]?.avgUtilization ?? 0;
+              const utilization =
+  machineUtilization[machine.id.id]?.utilization ?? 0;
               const baseline =
                 utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0;
               const changeFromBaseline = parseFloat(
-                (avgUtil - baseline).toFixed(1)
+                (utilization - baseline).toFixed(1)
               );
               const changePositive = changeFromBaseline >= 0;
 
@@ -1089,7 +1092,7 @@ const filteredMachines = machineList.filter((m) => {
                         lineHeight: 1,
                       }}
                     >
-                      {avgUtil}%
+                      {utilization}%
                     </Typography>
 
                     {/* Change info */}
@@ -1243,7 +1246,7 @@ const filteredMachines = machineList.filter((m) => {
               value={selectedShift}
               onChange={(e) => setSelectedShift(e.target.value)}
             >
-              <MenuItem value="allshift">All Shifts</MenuItem>
+             
               {shifts.map((s) => (
                 <MenuItem key={s.shift_no} value={s.shift_no}>
                   {s.shift_name || `Shift ${s.shift_no}`}

@@ -1097,9 +1097,9 @@ const downtimereason = async () => {
   const deviceId = selectedDeviceId;
   try {
       if (deviceId && fromTime && toTime) {
-          telemetrykeydata(deviceId, 'DEVICE', 'machineStatus', fromTime, toTime)
+          telemetrykeydata(deviceId, 'DEVICE', 'machine_status', fromTime, toTime)
           .then(async machineStatusResponse => {
-            const machineData = machineStatusResponse?.machineStatus || [];      
+            const machineData = machineStatusResponse?.machine_status || [];      
             
             const statusMapping = {
               0: { state: "Idle", color: "#FFEB3B" },
@@ -1216,7 +1216,8 @@ const downtimereason = async () => {
             const key='downtime_threasold';
             const results = await Deviceattributeget(deviceId, key);
             let downtimedatas = encodeURIComponent(JSON.stringify([{start: fromTime, end: toTime, duration: 0, value: 0, status: 'NO_DATA'}]));
-            
+              console.log('Result',results);
+
             if (results && results.length > 0) {
               downtime = results[0].value;
               const result = extractStartEndFromOneToThree(transformedData);
@@ -1433,7 +1434,7 @@ const handleReasonChange = (index, val) => {
       const toEpoch = todayEnd.valueOf();
       const keys='live_operator';
       const entitytype='DEVICE';
-      const url = `${window._env_.GRAFANA_URL}/d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${Deviceid}&var-entityType=${entitytype}&var-entityId=${Deviceid}&var-token=${token}&var-key=${keys}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
+      const url = `${window._env_.GRAFANA_URL}d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${Deviceid}&var-entityType=${entitytype}&var-entityId=${Deviceid}&var-token=${token}&var-key=${keys}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
       setIframeUrl(url);
       initialLoad.current = false;
     }
@@ -1489,7 +1490,7 @@ const handleReasonChange = (index, val) => {
           entityId = Deviceid;
       }
 
-      url = `${window._env_.GRAFANA_URL}/d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${entityId}&var-token=${token}&var-key=${keys}&var-entityType=${entitytype}&var-entityId=${entityId}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
+      url = `${window._env_.GRAFANA_URL}d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${entityId}&var-token=${token}&var-key=${keys}&var-entityType=${entitytype}&var-entityId=${entityId}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
       setIframeUrl(url);
       initialLoad.current = false;
     }
@@ -1569,7 +1570,7 @@ const handleReasonChange = (index, val) => {
       entityId = selectedDevice;
     }
 
-    url = `${window._env_.GRAFANA_URL}/d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${entityId}&var-token=${token}&var-key=${keys}&var-entityType=${entitytype}&var-entityId=${entityId}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
+    url = `${window._env_.GRAFANA_URL}d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${entityId}&var-token=${token}&var-key=${keys}&var-entityType=${entitytype}&var-entityId=${entityId}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
 
     setIframeUrl(url);
     setIframeKey(prevKey => prevKey + 1);

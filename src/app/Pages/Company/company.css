@@ -17,3 +17,28 @@ display: flex;
   margin-bottom:0;
   
 }
+
+.two-column-layout {
+  display: grid;
+  grid-template-columns: 70% 30%;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .two-column-layout {
+    grid-template-columns: 60% 40%;
+  }
+}
+
+@media (max-width: 768px) {
+  .company-dashboard {
+    margin-top: 2rem;
+  }
+}
+
+@media (max-width: 964px) {
+  .company-dashboard {
+    gap: 1rem;
+    flex-direction: column;
+  }
+}
