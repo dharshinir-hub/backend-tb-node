@@ -104,5 +104,17 @@
     }
   };
   
+export const getCustomerName = async () => {
+  try {
+    const response = await axiosInstance.get(`${window._env_.SERVER_URL2}tenant`, {
+    });
+    console.log('Customer name response' ,response)
+    return response.data;
+  } 
+  catch (error) {
+    console.error('Error during customer name:', error);
+    throw error;
+  }
+};
   
   

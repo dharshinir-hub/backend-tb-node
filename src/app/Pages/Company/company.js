@@ -11,7 +11,8 @@ import {
   telemetrylatestdata,
   customerbaseddevices,
   customerbasedshift,
-  telemetrykeydata
+  telemetrykeydata,
+  getCustomerName
 } from '../../Services/app/companyservice';
 import './company.css';
 
@@ -604,6 +605,18 @@ const updateGrafanaURL = () => {
     if (savedDate) {
       setSelectedDate(dayjs(savedDate));
     }
+  }, []);
+
+  useEffect(() => {
+    const fetchCustomerName = async () => {
+    try {
+      const customerName = await getCustomerName();
+      localStorage.setItem("customerName", customerName.customer);
+    } catch (err) {
+      console.error("Failed to fetch customer name:", err.message);
+    }
+  };
+    fetchCustomerName();
   }, []);
 
   // ✅ Save to localStorage whenever date changes
