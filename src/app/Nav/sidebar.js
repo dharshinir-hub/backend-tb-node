@@ -7,7 +7,7 @@ import {
 } from "react-icons/bi";
 import {
   MdPowerSettingsNew, MdInsertInvitation, MdMarkunreadMailbox, MdAccountCircle,
-  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment
+  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment,MdTrendingUp,
 } from "react-icons/md";
 import { Tooltip } from '@mui/material';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
@@ -57,7 +57,7 @@ const handleConfigurationClick = () => {
     { path: "/machinemm", name: "Machines", icon: <BiSolidDashboard /> },
     // { path: "/analytics", name: "Analytics", icon: <BiChip /> },
     // { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
-    { path: "/report", name: "Reports", icon: <BiSolidDashboard /> },
+    { path: "/report", name: "Reports", icon: <MdTrendingUp /> },
     // { path: "/andon-dashboard", name: "Andon Dashboard", icon: <BiSolidDashboard /> },
     { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
     { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },

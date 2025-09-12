@@ -84,6 +84,42 @@ const [selectedShift, setSelectedShift] = useState(() => {
     }
   };
 
+  // ⏰ Find the current shift based on start_time / end_time
+    function getCurrentShift(shifts) {
+    if (!Array.isArray(shifts) || shifts.length === 0) return null;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  
+    for (const s of shifts) {
+      const [fromH, fromM] = s.start_time.split(":").map(Number);
+      const [toH, toM] = s.end_time.split(":").map(Number);
+  
+      const fromMinutes = fromH * 60 + fromM;
+      const toMinutes = toH * 60 + toM;
+  
+      // normal or overnight
+      if (
+        (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
+        (fromMinutes > toMinutes &&
+          (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
+      ) {
+        return String(s.shift_no);
+      }
+    }
+  
+    return String(shifts[0].shift_no);
+  }
+  
+  
+    // set default shift only once when data arrives
+      useEffect(() => {
+      if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
+        const cur = getCurrentShift(shifts); // string
+        setSelectedShift(cur);
+      }
+      // intentionally omit selectedShift from deps so this runs once when shifts load
+    }, [shifts]);
+
   const fetchDevices = async () => {
     try {
       const result = await customerbaseddevices(customerId, 100, 0);
@@ -273,9 +309,9 @@ const handleTabClick = (tab, machine) => {
 
   const baseUrls = {
     overview:
-      `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy`,
+      `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&from=${from}&to=${to}`,
 
-   timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?from=${from}&to=${to}`,
+   timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${to}`,
 
 
     diagnostics: `http://example.com/diagnostics`,
@@ -293,7 +329,7 @@ const handleTabClick = (tab, machine) => {
  console.log('baseurl',baseUrl);
 
 
-  let url = `${baseUrls[tab]}?orgId=1&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-from=${from}&var-to=${to}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
+  let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
 
   if (tab === "diagnostics") {
     url = `${baseUrls[tab]}?from=${fromTime}&to=${toTime}&var-from=${fromTime}&var-to=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
@@ -924,12 +960,16 @@ const filteredMachines = machineList.filter((m) => {
           sx={{
             mb: 2,
            borderLeft: `4px solid ${
-      machineStatuses[machine.id.id]?.status === "Running"
-        ? "#4caf50" // Green
-        : machineStatuses[machine.id.id]?.status === "Idle"
-        ? "#f1a014ff" // Yellow
-        : "#f44336" // Red (Disconnect or others)
-    }`,
+  machineStatuses[machine.id.id]?.status === "Running"
+    ? "#4caf50" // Green
+    : machineStatuses[machine.id.id]?.status === "Idle"
+    ? "#f1a014ff" // Yellow
+    : machineStatuses[machine.id.id]?.status === "Alarm"
+    ? "#f44336" // Red
+    : machineStatuses[machine.id.id]?.status === "Disconnect"
+    ? "#9e9e9e" // Gray
+    : "#f44336" // Default Red for others
+}`,
             boxShadow: 1,
             cursor: "pointer",
             backgroundColor: isSelected ? "#e6edf4ff" : "#fff", // ✅ Persistent selection background
@@ -949,14 +989,24 @@ const filteredMachines = machineList.filter((m) => {
             {/* Run / Idle Durations */}
             <Box sx={{ display: "flex", alignItems: "center", mt: 0.5 }}>
               <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  bgcolor: "#4caf50",
-                  mr: 1,
-                }}
-              />
+  sx={{
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    bgcolor:
+      machineStatuses[machine.id.id]?.status === "Running"
+        ? "#4caf50" // Green
+        : machineStatuses[machine.id.id]?.status === "Idle"
+        ? "#f1a014" // Yellow
+        : machineStatuses[machine.id.id]?.status === "Disconnect"
+        ? "#9e9e9e" // Gray
+        : machineStatuses[machine.id.id]?.status === "Alarm"
+        ? "#f44336" // Red
+        : "#9e9e9e", // Default Gray
+    mr: 1,
+  }}
+/>
+
               <Typography
                 variant="body2"
                 color="textSecondary"
@@ -966,7 +1016,15 @@ const filteredMachines = machineList.filter((m) => {
                   color: "black",
                 }}
               >
-                Run: {formatTime(run)}
+                  {machineStatuses[machine.id.id]?.status === "Running"
+    ? `Run: ${formatTime(run)}`
+    : machineStatuses[machine.id.id]?.status === "Idle"
+    ? `Idle: ${formatTime(idle)}`
+    : machineStatuses[machine.id.id]?.status === "Disconnect"
+    ? `Disconnect: ${formatTime(disconnect)}`
+    : machineStatuses[machine.id.id]?.status === "Alarm"
+    ? `Alarm: ${formatTime(total)}`
+    : `Total: ${formatTime(total)}`}
               </Typography>
               {/* <Typography
                 variant="body2"
@@ -1220,7 +1278,7 @@ const filteredMachines = machineList.filter((m) => {
       </div>
 
       {/* Date Picker + Shift Dropdown */}
-{(activeTab === "overview") && (
+{(activeTab === "overview" || activeTab === "timeline") && (
         <div style={{ marginTop: "15px", display: "flex", gap: "15px" }}>
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DatePicker
@@ -1239,16 +1297,18 @@ const filteredMachines = machineList.filter((m) => {
 
           <FormControl
             size="small"
-            style={{ background: "#fff", flex: 1, minWidth: 160 }}
+            variant="outlined"
+            sx={{ flex: 1, minWidth: 160, backgroundColor: "#fff" }}
           >
-            <InputLabel>Shifts</InputLabel>
+            <InputLabel id="shifts-label">Shifts</InputLabel>
             <Select
-              value={selectedShift}
+              labelId="shifts-label"
+              value={selectedShift || ""}
               onChange={(e) => setSelectedShift(e.target.value)}
+              label="Shifts"
             >
-             
               {shifts.map((s) => (
-                <MenuItem key={s.shift_no} value={s.shift_no}>
+                <MenuItem key={s.id} value={s.shift_no}>
                   {s.shift_name || `Shift ${s.shift_no}`}
                 </MenuItem>
               ))}

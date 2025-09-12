@@ -272,7 +272,7 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
     }
 
     return { from: null, to: null };
-  }
+  }  
 
   // single shift selected (match by shift_no)
   const shiftData = shifts.find(
@@ -876,8 +876,8 @@ const handleViewMachineCard = (deviceName) => {
               const machineData = encodeURIComponent(
                 JSON.stringify({
                   machine,
-                  utilization: values.lower_utilization,
-                  expected: values.lower_expected_utilization,
+                  utilization: values.utilization,
+                  expected: values.expected_utilization,
                 })
               );
 
