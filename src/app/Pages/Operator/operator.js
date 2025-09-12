@@ -513,7 +513,7 @@ useEffect(() => {
 
         <div className="contect-section circular-progress-section">
           <CircularProgress
-            actual='0'
+            actual={telemetry.goodParts}
             target={telemetry.targetParts}
             partsBehind={Math.max(0, telemetry.targetParts - telemetry.goodParts)}
             partsRejects={telemetry.scrap}
