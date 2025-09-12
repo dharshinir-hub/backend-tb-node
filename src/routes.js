@@ -19,12 +19,14 @@ import OperatorDetails from './app/Pages/Operatordetails/operatordeatil'
 import GrafanaEmbed from './app/Pages/MachinesMM/machinemm';
 import MachineReport from './app/Pages/Reports/report';
 import MachineUtilization from './app/Pages/Machineutilization/machineutilization';
+import Operator from './app/Pages/Operator/operator';
 
 // Import other components for your routes
 
 const AppRoutes = () => (
     <Routes>
       <Route path="/" element={<Login />} />
+      <Route path="/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" element={<Operator />} />
       <Route path="/" element={<Layout />}>
         <Route path="andon-dashboard" element={<Andondashboard />} />
         <Route path="/shift" element={<Shift />} />
@@ -43,7 +45,7 @@ const AppRoutes = () => (
          <Route path="/report" element={<MachineReport/>} />
            <Route path="/machineutilization" element={<MachineUtilization />} />
 
-
+           
 
         {/* Define other routes here */}
         {/* Define other routes here */}

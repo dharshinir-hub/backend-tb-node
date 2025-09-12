@@ -1,6 +1,7 @@
 // loginservice.js
 import axios from 'axios';
  import axiosInstance from '../core/axiosconfig'; 
+import { cleanCustomerId } from './alarmservice';
  const axiosInstance1 = axios.create({
   baseURL: window._env_.SERVER_URL,
 });
@@ -90,3 +91,19 @@ export const Userapi1 = async () => {
     throw error; // Rethrow the error to handle it in the calling function
   }
 };
+
+
+export const getOperatorDetails = async (customerId) => {
+    try {
+        const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+        const cleanedCustomerId = cleanCustomerId(customerId);
+        const url = `${baseUrl}/api/plugins/telemetry/CUSTOMER/${cleanedCustomerId}/values/attributes?keys=alloperator`;
+      console.log('Operator API URL:', url);
+      const response = await axiosInstance1.get(url);
+      console.log('Operator API Response:', response);
+      return response.data;
+    } catch (error) {
+      console.error('Error during Operator data:', error);
+      throw error;
+    }
+  };

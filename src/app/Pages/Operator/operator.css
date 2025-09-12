@@ -1,0 +1,560 @@
+/* Import Poppins font */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+.operator-screen {
+    width: 100vw;
+    height: 100vh;
+    background-color: white;
+    display: flex;
+    flex-direction: column;
+    font-family: "Poppins", serif;
+    font-weight: 400;
+    font-style: normal;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
+    font-family: "Poppins", serif;
+    font-weight: 400;
+    font-style: normal;
+    margin: 0;
+}
+
+/* Header Styles */
+.header {
+    display: flex;
+    width: 100vw;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background-color: transparent;
+    border-bottom: solid 1px #D1D1D1;
+}
+
+.header-text-element h5 {
+    color: #89969F;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+.span-1 {
+    color: #F99022;
+}
+
+.span-2 {
+    position: relative;
+    color: #fff;
+    z-index: 2;
+    background-color: #f99022;
+    padding: 0 3px;
+    border-radius: 5px;
+}
+
+.calendar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    font-weight: bold;
+}
+
+.calendar p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.calendar-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Status Header */
+.header-2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 4rem;
+    padding: 0 1.5rem;
+    font-size: 1rem;
+    color: white;
+    transition: background-color 0.3s ease;
+}
+
+.machine-name {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    font-size: 1.2rem;
+}
+
+.header-2-right {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    align-items: center;
+}
+
+.logout-icon {
+    font-size: 1.5rem;
+}
+
+.logout {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease, transform 0.1s ease;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+}
+
+.logout:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.logout:active {
+    transform: scale(0.97);
+}
+
+.machine-status {
+    text-transform: capitalize;
+}
+
+.log-off-header {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.log-off-header:before {
+    position: absolute;
+    content: "";
+    height: 100%;
+    width: 1px;
+    background-color: #ffffff;
+    left: 0;
+    top: 0;
+}
+
+/* Main Content */
+.content {
+    flex-grow: 1;
+    margin: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 6rem;
+    align-items: center;
+}
+
+.contect-section {
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.circular-progress-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.actual {
+    font-weight: 400;
+    font-size: 2rem;
+}
+
+.actual-value {
+    font-weight: 500;
+    font-size: 3rem;
+}
+
+/* Username Section */
+.username-section {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 0.5rem;
+    background-color: #F990222B;
+    width: fit-content;
+    padding: 5px 35px;
+    border: solid 1px #f99022;
+    border-radius: 30px;
+    min-width: 140px;
+}
+
+.username-section h4 {
+    color: #f99022;
+    font-size: 20px;
+    margin: 0;
+}
+
+/* Circular Progress Bar */
+.progress-circle {
+    width: 285px;
+    height: 285px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.5s ease;
+}
+
+.progress-circle-inner {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    flex-direction: column;
+    text-align: center;
+    transition: all 0.5s ease;
+}
+
+.progress-percentage1-inner {
+    display: block;
+    font-size: 34px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.progress-percentage1-inner .big {
+    font-size: 34px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.progress-metrics {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.progress-metrics .metric {
+    margin: 2px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.progress-metrics .label {
+    color: #fff;
+    font-size: 12px;
+}
+
+.metric .icon {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 0;
+    margin-top: 5px;
+}
+
+.metric .value {
+    font-size: 26px;
+    font-weight: bold;
+    color: #fff;
+    margin-left: 5px;
+}
+
+.metric .label {
+    font-size: 12px;
+    color: #fff;
+}
+
+/* Vertical Progress Bar */
+.vertical-progress-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.time-label {
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 10px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.time-label.start-time {
+    position: absolute;
+    left: 17%;
+    top: 0;
+}
+
+.time-label.end-time {
+    position: absolute;
+    right: 8%;
+    bottom: 0;
+}
+
+.progress-wrapper {
+    position: relative;
+    width: 16px;
+    height: 300px;
+    background-color: #f0f0f0;
+    border-radius: 8px;
+    overflow: visible;
+    display: flex;
+    justify-content: center;
+    margin: 0 0 10px 0;
+}
+
+.progress-bar {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #f0f0f0;
+    border-radius: 50px;
+    overflow: visible;
+}
+
+.progress {
+    position: absolute;
+    top: 0;
+    width: 100%;
+    height: 0%;
+    background: linear-gradient(to bottom, red, orange, green);
+    transition: height 0.5s ease;
+    border-radius: 50px;
+}
+
+.login-indicator {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+    border: 2px solid #3182ce;
+}
+
+.login-time-label {
+    position: absolute;
+    left: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+    z-index: 100;
+    font-weight: 500;
+}
+
+/* Footer */
+.footer1 {
+    width: 100vw;
+    display: flex;
+    padding: 0;
+}
+
+.footer-left,
+.footer-right {
+    width: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.1rem;
+    gap: 0.3rem;
+    border: 1px solid rgb(190, 189, 189);
+    padding: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease, transform 0.1s ease;
+    border-radius: 6px;
+}
+
+.footer-left:hover,
+.footer-right:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.footer-left:active,
+.footer-right:active {
+    transform: scale(0.97);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .content {
+        padding: 0 2rem;
+        flex-direction: column;
+        gap: 2rem;
+    }
+    
+    .progress-circle {
+        width: 200px;
+        height: 200px;
+    }
+    
+    .progress-circle-inner {
+        width: 170px;
+        height: 170px;
+    }
+    
+    .vertical-progress-container {
+        order: -1;
+    }
+    
+    .progress-wrapper {
+        height: 200px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+    }
+    
+    .calendar-container {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .content {
+        padding: 0 1rem;
+    }
+    
+    .progress-circle {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .progress-circle-inner {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .progress-percentage1-inner {
+        font-size: 24px;
+    }
+    
+    .progress-percentage1-inner .big {
+        font-size: 24px;
+    }
+}
+
+/* Animation for progress updates */
+@keyframes progressUpdate {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.progress-circle.updated {
+    animation: progressUpdate 0.3s ease-in-out;
+}
+
+/* Hover effects for interactive elements */
+.footer-left:hover,
+.footer-right:hover {
+    background-color: #f0f0f0;
+    border-color: #F99022;
+}
+
+.logout:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Status color transitions */
+.header-2 {
+    transition: background-color 0.3s ease;
+}
+
+/* Icon styling */
+.icon-dimension {
+    filter: invert(50%) sepia(89%) saturate(441%) hue-rotate(351deg) brightness(102%) contrast(101%);
+}
+
+/* Additional utility classes */
+.text-center {
+    text-align: center;
+}
+
+.flex {
+    display: flex;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.justify-center {
+    justify-content: center;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+
+.gap-4 {
+    gap: 1rem;
+}
+
+.font-bold {
+    font-weight: bold;
+}
+
+.text-white {
+    color: white;
+}
+
+.text-orange {
+    color: #F99022;
+}
+
+.bg-orange {
+    background-color: #F99022;
+}
+
+.border-orange {
+    border-color: #F99022;
+}
+
+.rounded {
+    border-radius: 0.25rem;
+}
+
+.p-2 {
+    padding: 0.5rem;
+}
+
+.p-4 {
+    padding: 1rem;
+}
+
+.m-2 {
+    margin: 0.5rem;
+}
+
+.m-4 {
+    margin: 1rem;
+}
