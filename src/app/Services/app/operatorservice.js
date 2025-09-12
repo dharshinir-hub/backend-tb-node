@@ -1,6 +1,6 @@
 import axiosInstance1 from "./loginservice";
 
-  export const assignOperator = async (entityType, entityId, thresholddata) => {
+  export const operatorTelemetry = async (entityType, entityId, thresholddata) => {
     try {
         const baseUrl = window._env_.SERVER_URL.replace(/\/$/, ''); // Remove trailing slash if any
         const url = `${baseUrl}/api/plugins/telemetry/${entityType}/${entityId}/timeseries/SERVER_SCOPE`;

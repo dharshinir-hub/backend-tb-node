@@ -171,15 +171,75 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     gap: 2rem;
 }
 
-.actual {
-    font-weight: 400;
-    font-size: 2rem;
+/* Job Stats Section */
+.job-stats-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start; /* Left align for readability */
+  height: 100%;
+  gap: 0.5rem;
+  width: 100%;
 }
 
-.actual-value {
-    font-weight: 500;
-    font-size: 3rem;
+/* Job Name */
+.job-stats-section p {
+  font-size: 1.25rem; /* 20px */
+  font-weight: 500;
+  color: #333;
 }
+
+/* "Actual vs Target" label */
+.actual {
+  font-weight: 500;
+  font-size: 1.5rem; /* 24px */
+  color: #666;
+  text-align: right;
+}
+
+/* Values */
+.actual-value {
+  font-weight: 700;
+  font-size: 2.5rem; /* 40px */
+  color: #f99022;
+  text-align: right;
+  line-height: 1.2;
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .job-stats-section {
+    align-items: center;
+    text-align: center;
+  }
+
+  .job-stats-section p {
+    font-size: 1rem; /* 16px */
+  }
+
+  .actual {
+    font-size: 1.25rem; /* 20px */
+  }
+
+  .actual-value {
+    font-size: 2rem; /* 32px */
+  }
+}
+
+@media (max-width: 480px) {
+  .job-stats-section p {
+    font-size: 0.9rem; /* 14px */
+  }
+
+  .actual {
+    font-size: 1rem; /* 16px */
+  }
+
+  .actual-value {
+    font-size: 1.5rem; /* 24px */
+  }
+}
+
 
 /* Username Section */
 .username-section {
@@ -296,14 +356,16 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
 
 .time-label.start-time {
     position: absolute;
-    left: 17%;
     top: 0;
+    right: 2.55rem;
+    white-space: nowrap;
 }
 
 .time-label.end-time {
-    position: absolute;
-    right: 8%;
+        position: absolute;
     bottom: 0;
+    left: 2.5rem;
+    white-space: nowrap;
 }
 
 .progress-wrapper {
@@ -398,7 +460,6 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
 @media (max-width: 768px) {
     .content {
         padding: 0 2rem;
-        flex-direction: column;
         gap: 2rem;
     }
     
