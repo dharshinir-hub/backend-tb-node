@@ -57,13 +57,37 @@ useEffect(() => {
     updateGrafanaURL();
   }, [selectedDevice, formattedUtilization, formattedTime, selectedShiftData, fromTime, toTime, from, to]);
 
- useEffect(() => {
-  if (shifts.length > 0 && selectedDate) {
+  useEffect(() => {
+  if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
+    const cur = getCurrentShift(shifts); // detect current shift
+    setSelectedShift(cur);
+
+    if (selectedDate) {
+      const { from, to } = getShiftTimes(shifts, cur, selectedDate);
+      setFrom(from);
+      setTo(to);
+      setFromTime(from);
+      setToTime(to);
+
+       // Always console log
+    console.log("✅ from:", from);
+    console.log("✅ to:", to);
+    console.log("✅ fromTime:", from);
+    console.log("✅ toTime:", to);
+    }
+  }
+}, [shifts, selectedDate]);
+
+
+useEffect(() => {
+  if (shifts.length > 0 && selectedDate && selectedShift) {
     const { from, to } = getShiftTimes(shifts, selectedShift, selectedDate);
-    console.log('From', from, 'To', to); // ✅ now correctly logs
+    console.log("From", from, "To", to);
     setFrom(from);
     setTo(to);
-    setShiftTimingForSelected(); // make sure this uses latest from/to if needed
+    setFromTime(from);
+    setToTime(to);
+    setShiftTimingForSelected(); // ✅ safe, uses latest values
   }
 }, [shifts, selectedShift, selectedDate]);
 
@@ -238,10 +262,10 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
     return { from: null, to: null };
   }
 
-  const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
+  const todayStr = dayjs().format("YYYY-MM-DD"); // today
+  const selectedStr = dayjs(selectedDate).format("YYYY-MM-DD");
   const nextDayStr = dayjs(selectedDate).add(1, "day").format("YYYY-MM-DD");
 
-  // normalize safely
   const normalizedShift =
     typeof selectedShift === "string"
       ? selectedShift.trim().toLowerCase()
@@ -249,47 +273,57 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
       ? ""
       : String(selectedShift);
 
-  // if no shift selected (empty string), return nulls
   if (normalizedShift === "") return { from: null, to: null };
 
-  // keep allshift logic as-is
+  // All shifts
   if (normalizedShift === "allshift" || normalizedShift === "all shift") {
     const sortedShifts = [...shifts].sort(
       (a, b) => Number(a.shift_no) - Number(b.shift_no)
     );
     const firstShiftStart = sortedShifts[0]?.start_time;
-    const lastShiftEnd =
-      sortedShifts[sortedShifts.length - 1]?.end_time;
+    const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
 
     if (firstShiftStart && lastShiftEnd) {
-      const fromStr = `${todayStr}T${firstShiftStart}`;
-      const toStr =
-        lastShiftEnd <= firstShiftStart
-          ? `${nextDayStr}T${lastShiftEnd}`
-          : `${todayStr}T${lastShiftEnd}`;
+      const fromStr = `${selectedStr}T${firstShiftStart}`;
+      let toStr;
+      if (selectedStr === todayStr) {
+        toStr = new Date().toISOString(); // current time
+      } else {
+        // handle overnight shifts
+        toStr =
+          lastShiftEnd <= firstShiftStart
+            ? `${nextDayStr}T${lastShiftEnd}`
+            : `${selectedStr}T${lastShiftEnd}`;
+      }
 
       return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
     }
 
     return { from: null, to: null };
-  }  
+  }
 
-  // single shift selected (match by shift_no)
-  const shiftData = shifts.find(
-    (s) => String(s.shift_no) === normalizedShift
-  );
-
+  // Single shift
+  const shiftData = shifts.find((s) => String(s.shift_no) === normalizedShift);
   if (!shiftData) return { from: null, to: null };
 
   const shiftStart = shiftData.start_time;
   const shiftEnd = shiftData.end_time;
 
-  const fromStr = `${todayStr}T${shiftStart}`;
-  const toStr =
-    shiftEnd <= shiftStart ? `${nextDayStr}T${shiftEnd}` : `${todayStr}T${shiftEnd}`;
+  const fromStr = `${selectedStr}T${shiftStart}`;
+  let toStr;
+  if (selectedStr === todayStr) {
+    toStr = new Date().toISOString(); // current time
+  } else {
+    // handle overnight shifts
+    toStr =
+      shiftEnd <= shiftStart
+        ? `${nextDayStr}T${shiftEnd}`
+        : `${selectedStr}T${shiftEnd}`;
+  }
 
   return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
 }
+
 
 
   console.log('From', from, 'to', to);
@@ -356,6 +390,9 @@ useEffect(() => {
 
     console.log("✅ fromTime:", fromEpoch);
     console.log("✅ toTime:", toEpoch);
+
+
+
     console.log("✅ from:", from);
     console.log("✅ to:", to);
   }
@@ -706,25 +743,32 @@ const handleViewMachineCard = (deviceName) => {
 </FormControl>
 
 
-        <FormControl
-  size="small"
-  variant="outlined"
-  sx={{ minWidth: 160, backgroundColor: "#fff" }}
->
-  <InputLabel id="shifts-label">Shifts</InputLabel>
-  <Select
-    labelId="shifts-label"
-    value={selectedShift || ""}
-    onChange={(e) => setSelectedShift(e.target.value)}
-    label="Shifts"
-  >
-    {shifts.map((s) => (
-      <MenuItem key={s.id} value={s.shift_no}>
-        {s.shift_name || `Shift ${s.shift_no}`}
-      </MenuItem>
-    ))}
-  </Select>
-</FormControl>
+         <FormControl size="small" sx={{ minWidth: 160, background: "#fff" }}>
+                  <InputLabel id="shift-label">Shifts</InputLabel>
+                  <Select
+                    labelId="shift-label"
+                    value={selectedShift || ""}
+                    onChange={(e) => setSelectedShift(e.target.value)}
+                  >
+                     {shifts.map((s) => {
+              // check if selected date = today
+              const isToday =
+                dayjs(selectedDate).format("YYYY-MM-DD") === dayjs().format("YYYY-MM-DD");
+        
+              // compute shift start timestamp for today
+              const shiftStart = new Date(`${dayjs(selectedDate).format("YYYY-MM-DD")}T${s.start_time}`).getTime();
+        
+              // disable only if today AND shift start is in the future
+              const isDisabled = isToday && shiftStart > Date.now();
+        
+              return (
+                <MenuItem key={s.shift_no} value={s.shift_no} disabled={isDisabled}>
+                  {`Shift ${s.shift_no}`}
+                </MenuItem>
+              );
+            })}
+                  </Select>
+                </FormControl>
 
 
             <LocalizationProvider dateAdapter={AdapterDayjs}>

@@ -15,6 +15,10 @@ import logo from '../../assets/yantraimage.png';
 import Swal from 'sweetalert2';
 import useMobileWidth from './smalldevicesidebar';
 import './sidebars.css';
+import { SlArrowDown } from "react-icons/sl";
+import { GoChevronDown, GoChevronUp  } from "react-icons/go";
+
+
 
 const handleConfigurationClick = () => {
   window.open(`${window._env_.SERVER_URL}home`, "_blank");
@@ -22,6 +26,9 @@ const handleConfigurationClick = () => {
 
  export default function PersistentDrawerLeft({ children }) {
   const [isOpen, setIsOpen] = useState(false);
+    const [masterOpen, setMasterOpen] = useState(false);
+    const [dashboardOpen, setDashboardOpen] = useState(false);
+    const [operationOpen, setOperationOpen] = useState(false);
   const isMobile = useMobileWidth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,24 +58,56 @@ const handleConfigurationClick = () => {
     }
   };
 
-  const menuItem = useMemo(() => [
-    ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
-        { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
-    { path: "/machinemm", name: "Machines", icon: <BiSolidDashboard /> },
-    // { path: "/analytics", name: "Analytics", icon: <BiChip /> },
-    // { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
-    { path: "/report", name: "Reports", icon: <MdTrendingUp /> },
-    // { path: "/andon-dashboard", name: "Andon Dashboard", icon: <BiSolidDashboard /> },
-    { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
-    { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
-    { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
-    { path: "/reason-registration", name: "Reason", icon: <MdList /> },
-    { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
-    { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
+const menuItem = useMemo(() => [
+  ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
+
+  // 1️⃣ Dashboard / Overview Group
+  {
+    name: "Dashboard",
+    icon: <BiSolidDashboard />,
+    children: [
+      { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
+      { path: "/machinemm", name: "Machine", icon: <BiSolidDashboard /> },
+
+
+    ]
+  },
+
+  { path: "/report", name: "Reports", icon: <MdAssessment /> },
+ 
+  {
+    name: "Operation",
+    icon: <MdPrecisionManufacturing />,
+    children: [
+      { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
+    ]
+  },
+
+  {
+    name: "Analytics",
+    icon: <BiChip />,
+    children: [
+      { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
+      { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
+    ]
+  },
+
+  {
+    name: "Master",
+    icon: <MdList />,
+    children: [
+               { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
+               { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
+               { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
+               { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
+               { path: "/reason-registration", name: "Reason", icon: <MdList /> },
+    ]
+  },
+
+], [user]);
     
 
 
-  ], [user]);
 
   useEffect(() => {
     console.log("Current active route:", location.pathname);
@@ -91,6 +130,59 @@ const handleConfigurationClick = () => {
   const formattedUser = typeof user === 'string'
     ? user.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
     : '';
+
+    const renderDropdown = (item, isOpenState, setIsOpenState) => (
+        <div key={item.name}>
+          <div
+            className="link navlink"
+            style={{
+              textDecoration: 'none',
+              color: 'inherit',
+              display: 'flex',
+              alignItems: 'baseline',
+              cursor: 'pointer',
+              padding: '8px 12px'
+            }}
+            onClick={() => setIsOpenState(!isOpenState)}
+          >
+            <div className="icon">{item.icon}</div>
+            {isOpen && (
+              <div style={{ marginLeft: '8px' }} className="link_text">
+                {item.name} {isOpenState ? <GoChevronUp /> : <GoChevronDown />}
+              </div>
+            )}
+          </div>
+    
+          {isOpenState && (
+            <div style={{ marginLeft: isOpen ? '30px' : '0' }}>
+              {item.children.map((child, idx) => (
+                <NavLink
+                  to={child.path}
+                  key={idx}
+                  className={({ isActive }) =>
+                    isActive ? 'link navlink active' : 'link navlink'
+                  }
+                  onClick={handleMenuItemClick(child)}
+                  style={{
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '6px 12px'
+                  }}
+                >
+                  <div className="icon">{child.icon}</div>
+                  {isOpen && (
+                    <div style={{ marginLeft: '8px' }} className="link_text">
+                      {child.name}
+                    </div>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
+      );
 
   return (
     <>
@@ -134,28 +226,37 @@ const handleConfigurationClick = () => {
           <img className="Logo1" src={logo} alt="Sidebar Logo" />
           <br />
         </div>
-        {menuItem.map((item, index) => (
-          <NavLink
-            to={item.path}
-            key={index}
-            className={({ isActive }) => isActive ? 'link navlink active' : 'link navlink'}
-            onClick={handleMenuItemClick(item)}
-            style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div className="icon">
-                {isOpen ? item.icon : (
-                  <Tooltip title={item.name} placement="top-start">
-                    <div className="icon">{item.icon}</div>
-                  </Tooltip>
-                )}
-              </div>
-              <div style={{ display: isOpen ? 'block' : 'none', marginLeft: '8px' }} className="link_text">
-                {isOpen && item.name}
-              </div>
-            </div>
-          </NavLink>
-        ))}
+         {menuItem.map((item) => (
+                  item.children ? (
+                    item.name === "Master" ? renderDropdown(item, masterOpen, setMasterOpen) :
+                    item.name === "Dashboard" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
+                    item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
+                    null
+                  ) : (
+                    <NavLink
+                      to={item.path}
+                      key={item.name}
+                      className={({ isActive }) =>
+                        isActive ? 'link navlink active' : 'link navlink'
+                      }
+                      onClick={handleMenuItemClick(item)}
+                      style={{
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      <div className="icon">{item.icon}</div>
+                      {isOpen && (
+                        <div style={{ marginLeft: '8px' }} className="link_text">
+                          {item.name}
+                        </div>
+                      )}
+                    </NavLink>
+                  )
+                ))}
       </div>
 
       <main

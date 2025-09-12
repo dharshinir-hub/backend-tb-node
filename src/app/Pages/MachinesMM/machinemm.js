@@ -63,10 +63,8 @@ const [selectedDate, setSelectedDate] = useState(() => {
   const savedDate = localStorage.getItem("selectedDate");
   return savedDate ? dayjs(savedDate) : dayjs();  // fallback to today
 });  
-const [selectedShift, setSelectedShift] = useState(() => {
-  const savedShift = localStorage.getItem("selectedShift");
-  return savedShift ? savedShift : "allshift";
-});
+const [selectedShift, setSelectedShift] = useState(() => getCurrentShift(shifts));
+
 
 
 
@@ -84,41 +82,47 @@ const [selectedShift, setSelectedShift] = useState(() => {
     }
   };
 
-  // ⏰ Find the current shift based on start_time / end_time
-    function getCurrentShift(shifts) {
-    if (!Array.isArray(shifts) || shifts.length === 0) return null;
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  
-    for (const s of shifts) {
-      const [fromH, fromM] = s.start_time.split(":").map(Number);
-      const [toH, toM] = s.end_time.split(":").map(Number);
-  
-      const fromMinutes = fromH * 60 + fromM;
-      const toMinutes = toH * 60 + toM;
-  
-      // normal or overnight
-      if (
-        (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
-        (fromMinutes > toMinutes &&
-          (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
-      ) {
-        return String(s.shift_no);
-      }
+ // ⏰ Find the current shift based on start_time / end_time
+  function getCurrentShift(shifts) {
+  if (!Array.isArray(shifts) || shifts.length === 0) return null;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  for (const s of shifts) {
+    const [fromH, fromM] = s.start_time.split(":").map(Number);
+    const [toH, toM] = s.end_time.split(":").map(Number);
+
+    const fromMinutes = fromH * 60 + fromM;
+    const toMinutes = toH * 60 + toM;
+
+    // normal or overnight
+    if (
+      (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
+      (fromMinutes > toMinutes &&
+        (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
+    ) {
+      return String(s.shift_no);
     }
-  
-    return String(shifts[0].shift_no);
   }
+
+  return String(shifts[0].shift_no);
+}
+
   
   
     // set default shift only once when data arrives
-      useEffect(() => {
-      if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
-        const cur = getCurrentShift(shifts); // string
-        setSelectedShift(cur);
-      }
-      // intentionally omit selectedShift from deps so this runs once when shifts load
-    }, [shifts]);
+        useEffect(() => {
+        if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
+          const cur = getCurrentShift(shifts); // string
+          setSelectedShift(cur);
+        }
+        // intentionally omit selectedShift from deps so this runs once when shifts load
+      }, [shifts]);
+
+
+
+
+      
 
   const fetchDevices = async () => {
     try {
@@ -146,7 +150,76 @@ const [selectedShift, setSelectedShift] = useState(() => {
     }
   }, [customerId, newToken]);
 
+function getShiftTimes(shifts, selectedShift, selectedDate) {
+  if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
+    return { from: null, to: null };
+  }
 
+  const todayStr = dayjs().format("YYYY-MM-DD"); // today
+  const selectedStr = dayjs(selectedDate).format("YYYY-MM-DD");
+  const nextDayStr = dayjs(selectedDate).add(1, "day").format("YYYY-MM-DD");
+
+  const normalizedShift =
+    typeof selectedShift === "string"
+      ? selectedShift.trim().toLowerCase()
+      : selectedShift == null
+      ? ""
+      : String(selectedShift);
+
+  if (normalizedShift === "") return { from: null, to: null };
+
+  // All shifts
+  if (normalizedShift === "allshift" || normalizedShift === "all shift") {
+    const sortedShifts = [...shifts].sort(
+      (a, b) => Number(a.shift_no) - Number(b.shift_no)
+    );
+    const firstShiftStart = sortedShifts[0]?.start_time;
+    const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
+
+    if (firstShiftStart && lastShiftEnd) {
+      const fromStr = `${selectedStr}T${firstShiftStart}`;
+      let toStr;
+      if (selectedStr === todayStr) {
+        toStr = new Date().toISOString(); // current time
+      } else {
+        // handle overnight shifts
+        toStr =
+          lastShiftEnd <= firstShiftStart
+            ? `${nextDayStr}T${lastShiftEnd}`
+            : `${selectedStr}T${lastShiftEnd}`;
+      }
+
+      return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
+    }
+
+    return { from: null, to: null };
+  }
+
+  // Single shift
+  const shiftData = shifts.find((s) => String(s.shift_no) === normalizedShift);
+  if (!shiftData) return { from: null, to: null };
+
+  const shiftStart = shiftData.start_time;
+  const shiftEnd = shiftData.end_time;
+
+  const fromStr = `${selectedStr}T${shiftStart}`;
+  let toStr;
+  if (selectedStr === todayStr) {
+    toStr = new Date().toISOString(); // current time
+  } else {
+    // handle overnight shifts
+    toStr =
+      shiftEnd <= shiftStart
+        ? `${nextDayStr}T${shiftEnd}`
+        : `${selectedStr}T${shiftEnd}`;
+  }
+
+  return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
+}
+
+
+
+  console.log('From', from, 'to', to);
 
 // state for dropdown selection
 const [filteredDevices, setFilteredDevices] = useState([]);
@@ -205,17 +278,24 @@ useEffect(() => {
           }
 
           // ✅ Find first active time (earliest timestamp)
-          let firstActiveTime = null;
-          const earliestPoint = values.reduce((min, point) =>
-            point.ts < min.ts ? point : min
-          );
-          if (earliestPoint?.ts) {
-            const dateObj = new Date(earliestPoint.ts);
-            const hours = String(dateObj.getHours()).padStart(2, "0");
-            const minutes = String(dateObj.getMinutes()).padStart(2, "0");
-            const seconds = String(dateObj.getSeconds()).padStart(2, "0");
-            firstActiveTime = `${hours}:${minutes}:${seconds}`;
-          }
+         let firstActiveTime = null;
+const earliestPoint = values.reduce((min, point) =>
+  point.ts < min.ts ? point : min
+);
+
+if (earliestPoint?.ts) {
+  const dateObj = new Date(earliestPoint.ts);
+
+  let hours = dateObj.getHours();
+  const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+  const seconds = String(dateObj.getSeconds()).padStart(2, "0");
+
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12; // convert 0 → 12
+
+  firstActiveTime = `${String(hours).padStart(2, "0")}:${minutes}:${seconds} ${ampm}`;
+}
+
 
           // ✅ Get the latest point for durations
           const latestPoint = values.reduce((latest, point) =>
@@ -301,11 +381,7 @@ const handleTabClick = (tab, machine) => {
   const machineId = machine.id?.id;
   const machineName = encodeURIComponent(machine.name || "");
 
-  const { fromTime, toTime } = calculateShiftTimes(
-    shifts,
-    selectedShift,
-    selectedDate || dayjs()
-  );
+ 
 
   const baseUrls = {
     overview:
@@ -344,17 +420,18 @@ useEffect(() => {
   localStorage.setItem("activeTab", activeTab);
 }, [activeTab]);
 
-function calculateShiftTimes(shifts, selectedShift, selectedDate) {
+function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
   if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
-    return { from: null, to: null, fromTime: null, toTime: null };
+    return { fromEpoch: null, toEpoch: null };
   }
 
+  const baseDate = dayjs(selectedDate).subtract(1, 'day').format("YYYY-MM-DD");
   const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
-  const nextDayStr = dayjs(selectedDate).add(1, "day").format("YYYY-MM-DD");
-  const yesterdayStr = dayjs(selectedDate).subtract(1, "day").format("YYYY-MM-DD");
 
-  let from = null, to = null, fromTime = null, toTime = null;
-  const normalizedShift = selectedShift?.toString().trim().toLowerCase();
+  let fromEpoch = null;
+  let toEpoch = null;
+
+  const normalizedShift = selectedShift?.trim().toLowerCase() || "";
 
   if (normalizedShift === "allshift" || normalizedShift === "all shift") {
     const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
@@ -362,53 +439,65 @@ function calculateShiftTimes(shifts, selectedShift, selectedDate) {
     const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
 
     if (firstShiftStart && lastShiftEnd) {
-      // Today's shifts
-      from = new Date(`${todayStr}T${firstShiftStart}`).getTime();
-      to = lastShiftEnd <= firstShiftStart
-        ? new Date(`${nextDayStr}T${lastShiftEnd}`).getTime()
-        : new Date(`${todayStr}T${lastShiftEnd}`).getTime();
+      fromEpoch = new Date(`${baseDate}T${firstShiftStart}`).getTime();
+      toEpoch = new Date(`${baseDate}T${lastShiftEnd}`).getTime();
 
-      // Yesterday's shifts
-      fromTime = new Date(`${yesterdayStr}T${firstShiftStart}`).getTime();
-      toTime = lastShiftEnd <= firstShiftStart
-        ? new Date(`${todayStr}T${lastShiftEnd}`).getTime()
-        : new Date(`${yesterdayStr}T${lastShiftEnd}`).getTime();
+      if (lastShiftEnd <= firstShiftStart) {
+        toEpoch = new Date(`${todayStr}T${lastShiftEnd}`).getTime();
+      }
     }
   } else {
-    const shiftData = shifts.find(s => String(s.shift_no) === String(selectedShift));
+    const shiftData = shifts.find((s) => String(s.shift_no) === String(selectedShift));
     if (shiftData) {
       const shiftStart = shiftData.start_time;
       const shiftEnd = shiftData.end_time;
 
-      from = new Date(`${todayStr}T${shiftStart}`).getTime();
-      to = shiftEnd <= shiftStart
-        ? new Date(`${nextDayStr}T${shiftEnd}`).getTime()
-        : new Date(`${todayStr}T${shiftEnd}`).getTime();
+      fromEpoch = new Date(`${baseDate}T${shiftStart}`).getTime();
+      toEpoch = new Date(`${baseDate}T${shiftEnd}`).getTime();
 
-      fromTime = new Date(`${yesterdayStr}T${shiftStart}`).getTime();
-      toTime = shiftEnd <= shiftStart
-        ? new Date(`${todayStr}T${shiftEnd}`).getTime()
-        : new Date(`${yesterdayStr}T${shiftEnd}`).getTime();
+      if (shiftEnd <= shiftStart) {
+        toEpoch = new Date(`${todayStr}T${shiftEnd}`).getTime();
+      }
     }
   }
 
-  return { from, to, fromTime, toTime };
+
+  return { fromEpoch, toEpoch };
 }
+
+  console.log("FromTime (epoch):", fromTime);
+  console.log("ToTime (epoch):", toTime);
+  console.log("Shifts data type:", typeof shifts, shifts);
+
 
 // 🔄 Keep times in sync whenever date or shift changes
 useEffect(() => {
   if (!shifts.length || !selectedShift || !selectedDate) return;
 
-  const { from, to, fromTime, toTime } = calculateShiftTimes(shifts, selectedShift, selectedDate);
+  const { fromEpoch, toEpoch } = calculateShiftTimesWithDate(shifts, selectedShift, selectedDate);
+  const { from, to } = getShiftTimes(shifts, selectedShift, selectedDate);
 
-  setFrom(from);
-  setTo(to);
-  setFromTime(fromTime);
-  setToTime(toTime);
+  if (fromEpoch && toEpoch && from && to) {
+    setFromTime(fromEpoch);
+    setToTime(toEpoch);
+    setFrom(from);
+    setTo(to);
 
-  console.log("✅ from:", from, "to:", to, "fromTime:", fromTime, "toTime:", toTime);
-}, [shifts, selectedShift, selectedDate]);
+    console.log("✅ fromTime:", fromEpoch);
+    console.log("✅ toTime:", toEpoch);
 
+
+
+    console.log("✅ from:", from);
+    console.log("✅ to:", to);
+  }
+}, [shifts, selectedShift, selectedDate]); 
+
+
+  console.log("✅ from:", from);
+    console.log("✅ to:", to);
+     console.log("✅ fromTime:", fromTime);
+    console.log("✅ toTime:", toTime);
 
 // States
 const [runDuration, setRunDuration] = useState(0);
