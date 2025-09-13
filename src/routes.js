@@ -20,6 +20,7 @@ import GrafanaEmbed from './app/Pages/MachinesMM/machinemm';
 import MachineReport from './app/Pages/Reports/report';
 import MachineUtilization from './app/Pages/Machineutilization/machineutilization';
 import Operator from './app/Pages/Operator/operator';
+import OeeDashboard from './app/Pages/Devices/deviceoee';
 
 // Import other components for your routes
 
@@ -44,6 +45,7 @@ const AppRoutes = () => (
         <Route path="/machinemm" element={<GrafanaEmbed/>} />
          <Route path="/report" element={<MachineReport/>} />
            <Route path="/machineutilization" element={<MachineUtilization />} />
+           <Route path="/deviceoee" element={<OeeDashboard />} />
 
            
 

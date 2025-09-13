@@ -68,6 +68,7 @@ const menuItem = useMemo(() => [
     children: [
       { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
       { path: "/machinemm", name: "Machine", icon: <BiSolidDashboard /> },
+       { path: "/deviceoee", name: "Oee", icon: <BiSolidDashboard /> },
 
 
     ]
@@ -261,7 +262,7 @@ const menuItem = useMemo(() => [
 
       <main
         className="main-content"
-        style={{ paddingLeft: isOpen ? '180px' : '90px', transition: 'padding-left 0.3s ease' }}
+        style={{ paddingLeft: isOpen ? '180px' : '85px', transition: 'padding-left 0.3s ease' }}
       >
         <Outlet />
       </main>

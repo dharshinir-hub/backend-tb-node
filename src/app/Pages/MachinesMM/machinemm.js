@@ -369,56 +369,44 @@ const handleFilterClick = (event) => {
 
 
 
-// Called when tab is clicked
-const handleTabClick = (tab, machine) => {
-  if (!machine) {
-    console.warn("No machine selected");
-    return;
-  }
+// // Called when tab is clicked
+// const handleTabClick = (tab, machine) => {
+//   if (!machine) {
+//     console.warn("No machine selected");
+//     return;
+//   }
 
-  setActiveTab(tab);
+//   setActiveTab(tab);
+//   localStorage.setItem("activeTab", tab); // 👈 directly store here
 
-  const machineId = machine.id?.id;
-  const machineName = encodeURIComponent(machine.name || "");
+//   const machineId = machine.id?.id;
+//   const machineName = encodeURIComponent(machine.name || "");
 
- 
+//   const baseUrls = {
+//     overview: `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&from=${from}&to=${to}`,
+//     timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${to}`,
+//     diagnostics: `http://example.com/diagnostics`,
+//     toolMonitoring: `${window._env_.GRAFANA_URL}d/da065e50-263c-43e5-8a19-610e8c09820c/main-screen-valve-c-56-tool-monitoring`,
+//   };
 
-  const baseUrls = {
-    overview:
-      `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&from=${from}&to=${to}`,
+//   const newToken = localStorage.getItem("newToken");
+//   const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
 
-   timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${to}`,
+//   const GRAFANA_URL = window._env_.GRAFANA_URL;
+//   console.log("GRAFANA_URL", GRAFANA_URL);
 
+//   const baseUrl = window._env_.SERVER_URL;
+//   console.log("baseurl", baseUrl);
 
-    diagnostics: `http://example.com/diagnostics`,
+//   let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
 
-    toolMonitoring:
-      `${window._env_.GRAFANA_URL}d/da065e50-263c-43e5-8a19-610e8c09820c/main-screen-valve-c-56-tool-monitoring`,
-  };
-  const newToken = localStorage.getItem("newToken");
-      const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
+//   if (tab === "diagnostics") {
+//     url = `${baseUrls[tab]}?from=${fromTime}&to=${toTime}&var-from=${fromTime}&var-to=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
+//   }
 
-       const GRAFANA_URL = window._env_. GRAFANA_URL;
- console.log('GRAFANA_URL',GRAFANA_URL);
-
-    const baseUrl = window._env_.SERVER_URL;
- console.log('baseurl',baseUrl);
-
-
-  let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
-
-  if (tab === "diagnostics") {
-    url = `${baseUrls[tab]}?from=${fromTime}&to=${toTime}&var-from=${fromTime}&var-to=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
-  }
-
-  console.log("Final iframe URL:", url);
-  setIframeSrc(url); // 🔹 THIS updates the iframe
-};
-
-
-useEffect(() => {
-  localStorage.setItem("activeTab", activeTab);
-}, [activeTab]);
+//   console.log("Final iframe URL:", url);
+//   setIframeSrc(url); // 🔹 Updates the iframe
+// };
 
 function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
   if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
@@ -498,6 +486,54 @@ useEffect(() => {
     console.log("✅ to:", to);
      console.log("✅ fromTime:", fromTime);
     console.log("✅ toTime:", toTime);
+
+    // 👉 Trigger default tab load once times are ready
+useEffect(() => {
+  if (from && to && fromTime && toTime ) {
+    handleTabClick("overview", );  // 👈 auto-load overview with proper timings
+  }
+}, [from, to, fromTime, toTime]);
+
+
+    // Called when tab is clicked
+const handleTabClick = (tab, machine) => {
+  if (!machine) {
+    console.warn("No machine selected");
+    return;
+  }
+
+  setActiveTab(tab);
+  localStorage.setItem("activeTab", tab); // 👈 directly store here
+
+  const machineId = machine.id?.id;
+  const machineName = encodeURIComponent(machine.name || "");
+
+  const baseUrls = {
+    overview: `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&from=${from}&to=${to}`,
+    timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${to}`,
+    diagnostics: `http://example.com/diagnostics`,
+    toolMonitoring: `${window._env_.GRAFANA_URL}d/da065e50-263c-43e5-8a19-610e8c09820c/main-screen-valve-c-56-tool-monitoring`,
+  };
+
+  const newToken = localStorage.getItem("newToken");
+  const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
+
+  const GRAFANA_URL = window._env_.GRAFANA_URL;
+  console.log("GRAFANA_URL", GRAFANA_URL);
+
+  const baseUrl = window._env_.SERVER_URL;
+  console.log("baseurl", baseUrl);
+
+  let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
+
+  if (tab === "diagnostics") {
+    url = `${baseUrls[tab]}?from=${fromTime}&to=${toTime}&var-from=${fromTime}&var-to=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
+  }
+
+  console.log("Final iframe URL:", url);
+  setIframeSrc(url); // 🔹 Updates the iframe
+};
+
 
 // States
 const [runDuration, setRunDuration] = useState(0);
