@@ -262,7 +262,7 @@ const menuItem = useMemo(() => [
 
       <main
         className="main-content"
-        style={{ paddingLeft: isOpen ? '180px' : '85px', transition: 'padding-left 0.3s ease' }}
+        style={{ paddingLeft: isOpen ? '200px' : '85px', transition: 'padding-left 0.3s ease' }}
       >
         <Outlet />
       </main>

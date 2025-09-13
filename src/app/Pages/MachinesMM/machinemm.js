@@ -115,6 +115,7 @@ const [selectedShift, setSelectedShift] = useState(() => getCurrentShift(shifts)
         if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
           const cur = getCurrentShift(shifts); // string
           setSelectedShift(cur);
+          console.log("currect shift",cur)
         }
         // intentionally omit selectedShift from deps so this runs once when shifts load
       }, [shifts]);
@@ -259,7 +260,7 @@ useEffect(() => {
           const data = await telemetrykeydata(
             machine.id.id,
             "DEVICE",
-            "total_duration",
+            "total_duratio n",
             from,
             to
           );
@@ -970,7 +971,11 @@ const filteredMachines = machineList.filter((m) => {
 });
 
 
-
+useEffect(() => {
+  if (from && to && fromTime && toTime && selectedMachine) {
+    handleTabClick("overview", selectedMachine);  
+  }
+}, [from, to, fromTime, toTime, selectedMachine])
 
 
 

@@ -3,8 +3,12 @@ import dayjs from 'dayjs';
 import { useNavigate } from "react-router-dom";
 
 import {
-  cleanCustomerId,
+ cleanCustomerId,
+  telemetrylatestdata,
   customerbaseddevices,
+  customerbasedshift,
+  telemetrykeydata,
+  getCustomerName
 } from '../../Services/app/companyservice';
 
 const OeeDashboard = () => {
@@ -17,11 +21,96 @@ const OeeDashboard = () => {
   const customerId = localStorage.getItem('CustomerID');
   const newToken = localStorage.getItem('newToken');
 
-  // 🔹 Temporary time values (replace with actual logic if needed)
-  const fromTime = dayjs().startOf('day').valueOf();
-  const toTime = dayjs().valueOf();
-  const from = fromTime;
-  const to = toTime;
+     const [shifts, setShifts] = useState([]);
+  const [currentShift, setCurrentShift] = useState(null);
+  const [from, setFrom] = useState(null); // epoch ms
+  const [to, setTo] = useState(null);     // epoch ms
+
+  // Convert HH:mm:ss to epoch ms
+  const convertShiftToEpoch = (fromTimeStr, toTimeStr) => {
+    const today = new Date();
+    const dateStr = today.toISOString().split("T")[0]; // "YYYY-MM-DD"
+
+    let fromDate = new Date(`${dateStr}T${fromTimeStr}`);
+    let toDate = new Date(`${dateStr}T${toTimeStr}`);
+
+    // Handle overnight shifts
+    if (toDate <= fromDate) {
+      toDate.setDate(toDate.getDate() + 1);
+    }
+
+    return {
+      from: fromDate.getTime(),
+      to: toDate.getTime(),
+    };
+  };
+
+  // Determine current shift based on time
+  const getCurrentShift = (shiftsList) => {
+    if (!Array.isArray(shiftsList) || shiftsList.length === 0) return null;
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    for (const s of shiftsList) {
+      const [fromH, fromM] = s.start_time.split(":").map(Number);
+      const [toH, toM] = s.end_time.split(":").map(Number);
+
+      const fromMinutes = fromH * 60 + fromM;
+      const toMinutes = toH * 60 + toM;
+
+      // normal or overnight
+      if (
+        (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
+        (fromMinutes > toMinutes &&
+          (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
+      ) {
+        // Set epoch times
+        const { from: fromEpoch, to: toEpoch } = convertShiftToEpoch(
+          s.start_time,
+          s.end_time
+        );
+        setFrom(fromEpoch);
+        setTo(toEpoch);
+
+        return s; // return the active shift object
+      }
+    }
+
+    // Fallback to first shift
+    const fallback = shiftsList[0];
+    const { from: fromEpoch, to: toEpoch } = convertShiftToEpoch(
+      fallback.start_time,
+      fallback.end_time
+    );
+    setFrom(fromEpoch);
+    setTo(toEpoch);
+
+    return fallback;
+  };
+
+  // Fetch shifts from API
+  const fetchShifts = async () => {
+    try {
+      const result = await customerbasedshift(customerId, "allShift");
+      const shiftList = result[0]?.value || [];
+      setShifts(shiftList);
+
+      // Determine active shift immediately
+      const activeShift = getCurrentShift(shiftList);
+      setCurrentShift(activeShift);
+    } catch (err) {
+      console.error("Failed to fetch shifts", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchShifts();
+  }, []);
+
+  console.log("Shifts:", shifts);
+  console.log("Current Shift:", currentShift);
+  console.log("From (epoch ms):", from, "To (epoch ms):", to);
 
   // 🔹 Fetch Devices
   const fetchDevices = async () => {
@@ -69,7 +158,7 @@ const OeeDashboard = () => {
     const cleanedId = cleanCustomerId(customerId);
     const encodedid = encodeURIComponent(JSON.stringify(deviceNameIdJson));
 
-    return `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b0/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-entityId=${device.id.id}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=1m`;
+    return `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b0/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=1m`;
   };
 
   return (
@@ -119,7 +208,7 @@ const OeeDashboard = () => {
           gap: "15px",
           width: "100%",
           marginTop: "20px",
-          gridAutoRows: "250px",
+          gridAutoRows: "600px",
         }}
       >
         {devices.map((device, index) => {
@@ -132,7 +221,7 @@ const OeeDashboard = () => {
               style={{
                 position: "relative",
                 width: "100%",
-                height: "250px",
+                height: "100%",
                 borderRadius: "8px",
                 overflow: "hidden",
                 boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
@@ -142,7 +231,7 @@ const OeeDashboard = () => {
               }}
               onClick={() => console.log("🖱️ Clicked device:", device)}
             >
-              {/* 🔹 Machine Name Header */}
+              {/* 🔹 Machine Name Header
               <div
                 style={{
                   background: "#f5f5f5",
@@ -154,12 +243,12 @@ const OeeDashboard = () => {
                 }}
               >
                 {device?.name || "Unnamed Device"}
-              </div>
+              </div> */}
 
               {/* 🔹 Iframe */}
               <iframe
                 src={url}
-                style={{ flex: 1, border: "0" }}
+                style={{ flex: 1, border: "0", width: "100%", height: "1000px" }}
                 title={`OEE-${device.name}`}
               />
             </div>
