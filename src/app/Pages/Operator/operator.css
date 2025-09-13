@@ -194,7 +194,7 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
   font-weight: 500;
   font-size: 1.5rem; /* 24px */
   color: #666;
-  text-align: right;
+  text-align: center;
 }
 
 /* Values */
@@ -202,8 +202,9 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
   font-weight: 700;
   font-size: 2.5rem; /* 40px */
   color: #f99022;
-  text-align: right;
   line-height: 1.2;
+    text-align: center;
+    margin-top: 0.5rem;
 }
 
 /* Responsive tweaks */
