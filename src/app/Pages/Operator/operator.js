@@ -10,7 +10,7 @@ import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, Down
 import { FaCheckCircle, FaTimesCircle, FaArrowDown } from "react-icons/fa";
 import Swal from 'sweetalert2';
 
-import { getFirstMachineActive, operatorTelemetry } from '../../Services/app/operatorservice'
+import { getFirstMachineActive, getMachineLock, operatorTelemetry } from '../../Services/app/operatorservice'
 /* ---------------- OPERATOR SCREEN ---------------- */
 
 
@@ -629,16 +629,100 @@ function Operator() {
         getAllShifts();
     }, [selectedMachine, selectedDate]); // 🔹 removed deviceNameIdJson
 
-    // 🔹 Telemetry refresher
-    useEffect(() => {
-        if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
+const [isLocked, setIsLocked] = useState(false);
 
-        const deviceId = deviceNameIdJson[selectedMachine];
-        fetchTelemetry(deviceId); // initial call
+useEffect(() => {
+  if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
 
-        const interval = setInterval(() => fetchTelemetry(deviceId), 5000);
-        return () => clearInterval(interval);
-    }, [selectedMachine, deviceNameIdJson]);
+  const deviceId = deviceNameIdJson[selectedMachine];
+
+  const refreshData = async () => {
+    try {
+      await fetchTelemetry(deviceId);
+
+      const response = await getMachineLock("DEVICE", deviceId, {
+        keys: "lock_status",
+      });
+
+      const lockValue = response?.lock_status?.[0]?.value || "";
+      const locked = String(lockValue).toLowerCase() === "locked";
+
+      // Only trigger popup when changing from unlocked -> locked
+      if (locked && !isLocked) {
+        setIsLocked(true);
+
+        Swal.fire({
+          icon: "info",
+          title: "Machine Locked",
+          html: `
+            <p>Machine has been locked due to downhold threshold reached.</p>
+            <label for="reason">Select Reason:</label>
+            <select id="reason" class="swal2-select">
+              <option value="">-- Select --</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="overload">Overload</option>
+              <option value="safety">Safety</option>
+            </select>
+          `,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showCancelButton: false,
+          confirmButtonText: "Submit",
+          customClass: {
+    icon: 'swal2-icon-center', // 👈 add custom class
+  },
+          preConfirm: () => {
+            const reason = document.getElementById("reason").value;
+            if (!reason) {
+              Swal.showValidationMessage("Please select a reason");
+              return false;
+            }
+            return reason;
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const selectedReason = result.value;
+
+        Swal.fire({
+  icon: "question",   // 👈 change to confirmation icon
+  title: "Confirm Submission",
+  text: `You selected: ${selectedReason}. Do you want to confirm?`,
+  showCancelButton: true,
+  confirmButtonText: "Yes, Submit",
+  cancelButtonText: "No, Go Back",
+  allowOutsideClick: false,
+  allowEscapeKey: false,
+  customClass: {
+    icon: 'swal2-icon-center', // 👈 add custom class
+  }
+}).then((confirmResult) => {
+  if (confirmResult.isConfirmed) {
+    console.log("Final confirmed reason:", selectedReason);
+    // ✅ Call API here to save reason permanently
+  } else {
+    // 👈 Re-open first popup if they cancel
+    setIsLocked(false);
+  }
+});
+
+          }
+        });
+      }
+
+      // Reset lock state if machine is unlocked again
+      if (!locked && isLocked) {
+        setIsLocked(false);
+      }
+    } catch (err) {
+      console.error("Error refreshing telemetry/lock:", err);
+    }
+  };
+
+  refreshData();
+  const interval = setInterval(refreshData, 5000);
+
+  return () => clearInterval(interval);
+}, [selectedMachine, deviceNameIdJson, isLocked]);
 
 
     const openDownTime = async (devicename, deviceid) => {

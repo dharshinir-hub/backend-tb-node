@@ -39,4 +39,24 @@ export const getFirstMachineActive = async (entityType, entityId, { keys, startT
     console.error('Error during telemetry fetch:', error);
     throw error;
   }
+  }
+  
+  
+export const getMachineLock = async (entityType, entityId, { keys, useStrictDataTypes = false }) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, ''); // Remove trailing slash if any
+    const url = `${baseUrl}/api/plugins/telemetry/${entityType}/${entityId}/values/timeseries`;
+    const response = await axiosInstance.get(url, {
+      params: {
+        keys,
+        useStrictDataTypes,
+      },
+    });
+    console.log('Machine lock API URL:', response.config.url);
+    console.log('Machine lock Response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('Error during telemetry fetch:', error);
+    throw error;
+  }
   };
