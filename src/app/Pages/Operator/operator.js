@@ -10,7 +10,7 @@ import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, Down
 import { FaCheckCircle, FaTimesCircle, FaArrowDown } from "react-icons/fa";
 import Swal from 'sweetalert2';
 
-import {operatorTelemetry} from '../../Services/app/operatorservice'
+import { getFirstMachineActive, operatorTelemetry } from '../../Services/app/operatorservice'
 /* ---------------- OPERATOR SCREEN ---------------- */
 
 
@@ -23,6 +23,7 @@ import {
     DialogContent,
     DialogActions,
     Button,
+    duration,
 } from "@mui/material";
 import { customerbaseddevices, customerbasedshift, telemetrykeydata, telemetrylatestdata } from '../../Services/app/alarmservice';
 import { Loginapi } from '../../Services/app/authservice';
@@ -125,22 +126,21 @@ function CircularProgress({
 
 /* ---------------- VERTICAL PROGRESS ---------------- */
 function VerticalProgress({
+    shiftNo,
     shiftStart = "10:00",
     shiftEnd = "22:00",
-    login = "10:15"
+    firstActive // epoch in ms
 }) {
     const [currentTime, setCurrentTime] = useState(new Date());
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            setCurrentTime(new Date());
-        }, 1000);
+        const interval = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(interval);
     }, []);
 
+    // Parse shift start/end
     const [startH, startM] = shiftStart.split(":").map(Number);
     const [endH, endM] = shiftEnd.split(":").map(Number);
-    const [loginH, loginM] = login.split(":").map(Number);
 
     const shiftStartTime = new Date();
     shiftStartTime.setHours(startH, startM, 0, 0);
@@ -152,30 +152,40 @@ function VerticalProgress({
     const passed = currentTime - shiftStartTime;
     const progressPercent = Math.min(100, Math.max(0, (passed / total) * 100));
 
-    const loginDate = new Date(shiftStartTime);
-    loginDate.setHours(loginH, loginM, 0, 0);
-    const loginOffset = loginDate - shiftStartTime;
-    const loginPercent = Math.min(100, Math.max(0, (loginOffset / total) * 100));
+    // First active time
+    let loginPercent = 0;
+    let formattedLoginTime = "N/A";
 
-    // Format login time for display
-    const loginAMPM = loginDate.getHours() >= 12 ? 'PM' : 'AM';
-    const formattedLoginTime = `${(loginDate.getHours() % 12) || 12}:${(loginDate.getMinutes() < 10 ? '0' : '') + loginDate.getMinutes()} ${loginAMPM}`;
+    if (firstActive) {
+        const loginDate = new Date(firstActive);
+        const loginOffset = loginDate - shiftStartTime;
+        loginPercent = Math.min(100, Math.max(0, (loginOffset / total) * 100));
+
+        // ✅ Format with dayjs as 24-hour "HH:mm"
+        formattedLoginTime = dayjs(loginDate).format("HH:mm");
+    }
 
     return (
         <div className="vertical-progress-container">
-            <div className="time-label start-time">Shift 2: {shiftStart}</div>
+            <div className="time-label start-time">
+                Shift {shiftNo}: {shiftStart}
+            </div>
             <div className="progress-wrapper">
                 <div className="progress-bar">
                     <div
                         className="progress"
                         style={{
                             height: `${progressPercent}%`,
-                            minHeight: progressPercent > 0 ? '2px' : '0px'
+                            minHeight: progressPercent > 0 ? "2px" : "0px"
                         }}
                     />
-                    <div className="login-indicator" style={{ top: `${loginPercent}%` }}>
-                        <div className="login-time-label">Started: {formattedLoginTime}</div>
-                    </div>
+                    {firstActive && (
+                        <div className="login-indicator" style={{ top: `${loginPercent}%` }}>
+                            <div className="login-time-label">
+                                Started: {formattedLoginTime}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
             <div className="time-label end-time">Shift End: {shiftEnd}</div>
@@ -190,6 +200,7 @@ function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
     const [time, setTime] = useState(dayjs().format("HH:mm:ss"));
     const [deviceThresholds, setDeviceThresholds] = useState({});
+    const [currentShift, setCurrentShift] = useState(null)
 
     const [startTime, setStartTime] = useState(null);
     const [endTime, setEndTime] = useState(null);
@@ -234,18 +245,18 @@ function Operator() {
     const [confirmType, setConfirmType] = useState(null);
 
     // status color mapping
-const status = telemetry.machineStatus?.toLowerCase();
+    const status = telemetry.machineStatus?.toLowerCase();
 
-const statusColor =
-  status === "running"
-    ? "#3DA06A"
-    : status === "idle"
-    ? "#DD6B20"
-    : status === "alarm"
-    ? "#E53E3E"
-    : status === "disconnect"
-    ? "#ccc"
-    : "#ccc";
+    const statusColor =
+        status === "running"
+            ? "#3DA06A"
+            : status === "idle"
+                ? "#DD6B20"
+                : status === "alarm"
+                    ? "#E53E3E"
+                    : status === "disconnect"
+                        ? "#ccc"
+                        : "#ccc";
 
     // fetch machines from API
     const fetchDevices = async () => {
@@ -415,215 +426,281 @@ const statusColor =
     };
 
 
-    const downtimereason = async () => {
-        if (!selectedDeviceId || !selectedShift || !selectedDate) return;
 
-        const { fromEpoch, toEpoch } = getEpochFromShift1(selectedShift, selectedDate);
-        if (!fromEpoch || !toEpoch) return;
+    // ========== getCurrentShift ==========
+    const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
+        const now = dayjs(); // system current time
+        const baseDate = selectedDate ? dayjs(selectedDate) : dayjs();
+
+        for (let shift of allShifts) {
+            let start = baseDate.startOf("day");
+            let end = baseDate.startOf("day");
+
+            // build start time
+            start = start
+                .add(Number(shift.start_time.split(":")[0]), "hour")
+                .add(Number(shift.start_time.split(":")[1]), "minute")
+                .add(Number(shift.start_time.split(":")[2]), "second");
+
+            // build end time
+            end = end
+                .add(Number(shift.end_time.split(":")[0]), "hour")
+                .add(Number(shift.end_time.split(":")[1]), "minute")
+                .add(Number(shift.end_time.split(":")[2]), "second");
+
+            // overnight case: end is next day
+            if (shift.start_day !== shift.end_day) {
+                end = end.add(1, "day");
+            }
+
+            if (now.isAfter(start) && now.isBefore(end)) {
+                return shift; // return full object
+            }
+        }
+
+        return null;
+    };
+
+
+    const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, deviceId }) => {
+        if (!deviceId || !shiftNo || !selectedDate || !fromEpoch || !toEpoch) return [];
 
         const fromTime = fromEpoch;
         const toTime = toEpoch;
-        const deviceId = selectedDeviceId;
+
         try {
-            if (deviceId && fromTime && toTime) {
-                telemetrykeydata(deviceId, 'DEVICE', 'machine_status', fromTime, toTime)
-                    .then(async machineStatusResponse => {
-                        const machineData = machineStatusResponse?.machine_status || [];
+            const machineStatusResponse = await telemetrykeydata(deviceId, "DEVICE", "machine_status", fromTime, toTime);
+            const machineData = machineStatusResponse?.machine_status || [];
 
-                        const statusMapping = {
-                            0: { state: "Idle", color: "#FFEB3B" },
-                            1: { state: "Idle", color: "#FFEB3B" },
-                            2: { state: "Idle", color: "#FFEB3B" },
-                            3: { state: "Run", color: "#4CAF50" },
-                            100: { state: "Disconnect", color: "#808080" },
-                            4: { state: "Alarm", color: "#F44336" },
-                        };
+            const statusMapping = {
+                0: { state: "Idle", color: "#FFEB3B" },
+                1: { state: "Idle", color: "#FFEB3B" },
+                2: { state: "Idle", color: "#FFEB3B" },
+                3: { state: "Run", color: "#4CAF50" },
+                100: { state: "Disconnect", color: "#808080" },
+                4: { state: "Alarm", color: "#F44336" },
+            };
 
-                        let runTime = 0, idleTime = 0, disconnectTime = 0, alarmTime = 0;
-                        const sortedData = [...machineData].sort((a, b) => Number(a.ts) - Number(b.ts));
+            const sortedData = [...machineData].sort((a, b) => Number(a.ts) - Number(b.ts));
 
-                        for (let i = 0; i < sortedData.length; i++) {
-                            const currentStatus = sortedData[i].value;
-                            const currentTs = Number(sortedData[i].ts);
+            const transformedData = sortedData
+                .filter(item => item.ts && item.value !== undefined)
+                .map(item => ({ ts: item.ts, value: item.value }));
 
-                            let nextTs;
-                            if (i < sortedData.length - 1) {
-                                nextTs = Number(sortedData[i + 1].ts);
-                            } else {
-                                nextTs = Number(toTime);
-                            }
+            // helper: extract idle ranges
+            const extractStartEndFromOneToThree = (data) => {
+                const result = [];
+                let recording = false;
+                let segment = { start: null, value: null };
 
-                            const intervalStart = Math.max(currentTs, Number(fromTime));
-                            const intervalEnd = Math.min(nextTs, Number(toTime));
-                            const duration = Math.max(0, intervalEnd - intervalStart);
+                for (let i = 0; i < data.length; i++) {
+                    const current = data[i];
+                    const numericValue = Number(current.value);
 
-                            if (duration > 0) {
-                                const state = statusMapping[currentStatus]?.state;
-                                if (state === "Run") {
-                                    runTime += duration;
-                                } else if (state === "Idle") {
-                                    idleTime += duration;
-                                } else if (state === "Disconnect") {
-                                    disconnectTime += duration;
-                                } else if (state === "Alarm") {
-                                    alarmTime += duration;
-                                }
-                            }
-                        }
+                    if (!recording && [0, 1, 2].includes(numericValue)) {
+                        segment.start = current.ts;
+                        segment.value = numericValue;
+                        recording = true;
+                    }
 
-                        const msToTime = ms => {
-                            const absMs = Math.abs(ms);
-                            const hours = Math.floor(absMs / 3600000);
-                            const minutes = Math.floor((absMs % 3600000) / 60000);
-                            const seconds = Math.floor((absMs % 60000) / 1000);
-                            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                        };
+                    if (recording && numericValue === 3) {
+                        segment.end = current.ts;
+                        const duration = Math.floor((segment.end - segment.start) / 1000);
 
+                        result.push({ start: segment.start, end: segment.end, duration, value: segment.value, status: "IDLE" });
+                        recording = false;
+                        segment = { start: null, value: null };
+                    }
 
+                    if (recording && [0, 1, 2].includes(numericValue)) {
+                        segment.value = numericValue;
+                    }
+                }
 
-                        const transformedData = sortedData
-                            .filter(item => item.ts && item.value !== undefined)
-                            .map(item => ({ ts: item.ts, value: item.value }));
+                if (recording) {
+                    segment.end = toTime;
+                    const duration = Math.floor((segment.end - segment.start) / 1000);
+                    result.push({ start: segment.start, end: segment.end, duration, value: segment.value, status: "IDLE" });
+                }
 
-                        const extractStartEndFromOneToThree = (data) => {
-                            const result = [];
-                            let recording = false;
-                            let segment = { start: null, value: null };
+                return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: "NO_DATA" }];
+            };
 
-                            for (let i = 0; i < data.length; i++) {
-                                const current = data[i];
-                                const numericValue = Number(current.value);
+            // apply downtime threshold
+            const key = "downtime_threasold";
+            const results = await Deviceattributeget(deviceId, key);
 
-                                if (!recording && (numericValue === 0 || numericValue === 1 || numericValue === 2)) {
-                                    segment.start = current.ts;
-                                    segment.value = numericValue;
-                                    recording = true;
-                                }
-
-                                if (recording && numericValue === 3) {
-                                    segment.end = current.ts;
-                                    const startTime = new Date(segment.start);
-                                    const endTime = new Date(segment.end);
-                                    const duration = Math.floor((endTime - startTime) / 1000);
-
-                                    result.push({
-                                        start: segment.start,
-                                        end: segment.end,
-                                        duration: duration,
-                                        value: segment.value,
-                                        status: 'IDLE'
-                                    });
-
-                                    recording = false;
-                                    segment = { start: null, value: null };
-                                }
-
-                                if (recording && (numericValue === 0 || numericValue === 1 || numericValue === 2)) {
-                                    segment.value = numericValue;
-                                }
-                            }
-
-                            // Handle case where recording never ended (no 3 found)
-                            if (recording) {
-                                segment.end = toTime;
-                                const startTime = new Date(segment.start);
-                                const endTime = new Date(segment.end);
-                                const duration = Math.floor((endTime - startTime) / 1000);
-
-                                result.push({
-                                    start: segment.start,
-                                    end: segment.end,
-                                    duration: duration,
-                                    value: segment.value,
-                                    status: 'IDLE'
-                                });
-                            }
-
-                            return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: 'NO_DATA' }];
-                        };
-                        let downtime;
-                        const key = 'downtime_threasold';
-                        const results = await Deviceattributeget(deviceId, key);
-                        let downtimedatas = encodeURIComponent(JSON.stringify([{ start: fromTime, end: toTime, duration: 0, value: 0, status: 'NO_DATA' }]));
-                        console.log('Result', results);
-
-                        if (results && results.length > 0) {
-                            downtime = results[0].value;
-                            const result = extractStartEndFromOneToThree(transformedData);
-                            const filteredResult = result.filter(entry => entry.duration > downtime);
-                            console.log('filterresult', filteredResult)
-                            setfilteredResult(filteredResult);
-                            downtimedatas = encodeURIComponent(JSON.stringify(filteredResult));
-                        }
-
-                        const encodedData = encodeURIComponent(JSON.stringify(transformedData));
-                        console.log('result', transformedData)
-
-                        return Promise.all([
-                            Promise.resolve(encodedData),
-                            Promise.resolve(downtimedatas)
-                        ]);
-                    })
-                    .then(async ([encodedData, downtimedatas]) => {
-                        const downtimedata = downtimedatas;
-                        console.log('downtimedata', downtimedata);
-
-                        const key2 = 'live_reason';
-                        const entitytype = 'DEVICE';
-                        const deviceid = deviceId;
-
-                        try {
-                            const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
-
-                            if (
-                                response &&
-                                Array.isArray(response.live_reason) &&
-                                response.live_reason.length > 0
-                            ) {
-                                const parsedLiveReasons = response.live_reason.map(entry => {
-                                    try {
-                                        const parsedValue = JSON.parse(entry.value);
-                                        return {
-                                            ts: entry.ts,
-                                            ...parsedValue // includes: name, code, mode, module, idle_start
-                                        };
-                                    } catch (err) {
-                                        console.error("Failed to parse live_reason value:", entry.value, err);
-                                        return null;
-                                    }
-                                }).filter(reason => reason !== null);
-
-                                // For each item in filteredResult, set reasonselected if match found
-                                setfilteredResult(prevResults => {
-                                    return prevResults.map(item => {
-                                        const matched = parsedLiveReasons.find(reason =>
-                                            String(reason.ts) === String(item.start)
-                                        );
-                                        return {
-                                            ...item,
-                                            reasonselected: matched?.name || item.reasonselected || ''
-                                        };
-                                    });
-                                });
-
-                            } else {
-                                console.log("No valid live_reason data found");
-                            }
-                        } catch (error) {
-                            console.error("Error while processing live_reason telemetry:", error);
-                        }
-
-
-                    })
-
-
+            let filteredResult = [];
+            if (results && results.length > 0) {
+                const downtime = results[0].value;
+                const result = extractStartEndFromOneToThree(transformedData);
+                filteredResult = result.filter(entry => entry.duration > downtime);
             }
+
+            // live reasons
+            const response = await telemetrykeydata(deviceId, "DEVICE", "live_reason", fromEpoch, toEpoch);
+            if (response?.live_reason?.length > 0) {
+                const parsedLiveReasons = response.live_reason
+                    .map(entry => {
+                        try {
+                            return { ts: entry.ts, ...JSON.parse(entry.value) };
+                        } catch { return null; }
+                    })
+                    .filter(Boolean);
+
+                filteredResult = filteredResult.map(item => {
+                    const matched = parsedLiveReasons.find(reason => String(reason.ts) === String(item.start));
+                    return { ...item, reasonselected: matched?.name || item.reasonselected || "" };
+                });
+            }
+
+            return filteredResult;
         } catch (error) {
-            console.error('Error fetching downtime data:', error);
+            console.error("Error fetching downtime data:", error);
+            return [];
+        }
+    };
+
+
+    const [firstMachineActive, setFirstMachineActive] = useState(null);
+
+
+
+
+    useEffect(() => {
+        const getAllShifts = async () => {
+            try {
+                // Only fetch devices once (move this outside or into another effect if needed)
+                if (!Object.keys(deviceNameIdJson).length) {
+                    await fetchDevices();
+                }
+
+                console.log("Fetching shifts...");
+                const response = await customerbasedshift(
+                    "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
+                    "allShift"
+                );
+                const shifts = response[0]?.value || [];
+                console.log("Shifts:", shifts);
+
+                const currentActiveShift = await getCurrentShift(shifts, selectedDate);
+                if (!currentActiveShift) return;
+
+                const formattedShift = {
+                    ...currentActiveShift,
+                    start_time: currentActiveShift.start_time.slice(0, 5),
+                    end_time: currentActiveShift.end_time.slice(0, 5),
+                };
+                setCurrentShift(formattedShift);
+
+                const { fromEpoch, toEpoch } = getEpochFromShift2(
+                    currentActiveShift.shift_no,
+                    dayjs(selectedDate),
+                    shifts
+                );
+                console.log(fromEpoch, toEpoch, "from and to");
+
+                const deviceId = deviceNameIdJson[selectedMachine];
+                if (!deviceId) return; // avoid invalid calls
+
+                const machineData = await getFirstMachineActive("DEVICE", deviceId, {
+                    keys: "machine_status",
+                    startTs: fromEpoch,
+                    endTs: toEpoch,
+                    interval: 0,
+                    limit: 2000, // 🔹 reduce load (adjust as needed)
+                    useStrictDataTypes: false,
+                });
+
+                console.log("Machine telemetry data:", machineData);
+
+                const lastActive = machineData?.machine_status
+                    ?.slice()
+                    .reverse()
+                    .find((item) => item.value === "3");
+
+                console.log(lastActive?.ts, "first active");
+                setFirstMachineActive(lastActive?.ts || null);
+            } catch (err) {
+                console.error("Error in getAllShifts:", err);
+            }
+        };
+
+        getAllShifts();
+    }, [selectedMachine, selectedDate]); // 🔹 removed deviceNameIdJson
+
+    // 🔹 Telemetry refresher
+    useEffect(() => {
+        if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
+
+        const deviceId = deviceNameIdJson[selectedMachine];
+        fetchTelemetry(deviceId); // initial call
+
+        const interval = setInterval(() => fetchTelemetry(deviceId), 5000);
+        return () => clearInterval(interval);
+    }, [selectedMachine, deviceNameIdJson]);
+
+
+    const openDownTime = async (devicename, deviceid) => {
+        const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
+        setLoading(true);
+
+        try {
+            const [reasonsData, shiftsData] = await Promise.all([
+                customerbasedshift(customerId, "reason"),
+                customerbasedshift(customerId, "allShift"),
+            ]);
+
+            const allReasons = reasonsData[0]?.value || [];
+            setreasonslist(allReasons);
+            setreasons(allReasons.map(r => ({ value: r.reason, label: r.reason })));
+
+            const allShifts = shiftsData[0]?.value || [];
+            setShifts(allShifts);
+
+            const options = allShifts.map(shift => ({
+                value: shift.shift_no,
+                label: `Shift${shift.shift_no}`,
+            }));
+            setShiftOptions(options);
+
+            setSelectedDeviceId(deviceid);
+            setSelectedDate(dayjs());
+            setfilteredResult([]); // clear old data
+
+            const currentShift = getCurrentShift(allShifts);
+            let chosenShiftNo = currentShift?.shift_no || (options.length > 0 ? options[0].value : null);
+
+            if (chosenShiftNo) {
+                setSelectedShift(chosenShiftNo);
+
+                const { fromEpoch, toEpoch } = getEpochFromShift(chosenShiftNo, dayjs());
+                setEpochRange({ from: fromEpoch, to: toEpoch });
+
+                // ✅ fetch and wait for data first
+                const data = await downtimereason({
+                    shiftNo: chosenShiftNo,
+                    selectedDate: dayjs(),
+                    fromEpoch,
+                    toEpoch,
+                    deviceId: deviceid,
+                });
+
+                setfilteredResult(data);
+
+                // ✅ open modal only after data is set
+                setopenDownTimeModal(true);
+            } else {
+                console.warn("⚠️ No active shift found right now");
+            }
+        } catch (err) {
+            console.error("Error in openDownTime:", err);
         } finally {
             setLoading(false);
         }
     };
+
+
 
     const cancelreason = async () => {
         setopenDownTimeModal(false);
@@ -732,6 +809,34 @@ const statusColor =
         };
     };
 
+    const getEpochFromShift2 = (shiftNo, selectedDateObj, shifts) => {
+        if (!shiftNo || !selectedDateObj || !shifts || shifts.length === 0) {
+            return { fromEpoch: null, toEpoch: null };
+        }
+
+        const selectedShiftData = shifts.find(shift => String(shift.shift_no) === String(shiftNo));
+        if (!selectedShiftData) {
+            return { fromEpoch: null, toEpoch: null };
+        }
+
+        const dateStr = selectedDateObj.format("YYYY-MM-DD");
+        const startDateTime = dayjs(`${dateStr}T${selectedShiftData.start_time}`);
+
+        let endDateTime;
+        if (selectedShiftData.end_day !== selectedShiftData.start_day) {
+            // shift spans to next day
+            const nextDay = selectedDateObj.add(1, "day").format("YYYY-MM-DD");
+            endDateTime = dayjs(`${nextDay}T${selectedShiftData.end_time}`);
+        } else {
+            endDateTime = dayjs(`${dateStr}T${selectedShiftData.end_time}`);
+        }
+
+        return {
+            fromEpoch: startDateTime.valueOf(),
+            toEpoch: endDateTime.valueOf(),
+        };
+    };
+
     const getEpochFromShift = (shiftNo, selectedDateObj) => {
         if (!shiftNo || !selectedDateObj || shifts.length === 0) {
             return { fromEpoch: null, toEpoch: null };
@@ -760,20 +865,6 @@ const statusColor =
         };
     };
 
-    // refresh telemetry every 5 seconds
-    useEffect(() => {
-        if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
-
-        const deviceId = deviceNameIdJson[selectedMachine];
-        fetchTelemetry(deviceId); // initial call
-
-        const interval = setInterval(() => {
-            fetchTelemetry(deviceId);
-        }, 5000);
-
-        return () => clearInterval(interval);
-    }, [selectedMachine, deviceNameIdJson]);
-
     // init
     useEffect(() => {
         const init = async () => {
@@ -794,6 +885,7 @@ const statusColor =
                 );
                 const responseData = operatorResponse?.[0]?.value || [];
 
+                console.log(responseData, 'responsea')
                 const mappedOperators = responseData.map((op) => ({
                     id: op.operatorid,
                     name: op.operatorname,
@@ -821,6 +913,7 @@ const statusColor =
     }, []);
 
     const handleShiftChange = (shiftValue) => {
+        console.log(shiftValue, 'shift value ------>')
         setSelectedShift(shiftValue);
         setSelectedShift(shiftValue);
         const selectedShiftData = shifts.find(shift => shift.shift_no === shiftValue);
@@ -863,101 +956,68 @@ const statusColor =
     const postOperator = async (pendingOperator) => {
         try {
             const deviceId = deviceNameIdJson[selectedMachine];
+            const startTime = dayjs().valueOf(); // current operator start time
+            let endTime = 0;
+            let duration = 0;
 
-            let payload = {
-                ts: dayjs().valueOf(),
-                values: {
-                    operator_id: +pendingOperator
-                }
+            const operatorName = operators.find(res => res.id == pendingOperator)?.name;
+            console.log(operatorName, 'name');
+
+            const previousOperator = JSON.parse(localStorage.getItem('operator_details'));
+
+            if (previousOperator) {
+                // Close the previous operator
+                const updatedPrevOperator = {
+                    ...previousOperator,
+                    end_time: startTime,
+                    duration: Math.floor((startTime - previousOperator.start_time) / 1000)
+                };
+
+                const prevPayload = {
+                    ts: dayjs().valueOf(),
+                    values: { live_operator: updatedPrevOperator }
+                };
+
+                console.log(prevPayload, 'prev operator payload');
+                await operatorTelemetry('DEVICE', deviceId, prevPayload);
             }
 
-
-            console.log(payload, 'payload')
-            const response = await operatorTelemetry('DEVICE', deviceId, payload)
-
-        } catch (err) {
-            console.log('operator api failure')
-        }
-    }
-    // ⏱️ Track timer when machine status changes
-    useEffect(() => {
-        if (!telemetry.machineStatus) return;
-
-        if (telemetry.machineStatus !== prevStatus) {
-            setPrevStatus(telemetry.machineStatus);
-            setStatusStartTime(new Date()); // reset start time
-            setStatusTimer("00:00:00");
-        }
-    }, [telemetry.machineStatus]);
-
-    // ⏱️ Update timer every second
-    useEffect(() => {
-        if (!statusStartTime) return;
-
-        const interval = setInterval(() => {
-            const now = new Date();
-            const diff = Math.floor((now - statusStartTime) / 1000); // seconds elapsed
-
-            const hrs = String(Math.floor(diff / 3600)).padStart(2, "0");
-            const mins = String(Math.floor((diff % 3600) / 60)).padStart(2, "0");
-            const secs = String(diff % 60).padStart(2, "0");
-
-            setStatusTimer(`${hrs}:${mins}:${secs}`);
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [statusStartTime]);
-
-
-    const openDownTime = async (devicename, deviceid) => {
-        const key = 'reason';
-        const customerId = '690d2210-8a3a-11f0-a3ac-9b534c07af2b'
-        setLoading(true);
-        customerbasedshift(customerId, key)
-            .then(async (data) => {
-                const allShifts = data[0]?.value || [];
-                setreasonslist(allShifts);
-
-                const reasons = allShifts.map(shift => ({
-                    value: shift.reason,
-                    label: shift.reason
-                }));
-                setreasons(reasons);
-
-                setSelectedDeviceId(deviceid);
-                setopenDownTimeModal(true);
-            })
-            .catch(error => {
-                console.error("Error fetching shifts:", error);
-            });
-
-        const key1 = 'allShift';
-        customerbasedshift(customerId, key1)
-            .then(async (data) => {
-                const allShifts = data[0].value || [];
-                setShifts(allShifts);
-
-                const options = allShifts.map((shift) => ({
-                    value: shift.shift_no,
-                    label: `Shift${shift.shift_no}`,
-                }));
-                setShiftOptions(options);
-
-                if (options.length > 0) {
-                    const defaultShift = options[0].value;
-                    setSelectedDate(dayjs());
-                    setSelectedShift(defaultShift);
-                    setfilteredResult([]);
-
-                    const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
-                    setEpochRange({ from: fromEpoch, to: toEpoch });
+            // Current operator payload (ongoing)
+            const payload = {
+                ts: dayjs().valueOf(),
+                values: {
+                    live_operator: {
+                        name: operatorName,
+                        code: +pendingOperator,
+                        start_time: startTime,
+                        end_time: "-",
+                        duration: 0
+                    }
                 }
-            })
-            .catch((err) => {
-                console.error('Error loading shifts:', err);
-            })
-            .finally(() => setLoading(false));
+            };
+
+            console.log(operators, 'operators');
+            console.log(payload, 'payload');
+
+            const response = await operatorTelemetry('DEVICE', deviceId, payload);
+
+            // Save new operator details for next reference
+            localStorage.setItem('operator_details', JSON.stringify(payload.values.live_operator));
+        } catch (err) {
+            console.log('operator api failure', err);
+        }
     };
+
+
+
+
+
+    const formattedReasons = reasons.map(reason => ({
+        ...reason,
+        label: reason.label.charAt(0).toUpperCase() + reason.label.slice(1)
+    }));
+
+
 
     return (
         <div className="operator-screen">
@@ -1029,8 +1089,13 @@ const statusColor =
 
             {/* MAIN CONTENT */}
             <div className="content">
-                <div className="contect-section" style={{width: '10rem'}}>
-                    <VerticalProgress shiftStart="14:00" shiftEnd="22:00" login="15:20" />
+                <div className="contect-section" style={{ width: '10rem' }}>
+                    <VerticalProgress
+                        shiftNo={currentShift?.shift_no}
+                        shiftStart={currentShift?.start_time}
+                        shiftEnd={currentShift?.end_time}
+                        firstActive={firstMachineActive}
+                    />
                 </div>
 
                 <div className="contect-section circular-progress-section">
@@ -1115,37 +1180,18 @@ const statusColor =
                 <DialogContent>
                     <br></br>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
-                        <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <CustomDateSelect
-                                name="selectedDate"
-                                label="Select Date"
-                                required
-                                value={selectedDate}
-                                onChange={handleDateChange1}
-                                format="DD-MM-YYYY"
-                                maxDate={dayjs()} // <-- Disallow future dates
-                            />
-                        </LocalizationProvider>
-                        <CustomDaySelect
-                            name="shift_no"
-                            value={selectedShift}
-                            onChange={(e) => handleShiftChange(e.target.value)}
-                            label="Select Shift"
-                            required
-                            options={shiftOptions}
-                        />
-                        <Button
-                            type="submit"
-                            variant="contained"
-                            className="filter_btn btn_orange" sx={{ backgroundColor: '#ff9800' }}
-                            onClick={() => downtimereason()}
-                        >
-                            Submit
-                        </Button>
+
                     </div>
                     {filteredResult.length > 0 ? (
                         <div style={{ marginTop: '20px', maxHeight: '300px', overflowY: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <colgroup>
+                                    <col style={{ width: '20%' }} />
+                                    <col style={{ width: '20%' }} />
+                                    <col style={{ width: '12%' }} />
+                                    <col style={{ width: '12%' }} />
+                                    <col style={{ width: '36%' }} />
+                                </colgroup>
                                 <thead>
                                     <tr style={{ backgroundColor: '#f2f2f2' }}>
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>Start Time (IST)</th>
@@ -1162,14 +1208,14 @@ const statusColor =
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatEpochToIST(item.end)}</td>
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatDuration(item.duration)}</td>
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{item.status}</td>
-                                            <td>
+                                            <td style={{ border: '1px solid #ccc', padding: '8px' }}>
                                                 <CustomDaySelect
                                                     name={`reasonselected-${index}`}
                                                     value={item.reasonselected || ''}
                                                     onChange={(e) => handleReasonChange(index, e.target.value)}
                                                     label="Select Reason"
                                                     required={true}
-                                                    options={reasons}
+                                                    options={formattedReasons}
                                                     error={!item.reasonselected}
                                                 />
                                             </td>
@@ -1177,24 +1223,13 @@ const statusColor =
                                     ))}
                                 </tbody>
                             </table>
+
                         </div>
                     ) : (
                         <div style={{ marginTop: '20px', textAlign: 'center', color: '#888' }}>
                             <h3>No Data Found</h3>
                         </div>
                     )}
-
-
-                    {/* <CustomDaySelect
-                            name="reasonselected"
-                            value={reasonselected}
-                            onChange={handleFormChange1}
-                            label="Select Reason"
-                            required={true}
-                            options={reasons}
-                            error={!reasonselected}
-                            ref={customDaySelectRef}
-                        /> */}
                 </DialogContent>
                 <DialogActions>
                     <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff4444' }} onClick={() => cancelreason()}>Cancel</Button>
@@ -1202,7 +1237,6 @@ const statusColor =
                 </DialogActions>
             </Dialog>
 
-            {/* CONFIRMATION POPUP */}
             <Dialog open={!!confirmType} onClose={handleCancel}>
                 <DialogTitle>Confirm Change</DialogTitle>
                 <DialogContent>

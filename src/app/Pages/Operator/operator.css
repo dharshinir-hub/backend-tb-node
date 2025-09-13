@@ -431,6 +431,15 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     padding: 0;
 }
 
+.swal2-success-circular-line-left,
+.swal2-success-circular-line-right {
+    background: none !important;
+    background-color: transparent !important;
+}
+
+.css-rdg5e2-MuiFormControl-root  {
+   min-width: 0 !important;
+}
 .footer-left,
 .footer-right {
     width: 50%;
@@ -440,7 +449,7 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     font-size: 1.1rem;
     gap: 0.3rem;
     border: 1px solid rgb(190, 189, 189);
-    padding: 0.5rem;
+    padding: 1.5rem;
     cursor: pointer;
     user-select: none;
     transition: all 0.2s ease, transform 0.1s ease;
