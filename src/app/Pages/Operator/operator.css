@@ -629,3 +629,13 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
 .m-4 {
     margin: 1rem;
 }
+
+
+div:where(.swal2-icon) {
+  position: absolute;
+  left: 50%;
+  top: 1.2rem;                  /* Keep your top spacing */
+  transform: translateX(-50%);  /* Center horizontally only */
+  margin: 0;
+  position: relative;
+}

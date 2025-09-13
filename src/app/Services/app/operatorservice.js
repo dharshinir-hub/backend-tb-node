@@ -40,7 +40,30 @@ export const getFirstMachineActive = async (entityType, entityId, { keys, startT
     throw error;
   }
   }
-  
+
+//   export const unlockMachine = async (entityType, entityId) => {
+//   try {
+//     const baseUrl = window._env_.SERVER_URL.replace(/\/$/, ''); // Remove trailing slash
+//     const url = `${baseUrl}/api/plugins/telemetry/${entityType}/${entityId}/values/attributes`;
+
+//     const payload = {
+//       lock_status: "unlocked", // 👈 payload to unlock machine
+//     };
+
+//     const response = await axiosInstance.post(url, payload);
+
+//     console.log("Unlock API URL:", response.config.url);
+//     console.log("Unlock API Payload:", payload);
+//     console.log("Unlock API Response:", response);
+
+//     return response.data;
+//   } catch (error) {
+//     console.error("Error unlocking machine:", error);
+//     throw error;
+//   }
+// };
+
+
   
 export const getMachineLock = async (entityType, entityId, { keys, useStrictDataTypes = false }) => {
   try {
