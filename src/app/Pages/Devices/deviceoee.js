@@ -158,7 +158,7 @@ const OeeDashboard = () => {
     const cleanedId = cleanCustomerId(customerId);
     const encodedid = encodeURIComponent(JSON.stringify(deviceNameIdJson));
 
-    return `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b0/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=1m`;
+    return `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b0/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`;
   };
 
   return (

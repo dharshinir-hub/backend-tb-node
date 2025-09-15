@@ -46,8 +46,8 @@ export default function MachineDashboard() {
   const [shifts, setShifts] = useState([]);
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
-const [activeTab, setActiveTab] = useState("overview");
-const [iframeSrc, setIframeSrc] = useState("");
+  const [activeTab, setActiveTab] = useState("overview");
+  const [iframeSrc, setIframeSrc] = useState("");
   const [value, setValue] = useState(0);
   const [viewedMachine, setViewedMachine] = useState(null);
   const [idleTime, setIdleTime] = useState("00:00:00");
@@ -59,12 +59,15 @@ const [iframeSrc, setIframeSrc] = useState("");
   const [machineDurations, setMachineDurations] = useState({});
   const [machineUtilization, setMachineUtilization] = useState({});
   const [selectedMachineId, setSelectedMachineId] = useState(null);
-const [selectedDate, setSelectedDate] = useState(() => {
+  const [selectedDate, setSelectedDate] = useState(() => {
   const savedDate = localStorage.getItem("selectedDate");
-  return savedDate ? dayjs(savedDate) : dayjs();  // fallback to today
-});  
-const [selectedShift, setSelectedShift] = useState(() => getCurrentShift(shifts));
-
+  return savedDate ? dayjs(savedDate) : dayjs(); 
+  });  
+  const [selectedShift, setSelectedShift] = useState(() => getCurrentShift(shifts));
+  const [machineStatusTimes, setMachineStatusTimes] = useState({});
+  const [currentTime, setCurrentTime] = useState(Date.now()); 
+  const [autoSelected, setAutoSelected] = useState(false);
+  
 
 
 
@@ -181,7 +184,10 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
       const fromStr = `${selectedStr}T${firstShiftStart}`;
       let toStr;
       if (selectedStr === todayStr) {
-        toStr = new Date().toISOString(); // current time
+         toStr =
+          lastShiftEnd <= firstShiftStart
+            ? `${nextDayStr}T${lastShiftEnd}`
+            : `${selectedStr}T${lastShiftEnd}`; 
       } else {
         // handle overnight shifts
         toStr =
@@ -206,7 +212,9 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
   const fromStr = `${selectedStr}T${shiftStart}`;
   let toStr;
   if (selectedStr === todayStr) {
-    toStr = new Date().toISOString(); // current time
+    toStr =  shiftEnd <= shiftStart
+        ? `${nextDayStr}T${shiftEnd}`
+        : `${selectedStr}T${shiftEnd}`; // current time
   } else {
     // handle overnight shifts
     toStr =
@@ -228,22 +236,22 @@ const [filteredDevices, setFilteredDevices] = useState([]);
 
 
 
-/*state for dropdown selection
+/*state for dropdown selection */
 
-useEffect(() => {
-  const filtered = devices.filter((d) => {
-    const matchDropdown = selectedDevice === "all" || d.id.id === selectedDevice;
-    const matchSearch = d.name.toLowerCase().includes(searchText.toLowerCase());
-    const matchMachineFilter =
-      selectedMachines.length === 0 || selectedMachines.includes(d.name);
-    const matchStatusFilter =
-      selectedStatus.length === 0 || selectedStatus.includes(d.status);
+// useEffect(() => {
+//   const filtered = devices.filter((d) => {
+//     const matchDropdown = selectedDevice === "all" || d.id.id === selectedDevice;
+//     const matchSearch = d.name.toLowerCase().includes(searchText.toLowerCase());
+//     const matchMachineFilter =
+//       selectedMachines.length === 0 || selectedMachines.includes(d.name);
+//     const matchStatusFilter =
+//       selectedStatus.length === 0 || selectedStatus.includes(d.status);
 
-    return matchDropdown && matchSearch && matchMachineFilter && matchStatusFilter;
-  });
+//     return matchDropdown && matchSearch && matchMachineFilter && matchStatusFilter;
+//   });
 
-  setFilteredDevices(filtered);
-}, [devices, selectedDevice, searchText, selectedMachines, selectedStatus]);  */
+//   setFilteredDevices(filtered);
+// }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus]);  
 
 
   // Fetch durations for all filtered devices
@@ -260,7 +268,7 @@ useEffect(() => {
           const data = await telemetrykeydata(
             machine.id.id,
             "DEVICE",
-            "total_duratio n",
+            "total_duration",
             from,
             to
           );
@@ -370,45 +378,6 @@ const handleFilterClick = (event) => {
 
 
 
-// // Called when tab is clicked
-// const handleTabClick = (tab, machine) => {
-//   if (!machine) {
-//     console.warn("No machine selected");
-//     return;
-//   }
-
-//   setActiveTab(tab);
-//   localStorage.setItem("activeTab", tab); // 👈 directly store here
-
-//   const machineId = machine.id?.id;
-//   const machineName = encodeURIComponent(machine.name || "");
-
-//   const baseUrls = {
-//     overview: `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&from=${from}&to=${to}`,
-//     timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${to}`,
-//     diagnostics: `http://example.com/diagnostics`,
-//     toolMonitoring: `${window._env_.GRAFANA_URL}d/da065e50-263c-43e5-8a19-610e8c09820c/main-screen-valve-c-56-tool-monitoring`,
-//   };
-
-//   const newToken = localStorage.getItem("newToken");
-//   const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
-
-//   const GRAFANA_URL = window._env_.GRAFANA_URL;
-//   console.log("GRAFANA_URL", GRAFANA_URL);
-
-//   const baseUrl = window._env_.SERVER_URL;
-//   console.log("baseurl", baseUrl);
-
-//   let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
-
-//   if (tab === "diagnostics") {
-//     url = `${baseUrls[tab]}?from=${fromTime}&to=${toTime}&var-from=${fromTime}&var-to=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
-//   }
-
-//   console.log("Final iframe URL:", url);
-//   setIframeSrc(url); // 🔹 Updates the iframe
-// };
-
 function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
   if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
     return { fromEpoch: null, toEpoch: null };
@@ -488,30 +457,34 @@ useEffect(() => {
      console.log("✅ fromTime:", fromTime);
     console.log("✅ toTime:", toTime);
 
-    // 👉 Trigger default tab load once times are ready
-useEffect(() => {
-  if (from && to && fromTime && toTime ) {
-    handleTabClick("overview", );  // 👈 auto-load overview with proper timings
-  }
-}, [from, to, fromTime, toTime]);
 
+
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now()); // always in ms
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  console.log("Current Time", currentTime);
 
     // Called when tab is clicked
 const handleTabClick = (tab, machine) => {
-  if (!machine) {
-    console.warn("No machine selected");
-    return;
-  }
+  if (!machine) return;
 
   setActiveTab(tab);
-  localStorage.setItem("activeTab", tab); // 👈 directly store here
+  localStorage.setItem("activeTab", tab); 
 
   const machineId = machine.id?.id;
   const machineName = encodeURIComponent(machine.name || "");
 
   const baseUrls = {
-    overview: `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&from=${from}&to=${to}`,
-    timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${to}`,
+    overview: `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1`,
+
+    timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${currentTime}`,
+    
     diagnostics: `http://example.com/diagnostics`,
     toolMonitoring: `${window._env_.GRAFANA_URL}d/da065e50-263c-43e5-8a19-610e8c09820c/main-screen-valve-c-56-tool-monitoring`,
   };
@@ -525,10 +498,10 @@ const handleTabClick = (tab, machine) => {
   const baseUrl = window._env_.SERVER_URL;
   console.log("baseurl", baseUrl);
 
-  let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-token=${bearerToken}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
+  let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-token=${bearerToken}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
 
   if (tab === "diagnostics") {
-    url = `${baseUrls[tab]}?from=${fromTime}&to=${toTime}&var-from=${fromTime}&var-to=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
+    url = `${baseUrls[tab]}?&from=${from}&to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
   }
 
   console.log("Final iframe URL:", url);
@@ -936,6 +909,15 @@ useEffect(() => {
   setFilteredDevices(filtered);
 }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses]);
 
+// Default tab auto-load (once)
+useEffect(() => {
+  if (from && to && fromTime && toTime && selectedMachine && !autoSelected) {
+    handleTabClick("overview", selectedMachine);
+    setAutoSelected(true);
+  }
+}, [from, to, fromTime, toTime, selectedMachine, autoSelected]);
+
+
 
 const machineStatusOptions = ["Running", "Idle", "Disconnect", "Alarm"];
 
@@ -971,11 +953,78 @@ const filteredMachines = machineList.filter((m) => {
 });
 
 
+
+
+
+
+
 useEffect(() => {
-  if (from && to && fromTime && toTime && selectedMachine) {
-    handleTabClick("overview", selectedMachine);  
-  }
-}, [from, to, fromTime, toTime, selectedMachine])
+  const fetchAllMachineStatus = async () => {
+    if (!from || !to || filteredDevices.length === 0) return;
+
+    const results = {};
+
+    await Promise.all(
+      filteredDevices.map(async (machine) => {
+        try {
+          const data = await telemetrykeydata(
+            machine.id.id,
+            "DEVICE",
+            "machine_status",
+            from,
+            to
+          );
+
+          const values = data?.machine_status || [];
+
+          console.log(`🔹 Full machine_status array for ${machine.name}:`, values);
+
+          if (!Array.isArray(values) || values.length === 0) {
+            results[machine.id.id] = { lastTs: null };
+            return;
+          }
+
+          // ✅ Take LAST timestamp
+          const lastTs = values[values.length - 1].ts;
+
+          results[machine.id.id] = { lastTs };
+        } catch (error) {
+          console.error("❌ Error fetching machine_status for", machine.name, error);
+          results[machine.id.id] = { lastTs: null };
+        }
+      })
+    );
+
+    // ✅ Save all machines lastTs
+    setMachineStatusTimes(results);
+
+    // ✅ Console the collected results
+    console.log("✅ All machines last active times:", results);
+  };
+
+  fetchAllMachineStatus();
+}, [filteredDevices, from, to]);
+
+console.log('First Active time of all devices', machineStatusTimes)
+
+
+function formatMillisecondsTo12HourTime(ms) {
+  if (!ms) return "N/A";
+
+  const date = new Date(ms);
+
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
+  const ampm = hours >= 12 ? "PM" : "AM";
+
+  hours = hours % 12;
+  hours = hours ? hours : 12; // Convert '0' to '12'
+
+  const formattedTime = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")} ${ampm}`;
+
+  return formattedTime;
+}
 
 
 
@@ -1074,9 +1123,11 @@ useEffect(() => {
       const changePositive = machine.changeFromBaseline >= 0;
       const { run = 0, idle = 0, total = 0 , disconnect = 0} =
         machineDurations[machine.id.id] || {};
-      const firstActiveTime =
-        machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
+      // const firstActiveTime =
+      //   machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
       const isSelected = machine.id.id === selectedMachineId; // ✅ Check if selected
+        const firstActiveTime = machineStatusTimes?.[machine.id.id] || "N/A";
+
 
       return (
         <Card
@@ -1156,67 +1207,38 @@ useEffect(() => {
     ? `Alarm: ${formatTime(total)}`
     : `Total: ${formatTime(total)}`}
               </Typography>
-              {/* <Typography
-                variant="body2"
-                color="textSecondary"
-                sx={{
-                  mr: 2,
-                  fontSize: "0.75rem",
-                  color: "black",
-                }}
-              >
-                Idle: {formatTime(idle)}
-              </Typography>
-               <Typography
-                variant="body2"
-                color="textSecondary"
-                sx={{
-                  mr: 2,
-                  fontSize: "0.75rem",
-                  color: "black",
-                }}
-              >
-                Disconnect: {formatTime(run)}
-              </Typography>
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                sx={{
-                  mr: 2,
-                  fontSize: "0.75rem",
-                  color: "black",
-                }}
-              >
-                Active: {formatTime(disconnect)}
-              </Typography> */}
+              
+
+<Typography
+  variant="body2"
+  color="textSecondary"
+  sx={{
+    fontSize: "0.75rem",
+    display: "flex",
+    alignItems: "center",
+    color: "black",
+    mt: 0.5,
+  }}
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="16"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="black"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ marginRight: "4px" }}
+  >
+    <polyline points="0 12 5 12 8 4 12 20 16 8 19 12 24 12" />
+  </svg>
+  First Active: {formatMillisecondsTo12HourTime(machineStatusTimes[machine.id.id]?.lastTs)}
+</Typography>
 
 
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                sx={{
-                  fontSize: "0.75rem",
-                  display: "flex",
-                  alignItems: "center",
-                  color: "black",
-                }}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="black"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ marginRight: "4px" }}
-                >
-                  <polyline points="0 12 5 12 8 4 12 20 16 8 19 12 24 12" />
-                </svg>
-                First Active: {firstActiveTime}
-              </Typography>
+
             </Box>
 
             {/* Component Chip */}
