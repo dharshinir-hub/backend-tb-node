@@ -542,21 +542,20 @@ useEffect(() => {
             return;
           }
 
-          // ✅ take latest row
-          const latestRow = rows[rows.length - 1];
+          const firstRow = rows[0];
 
-          let parsed = {};
-          try {
-            parsed =
-              typeof latestRow.value === "string"
-                ? JSON.parse(latestRow.value)
-                : latestRow.value;
-          } catch (err) {
-            console.warn("❌ Parse error for", machine.name, latestRow.value);
-          }
+let parsed = {};
+try {
+  parsed =
+    typeof firstRow.value === "string"
+      ? JSON.parse(firstRow.value)
+      : firstRow.value;
+} catch (err) {
+  console.warn("❌ Parse error for", machine.name, firstRow.value);
+}
 
-          // ✅ Store machine data under machine name
-          results[machine.name] = parsed;
+// ✅ Store machine data under machine name
+results[machine.name] = parsed;
         } catch (err) {
           console.error("⚠️ Error fetching for", machine.name, err);
           results[machine.name] = {};
