@@ -1,19 +1,14 @@
 import './operator.css';
 import logo from '../../../assets/yantraimage.png';
 import { FaRegClock, FaRegCalendarAlt, FaArrowUp } from "react-icons/fa";
-import { IoLogOutOutline } from "react-icons/io5";
 import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, DowntimeaddDelete1 } from '../../Services/app/masterservice';
+import { Downtimeadd1, Deviceattributeget } from '../../Services/app/masterservice';
 import { FaCheckCircle, FaTimesCircle, FaArrowDown } from "react-icons/fa";
 import Swal from 'sweetalert2';
-
 import { getFirstMachineActive, getMachineLock, operatorTelemetry, unlockMachine } from '../../Services/app/operatorservice'
-/* ---------------- OPERATOR SCREEN ---------------- */
-
-
 import {
     FormControl,
     Select,
@@ -23,202 +18,28 @@ import {
     DialogContent,
     DialogActions,
     Button,
-    duration,
 } from "@mui/material";
 import { customerbaseddevices, customerbasedshift, telemetrykeydata, telemetrylatestdata } from '../../Services/app/alarmservice';
 import { Loginapi } from '../../Services/app/authservice';
 import { getOperatorDetails } from '../../Services/app/loginservice';
-
-import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { CustomDaySelect, CustomDateSelect } from '../Inputfield/inputfield';
-/* ---------------- CIRCULAR PROGRESS ---------------- */
-
-function CircularProgress({
-    actual = 10,
-    target = 20,
-    partsBehind = 0,
-    partsRejects = 0,
-    status = "Running"
-}) {
-    let percentage = Math.min(100, Math.round((actual / target) * 100));
-    if (isNaN(percentage)) {
-        percentage = 100;
-    }
-    const intPartsBehind = Math.round(partsBehind);
-    const intPartsRejects = Math.round(partsRejects);
-    const partsAhead = actual > target ? actual - target : 0;
-
-    // 🎨 Color rules based on percentage and status
-    let circleBackground;
-    let innerBackground;
-
-    if (status === "Alarm") {
-        circleBackground = `conic-gradient(#742a2a ${percentage * 3.6}deg, #fc8181 ${percentage * 3.6}deg)`;
-        innerBackground = "#c53030";
-    } else if (percentage >= 100) {
-        circleBackground = `conic-gradient(#22543d 360deg, #68d391 360deg)`;
-        innerBackground = "#2f855a";
-    } else if (percentage > 75) {
-        circleBackground = `conic-gradient(#22543d ${percentage * 3.6}deg, #68d391 ${percentage * 3.6}deg)`;
-        innerBackground = "#2f855a";
-    } else if (percentage < 40) {
-        circleBackground = `conic-gradient(#742a2a ${percentage * 3.6}deg, #fc8181 ${percentage * 3.6}deg)`;
-        innerBackground = "#c53030";
-    } else {
-        circleBackground = `conic-gradient(#7b341e ${percentage * 3.6}deg, #f6ad55 ${percentage * 3.6}deg)`;
-        innerBackground = "#dd6b20";
-    }
-
-    return (
-        <div className="progress-circle" style={{ background: circleBackground }}>
-            <div className="progress-circle-inner" style={{ background: innerBackground }}>
-                {/* 🔹 Percentage */}
-                <div className="progress-percentage1-inner">
-                    <span className="big">{percentage}%</span>
-                </div>
-
-                <div className="progress-metrics">
-                    {/* ✅ At Goal or Ahead/Behind */}
-                    {percentage >= 100 && partsAhead === 0 ? (
-                        <>
-                            <div className="metric">
-                                <FaCheckCircle style={{ color: "limegreen", fontSize: "1.8rem" }} />
-                            </div>
-                            <span className="label">At Goal</span>
-                        </>
-                    ) : partsAhead > 0 ? (
-                        <>
-                            <div className="metric">
-                                <FaArrowUp style={{ color: "#00bfff", fontSize: "1.2rem" }} />
-                                <span className="value">{partsAhead}</span>
-                            </div>
-                            <span className="label">Parts Ahead</span>
-                        </>
-                    ) : intPartsBehind > 0 ? (
-                        <>
-                            <div className="metric">
-                                <FaArrowDown style={{ color: "#ffcc00", fontSize: "1.2rem" }} />
-                                <span className="value">{intPartsBehind}</span>
-                            </div>
-                            <span className="label">Parts Behind</span>
-                        </>
-                    ) : (
-                        <>
-                            <div className="metric">
-                                <FaCheckCircle style={{ color: "limegreen", fontSize: "1.5rem" }} />
-                            </div>
-                            <span className="label">At Goal</span>
-                        </>
-                    )}
-
-                    {/* ❌ Rejects */}
-                    <div className="metric">
-                        <FaTimesCircle style={{ color: "red", fontSize: "1.2rem" }} />
-                        <span className="value">{intPartsRejects}</span>
-                    </div>
-                    <span className="label">Rejects</span>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ---------------- VERTICAL PROGRESS ---------------- */
-function VerticalProgress({
-    shiftNo,
-    shiftStart = "10:00",
-    shiftEnd = "22:00",
-    firstActive // epoch in ms
-}) {
-    const [currentTime, setCurrentTime] = useState(new Date());
-
-    useEffect(() => {
-        const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(interval);
-    }, []);
-
-    // Parse shift start/end
-    const [startH, startM] = shiftStart.split(":").map(Number);
-    const [endH, endM] = shiftEnd.split(":").map(Number);
-
-    const shiftStartTime = new Date();
-    shiftStartTime.setHours(startH, startM, 0, 0);
-
-    const shiftEndTime = new Date();
-    shiftEndTime.setHours(endH, endM, 0, 0);
-
-    const total = shiftEndTime - shiftStartTime;
-    const passed = currentTime - shiftStartTime;
-    const progressPercent = Math.min(100, Math.max(0, (passed / total) * 100));
-
-    // First active time
-    let loginPercent = 0;
-    let formattedLoginTime = "N/A";
-
-    if (firstActive) {
-        const loginDate = new Date(firstActive);
-        const loginOffset = loginDate - shiftStartTime;
-        loginPercent = Math.min(100, Math.max(0, (loginOffset / total) * 100));
-
-        // ✅ Format with dayjs as 24-hour "HH:mm"
-        formattedLoginTime = dayjs(loginDate).format("HH:mm");
-    }
-
-    return (
-        <div className="vertical-progress-container">
-            <div className="time-label start-time">
-                Shift {shiftNo}: {shiftStart}
-            </div>
-            <div className="progress-wrapper">
-                <div className="progress-bar">
-                    <div
-                        className="progress"
-                        style={{
-                            height: `${progressPercent}%`,
-                            minHeight: progressPercent > 0 ? "2px" : "0px"
-                        }}
-                    />
-                    {firstActive && (
-                        <div className="login-indicator" style={{ top: `${loginPercent}%` }}>
-                            <div className="login-time-label">
-                                Started: {formattedLoginTime}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-            <div className="time-label end-time">Shift End: {shiftEnd}</div>
-        </div>
-    );
-}
-
-/* ---------------- OPERATOR SCREEN ---------------- */
-
+import { CustomDaySelect } from '../Inputfield/inputfield';
+import CircularProgress from '../../Shared/Pages/circularprogress/circularprogress';
+import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogress';
 
 function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
     const [time, setTime] = useState(dayjs().format("HH:mm:ss"));
     const [deviceThresholds, setDeviceThresholds] = useState({});
     const [currentShift, setCurrentShift] = useState(null)
-
-    const [startTime, setStartTime] = useState(null);
-    const [endTime, setEndTime] = useState(null);
-    const [operatorslist, setoperatorslist] = useState([]);
-    // machine & operator states
     const [machines, setMachines] = useState([]);
     const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
     const [selectedMachine, setSelectedMachine] = useState("");
-
     const [operators, setOperators] = useState([]);
     const [selectedOperator, setSelectedOperator] = useState("");
-
     const [reasonslist, setreasonslist] = useState([]);
     const [reasons, setreasons] = useState([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState(null);
-
     const [openDownTimeModal, setopenDownTimeModal] = useState(false);
-
     const [shifts, setShifts] = useState([]);
     const [shiftOptions, setShiftOptions] = useState([]);
     const [selectedDate, setSelectedDate] = useState(dayjs());
@@ -226,9 +47,7 @@ function Operator() {
     const [filteredResult, setfilteredResult] = useState([]);
     const [epochRange, setEpochRange] = useState({ from: null, to: null });
     const [loading, setLoading] = useState(false);
-const [isLocked, setIsLocked] = useState(false);
-
-    // telemetry state
+    const [isLocked, setIsLocked] = useState(false);
     const [telemetry, setTelemetry] = useState({
         machineStatus: "Unknown",
         targetParts: 0,
@@ -239,15 +58,10 @@ const [isLocked, setIsLocked] = useState(false);
         jobName: "",
         jobCode: "",
     });
-
-    // temp state for confirmation
     const [pendingMachine, setPendingMachine] = useState("");
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
-
-    // status color mapping
     const status = telemetry.machineStatus?.toLowerCase();
-
     const statusColor =
         status === "running"
             ? "#3DA06A"
@@ -259,75 +73,22 @@ const [isLocked, setIsLocked] = useState(false);
                         ? "#ccc"
                         : "#ccc";
 
-    // fetch machines from API
     const fetchDevices = async () => {
         try {
-            const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b"; // hardcoded
+            const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
             const result = await customerbaseddevices(customerId, 1000, 0);
             const devicesList = result.data || [];
-
             setMachines(devicesList.map((d) => d.name));
-
             const nameIdMap = devicesList.reduce((acc, device) => {
                 acc[device.name] = device.id.id;
                 return acc;
             }, {});
             setDeviceNameIdJson(nameIdMap);
-
             if (devicesList.length > 0) {
                 setSelectedMachine(devicesList[0].name);
             }
         } catch (err) {
             console.error("Failed to fetch devices", err);
-        }
-    };
-
-    const handleDateChange1 = (newValue) => {
-        const dayjsVal = dayjs(newValue);
-        setSelectedDate(dayjsVal);
-
-        // Recalculate epoch range when date changes
-        if (selectedShift && shifts.length > 0) {
-            const { fromEpoch, toEpoch } = getEpochFromShift(selectedShift, dayjsVal);
-            setEpochRange({ from: fromEpoch, to: toEpoch });
-            const key = 'alloperator';
-            let customerId = '690d2210-8a3a-11f0-a3ac-9b534c07af2b'
-            customerbasedshift(customerId, key)
-                .then(async (data) => {
-                    const allShifts = data[0]?.value || [];
-                    setoperatorslist(allShifts);
-                    console.log('alloperator', allShifts);
-
-                    // ✅ Filter only "Operator" mode
-                    const operatorNames = allShifts
-                        .filter(shift => shift.mode === "Operator")  // <-- filter added
-                        .map(shift => ({
-                            value: shift.operatorname,
-                            label: shift.operatorname
-                        }));
-
-                    setOperators(operatorNames);
-                    const key2 = 'live_operator';
-                    const entitytype = 'DEVICE';
-                    const deviceid = selectedDeviceId;
-
-                    try {
-                        const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
-                        //const response = await telemetrylatestdata(deviceid, entitytype, key2);
-                        if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
-                            let operator = JSON.parse(response.live_operator[0].value).operator;
-                            setSelectedOperator(operator);
-                        } else {
-                            setSelectedOperator('');
-                        }
-                    } catch (error) {
-
-                        setSelectedOperator('');
-                    }
-                })
-                .catch(error => {
-                    console.error("Error fetching shifts:", error);
-                });
         }
     };
 
@@ -342,28 +103,21 @@ const [isLocked, setIsLocked] = useState(false);
         const options = { timeZone: 'Asia/Kolkata' };
         const date = new Date(epoch).toLocaleString('en-US', options);
         const d = new Date(date);
-
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const year = d.getFullYear();
-
         const hours = String(d.getHours()).padStart(2, '0');
         const minutes = String(d.getMinutes()).padStart(2, '0');
         const seconds = String(d.getSeconds()).padStart(2, '0');
-
         return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
     };
 
-    // ✅ Fetch telemetry for selected machine
     const fetchTelemetry = async (deviceId) => {
         try {
             const keys = ["machine_Status", "targetparts", "totalparts", "live_component", "live_operator"];
             const data = await telemetrylatestdata(deviceId, "DEVICE", keys.join(","));
-
             const machineStatus = data?.machine_Status?.[0]?.value || "Unknown";
             const targetParts = parseInt(data?.targetparts?.[0]?.value || 0, 10);
-
-            // Parse totalparts JSON
             let totalShots = 0, goodParts = 0, scrap = 0, ncr = 0;
             if (data?.totalparts?.[0]?.value) {
                 try {
@@ -376,8 +130,6 @@ const [isLocked, setIsLocked] = useState(false);
                     console.error("Error parsing totalparts JSON", err);
                 }
             }
-
-            // Parse live_component JSON
             let jobName = "", jobCode = "";
             if (data?.live_component?.[0]?.value) {
                 try {
@@ -388,19 +140,15 @@ const [isLocked, setIsLocked] = useState(false);
                     console.error("Error parsing live_component JSON", err);
                 }
             }
-
-            // ✅ Parse live_operator JSON
             let liveOperatorCode = "";
             if (data?.live_operator?.[0]?.value) {
                 try {
                     const parsed = JSON.parse(data.live_operator[0].value);
-                    liveOperatorCode = parsed.code || "";  // e.g. "112"
+                    liveOperatorCode = parsed.code || "";
                 } catch (err) {
                     console.error("Error parsing live_operator JSON", err);
                 }
             }
-
-            // ✅ Update telemetry state
             setTelemetry({
                 machineStatus,
                 targetParts,
@@ -412,67 +160,48 @@ const [isLocked, setIsLocked] = useState(false);
                 jobCode,
                 liveOperator: liveOperatorCode,
             });
-
-            // ✅ Automatically select operator in dropdown if found
             if (liveOperatorCode) {
                 const found = operators.find(op => String(op.id) === String(liveOperatorCode));
                 if (found) {
                     setSelectedOperator(found.id);
                 }
             }
-
         } catch (err) {
             console.error("Telemetry fetch failed", err);
         }
     };
 
-
-
-    // ========== getCurrentShift ==========
     const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
-        const now = dayjs(); // system current time
+        const now = dayjs();
         const baseDate = selectedDate ? dayjs(selectedDate) : dayjs();
-
         for (let shift of allShifts) {
             let start = baseDate.startOf("day");
             let end = baseDate.startOf("day");
-
-            // build start time
             start = start
                 .add(Number(shift.start_time.split(":")[0]), "hour")
                 .add(Number(shift.start_time.split(":")[1]), "minute")
                 .add(Number(shift.start_time.split(":")[2]), "second");
-
-            // build end time
             end = end
                 .add(Number(shift.end_time.split(":")[0]), "hour")
                 .add(Number(shift.end_time.split(":")[1]), "minute")
                 .add(Number(shift.end_time.split(":")[2]), "second");
-
-            // overnight case: end is next day
             if (shift.start_day !== shift.end_day) {
                 end = end.add(1, "day");
             }
-
             if (now.isAfter(start) && now.isBefore(end)) {
-                return shift; // return full object
+                return shift;
             }
         }
-
         return null;
     };
 
-
     const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, deviceId }) => {
         if (!deviceId || !shiftNo || !selectedDate || !fromEpoch || !toEpoch) return [];
-
         const fromTime = fromEpoch;
         const toTime = toEpoch;
-
         try {
             const machineStatusResponse = await telemetrykeydata(deviceId, "DEVICE", "machine_status", fromTime, toTime);
             const machineData = machineStatusResponse?.machine_status || [];
-
             const statusMapping = {
                 0: { state: "Idle", color: "#FFEB3B" },
                 1: { state: "Idle", color: "#FFEB3B" },
@@ -481,29 +210,22 @@ const [isLocked, setIsLocked] = useState(false);
                 100: { state: "Disconnect", color: "#808080" },
                 4: { state: "Alarm", color: "#F44336" },
             };
-
             const sortedData = [...machineData].sort((a, b) => Number(a.ts) - Number(b.ts));
-
             const transformedData = sortedData
                 .filter(item => item.ts && item.value !== undefined)
                 .map(item => ({ ts: item.ts, value: item.value }));
-
-            // helper: extract idle ranges
             const extractStartEndFromOneToThree = (data) => {
                 const result = [];
                 let recording = false;
                 let segment = { start: null, value: null };
-
                 for (let i = 0; i < data.length; i++) {
                     const current = data[i];
                     const numericValue = Number(current.value);
-
                     if (!recording && [0, 1, 2].includes(numericValue)) {
                         segment.start = current.ts;
                         segment.value = numericValue;
                         recording = true;
                     }
-
                     if (recording && numericValue === 3) {
                         segment.end = current.ts;
                         const duration = Math.floor((segment.end - segment.start) / 1000);
@@ -512,33 +234,25 @@ const [isLocked, setIsLocked] = useState(false);
                         recording = false;
                         segment = { start: null, value: null };
                     }
-
                     if (recording && [0, 1, 2].includes(numericValue)) {
                         segment.value = numericValue;
                     }
                 }
-
                 if (recording) {
                     segment.end = toTime;
                     const duration = Math.floor((segment.end - segment.start) / 1000);
                     result.push({ start: segment.start, end: segment.end, duration, value: segment.value, status: "IDLE" });
                 }
-
                 return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: "NO_DATA" }];
             };
-
-            // apply downtime threshold
             const key = "downtime_threasold";
             const results = await Deviceattributeget(deviceId, key);
-
             let filteredResult = [];
             if (results && results.length > 0) {
                 const downtime = results[0].value;
                 const result = extractStartEndFromOneToThree(transformedData);
                 filteredResult = result.filter(entry => entry.duration > downtime);
             }
-
-            // live reasons
             const response = await telemetrykeydata(deviceId, "DEVICE", "live_reason", fromEpoch, toEpoch);
             if (response?.live_reason?.length > 0) {
                 const parsedLiveReasons = response.live_reason
@@ -554,7 +268,6 @@ const [isLocked, setIsLocked] = useState(false);
                     return { ...item, reasonselected: matched?.name || item.reasonselected || "" };
                 });
             }
-
             return filteredResult;
         } catch (error) {
             console.error("Error fetching downtime data:", error);
@@ -562,114 +275,83 @@ const [isLocked, setIsLocked] = useState(false);
         }
     };
 
-
     const [firstMachineActive, setFirstMachineActive] = useState(null);
-
-
-
 
     useEffect(() => {
         const getAllShifts = async () => {
             try {
-                // Only fetch devices once (move this outside or into another effect if needed)
                 if (!Object.keys(deviceNameIdJson).length) {
                     await fetchDevices();
                 }
-
-                console.log("Fetching shifts...");
                 const response = await customerbasedshift(
                     "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
                     "allShift"
                 );
                 const shifts = response[0]?.value || [];
                 console.log("Shifts:", shifts);
-
                 const currentActiveShift = await getCurrentShift(shifts, selectedDate);
                 if (!currentActiveShift) return;
-
                 const formattedShift = {
                     ...currentActiveShift,
                     start_time: currentActiveShift.start_time.slice(0, 5),
                     end_time: currentActiveShift.end_time.slice(0, 5),
                 };
                 setCurrentShift(formattedShift);
-
                 const { fromEpoch, toEpoch } = getEpochFromShift2(
                     currentActiveShift.shift_no,
                     dayjs(selectedDate),
                     shifts
                 );
-                console.log(fromEpoch, toEpoch, "from and to");
-
                 const deviceId = deviceNameIdJson[selectedMachine];
-                if (!deviceId) return; // avoid invalid calls
-
+                if (!deviceId) return;
                 const machineData = await getFirstMachineActive("DEVICE", deviceId, {
                     keys: "machine_status",
                     startTs: fromEpoch,
                     endTs: toEpoch,
                     interval: 0,
-                    limit: 2000, // 🔹 reduce load (adjust as needed)
+                    limit: 2000,
                     useStrictDataTypes: false,
                 });
-
                 console.log("Machine telemetry data:", machineData);
-
                 const lastActive = machineData?.machine_status
                     ?.slice()
                     .reverse()
                     .find((item) => item.value === "3");
-
-                console.log(lastActive?.ts, "first active");
                 setFirstMachineActive(lastActive?.ts || null);
             } catch (err) {
                 console.error("Error in getAllShifts:", err);
             }
         };
-
         getAllShifts();
-    }, [selectedMachine, selectedDate]); // 🔹 removed deviceNameIdJson
-
-
-
+    }, [selectedMachine, selectedDate]);
 
     const openDownTime = async (devicename, deviceid) => {
         const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
         setLoading(true);
-
         try {
             const [reasonsData, shiftsData] = await Promise.all([
                 customerbasedshift(customerId, "reason"),
                 customerbasedshift(customerId, "allShift"),
             ]);
-
             const allReasons = reasonsData[0]?.value || [];
             setreasonslist(allReasons);
             setreasons(allReasons.map(r => ({ value: r.reason, label: r.reason })));
-
             const allShifts = shiftsData[0]?.value || [];
             setShifts(allShifts);
-
             const options = allShifts.map(shift => ({
                 value: shift.shift_no,
                 label: `Shift${shift.shift_no}`,
             }));
             setShiftOptions(options);
-
             setSelectedDeviceId(deviceid);
             setSelectedDate(dayjs());
-            setfilteredResult([]); // clear old data
-
+            setfilteredResult([]);
             const currentShift = getCurrentShift(allShifts);
             let chosenShiftNo = currentShift?.shift_no || (options.length > 0 ? options[0].value : null);
-
             if (chosenShiftNo) {
                 setSelectedShift(chosenShiftNo);
-
                 const { fromEpoch, toEpoch } = getEpochFromShift(chosenShiftNo, dayjs());
                 setEpochRange({ from: fromEpoch, to: toEpoch });
-
-                // ✅ fetch and wait for data first
                 const data = await downtimereason({
                     shiftNo: chosenShiftNo,
                     selectedDate: dayjs(),
@@ -679,8 +361,6 @@ const [isLocked, setIsLocked] = useState(false);
                 });
 
                 setfilteredResult(data);
-
-                // ✅ open modal only after data is set
                 setopenDownTimeModal(true);
             } else {
                 console.warn("⚠️ No active shift found right now");
@@ -693,59 +373,50 @@ const [isLocked, setIsLocked] = useState(false);
     };
 
 
-    const [reasonsList2, setReasonsList2 ] = useState([])
+    const [reasonsList2, setReasonsList2] = useState([])
 
-useEffect(() => {
-  const getReasons = async () => {
-    try {
-      const response = await customerbasedshift(
-        "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
-        "reason"
-      );
-      const reasons = response?.[0]?.value || [];
-      setReasonsList2(reasons);
-    } catch (err) {
-      console.error("Error fetching reasons:", err);
-    }
-  };
+    useEffect(() => {
+        const getReasons = async () => {
+            try {
+                const response = await customerbasedshift(
+                    "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
+                    "reason"
+                );
+                const reasons = response?.[0]?.value || [];
+                setReasonsList2(reasons);
+            } catch (err) {
+                console.error("Error fetching reasons:", err);
+            }
+        };
+        getReasons();
+    }, []);
 
-  getReasons();
-}, []);
+    useEffect(() => {
+        if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
+        const deviceId = deviceNameIdJson[selectedMachine];
+        const refreshData = async () => {
+            try {
+                await fetchTelemetry(deviceId);
+                const response = await getMachineLock("DEVICE", deviceId, {
+                    keys: "lock_status",
+                });
+                const lockValue = response?.lock_status?.[0]?.value || "";
+                const locked = String(lockValue).toLowerCase() === "locked";
+                if (locked && !isLocked) {
+                    setIsLocked(true);
+                    const reasonOptions = reasonsList2
+                        .map(
+                            (r) =>
+                                `<option value="${r.id}">${r.reason
+                                    .charAt(0)
+                                    .toUpperCase()}${r.reason.slice(1)}</option>`
+                        )
+                        .join("");
 
-useEffect(() => {
-  if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
-
-  const deviceId = deviceNameIdJson[selectedMachine];
-
-  const refreshData = async () => {
-    try {
-      await fetchTelemetry(deviceId);
-
-      const response = await getMachineLock("DEVICE", deviceId, {
-        keys: "lock_status",
-      });
-
-      const lockValue = response?.lock_status?.[0]?.value || "";
-      const locked = String(lockValue).toLowerCase() === "locked";
-
-      // Only trigger popup when changing from unlocked -> locked
-      if (locked && !isLocked) {
-        setIsLocked(true);
-
-        // build dynamic options using reason.name
-        const reasonOptions = reasonsList2
-          .map(
-            (r) =>
-              `<option value="${r.id}">${r.reason
-                .charAt(0)
-                .toUpperCase()}${r.reason.slice(1)}</option>`
-          )
-          .join("");
-
-        Swal.fire({
-          icon: "info",
-          title: "Machine Locked",
-          html: `
+                    Swal.fire({
+                        icon: "info",
+                        title: "Machine Locked",
+                        html: `
             <p>Machine has been locked due to downhold threshold reached.</p>
             <label for="reason">Select Reason:</label>
             <select id="reason" class="swal2-select">
@@ -753,127 +424,106 @@ useEffect(() => {
               ${reasonOptions}
             </select>
           `,
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          showCancelButton: false,
-          confirmButtonText: "Submit",
-          preConfirm: () => {
-            const reasonId = document.getElementById("reason").value;
-            if (!reasonId) {
-              Swal.showValidationMessage("Please select a reason");
-              return false;
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showCancelButton: false,
+                        confirmButtonText: "Submit",
+                        preConfirm: () => {
+                            const reasonId = document.getElementById("reason").value;
+                            if (!reasonId) {
+                                Swal.showValidationMessage("Please select a reason");
+                                return false;
+                            }
+                            return reasonsList2.find((r) => r.id === reasonId);
+                        },
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            const selectedReason = result.value;
+                            Swal.fire({
+                                icon: "question",
+                                title: "Confirm Submission",
+                                text: `You selected:  ${selectedReason.reason.charAt(0).toUpperCase()}${selectedReason.reason.slice(1)}. Do you want to confirm?`,
+                                showCancelButton: true,
+                                confirmButtonText: "Yes, Submit",
+                                cancelButtonText: "No, Go Back",
+                                allowOutsideClick: false,
+                                allowEscapeKey: false,
+                            }).then(async (confirmResult) => {
+                                if (confirmResult.isConfirmed) {
+                                    const deviceId = deviceNameIdJson[selectedMachine];
+                                    const payload = {
+                                        ts: dayjs().valueOf(),
+                                        values: {
+                                            live_reason: {
+                                                name: selectedReason.reason,
+                                                code: selectedReason.code || "",
+                                                mode: selectedReason.mode || "",
+                                                module: selectedReason.module || "",
+                                                idle_start: dayjs().valueOf(),
+                                                idle_end: 0,
+                                                idle_duration: 0
+                                            }
+                                        }
+                                    };
+                                    try {
+                                        await operatorTelemetry("DEVICE", deviceId, payload);
+                                        const payload2 = {
+                                            lock_status: "unlocked",
+                                        };
+                                        await operatorTelemetry("DEVICE", deviceId, payload2);
+                                        Swal.fire({
+                                            icon: "success",
+                                            title: "Submitted!",
+                                            text: "Reason submitted successfully.",
+                                            timer: 1500,
+                                            showConfirmButton: false, allowOutsideClick: false,
+                                            allowEscapeKey: false,
+                                        });
+                                    } catch (err) {
+                                        console.error("Error submitting reason:", err);
+                                        Swal.fire({
+                                            icon: "error",
+                                            title: "Error",
+                                            text: "Failed to submit reason. Please try again.",
+                                        });
+                                    }
+                                } else {
+                                    setIsLocked(false);
+                                }
+                            });
+                        }
+                    });
+                }
+                if (!locked && isLocked) {
+                    setIsLocked(false);
+                }
+            } catch (err) {
+                console.error("Error refreshing telemetry/lock:", err);
             }
-
-            // ✅ find the full reason object
-            return reasonsList2.find((r) => r.id === reasonId);
-          },
-        }).then((result) => {
-          if (result.isConfirmed) {
-            const selectedReason = result.value;
-
-           Swal.fire({
-  icon: "question",
-  title: "Confirm Submission",
-  text: `You selected:  ${selectedReason.reason.charAt(0).toUpperCase()}${selectedReason.reason.slice(1)}. Do you want to confirm?`,
-  showCancelButton: true,
-  confirmButtonText: "Yes, Submit",
-  cancelButtonText: "No, Go Back",
-  allowOutsideClick: false,
-  allowEscapeKey: false,
-}).then(async (confirmResult) => {
-  if (confirmResult.isConfirmed) {
-    console.log("Final confirmed reason:", selectedReason);
-
-    const deviceId = deviceNameIdJson[selectedMachine];
-
-    // Build payload (live_reason object)
-    const payload = {
-      ts: dayjs().valueOf(), // current timestamp
-      values: {
-        live_reason: {
-          name: selectedReason.reason,
-          code: selectedReason.code || "",   // ✅ include code if API provides it
-          mode: selectedReason.mode || "",   // ✅ fallback empty string if missing
-          module: selectedReason.module || "",
-          idle_start: dayjs().valueOf(),     // start now
-          idle_end: 0,                       // keep 0 until unlocked
-          idle_duration: 0                   // calculate later
-        }
-      }
-    };
-
-    try {
-      await operatorTelemetry("DEVICE", deviceId, payload);
-
-          const payload2 = {
-      lock_status: "unlocked", // 👈 payload to unlock machine
-    };
-
-      await operatorTelemetry("DEVICE", deviceId, payload2);
-      Swal.fire({
-        icon: "success",
-        title: "Submitted!",
-        text: "Reason submitted successfully.",
-        confirmButtonText: "OK",
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-      });
-    } catch (err) {
-      console.error("Error submitting reason:", err);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to submit reason. Please try again.",
-      });
-    }
-  } else {
-    setIsLocked(false); // 👈 reopen first popup if cancelled
-  }
-});
-
-          }
-        });
-      }
-
-      // Reset lock state if machine is unlocked again
-      if (!locked && isLocked) {
-        setIsLocked(false);
-      }
-    } catch (err) {
-      console.error("Error refreshing telemetry/lock:", err);
-    }
-  };
-
-  refreshData();
-  const interval = setInterval(refreshData, 5000);
-
-  return () => clearInterval(interval);
-}, [selectedMachine, deviceNameIdJson, isLocked, reasonsList2]);
-
+        };
+        refreshData();
+        const interval = setInterval(refreshData, 5000);
+        return () => clearInterval(interval);
+    }, [selectedMachine, deviceNameIdJson, isLocked, reasonsList2]);
 
     const cancelreason = async () => {
         setopenDownTimeModal(false);
-
     }
-
 
     const handleSaveThreshold2 = async () => {
         try {
             const completedRows = filteredResult.filter(item => item.reasonselected);
-
             if (completedRows.length === 0) {
                 Swal.fire('Warning', 'No reasons selected to save.', 'warning');
                 return;
             }
-
             for (const item of completedRows) {
                 const operator = reasonslist.find(op => op.reason === item.reasonselected);
                 const code = operator ? operator.code : null;
                 const mode = operator ? operator.mode : null;
                 const module = operator ? operator.module : null;
-
                 const key = {
-                    ts: item.start,  // This becomes the top-level "ts" field
+                    ts: item.start,
                     values: {
                         live_reason: {
                             name: item.reasonselected,
@@ -883,23 +533,22 @@ useEffect(() => {
                             idle_start: item.start,
                             idle_end: item.end,
                             idle_duration: item.duration
-                            // idle_start can be same as item.start or adjusted as needed
-
                         }
                     }
                 };
-
-
                 await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-
-                // Optional: Update UI state to reflect change
                 setDeviceThresholds(prev => ({
                     ...prev,
                     [selectedDeviceId.id || selectedDeviceId]: item.reasonselected
                 }));
             }
-
-            Swal.fire('Success', 'Reasons assigned successfully.', 'success');
+            Swal.fire({
+                icon: "success",
+                title: "Success",
+                text: 'Reasons assigned successfully.',
+                timer: 1500, // auto close after 2s
+                showConfirmButton: false,
+            });
 
         } catch (err) {
             console.error('Update error:', err);
@@ -908,7 +557,6 @@ useEffect(() => {
             setopenDownTimeModal(false);
         }
     };
-
 
     const handleReasonChange = (index, val) => {
         setfilteredResult(prevResults => {
@@ -921,65 +569,23 @@ useEffect(() => {
         });
     };
 
-    const getEpochFromShift1 = (shiftNo, selectedDateObj) => {
-        if (!shiftNo || !selectedDateObj || shifts.length === 0) {
-            return { fromEpoch: null, toEpoch: null };
-        }
-
-        const selectedShiftData = shifts.find(shift => shift.shift_no === shiftNo);
-        if (!selectedShiftData) {
-            return { fromEpoch: null, toEpoch: null };
-        }
-
-        const dateStr = selectedDateObj.format('YYYY-MM-DD');
-        const startDateTime = dayjs(`${dateStr}T${selectedShiftData.start_time}`);
-
-        let endDateTime;
-        if (String(shiftNo) === "2" || shiftNo === 2) {
-            const nextDay = selectedDateObj.add(1, 'day').format('YYYY-MM-DD');
-            endDateTime = dayjs(`${nextDay}T${selectedShiftData.end_time}`);
-        } else {
-            endDateTime = dayjs(`${dateStr}T${selectedShiftData.end_time}`);
-        }
-
-        if (String(shiftNo) !== "2" && shiftNo !== 2) {
-            const todayStr = dayjs().format('YYYY-MM-DD');
-            if (dateStr === todayStr) {
-                const now = dayjs();
-                if (now.isBefore(endDateTime)) {
-                    endDateTime = now;
-                }
-            }
-        }
-
-        return {
-            fromEpoch: startDateTime.valueOf(),
-            toEpoch: endDateTime.valueOf()
-        };
-    };
-
     const getEpochFromShift2 = (shiftNo, selectedDateObj, shifts) => {
         if (!shiftNo || !selectedDateObj || !shifts || shifts.length === 0) {
             return { fromEpoch: null, toEpoch: null };
         }
-
         const selectedShiftData = shifts.find(shift => String(shift.shift_no) === String(shiftNo));
         if (!selectedShiftData) {
             return { fromEpoch: null, toEpoch: null };
         }
-
         const dateStr = selectedDateObj.format("YYYY-MM-DD");
         const startDateTime = dayjs(`${dateStr}T${selectedShiftData.start_time}`);
-
         let endDateTime;
         if (selectedShiftData.end_day !== selectedShiftData.start_day) {
-            // shift spans to next day
             const nextDay = selectedDateObj.add(1, "day").format("YYYY-MM-DD");
             endDateTime = dayjs(`${nextDay}T${selectedShiftData.end_time}`);
         } else {
             endDateTime = dayjs(`${dateStr}T${selectedShiftData.end_time}`);
         }
-
         return {
             fromEpoch: startDateTime.valueOf(),
             toEpoch: endDateTime.valueOf(),
@@ -990,31 +596,25 @@ useEffect(() => {
         if (!shiftNo || !selectedDateObj || shifts.length === 0) {
             return { fromEpoch: null, toEpoch: null };
         }
-
         const selectedShiftData = shifts.find(shift => shift.shift_no === shiftNo);
         if (!selectedShiftData) {
             return { fromEpoch: null, toEpoch: null };
         }
-
         const dateStr = selectedDateObj.format('YYYY-MM-DD');
         const startDateTime = dayjs(`${dateStr}T${selectedShiftData.start_time}`);
-
         let endDateTime;
-        // If shift 2, assume overnight so add 1 day to end time
         if (String(shiftNo) === "2" || shiftNo === 2) {
             const nextDay = selectedDateObj.add(1, 'day').format('YYYY-MM-DD');
             endDateTime = dayjs(`${nextDay}T${selectedShiftData.end_time}`);
         } else {
             endDateTime = dayjs(`${dateStr}T${selectedShiftData.end_time}`);
         }
-
         return {
             fromEpoch: startDateTime.valueOf(),
             toEpoch: endDateTime.valueOf()
         };
     };
 
-    // init
     useEffect(() => {
         const init = async () => {
             try {
@@ -1025,23 +625,16 @@ useEffect(() => {
                 localStorage.setItem("token1", secondResponse.token);
                 localStorage.setItem("Companyname1", secondResponse.Companyname);
                 localStorage.setItem("role_name1", secondResponse.Role);
-
                 await fetchDevices();
-
-                // fetch operators
                 const operatorResponse = await getOperatorDetails(
                     "690d2210-8a3a-11f0-a3ac-9b534c07af2b"
                 );
                 const responseData = operatorResponse?.[0]?.value || [];
-
-                console.log(responseData, 'responsea')
                 const mappedOperators = responseData.map((op) => ({
                     id: op.operatorid,
                     name: op.operatorname,
                 }));
-
                 setOperators(mappedOperators);
-
                 if (mappedOperators.length > 0) {
                     setSelectedOperator(mappedOperators[0].id);
                 }
@@ -1052,7 +645,6 @@ useEffect(() => {
         init();
     }, []);
 
-    // live date & time
     useEffect(() => {
         const interval = setInterval(() => {
             setDate(dayjs().format("DD-MM-YYYY"));
@@ -1061,28 +653,12 @@ useEffect(() => {
         return () => clearInterval(interval);
     }, []);
 
-    const handleShiftChange = (shiftValue) => {
-        console.log(shiftValue, 'shift value ------>')
-        setSelectedShift(shiftValue);
-        setSelectedShift(shiftValue);
-        const selectedShiftData = shifts.find(shift => shift.shift_no === shiftValue);
-        if (selectedShiftData) {
-            setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
-            setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
-        }
-        const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDate);
-        setEpochRange({ from: fromEpoch, to: toEpoch });
-    };
-
     const handleConfirm = () => {
         if (confirmType === "machine") {
             setSelectedMachine(pendingMachine);
         } else if (confirmType === "operator") {
             setSelectedOperator(pendingOperator);
-            //
-
             postOperator(pendingOperator)
-
         }
         setConfirmType(null);
         setPendingMachine("");
@@ -1095,43 +671,24 @@ useEffect(() => {
         setPendingOperator("");
     };
 
-    // inside Operator component
-    const [statusTimer, setStatusTimer] = useState("00:00:00");
-    const [statusStartTime, setStatusStartTime] = useState(null);
-    const [prevStatus, setPrevStatus] = useState("");
-
-
-
     const postOperator = async (pendingOperator) => {
         try {
             const deviceId = deviceNameIdJson[selectedMachine];
-            const startTime = dayjs().valueOf(); // current operator start time
-            let endTime = 0;
-            let duration = 0;
-
+            const startTime = dayjs().valueOf();
             const operatorName = operators.find(res => res.id == pendingOperator)?.name;
-            console.log(operatorName, 'name');
-
             const previousOperator = JSON.parse(localStorage.getItem('operator_details'));
-
             if (previousOperator) {
-                // Close the previous operator
                 const updatedPrevOperator = {
                     ...previousOperator,
                     end_time: startTime,
                     duration: Math.floor((startTime - previousOperator.start_time) / 1000)
                 };
-
                 const prevPayload = {
                     ts: dayjs().valueOf(),
                     values: { live_operator: updatedPrevOperator }
                 };
-
-                console.log(prevPayload, 'prev operator payload');
                 await operatorTelemetry('DEVICE', deviceId, prevPayload);
             }
-
-            // Current operator payload (ongoing)
             const payload = {
                 ts: dayjs().valueOf(),
                 values: {
@@ -1144,33 +701,127 @@ useEffect(() => {
                     }
                 }
             };
-
-            console.log(operators, 'operators');
-            console.log(payload, 'payload');
-
-            const response = await operatorTelemetry('DEVICE', deviceId, payload);
-
-            // Save new operator details for next reference
+            await operatorTelemetry('DEVICE', deviceId, payload);
             localStorage.setItem('operator_details', JSON.stringify(payload.values.live_operator));
         } catch (err) {
-            console.log('operator api failure', err);
+            console.error('operator api failure', err);
         }
     };
-
-
-
-
 
     const formattedReasons = reasons.map(reason => ({
         ...reason,
         label: reason.label.charAt(0).toUpperCase() + reason.label.slice(1)
     }));
 
+    const handleConfirmAlert = () => {
+        Swal.fire({
+            title: "Confirm Change",
+            text:
+                confirmType === "machine"
+                    ? `Are you sure you want to change the machine to "${pendingMachine}"?`
+                    : `Are you sure you want to change the operator to "${operators.find((o) => o.id === pendingOperator)?.name || ""
+                    }"?`,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#F99022",
+            cancelButtonColor: "#6b7280",
+            confirmButtonText: "Confirm",
+            cancelButtonText: "Cancel",
+        }).then((result) => {
+            if (result.isConfirmed) {
+                handleConfirm();
+            } else {
+                handleCancel();
+            }
+        });
+    };
 
+const handleRejectParts = async (deviceId, initialCount = 0) => {
+  let rejectCount = initialCount;
+  await Swal.fire({
+    title: "Reject Parts",
+    html: `
+      <div style="display:flex; align-items:center; justify-content:center; gap:30px;">
+        <button id="decrement" 
+          style="width:50px;height:50px;border-radius:50%;font-size:24px;font-weight:bold;background:#f56565;color:white;border:none;cursor:pointer;">-</button>
+        <span id="counterValue" style="font-size:28px; font-weight:bold; min-width:50px; text-align:center;">${rejectCount}</span>
+        <button id="increment" 
+          style="width:50px;height:50px;border-radius:50%;font-size:24px;font-weight:bold;background:#48bb78;color:white;border:none;cursor:pointer;">+</button>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: "Continue",
+    cancelButtonText: "Cancel",
+    didOpen: () => {
+      const counterEl = Swal.getHtmlContainer().querySelector("#counterValue");
+      const incBtn = Swal.getHtmlContainer().querySelector("#increment");
+      const decBtn = Swal.getHtmlContainer().querySelector("#decrement");
+const produced = telemetry.goodParts || 0;
+const alreadyRejected = telemetry.scrap || 0;
+const maxReject = produced - alreadyRejected;
+      incBtn.addEventListener("click", () => {
+        if (rejectCount < maxReject) {
+          rejectCount++;
+          counterEl.textContent = rejectCount;
+        } else {
+          Swal.showValidationMessage(`Cannot exceed ${maxReject} parts`);
+        }
+      });
+      decBtn.addEventListener("click", () => {
+        if (rejectCount > 0) {
+          rejectCount--;
+          counterEl.textContent = rejectCount;
+        }
+      });
+    },
+    preConfirm: () => {
+      if (rejectCount <= 0) {
+        Swal.showValidationMessage("Please select at least 1 reject part");
+        return false;
+      }
+      return rejectCount;
+    },
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      const count = result.value;
+
+      // Step 2: Confirmation
+      Swal.fire({
+        title: "Confirm Rejection",
+        text: `Are you sure you want to reject ${count} part(s)?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Yes, Reject",
+        cancelButtonText: "No, Go Back",
+      }).then(async (confirmResult) => {
+        if (confirmResult.isConfirmed) {
+          try {
+            // Step 3: API call
+            const payload = { ts: dayjs().valueOf(), values: { reject_parts: count } };
+            await operatorTelemetry("DEVICE", deviceId, payload);
+
+            Swal.fire({
+              icon: "success",
+              title: "Success",
+              text: `${count} part(s) rejected successfully.`,
+              timer: 2000,
+              showConfirmButton: false,
+            });
+          } catch (err) {
+            console.error("Reject API failed:", err);
+            Swal.fire("Error", "Failed to reject parts. Try again.", "error");
+          }
+        } else if (confirmResult.dismiss === Swal.DismissReason.cancel) {
+          // 👈 Reopen with the same count
+          handleRejectParts(deviceId, count);
+        }
+      });
+    }
+  });
+};
 
     return (
         <div className="operator-screen">
-            {/* HEADER */}
             <div className="header">
                 <img className="Logo" src={logo} alt="Logo" />
                 <div className="header-text-element">
@@ -1194,8 +845,6 @@ useEffect(() => {
                     </div>
                 </div>
             </div>
-
-            {/* STATUS HEADER */}
             <div className="header-2" style={{ background: statusColor }}>
                 <div className="machine-name">
                     <p>Machine:</p>
@@ -1235,8 +884,6 @@ useEffect(() => {
 
                 </div>
             </div>
-
-            {/* MAIN CONTENT */}
             <div className="content">
                 <div className="contect-section" style={{ width: '10rem' }}>
                     <VerticalProgress
@@ -1246,7 +893,6 @@ useEffect(() => {
                         firstActive={firstMachineActive}
                     />
                 </div>
-
                 <div className="contect-section circular-progress-section">
                     <CircularProgress
                         actual={telemetry.goodParts}
@@ -1281,7 +927,6 @@ useEffect(() => {
                         </FormControl>
                     </div>
                 </div>
-
                 <div className="contect-section">
                     <p>
                         Job Name: {telemetry.jobName}
@@ -1294,10 +939,8 @@ useEffect(() => {
                     </div>
                 </div>
             </div>
-
-            {/* FOOTER */}
             <div className="footer1">
-                <div className="footer-left" onClick={() => alert("Reject Parts clicked!")}>
+                <div className="footer-left" onClick={() => handleRejectParts(deviceNameIdJson[selectedMachine])}>
                     <FaPause />
                     Reject Parts
                 </div>
@@ -1310,7 +953,6 @@ useEffect(() => {
                     Reason for Downtime
                 </div>
             </div>
-
             <Dialog
                 open={openDownTimeModal}
                 onClose={(event, reason) => {
@@ -1329,7 +971,6 @@ useEffect(() => {
                 <DialogContent>
                     <br></br>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
-
                     </div>
                     {filteredResult.length > 0 ? (
                         <div style={{ marginTop: '20px', maxHeight: '300px', overflowY: 'auto' }}>
@@ -1372,7 +1013,6 @@ useEffect(() => {
                                     ))}
                                 </tbody>
                             </table>
-
                         </div>
                     ) : (
                         <div style={{ marginTop: '20px', textAlign: 'center', color: '#888' }}>
@@ -1385,33 +1025,10 @@ useEffect(() => {
                     <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff9800' }} onClick={handleSaveThreshold2}>Save</Button>
                 </DialogActions>
             </Dialog>
-
-            <Dialog open={!!confirmType} onClose={handleCancel}>
-                <DialogTitle>Confirm Change</DialogTitle>
-                <DialogContent>
-                    {confirmType === "machine"
-                        ? `Are you sure you want to change the machine to "${pendingMachine}"?`
-                        : `Are you sure you want to change the operator to "${operators.find((o) => o.id === pendingOperator)?.name || ""
-                        }"?`}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCancel}>Cancel</Button>
-                    <Button
-                        onClick={handleConfirm}
-                        sx={{
-                            backgroundColor: "#F99022",
-                            color: "white",
-                            "&:hover": { backgroundColor: "#d97706" },
-                        }}
-                    >
-                        Confirm
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            {confirmType && handleConfirmAlert()}
         </div>
     );
 }
-
 
 export default Operator;
 

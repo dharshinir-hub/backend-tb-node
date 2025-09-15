@@ -1,0 +1,123 @@
+.progress-circle {
+  width: 285px;
+  height: 285px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.5s ease;
+}
+
+.progress-circle-inner {
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  flex-direction: column;
+  text-align: center;
+  transition: all 0.5s ease;
+}
+
+.progress-percentage1-inner {
+  display: block;
+  font-size: 34px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.progress-percentage1-inner .big {
+  font-size: 34px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.progress-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-metrics .metric {
+  margin: 2px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.progress-metrics .label {
+  color: #fff;
+  font-size: 12px;
+}
+
+.metric .icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 0;
+  margin-top: 5px;
+}
+
+.metric .value {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+  margin-left: 5px;
+}
+
+.metric .label {
+  font-size: 12px;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .progress-circle {
+    width: 200px;
+    height: 200px;
+  }
+
+  .progress-circle-inner {
+    width: 170px;
+    height: 170px;
+  }
+}
+
+@media (max-width: 480px) {
+  .progress-circle {
+    width: 150px;
+    height: 150px;
+  }
+
+  .progress-circle-inner {
+    width: 120px;
+    height: 120px;
+  }
+
+  .progress-percentage1-inner {
+    font-size: 24px;
+  }
+
+  .progress-percentage1-inner .big {
+    font-size: 24px;
+  }
+}
+
+@keyframes progressUpdate {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.progress-circle.updated {
+  animation: progressUpdate 0.3s ease-in-out;
+}

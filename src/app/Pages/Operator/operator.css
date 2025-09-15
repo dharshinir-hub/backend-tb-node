@@ -27,7 +27,6 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     margin: 0;
 }
 
-/* Header Styles */
 .header {
     display: flex;
     width: 100vw;
@@ -77,8 +76,7 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     gap: 1rem;
 }
 
-/* Status Header */
-.header-2 {
+ .header-2 {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -147,14 +145,15 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     top: 0;
 }
 
-/* Main Content */
 .content {
-    flex-grow: 1;
-    margin: 0;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 6rem;
-    align-items: center;
+  flex-grow: 1;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 equal columns */
+  gap: 2rem;
+  align-items: center;
+  justify-items: center;
+  padding: 0 2rem;
 }
 
 .contect-section {
@@ -171,43 +170,38 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     gap: 2rem;
 }
 
-/* Job Stats Section */
 .job-stats-section {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: flex-start; /* Left align for readability */
+  align-items: flex-start;
   height: 100%;
   gap: 0.5rem;
   width: 100%;
 }
 
-/* Job Name */
 .job-stats-section p {
-  font-size: 1.25rem; /* 20px */
+  font-size: 1.25rem;
   font-weight: 500;
   color: #333;
 }
 
-/* "Actual vs Target" label */
 .actual {
   font-weight: 500;
-  font-size: 1.5rem; /* 24px */
+  font-size: 1.5rem;
   color: #666;
   text-align: center;
 }
 
-/* Values */
 .actual-value {
   font-weight: 700;
-  font-size: 2.5rem; /* 40px */
+  font-size: 2.5rem;
   color: #f99022;
   line-height: 1.2;
     text-align: center;
     margin-top: 0.5rem;
 }
 
-/* Responsive tweaks */
 @media (max-width: 768px) {
   .job-stats-section {
     align-items: center;
@@ -215,34 +209,33 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
   }
 
   .job-stats-section p {
-    font-size: 1rem; /* 16px */
+    font-size: 1rem;
   }
 
   .actual {
-    font-size: 1.25rem; /* 20px */
+    font-size: 1.25rem;
   }
 
   .actual-value {
-    font-size: 2rem; /* 32px */
+    font-size: 2rem;
   }
 }
 
 @media (max-width: 480px) {
   .job-stats-section p {
-    font-size: 0.9rem; /* 14px */
+    font-size: 0.9rem;
   }
 
   .actual {
-    font-size: 1rem; /* 16px */
+    font-size: 1rem;
   }
 
   .actual-value {
-    font-size: 1.5rem; /* 24px */
+    font-size: 1.5rem;
   }
 }
 
 
-/* Username Section */
 .username-section {
     display: flex;
     justify-content: center;
@@ -262,7 +255,6 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     margin: 0;
 }
 
-/* Circular Progress Bar */
 .progress-circle {
     width: 285px;
     height: 285px;
@@ -339,7 +331,6 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     color: #fff;
 }
 
-/* Vertical Progress Bar */
 .vertical-progress-container {
     display: flex;
     flex-direction: column;
@@ -424,7 +415,6 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     font-weight: 500;
 }
 
-/* Footer */
 .footer1 {
     width: 100vw;
     display: flex;
@@ -466,13 +456,20 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     transform: scale(0.97);
 }
 
-/* Responsive Design */
+@media (max-width: 1024px) {
+     .content {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0 1rem;
+  }
+}
+
 @media (max-width: 768px) {
-    .content {
-        padding: 0 2rem;
-        gap: 2rem;
-    }
-    
+   .content {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0 1rem;
+  }
     .progress-circle {
         width: 200px;
         height: 200px;
@@ -527,7 +524,6 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     }
 }
 
-/* Animation for progress updates */
 @keyframes progressUpdate {
     0% {
         transform: scale(1);
@@ -544,7 +540,6 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     animation: progressUpdate 0.3s ease-in-out;
 }
 
-/* Hover effects for interactive elements */
 .footer-left:hover,
 .footer-right:hover {
     background-color: #f0f0f0;
@@ -555,17 +550,14 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Status color transitions */
 .header-2 {
     transition: background-color 0.3s ease;
 }
 
-/* Icon styling */
 .icon-dimension {
     filter: invert(50%) sepia(89%) saturate(441%) hue-rotate(351deg) brightness(102%) contrast(101%);
 }
 
-/* Additional utility classes */
 .text-center {
     text-align: center;
 }
@@ -634,8 +626,8 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
 div:where(.swal2-icon) {
   position: absolute;
   left: 50%;
-  top: 1.2rem;                  /* Keep your top spacing */
-  transform: translateX(-50%);  /* Center horizontally only */
+  top: 1.2rem; 
+  transform: translateX(-50%);
   margin: 0;
   position: relative;
 }
