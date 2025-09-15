@@ -10,27 +10,29 @@
 }
 
 .progress-circle-inner {
-  width: 250px;
-  height: 250px;
+  width: 85%;
+  height: 85%;
   border-radius: 50%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  position: absolute;
-  flex-direction: column;
   text-align: center;
+  position: absolute;
+  padding: 8px;
+  box-sizing: border-box;
   transition: all 0.5s ease;
 }
 
 .progress-percentage1-inner {
-  display: block;
-  font-size: 34px;
+  font-size: 2rem;
   font-weight: bold;
   color: #fff;
+  line-height: 1.2;
 }
 
 .progress-percentage1-inner .big {
-  font-size: 34px;
+  font-size: 2rem;
   font-weight: bold;
   color: #fff;
 }
@@ -39,11 +41,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .progress-metrics .metric {
-  margin: 2px 0 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -52,59 +54,80 @@
 
 .progress-metrics .label {
   color: #fff;
-  font-size: 12px;
-}
-
-.metric .icon {
-  width: 24px;
-  height: 24px;
-  margin-bottom: 0;
-  margin-top: 5px;
+  font-size: 0.75rem;
+  line-height: 1.1;
 }
 
 .metric .value {
-  font-size: 26px;
+  font-size: 1.2rem;
   font-weight: bold;
   color: #fff;
-  margin-left: 5px;
 }
 
-.metric .label {
-  font-size: 12px;
-  color: #fff;
+/* Tablet (slightly smaller) */
+@media (max-width: 1024px) {
+  .progress-circle {
+    width: 250px;
+    height: 250px;
+  }
+
+  .progress-circle-inner {
+    width: 85%;
+    height: 85%;
+  }
+
+  .progress-percentage1-inner,
+  .progress-percentage1-inner .big {
+    font-size: 1.8rem;
+  }
+
+  .metric .value {
+    font-size: 1.1rem;
+  }
 }
 
+/* Mobile */
 @media (max-width: 768px) {
   .progress-circle {
     width: 200px;
     height: 200px;
   }
 
-  .progress-circle-inner {
-    width: 170px;
-    height: 170px;
+  .progress-percentage1-inner,
+  .progress-percentage1-inner .big {
+    font-size: 1.4rem;
+  }
+
+  .metric .value {
+    font-size: 1rem;
+  }
+
+  .progress-metrics .label {
+    font-size: 0.7rem;
   }
 }
 
+/* Small Mobile */
 @media (max-width: 480px) {
   .progress-circle {
-    width: 150px;
-    height: 150px;
+    width: 160px;
+    height: 160px;
   }
 
-  .progress-circle-inner {
-    width: 120px;
-    height: 120px;
-  }
-
-  .progress-percentage1-inner {
-    font-size: 24px;
-  }
-
+  .progress-percentage1-inner,
   .progress-percentage1-inner .big {
-    font-size: 24px;
+    font-size: 1.2rem;
+  }
+
+  .metric .value {
+    font-size: 0.9rem;
+  }
+
+  .progress-metrics .label {
+    font-size: 0.65rem;
   }
 }
+
 
 @keyframes progressUpdate {
   0% {

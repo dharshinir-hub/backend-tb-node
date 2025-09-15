@@ -46,7 +46,9 @@
 }
 
 /* ✅ Tablet and below: switch to horizontal */
-@media (max-width: 1024px) {
+
+
+/* @media (max-width: 1024px) {
   .vertical-progress-container {
     flex-direction: row;
     justify-content: center;
@@ -55,8 +57,8 @@
   }
 
   .progress-wrapper {
-    width: 300px;  /* wide */
-    height: 20px;  /* thin */
+    width: 300px; 
+    height: 20px; 
     margin: 0;
   }
 
@@ -68,7 +70,7 @@
   }
 
   .login-indicator {
-    top: 50%;
+    top: 50% !important;
     left: 0;
     transform: translateY(-50%);
   }
@@ -88,4 +90,4 @@
     position: static;
     margin-left: auto;
   }
-}
+} */

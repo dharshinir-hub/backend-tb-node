@@ -456,20 +456,20 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     transform: scale(0.97);
 }
 
-@media (max-width: 1024px) {
+/* @media (max-width: 1024px) {
      .content {
     grid-template-columns: 1fr;
     gap: 1rem;
     padding: 0 1rem;
   }
-}
+} */
 
 @media (max-width: 768px) {
-   .content {
+   /* .content {
     grid-template-columns: 1fr;
     gap: 1rem;
     padding: 0 1rem;
-  }
+  } */
     .progress-circle {
         width: 200px;
         height: 200px;
