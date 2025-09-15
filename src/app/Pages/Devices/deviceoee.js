@@ -164,7 +164,7 @@ const OeeDashboard = () => {
   return (
   <div style={{ width: "100%", height: "100%", overflowY: "auto", padding: "40px 10px" }}>
     {/* 🔹 Header */}
-    <div
+    {/* <div
       style={{
         position: "sticky",
         top: 0, // stick to top of container
@@ -185,7 +185,7 @@ const OeeDashboard = () => {
       >
         OEE Details
       </h2>
-    </div>
+    </div> */}
 
     {/* 🔹 Content */}
     {devices.length === 0 ? (

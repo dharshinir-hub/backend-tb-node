@@ -287,7 +287,10 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
       const fromStr = `${selectedStr}T${firstShiftStart}`;
       let toStr;
       if (selectedStr === todayStr) {
-        toStr = new Date().toISOString(); // current time
+        toStr =
+          lastShiftEnd <= firstShiftStart
+            ? `${nextDayStr}T${lastShiftEnd}`
+            : `${selectedStr}T${lastShiftEnd}`;// current time
       } else {
         // handle overnight shifts
         toStr =
@@ -312,7 +315,10 @@ function getShiftTimes(shifts, selectedShift, selectedDate) {
   const fromStr = `${selectedStr}T${shiftStart}`;
   let toStr;
   if (selectedStr === todayStr) {
-    toStr = new Date().toISOString(); // current time
+     toStr =
+      shiftEnd <= shiftStart
+        ? `${nextDayStr}T${shiftEnd}`
+        : `${selectedStr}T${shiftEnd}`; // current time
   } else {
     // handle overnight shifts
     toStr =
