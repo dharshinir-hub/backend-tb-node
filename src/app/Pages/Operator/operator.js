@@ -60,18 +60,6 @@ function Operator() {
     const [pendingMachine, setPendingMachine] = useState("");
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
-    const status = telemetry.machineStatus?.toLowerCase();
-    const statusColor =
-        status === "running"
-            ? "#3DA06A"
-            : status === "idle"
-                ? "#DD6B20"
-                : status === "alarm"
-                    ? "#E53E3E"
-                    : status === "disconnect"
-                        ? "#ccc"
-                        : "#ccc";
-
 const fetchDevices = async () => {
     try {
         const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
@@ -133,78 +121,107 @@ const fetchDevices = async () => {
         return { shiftStart, now };
     }
 
-    const fetchTelemetry = async (deviceId) => {
-        try {
-            const keys = ["machine_Status", "targetparts", "totalparts", "live_operator"];
-            const data = await telemetrylatestdata(deviceId, "DEVICE", keys.join(","));
+    const statusText = (code) => {
+  switch (code) {
+    case 0:
+    case 1:
+    case 2:
+      return "idle";
+    case 3:
+      return "running";
+    case 5:
+      return "alarm";
+    case 100:
+      return "disconnect";
+    default:
+      return "unknown";
+  }
+};
 
-            const machineStatus = data?.machine_Status?.[0]?.value || "Unknown";
-            const targetParts = parseInt(data?.targetparts?.[0]?.value || 0, 10);
+const fetchTelemetry = async (deviceId) => {
+  try {
+    const { shiftStart, now } = getShiftEpoch(currentShift?.start_time);
 
-            let totalShots = 0, goodParts = 0, scrap = 0, ncr = 0;
-            if (data?.totalparts?.[0]?.value) {
-                try {
-                    const parsed = JSON.parse(data.totalparts[0].value);
-                    totalShots = parsed.totalshots || 0;
-                    goodParts = parsed.goodparts || 0;
-                    scrap = parsed.scrap || 0;
-                    ncr = parsed.ncr || 0;
-                } catch (err) {
-                    console.error("Error parsing totalparts JSON", err);
-                }
-            }
-            const { shiftStart, now } = getShiftEpoch(currentShift?.start_time);
-            let jobName = "", jobCode = "";
-            try {
-                const liveCompData = await getFirstMachineActive("DEVICE", deviceId, {
-                    keys: "live_component",
-                    startTs: shiftStart || Date.now() - 3600000,
-                    endTs: Date.now(),
-                });
+    const keysConfig = [
+      { key: "machine_status", isJson: false },
+      { key: "targetparts", isJson: false },
+      { key: "totalparts", isJson: true },
+      { key: "live_operator", isJson: true },
+      { key: "live_component", isJson: true },
+    ];
 
-                const compArr = liveCompData?.live_component || [];
-                if (compArr.length > 0) {
-                    const lastValue = compArr[compArr.length - 1].value; // take latest value
-                    const parsed = JSON.parse(lastValue);
-                    jobName = parsed.name || "Route card not assigned";
-                    jobCode = parsed.code || "";
-                }
-            } catch (err) {
-                console.error("Error fetching live_component timeseries", err);
-            }
+    const data = await getFirstMachineActive("DEVICE", deviceId, {
+      keys: keysConfig.map(k => k.key).join(","),
+      startTs: shiftStart || Date.now() - 3600000,
+      endTs: now || Date.now(),
+    });
 
-            let liveOperatorCode = "";
-            if (data?.live_operator?.[0]?.value) {
-                try {
-                    const parsed = JSON.parse(data.live_operator[0].value);
-                    liveOperatorCode = parsed.code || "";
-                } catch (err) {
-                    console.error("Error parsing live_operator JSON", err);
-                }
-            }
-
-            setTelemetry({
-                machineStatus,
-                targetParts,
-                totalShots,
-                goodParts,
-                scrap,
-                ncr,
-                jobName,
-                jobCode,
-                liveOperator: liveOperatorCode,
-            });
-
-            if (liveOperatorCode) {
-                const found = operators.find(op => String(op.id) === String(liveOperatorCode));
-                if (found) {
-                    setSelectedOperator(found.id);
-                }
-            }
-        } catch (err) {
-            console.error("Telemetry fetch failed", err);
-        }
+    const getLatest = (key, isJson = false) => {
+      const arr = data[key];
+      if (!arr || arr.length === 0) return isJson ? {} : null;
+      const value = arr[0].value;
+      if (!isJson) return value;
+      try {
+        return JSON.parse(value);
+      } catch (err) {
+        console.error(`Error parsing JSON for key: ${key}`, err);
+        return {};
+      }
     };
+
+    // ----- MACHINE STATUS -----
+    const machineStatusArray = data.machine_status || [];
+    const latestStatusCode = parseInt(machineStatusArray[0]?.value || 0, 10);
+    const machineStatus = statusText(latestStatusCode);
+
+    const firstActive = machineStatusArray
+      .slice()
+      .reverse()
+      .find(item => item.value === "3")?.ts || null;
+
+    const statusColor =
+      machineStatus.toLowerCase() === "running"
+        ? "#3DA06A"
+        : machineStatus.toLowerCase() === "idle"
+          ? "#DD6B20"
+          : machineStatus.toLowerCase() === "alarm"
+            ? "#E53E3E"
+            : machineStatus.toLowerCase() === "disconnect"
+              ? "#ccc"
+              : "#ccc";
+
+    // ----- OTHER TELEMETRY -----
+    const targetParts = parseInt(getLatest("targetparts") || 0, 10);
+
+    const totalParts = getLatest("totalparts", true);
+    const { totalshots = 0, goodparts = 0, scrap = 0, ncr = 0 } = totalParts;
+
+    const liveComponent = getLatest("live_component", true);
+    const jobName = liveComponent.name || "Route card not assigned";
+    const jobCode = liveComponent.code || "";
+
+    const liveOperator = getLatest("live_operator", true);
+    const liveOperatorCode = liveOperator.code || "";
+
+    setTelemetry({
+      machineStatus,
+      machineColor: statusColor,
+      firstActive,
+      targetParts,
+      totalShots: totalshots,
+      goodParts: goodparts,
+      scrap,
+      ncr,
+      jobName,
+      jobCode,
+      liveOperator: liveOperatorCode,
+    });
+  } catch (err) {
+    console.error("Telemetry fetch failed", err);
+  }
+};
+
+
 
 
     const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
@@ -356,31 +373,31 @@ const fetchDevices = async () => {
                 };
                 setCurrentShift(formattedShift);
 
-                const { fromEpoch, toEpoch } = getEpochFromShift2(
-                    currentActiveShift.shift_no,
-                    dayjs(),
-                    shifts
-                );
+                // const { fromEpoch, toEpoch } = getEpochFromShift2(
+                //     currentActiveShift.shift_no,
+                //     dayjs(),
+                //     shifts
+                // );
 
-                const deviceId = deviceNameIdJson[selectedMachine];
-                if (!deviceId) return;
+                // const deviceId = deviceNameIdJson[selectedMachine];
+                // if (!deviceId) return;
 
-                const machineData = await getFirstMachineActive("DEVICE", deviceId, {
-                    keys: "machine_status",
-                    startTs: fromEpoch,
-                    endTs: toEpoch,
-                    interval: 0,
-                    limit: 2000,
-                    useStrictDataTypes: false,
-                });
+                // const machineData = await getFirstMachineActive("DEVICE", deviceId, {
+                //     keys: "machine_status",
+                //     startTs: fromEpoch,
+                //     endTs: toEpoch,
+                //     interval: 0,
+                //     limit: 2000,
+                //     useStrictDataTypes: false,
+                // });
 
-                console.log("Machine telemetry data:", machineData);
+                // console.log("Machine telemetry data:", machineData);
 
-                const lastActive = machineData?.machine_status
-                    ?.slice()
-                    .reverse()
-                    .find((item) => item.value === "3");
-                setFirstMachineActive(lastActive?.ts || null);
+                // const lastActive = machineData?.machine_status
+                //     ?.slice()
+                //     .reverse()
+                //     .find((item) => item.value === "3");
+                // setFirstMachineActive(lastActive?.ts || null);
 
                 // --- Shift timing ---
                 const startTime = dayjs(`${dayjs().format("YYYY-MM-DD")} ${formattedShift.start_time}`, "YYYY-MM-DD HH:mm");
@@ -598,6 +615,12 @@ const fetchDevices = async () => {
         const interval = setInterval(refreshData, 5000);
         return () => clearInterval(interval);
     }, [selectedMachine, deviceNameIdJson, isLocked, reasonsList2]);
+
+useEffect(() => {
+  if (!telemetry.liveOperator || !operators.length) return;
+  const found = operators.find(op => String(op.id) === String(telemetry.liveOperator));
+  if (found) setSelectedOperator(found.id);
+}, [telemetry.liveOperator, operators]);
 
     const cancelreason = async () => {
         setopenDownTimeModal(false);
@@ -904,19 +927,19 @@ const handleConfirm = () => {
 
                 <div className="calendar-container">
                     <div className="calendar">
-                        <FaRegCalendarAlt style={{ fontSize: "1.3rem", color: "#F99022" }} />
-                        <p>Date: </p>
-                        <p>{date}</p>
+                        <FaRegCalendarAlt className="icon" style={{color:'#F99022'}}/>
+                        <p className='date-label'>Date: </p>
+                        <p className='date-label'>{date}</p>
                     </div>
 
                     <div className="calendar">
-                        <FaRegClock style={{ fontSize: "1.3rem", color: "#F99022" }} />
-                        <p>Time: </p>
-                        <p>{time}</p>
+                        <FaRegClock  className='icon' style={{color:'#F99022'}}/>
+                        <p className='date-label'>Time: </p>
+                        <p className='date-label'>{time}</p>
                     </div>
                 </div>
             </div>
-            <div className="header-2" style={{ background: statusColor }}>
+            <div className="header-2" style={{ background: telemetry.machineColor }}>
                 <div className="machine-name">
                     <p>Machine:</p>
                     <FormControl
@@ -950,7 +973,8 @@ const handleConfirm = () => {
                 </div>
                 <div className="header-2-right">
                     <div className="machine-name">
-                        <p>Status: {telemetry.machineStatus}</p>
+                        <p>Status: {telemetry.machineStatus.charAt(0).toUpperCase() + telemetry.machineStatus.slice(1)}
+</p>
                     </div>
 
                 </div>
@@ -961,7 +985,7 @@ const handleConfirm = () => {
                         shiftNo={currentShift?.shift_no}
                         shiftStart={currentShift?.start_time}
                         shiftEnd={currentShift?.end_time}
-                        firstActive={firstMachineActive}
+                        firstActive={telemetry?.firstActive}
                     />
                 </div>
                 <div className="contect-section circular-progress-section">
@@ -972,31 +996,43 @@ const handleConfirm = () => {
                         partsRejects={telemetry.scrap}
                         status={telemetry.machineStatus}
                     />
-                    <div className="username-section">
-                        <FormControl
-                            variant="standard"
-                            sx={{
-                                minWidth: 140,
-                                "& .MuiInputBase-root": { color: "#f99022", fontWeight: 600 },
-                                "& .MuiSvgIcon-root": { color: "#f99022" },
-                            }}
-                        >
-                            <Select
-                                value={selectedOperator}
-                                onChange={(e) => {
-                                    setPendingOperator(e.target.value);
-                                    setConfirmType("operator");
-                                }}
-                                disableUnderline
-                            >
-                                {operators.map((op) => (
-                                    <MenuItem key={op.id} value={op.id}>
-                                        {op.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </div>
+                  <div className="username-section">
+  <FormControl
+    variant="standard"
+    sx={{
+      minWidth: 140,
+      "& .MuiInputBase-root": { color: "#f99022", fontWeight: 600 },
+      "& .MuiSvgIcon-root": { color: "#f99022" },
+    }}
+  >
+    <Select
+      value={selectedOperator || ""}
+      onChange={(e) => {
+        setPendingOperator(e.target.value);
+        setConfirmType("operator");
+      }}
+      displayEmpty
+      renderValue={(selected) => {
+        if (!selected) {
+          return <span style={{ color: "#f99022" }}>No operator assigned</span>;
+        }
+        const operator = operators.find(op => String(op.id) === String(selected));
+        return operator ? operator.name : "";
+      }}
+      disableUnderline
+    >
+      <MenuItem disabled value="">
+        No operator assigned
+      </MenuItem>
+      {operators.map((op) => (
+        <MenuItem key={op.id} value={op.id}>
+          {op.name}
+        </MenuItem>
+      ))}
+    </Select>
+  </FormControl>
+</div>
+
                 </div>
                 <div className="contect-section">
                     <p style={{textAlign: 'center'}}>

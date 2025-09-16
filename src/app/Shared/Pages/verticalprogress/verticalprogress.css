@@ -91,3 +91,77 @@
     margin-left: auto;
   }
 } */
+
+@media (min-width: 1440px) {
+  .progress-wrapper {
+    width: 30px; /* wider bar */
+    height: 420px; /* taller bar */
+  }
+
+  .progress {
+    border-radius: 60px;
+  }
+
+  .login-indicator {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+  }
+
+  .login-time-label {
+    font-size: 1.45rem;
+    left: 40px;
+  }
+
+  .time-label {
+    font-size: 1.45rem;
+  }
+
+    .time-label.start-time {
+    left: -200px; /* more left spacing */
+    font-size: 1.45rem;
+  }
+
+  .time-label.end-time {
+    right: -250px; /* more right spacing */
+    font-size: 1.45rem;
+  }
+
+}
+
+/* Ultra-large screens 1920px+ */
+@media (min-width: 1920px) {
+  .progress-wrapper {
+    width: 40px;
+    height: 500px;
+  }
+
+   .time-label.start-time {
+    left: -200px; /* more left spacing */
+    font-size: 1.45rem;
+  }
+
+  .time-label.end-time {
+    right: -250px; /* more right spacing */
+    font-size: 1.45rem;
+  }
+
+  .progress {
+    border-radius: 70px;
+  }
+
+  .login-indicator {
+    width: 36px;
+    height: 36px;
+    border-width: 3px;
+  }
+
+  .login-time-label {
+    font-size: 1.45rem;
+    left: 50px;
+  }
+
+  .time-label {
+    font-size: 1.45rem;
+  }
+}
