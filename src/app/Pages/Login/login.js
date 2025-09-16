@@ -9,7 +9,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import mail from '../../../assets/mail.png';
 import lock from '../../../assets/lock.png';
-import { getOperatorDetails, Loginapi, Userapi, Userapi1 } from '../../Services/app/loginservice';
+import { getOperatorDetails, Loginapi, startTokenAutoRefresh, Userapi, Userapi1 } from '../../Services/app/loginservice';
 
 function LoginForm() {
   const { register, handleSubmit, formState: { errors }, trigger } = useForm();
@@ -51,6 +51,7 @@ const onSubmit = async (data) => {
       localStorage.setItem("CustomerID1", JSON.stringify(secondUserResponse.customerId.id));
 
       navigate("/company");
+      startTokenAutoRefresh()
     } else {
       await tenantLogin();
       const operatorResponse = await getOperatorDetails("690d2210-8a3a-11f0-a3ac-9b534c07af2b");
@@ -96,6 +97,7 @@ const onSubmit = async (data) => {
       const secondResponse = await Loginapi(secondUsername, secondPassword);
       localStorage.setItem('email1', secondUsername);
       localStorage.setItem('token1', secondResponse.token);
+      localStorage.setItem('refreshToken1', secondResponse.refreshToken);
       localStorage.setItem('Companyname1', secondResponse.Companyname);
       localStorage.setItem('role_name1', secondResponse.Role);
   }

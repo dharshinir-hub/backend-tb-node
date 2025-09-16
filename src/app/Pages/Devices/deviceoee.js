@@ -163,6 +163,22 @@ const OeeDashboard = () => {
 
   return (
   <div style={{ width: "100%", height: "100%", overflowY: "auto", padding: "40px 10px" }}>
+
+    {currentShift && (
+  <div
+    style={{
+      textAlign: "center",
+      fontSize: "20px",
+      fontWeight: "600",
+      color: "#444",
+      marginBottom: "20px",
+    }}
+  >
+    {`Shift ${currentShift.shift_no || ""} : `}
+    {dayjs(from).format("MMM D YYYY, h:mm:ss A")} -{" "}
+    {dayjs(to).format("MMM D YYYY, h:mm:ss A")}
+  </div>
+)}
     {/* 🔹 Header */}
     {/* <div
       style={{

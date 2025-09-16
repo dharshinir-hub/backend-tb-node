@@ -18,7 +18,9 @@ import './company.css';
 
 const CompanyDashboard = () => {
   const customerId = localStorage.getItem('CustomerID');
-  const newToken = localStorage.getItem('newToken');
+  const newToken = localStorage.getItem('token1');
+
+  console.log(' Token', newToken)
 
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
@@ -864,7 +866,7 @@ const handleViewMachineCard = (deviceName) => {
           style={{
             width: "30px",
             height: "2px",
-            background: "orange",
+            background: "#5c6bc0",
             display: "inline-block",
           }}
         />

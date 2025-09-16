@@ -265,7 +265,8 @@ useEffect(() => {
     await Promise.all(
       filteredDevices.map(async (machine) => {
         try {
-          const data = await telemetrykeydata(
+          // 🔹 Step 1: Fetch total_duration
+          let data = await telemetrykeydata(
             machine.id.id,
             "DEVICE",
             "total_duration",
@@ -273,40 +274,56 @@ useEffect(() => {
             to
           );
 
-          const values = data?.total_duration || [];
+          let values = data?.total_duration || [];
+
+          // 🔹 Step 2: If no total_duration, fallback to auto_duration
+          if (!Array.isArray(values) || values.length === 0) {
+            console.log(
+              `Machine: ${machine.name} → No total_duration, checking auto_duration`
+            );
+
+            const autoData = await telemetrykeydata(
+              machine.id.id,
+              "DEVICE",
+              "auto_duration",
+              from,
+              to
+            );
+            values = autoData?.auto_duration || [];
+          }
+
+          // Still no data → return zeros
           if (!Array.isArray(values) || values.length === 0) {
             results[machine.id.id] = {
               run: 0,
               idle: 0,
               total: 0,
               disconnect: 0,
+              alarm: 0,
               firstActiveTime: null
             };
-            console.log(`Machine: ${machine.name} → No data`);
+            console.log(`Machine: ${machine.name} → No data at all`);
             return;
           }
 
-          // ✅ Find first active time (earliest timestamp)
-         let firstActiveTime = null;
-const earliestPoint = values.reduce((min, point) =>
-  point.ts < min.ts ? point : min
-);
+          // ✅ Find first active time
+          let firstActiveTime = null;
+          const earliestPoint = values.reduce((min, point) =>
+            point.ts < min.ts ? point : min
+          );
 
-if (earliestPoint?.ts) {
-  const dateObj = new Date(earliestPoint.ts);
+          if (earliestPoint?.ts) {
+            const dateObj = new Date(earliestPoint.ts);
+            let hours = dateObj.getHours();
+            const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+            const seconds = String(dateObj.getSeconds()).padStart(2, "0");
+            const ampm = hours >= 12 ? "PM" : "AM";
+            hours = hours % 12 || 12;
 
-  let hours = dateObj.getHours();
-  const minutes = String(dateObj.getMinutes()).padStart(2, "0");
-  const seconds = String(dateObj.getSeconds()).padStart(2, "0");
+            firstActiveTime = `${String(hours).padStart(2, "0")}:${minutes}:${seconds} ${ampm}`;
+          }
 
-  const ampm = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12 || 12; // convert 0 → 12
-
-  firstActiveTime = `${String(hours).padStart(2, "0")}:${minutes}:${seconds} ${ampm}`;
-}
-
-
-          // ✅ Get the latest point for durations
+          // ✅ Get latest point
           const latestPoint = values.reduce((latest, point) =>
             new Date(point.ts) > new Date(latest.ts) ? point : latest
           );
@@ -323,21 +340,24 @@ if (earliestPoint?.ts) {
           const {
             total_run_duration = 0,
             total_idle_duration = 0,
-            total_disconnect_duration = 0
+            total_disconnect_duration = 0,
+            total_alarm_duration = 0   // 🔹 new field
           } = durations;
 
-          const totalSeconds = total_run_duration + total_idle_duration;
+          const totalSeconds =
+            total_run_duration + total_idle_duration + total_alarm_duration;
 
           results[machine.id.id] = {
             run: total_run_duration,
             idle: total_idle_duration,
             total: totalSeconds,
             disconnect: total_disconnect_duration,
+            alarm: total_alarm_duration,
             firstActiveTime
           };
 
           console.log(
-            `Final Totals for ${machine.name}: Run = ${total_run_duration}, Idle = ${total_idle_duration}, Disconnect = ${total_disconnect_duration}, Total = ${totalSeconds}, First Active Time = ${firstActiveTime}`
+            `Final Totals for ${machine.name}: Run=${total_run_duration}, Idle=${total_idle_duration}, Alarm=${total_alarm_duration}, Disconnect=${total_disconnect_duration}, Total=${totalSeconds}, First Active=${firstActiveTime}`
           );
         } catch (error) {
           console.error("Error fetching durations for", machine.name, error);
@@ -346,6 +366,7 @@ if (earliestPoint?.ts) {
             idle: 0,
             total: 0,
             disconnect: 0,
+            alarm: 0,
             firstActiveTime: null
           };
         }
@@ -357,6 +378,7 @@ if (earliestPoint?.ts) {
 
   fetchAllDurations();
 }, [filteredDevices, from, to]);
+
 
 
 
@@ -984,14 +1006,18 @@ useEffect(() => {
             return;
           }
 
-          // ✅ Take LAST timestamp
-          const lastTs = values[values.length - 1].ts;
+       // ✅ Find last element where value === "3"
+      const lastValue = [...values].reverse().find(item => item.value === "3");
 
-          results[machine.id.id] = { lastTs };
-        } catch (error) {
-          console.error("❌ Error fetching machine_status for", machine.name, error);
-          results[machine.id.id] = { lastTs: null };
-        }
+      if (lastValue) {
+        results[machine.id.id] = { lastTs: lastValue.ts };
+      } else {
+        results[machine.id.id] = { lastTs: null }; // no "3" found
+      }
+    } catch (error) {
+      console.error("❌ Error fetching machine_status for", machine.name, error);
+      results[machine.id.id] = { lastTs: null };
+    }
       })
     );
 
@@ -1121,7 +1147,7 @@ function formatMillisecondsTo12HourTime(ms) {
   ) : (
     filteredDevices.map((machine) => {
       const changePositive = machine.changeFromBaseline >= 0;
-      const { run = 0, idle = 0, total = 0 , disconnect = 0} =
+      const { run = 0, idle = 0, total = 0 , disconnect = 0, alarm = 0} =
         machineDurations[machine.id.id] || {};
       // const firstActiveTime =
       //   machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";

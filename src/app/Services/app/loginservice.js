@@ -38,13 +38,16 @@ export const Loginapi = async (username,password) => {
 export const refreshTokenApi = async () => {
   try {
     const refreshToken = localStorage.getItem('refreshToken');
-
     const response = await axios.post(`${window._env_.SERVER_URL}api/auth/token`, {
       refreshToken
     });
 
+    console.log('tenant response',response.data);
     const newToken = response.data.token;
     localStorage.setItem('token', newToken);
+    localStorage.setItem('newToken', newToken);
+   const newRefreshToken = response.data.refreshToken;
+    localStorage.setItem('refreshToken', newRefreshToken);
 
     console.log('Token refreshed:', newToken);
     return newToken;
@@ -54,16 +57,39 @@ export const refreshTokenApi = async () => {
   }
 };
 
+export const refreshTenantTokenApi = async () => {
+  try {
+    const refreshToken = localStorage.getItem('refreshToken1');
+    const response = await axios.post(`${window._env_.SERVER_URL}api/auth/token`, {
+      refreshToken
+    });
+
+    console.log('customer response',response.data);
+
+    const newToken = response.data.token;
+    localStorage.setItem('token1', newToken);
+    const newRefreshToken = response.data.refreshToken;
+    localStorage.setItem('refreshToken1', newRefreshToken);
+    console.log('Tenant Token refreshed:', newToken);
+    return newToken;
+  } catch (error) {
+    console.error('Error refreshing tenant token:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
 export const startTokenAutoRefresh = () => {
   // Refresh every 5 minutes (300000ms)
   setInterval(async () => {
     try {
       await refreshTokenApi();
+      await refreshTenantTokenApi()
     } catch (err) {
       console.error("Auto refresh failed", err);
       // Optional: handle re-login or logout if refresh fails
     }
-  }, 5 * 60 * 1000); // 5 minutes
+  }, 30 * 60 * 1000); // 5 minutes
 };
 
 

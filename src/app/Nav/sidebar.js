@@ -17,6 +17,10 @@ import useMobileWidth from './smalldevicesidebar';
 import './sidebars.css';
 import { SlArrowDown } from "react-icons/sl";
 import { GoChevronDown, GoChevronUp  } from "react-icons/go";
+import { IoSettingsOutline } from "react-icons/io5";
+import { IoMdSettings } from "react-icons/io";
+import { FaChartLine } from "react-icons/fa";
+
 
 
 
@@ -67,8 +71,8 @@ const menuItem = useMemo(() => [
     icon: <BiSolidDashboard />,
     children: [
       { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
-      { path: "/machinemm", name: "Machine", icon: <BiSolidDashboard /> },
-       { path: "/deviceoee", name: "Oee", icon: <BiSolidDashboard /> },
+      { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
+       { path: "/deviceoee", name: "Oee", icon: <FaChartLine  style={{fontSize:"23px"}}/> },
 
 
     ]
