@@ -45,14 +45,13 @@ function VerticalProgress({
             </div>
             <div className="progress-wrapper">
                 <div className="progress-bar">
-                 <div
-  className="progress"
-  style={{
-    height: window.innerWidth > 1024 ? `${progressPercent}%` : "100%",
-    width: window.innerWidth <= 1024 ? `${progressPercent}%` : "100%",
-    minHeight: progressPercent > 0 && window.innerWidth > 1024 ? "2px" : "0px"
-  }}
-/>
+                    <div
+                        className="progress"
+                        style={{
+                            height: `${progressPercent}%`,
+                            width: "100%"
+                        }}
+                    />
                     {firstActive && (
                         <div
                             className="login-indicator"

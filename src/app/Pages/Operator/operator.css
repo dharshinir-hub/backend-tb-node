@@ -153,7 +153,6 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
   gap: 2rem;
   align-items: center;
   justify-items: center;
-  padding: 0 2rem;
 }
 
 .contect-section {
@@ -631,3 +630,127 @@ div:where(.swal2-icon) {
   margin: 0;
   position: relative;
 }
+
+
+/* Large desktop (1440px and above) */
+@media (min-width: 1440px) {
+  .progress-circle {
+    width: 440px !important;
+    height: 440px !important;
+  }
+
+  .progress-circle-inner {
+    width: 380px !important;
+    height: 380px !important;
+  }
+
+  .progress-percentage1-inner,
+  .progress-percentage1-inner .big {
+    font-size: 60px !important;
+  }
+
+  .progress-metrics .metric {
+    font-size: 1.6rem !important;
+  }
+
+  .progress-metrics .value {
+    font-size: 38px !important;
+  }
+
+  .progress-metrics .label {
+    font-size: 1.25rem !important;
+  }
+
+  .job-stats-section p {
+    font-size: 1.85rem !important;
+  }
+
+  .actual {
+    font-size: 2.1rem !important;
+  }
+
+  .actual-value {
+    font-size: 3.6rem !important;
+  }
+
+  .footer-left,
+  .footer-right {
+    font-size: 1.45rem !important;
+    padding: 2.5rem !important;
+  }
+
+  .username-section h4 {
+    font-size: 28px !important;
+  }
+
+  .header-text-element h5 {
+    font-size: 28px !important;
+  }
+
+  .progress-wrapper {
+    height: 420px !important;
+  }
+}
+
+/* Ultra-wide / 4K displays (1920px and above) */
+@media (min-width: 1920px) {
+  .progress-circle {
+    width: 520px !important;
+    height: 520px !important;
+  }
+
+  .progress-circle-inner {
+    width: 450px !important;
+    height: 450px !important;
+  }
+
+  .progress-percentage1-inner,
+  .progress-percentage1-inner .big {
+    font-size: 70px !important;
+  }
+
+  .progress-metrics .metric {
+    font-size: 1.8rem !important;
+  }
+
+  .progress-metrics .value {
+    font-size: 44px !important;
+  }
+
+  .progress-metrics .label {
+    font-size: 1.35rem !important;
+  }
+
+  .job-stats-section p {
+    font-size: 2.1rem !important;
+  }
+
+  .actual {
+    font-size: 2.35rem !important;
+  }
+
+  .actual-value {
+    font-size: 4.2rem !important;
+  }
+
+  .footer-left,
+  .footer-right {
+    font-size: 1.55rem !important;
+    padding: 3rem !important;
+  }
+
+  .username-section h4 {
+    font-size: 34px !important;
+  }
+
+  .header-text-element h5 {
+    font-size: 34px !important;
+  }
+
+  .progress-wrapper {
+    height: 500px !important;
+  }
+}
+
+
+

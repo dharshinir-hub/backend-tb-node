@@ -1,14 +1,13 @@
 import './operator.css';
 import logo from '../../../assets/yantraimage.png';
-import { FaRegClock, FaRegCalendarAlt, FaArrowUp } from "react-icons/fa";
+import { FaRegClock, FaRegCalendarAlt } from "react-icons/fa";
 import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { Downtimeadd1, Deviceattributeget } from '../../Services/app/masterservice';
-import { FaCheckCircle, FaTimesCircle, FaArrowDown } from "react-icons/fa";
 import Swal from 'sweetalert2';
-import { getFirstMachineActive, getMachineLock, operatorTelemetry, unlockMachine } from '../../Services/app/operatorservice'
+import { getFirstMachineActive, getMachineLock, operatorTelemetry } from '../../Services/app/operatorservice'
 import {
     FormControl,
     Select,
@@ -73,24 +72,31 @@ function Operator() {
                         ? "#ccc"
                         : "#ccc";
 
-    const fetchDevices = async () => {
-        try {
-            const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
-            const result = await customerbaseddevices(customerId, 1000, 0);
-            const devicesList = result.data || [];
-            setMachines(devicesList.map((d) => d.name));
-            const nameIdMap = devicesList.reduce((acc, device) => {
-                acc[device.name] = device.id.id;
-                return acc;
-            }, {});
-            setDeviceNameIdJson(nameIdMap);
-            if (devicesList.length > 0) {
-                setSelectedMachine(devicesList[0].name);
+const fetchDevices = async () => {
+    try {
+        const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
+        const result = await customerbaseddevices(customerId, 1000, 0);
+        const devicesList = result.data || [];
+        setMachines(devicesList.map((d) => d.name));
+        const nameIdMap = devicesList.reduce((acc, device) => {
+            acc[device.name] = device.id.id;
+            return acc;
+        }, {});
+        setDeviceNameIdJson(nameIdMap);
+        if (devicesList.length > 0) {
+            const savedMachine = localStorage.getItem("selectedMachine");
+            if (savedMachine && devicesList.some(d => d.name === savedMachine)) {
+                setSelectedMachine(savedMachine);
+            } else {
+                const defaultMachine = devicesList[0].name;
+                setSelectedMachine(defaultMachine);
+                localStorage.setItem("selectedMachine", defaultMachine);
             }
-        } catch (err) {
-            console.error("Failed to fetch devices", err);
         }
-    };
+    } catch (err) {
+        console.error("Failed to fetch devices", err);
+    }
+};
 
     const formatDuration = (durationInSeconds) => {
         const hours = Math.floor(durationInSeconds / 3600);
@@ -112,12 +118,29 @@ function Operator() {
         return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
     };
 
+    function getShiftEpoch(shiftTime = "06:00") {
+        const [hour, minute] = shiftTime.split(":").map(Number);
+
+        const shiftStart = dayjs()
+            .hour(hour)
+            .minute(minute)
+            .second(0)
+            .millisecond(0)
+            .valueOf();
+
+        const now = dayjs().valueOf();
+
+        return { shiftStart, now };
+    }
+
     const fetchTelemetry = async (deviceId) => {
         try {
-            const keys = ["machine_Status", "targetparts", "totalparts", "live_component", "live_operator"];
+            const keys = ["machine_Status", "targetparts", "totalparts", "live_operator"];
             const data = await telemetrylatestdata(deviceId, "DEVICE", keys.join(","));
+
             const machineStatus = data?.machine_Status?.[0]?.value || "Unknown";
             const targetParts = parseInt(data?.targetparts?.[0]?.value || 0, 10);
+
             let totalShots = 0, goodParts = 0, scrap = 0, ncr = 0;
             if (data?.totalparts?.[0]?.value) {
                 try {
@@ -130,16 +153,26 @@ function Operator() {
                     console.error("Error parsing totalparts JSON", err);
                 }
             }
+            const { shiftStart, now } = getShiftEpoch(currentShift?.start_time);
             let jobName = "", jobCode = "";
-            if (data?.live_component?.[0]?.value) {
-                try {
-                    const parsed = JSON.parse(data.live_component[0].value);
-                    jobName = parsed.name || "";
+            try {
+                const liveCompData = await getFirstMachineActive("DEVICE", deviceId, {
+                    keys: "live_component",
+                    startTs: shiftStart || Date.now() - 3600000,
+                    endTs: Date.now(),
+                });
+
+                const compArr = liveCompData?.live_component || [];
+                if (compArr.length > 0) {
+                    const lastValue = compArr[compArr.length - 1].value; // take latest value
+                    const parsed = JSON.parse(lastValue);
+                    jobName = parsed.name || "Route card not assigned";
                     jobCode = parsed.code || "";
-                } catch (err) {
-                    console.error("Error parsing live_component JSON", err);
                 }
+            } catch (err) {
+                console.error("Error fetching live_component timeseries", err);
             }
+
             let liveOperatorCode = "";
             if (data?.live_operator?.[0]?.value) {
                 try {
@@ -149,6 +182,7 @@ function Operator() {
                     console.error("Error parsing live_operator JSON", err);
                 }
             }
+
             setTelemetry({
                 machineStatus,
                 targetParts,
@@ -160,6 +194,7 @@ function Operator() {
                 jobCode,
                 liveOperator: liveOperatorCode,
             });
+
             if (liveOperatorCode) {
                 const found = operators.find(op => String(op.id) === String(liveOperatorCode));
                 if (found) {
@@ -170,6 +205,7 @@ function Operator() {
             console.error("Telemetry fetch failed", err);
         }
     };
+
 
     const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
         const now = dayjs();
@@ -198,7 +234,7 @@ function Operator() {
     const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, deviceId }) => {
         if (!deviceId || !shiftNo || !selectedDate || !fromEpoch || !toEpoch) return [];
         const fromTime = fromEpoch;
-        const toTime = toEpoch;
+        const toTime = toEpoch; 
         try {
             const machineStatusResponse = await telemetrykeydata(deviceId, "DEVICE", "machine_status", fromTime, toTime);
             const machineData = machineStatusResponse?.machine_status || [];
@@ -238,11 +274,26 @@ function Operator() {
                         segment.value = numericValue;
                     }
                 }
-                if (recording) {
-                    segment.end = toTime;
-                    const duration = Math.floor((segment.end - segment.start) / 1000);
-                    result.push({ start: segment.start, end: segment.end, duration, value: segment.value, status: "IDLE" });
-                }
+              if (recording) {
+    // get last known timestamp from telemetry
+    const lastKnownTs = data.length > 0 ? data[data.length - 1].ts : fromTime;
+
+    // or use current time if it's before shift end
+    const now = Date.now();
+    const safeEnd = Math.min(toTime, now, lastKnownTs);
+
+    segment.end = safeEnd;
+    const duration = Math.floor((segment.end - segment.start) / 1000);
+
+    result.push({
+        start: segment.start,
+        end: segment.end,
+        duration,
+        value: segment.value,
+        status: "IDLE"
+    });
+}
+
                 return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: "NO_DATA" }];
             };
             const key = "downtime_threasold";
@@ -278,32 +329,42 @@ function Operator() {
     const [firstMachineActive, setFirstMachineActive] = useState(null);
 
     useEffect(() => {
+        let timer;
+        let interval;
+
         const getAllShifts = async () => {
             try {
                 if (!Object.keys(deviceNameIdJson).length) {
                     await fetchDevices();
                 }
+
                 const response = await customerbasedshift(
                     "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
                     "allShift"
                 );
                 const shifts = response[0]?.value || [];
                 console.log("Shifts:", shifts);
-                const currentActiveShift = await getCurrentShift(shifts, selectedDate);
+
+                // 🔑 Always recalc current shift from NOW
+                const currentActiveShift = await getCurrentShift(shifts, dayjs());
                 if (!currentActiveShift) return;
+
                 const formattedShift = {
                     ...currentActiveShift,
                     start_time: currentActiveShift.start_time.slice(0, 5),
                     end_time: currentActiveShift.end_time.slice(0, 5),
                 };
                 setCurrentShift(formattedShift);
+
                 const { fromEpoch, toEpoch } = getEpochFromShift2(
                     currentActiveShift.shift_no,
-                    dayjs(selectedDate),
+                    dayjs(),
                     shifts
                 );
+
                 const deviceId = deviceNameIdJson[selectedMachine];
                 if (!deviceId) return;
+
                 const machineData = await getFirstMachineActive("DEVICE", deviceId, {
                     keys: "machine_status",
                     startTs: fromEpoch,
@@ -312,18 +373,50 @@ function Operator() {
                     limit: 2000,
                     useStrictDataTypes: false,
                 });
+
                 console.log("Machine telemetry data:", machineData);
+
                 const lastActive = machineData?.machine_status
                     ?.slice()
                     .reverse()
                     .find((item) => item.value === "3");
                 setFirstMachineActive(lastActive?.ts || null);
+
+                // --- Shift timing ---
+                const startTime = dayjs(`${dayjs().format("YYYY-MM-DD")} ${formattedShift.start_time}`, "YYYY-MM-DD HH:mm");
+                let endTime = dayjs(`${dayjs().format("YYYY-MM-DD")} ${formattedShift.end_time}`, "YYYY-MM-DD HH:mm");
+
+                // Overnight (end next day)
+                if (currentActiveShift.start_day !== currentActiveShift.end_day) {
+                    endTime = endTime.add(1, "day");
+                }
+
+                const now = dayjs();
+                const delay = endTime.diff(now);
+
+                if (delay > 0) {
+                    timer = setTimeout(() => {
+                        // 🚀 Just call again → `getCurrentShift` will pick the next shift automatically
+                        getAllShifts();
+                    }, delay);
+                }
             } catch (err) {
                 console.error("Error in getAllShifts:", err);
             }
         };
+
         getAllShifts();
-    }, [selectedMachine, selectedDate]);
+
+        interval = setInterval(() => {
+            getAllShifts();
+        }, 60 * 1000);
+
+        return () => {
+            clearTimeout(timer);
+            clearInterval(interval);
+        };
+    }, [selectedMachine]);
+
 
     const openDownTime = async (devicename, deviceid) => {
         const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
@@ -350,7 +443,7 @@ function Operator() {
             let chosenShiftNo = currentShift?.shift_no || (options.length > 0 ? options[0].value : null);
             if (chosenShiftNo) {
                 setSelectedShift(chosenShiftNo);
-                const { fromEpoch, toEpoch } = getEpochFromShift(chosenShiftNo, dayjs());
+                const { fromEpoch, toEpoch } = getEpochFromShift2(chosenShiftNo, dayjs(), allShifts);
                 setEpochRange({ from: fromEpoch, to: toEpoch });
                 const data = await downtimereason({
                     shiftNo: chosenShiftNo,
@@ -359,9 +452,9 @@ function Operator() {
                     toEpoch,
                     deviceId: deviceid,
                 });
-
                 setfilteredResult(data);
                 setopenDownTimeModal(true);
+                console.log(data, 'data for the table')
             } else {
                 console.warn("⚠️ No active shift found right now");
             }
@@ -546,7 +639,7 @@ function Operator() {
                 icon: "success",
                 title: "Success",
                 text: 'Reasons assigned successfully.',
-                timer: 1500, // auto close after 2s
+                timer: 1500,
                 showConfirmButton: false,
             });
 
@@ -592,29 +685,6 @@ function Operator() {
         };
     };
 
-    const getEpochFromShift = (shiftNo, selectedDateObj) => {
-        if (!shiftNo || !selectedDateObj || shifts.length === 0) {
-            return { fromEpoch: null, toEpoch: null };
-        }
-        const selectedShiftData = shifts.find(shift => shift.shift_no === shiftNo);
-        if (!selectedShiftData) {
-            return { fromEpoch: null, toEpoch: null };
-        }
-        const dateStr = selectedDateObj.format('YYYY-MM-DD');
-        const startDateTime = dayjs(`${dateStr}T${selectedShiftData.start_time}`);
-        let endDateTime;
-        if (String(shiftNo) === "2" || shiftNo === 2) {
-            const nextDay = selectedDateObj.add(1, 'day').format('YYYY-MM-DD');
-            endDateTime = dayjs(`${nextDay}T${selectedShiftData.end_time}`);
-        } else {
-            endDateTime = dayjs(`${dateStr}T${selectedShiftData.end_time}`);
-        }
-        return {
-            fromEpoch: startDateTime.valueOf(),
-            toEpoch: endDateTime.valueOf()
-        };
-    };
-
     useEffect(() => {
         const init = async () => {
             try {
@@ -653,17 +723,18 @@ function Operator() {
         return () => clearInterval(interval);
     }, []);
 
-    const handleConfirm = () => {
-        if (confirmType === "machine") {
-            setSelectedMachine(pendingMachine);
-        } else if (confirmType === "operator") {
-            setSelectedOperator(pendingOperator);
-            postOperator(pendingOperator)
-        }
-        setConfirmType(null);
-        setPendingMachine("");
-        setPendingOperator("");
-    };
+const handleConfirm = () => {
+    if (confirmType === "machine") {
+        setSelectedMachine(pendingMachine);
+        localStorage.setItem("selectedMachine", pendingMachine);
+    } else if (confirmType === "operator") {
+        setSelectedOperator(pendingOperator);
+        postOperator(pendingOperator);
+    }
+    setConfirmType(null);
+    setPendingMachine("");
+    setPendingOperator("");
+};
 
     const handleCancel = () => {
         setConfirmType(null);
@@ -736,11 +807,11 @@ function Operator() {
         });
     };
 
-const handleRejectParts = async (deviceId, initialCount = 0) => {
-  let rejectCount = initialCount;
-  await Swal.fire({
-    title: "Reject Parts",
-    html: `
+    const handleRejectParts = async (deviceId, initialCount = 0) => {
+        let rejectCount = initialCount;
+        await Swal.fire({
+            title: "Reject Parts",
+            html: `
       <div style="display:flex; align-items:center; justify-content:center; gap:30px;">
         <button id="decrement" 
           style="width:50px;height:50px;border-radius:50%;font-size:24px;font-weight:bold;background:#f56565;color:white;border:none;cursor:pointer;">-</button>
@@ -749,76 +820,76 @@ const handleRejectParts = async (deviceId, initialCount = 0) => {
           style="width:50px;height:50px;border-radius:50%;font-size:24px;font-weight:bold;background:#48bb78;color:white;border:none;cursor:pointer;">+</button>
       </div>
     `,
-    showCancelButton: true,
-    confirmButtonText: "Continue",
-    cancelButtonText: "Cancel",
-    didOpen: () => {
-      const counterEl = Swal.getHtmlContainer().querySelector("#counterValue");
-      const incBtn = Swal.getHtmlContainer().querySelector("#increment");
-      const decBtn = Swal.getHtmlContainer().querySelector("#decrement");
-const produced = telemetry.goodParts || 0;
-const alreadyRejected = telemetry.scrap || 0;
-const maxReject = produced - alreadyRejected;
-      incBtn.addEventListener("click", () => {
-        if (rejectCount < maxReject) {
-          rejectCount++;
-          counterEl.textContent = rejectCount;
-        } else {
-          Swal.showValidationMessage(`Cannot exceed ${maxReject} parts`);
-        }
-      });
-      decBtn.addEventListener("click", () => {
-        if (rejectCount > 0) {
-          rejectCount--;
-          counterEl.textContent = rejectCount;
-        }
-      });
-    },
-    preConfirm: () => {
-      if (rejectCount <= 0) {
-        Swal.showValidationMessage("Please select at least 1 reject part");
-        return false;
-      }
-      return rejectCount;
-    },
-  }).then(async (result) => {
-    if (result.isConfirmed) {
-      const count = result.value;
+            showCancelButton: true,
+            confirmButtonText: "Continue",
+            cancelButtonText: "Cancel",
+            didOpen: () => {
+                const counterEl = Swal.getHtmlContainer().querySelector("#counterValue");
+                const incBtn = Swal.getHtmlContainer().querySelector("#increment");
+                const decBtn = Swal.getHtmlContainer().querySelector("#decrement");
+                const produced = telemetry.goodParts || 0;
+                const alreadyRejected = telemetry.scrap || 0;
+                const maxReject = produced - alreadyRejected;
+                incBtn.addEventListener("click", () => {
+                    if (rejectCount < maxReject) {
+                        rejectCount++;
+                        counterEl.textContent = rejectCount;
+                    } else {
+                        Swal.showValidationMessage(`Cannot exceed ${maxReject} parts`);
+                    }
+                });
+                decBtn.addEventListener("click", () => {
+                    if (rejectCount > 0) {
+                        rejectCount--;
+                        counterEl.textContent = rejectCount;
+                    }
+                });
+            },
+            preConfirm: () => {
+                if (rejectCount <= 0) {
+                    Swal.showValidationMessage("Please select at least 1 reject part");
+                    return false;
+                }
+                return rejectCount;
+            },
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                const count = result.value;
 
-      // Step 2: Confirmation
-      Swal.fire({
-        title: "Confirm Rejection",
-        text: `Are you sure you want to reject ${count} part(s)?`,
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonText: "Yes, Reject",
-        cancelButtonText: "No, Go Back",
-      }).then(async (confirmResult) => {
-        if (confirmResult.isConfirmed) {
-          try {
-            // Step 3: API call
-            const payload = { ts: dayjs().valueOf(), values: { reject_parts: count } };
-            await operatorTelemetry("DEVICE", deviceId, payload);
+                // Step 2: Confirmation
+                Swal.fire({
+                    title: "Confirm Rejection",
+                    text: `Are you sure you want to reject ${count} part(s)?`,
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonText: "Yes, Reject",
+                    cancelButtonText: "No, Go Back",
+                }).then(async (confirmResult) => {
+                    if (confirmResult.isConfirmed) {
+                        try {
+                            // Step 3: API call
+                            const payload = { ts: dayjs().valueOf(), values: { rejection_id: count } };
+                            await operatorTelemetry("DEVICE", deviceId, payload);
 
-            Swal.fire({
-              icon: "success",
-              title: "Success",
-              text: `${count} part(s) rejected successfully.`,
-              timer: 2000,
-              showConfirmButton: false,
-            });
-          } catch (err) {
-            console.error("Reject API failed:", err);
-            Swal.fire("Error", "Failed to reject parts. Try again.", "error");
-          }
-        } else if (confirmResult.dismiss === Swal.DismissReason.cancel) {
-          // 👈 Reopen with the same count
-          handleRejectParts(deviceId, count);
-        }
-      });
-    }
-  });
-};
+                            Swal.fire({
+                                icon: "success",
+                                title: "Success",
+                                text: `${count} part(s) rejected successfully.`,
+                                timer: 2000,
+                                showConfirmButton: false,
+                            });
+                        } catch (err) {
+                            console.error("Reject API failed:", err);
+                            Swal.fire("Error", "Failed to reject parts. Try again.", "error");
+                        }
+                    } else if (confirmResult.dismiss === Swal.DismissReason.cancel) {
+                        // 👈 Reopen with the same count
+                        handleRejectParts(deviceId, count);
+                    }
+                });
+            }
+        });
+    };
 
     return (
         <div className="operator-screen">
@@ -928,8 +999,8 @@ const maxReject = produced - alreadyRejected;
                     </div>
                 </div>
                 <div className="contect-section">
-                    <p>
-                        Job Name: {telemetry.jobName}
+                    <p style={{textAlign: 'center'}}>
+                        {telemetry.jobName}
                     </p>
                     <div style={{ textAlign: "end", marginTop: "0.2rem" }}>
                         <p className="actual">Actual vs Target</p>
