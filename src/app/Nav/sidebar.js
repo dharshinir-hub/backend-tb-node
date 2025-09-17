@@ -79,7 +79,7 @@ const menuItem = useMemo(() => [
     ]
   },
 
-  { path: "/report", name: "Reports", icon: <MdAssessment /> },
+  // { path: "/report", name: "Reports", icon: <MdAssessment /> },
  
   {
     name: "Operation",
