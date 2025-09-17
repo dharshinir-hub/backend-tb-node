@@ -11,7 +11,7 @@ function CircularProgress({
 }) {
   let percentage = Math.min(100, Math.round((actual / target) * 100));
   if (isNaN(percentage)) {
-    percentage = 100;
+    percentage = 0;
   }
 
   const intPartsBehind = Math.round(partsBehind);
@@ -46,35 +46,39 @@ function CircularProgress({
         </div>
 
         <div className="progress-metrics">
-          {percentage >= 100 && partsAhead === 0 ? (
+          {target > 0 && (
             <>
-              <div className="metric">
-                <FaCheckCircle style={{ color: "limegreen", fontSize: "1.8rem" }} />
-              </div>
-              <span className="label">At Goal</span>
-            </>
-          ) : partsAhead > 0 ? (
-            <>
-              <div className="metric">
-                <FaArrowUp style={{ color: "#00bfff", fontSize: "1.2rem" }} />
-                <span className="value">{partsAhead}</span>
-              </div>
-              <span className="label">Parts Ahead</span>
-            </>
-          ) : intPartsBehind > 0 ? (
-            <>
-              <div className="metric">
-                <FaArrowDown style={{ color: "#ffcc00", fontSize: "1.2rem" }} />
-                <span className="value">{intPartsBehind}</span>
-              </div>
-              <span className="label">Parts Behind</span>
-            </>
-          ) : (
-            <>
-              <div className="metric">
-                <FaCheckCircle style={{ color: "limegreen", fontSize: "1.5rem" }} />
-              </div>
-              <span className="label">At Goal</span>
+              {percentage >= 100 && partsAhead === 0 ? (
+                <>
+                  <div className="metric">
+                    <FaCheckCircle style={{ color: "limegreen", fontSize: "1.8rem" }} />
+                  </div>
+                  <span className="label">At Goal</span>
+                </>
+              ) : partsAhead > 0 ? (
+                <>
+                  <div className="metric">
+                    <FaArrowUp style={{ color: "#00bfff", fontSize: "1.2rem" }} />
+                    <span className="value">{partsAhead}</span>
+                  </div>
+                  <span className="label">Parts Ahead</span>
+                </>
+              ) : intPartsBehind > 0 ? (
+                <>
+                  <div className="metric">
+                    <FaArrowDown style={{ color: "#ffcc00", fontSize: "1.2rem" }} />
+                    <span className="value">{intPartsBehind}</span>
+                  </div>
+                  <span className="label">Parts Behind</span>
+                </>
+              ) : (
+                <>
+                  <div className="metric">
+                    <FaCheckCircle style={{ color: "limegreen", fontSize: "1.5rem" }} />
+                  </div>
+                  <span className="label">At Goal</span>
+                </>
+              )}
             </>
           )}
 
