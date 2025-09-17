@@ -10,6 +10,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import mail from '../../../assets/mail.png';
 import lock from '../../../assets/lock.png';
 import { getOperatorDetails, Loginapi, startTokenAutoRefresh, Userapi, Userapi1 } from '../../Services/app/loginservice';
+import { decryptText } from '../../Shared/utils/cryptoUtils';
 
 function LoginForm() {
   const { register, handleSubmit, formState: { errors }, trigger } = useForm();
@@ -20,86 +21,93 @@ function LoginForm() {
     setShowPassword((prev) => !prev);
   };
 
-const onSubmit = async (data) => {
-  setLoginLoading(true);
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  const onSubmit = async (data) => {
+    setLoginLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  try {
-    if (data.username.includes("@") && data.username.includes(".com")) {
-      const response = await Loginapi(data.username, data.password);
-      localStorage.setItem("email", data.username);
-      localStorage.setItem("token", response.token);
-      localStorage.setItem("refreshToken", response.refreshToken);
-      localStorage.setItem("newToken", response.token);
-      localStorage.setItem("role_name", response.Role);
+    try {
+      if (data.username.includes("@") && data.username.includes(".com")) {
+        const response = await Loginapi(data.username, data.password);
+        localStorage.setItem("email", data.username);
+        localStorage.setItem("token", response.token);
+        localStorage.setItem("refreshToken", response.refreshToken);
+        localStorage.setItem("newToken", response.token);
+        localStorage.setItem("role_name", response.Role);
 
-      if (Array.isArray(response.module) && response.module.length) {
-        localStorage.setItem("mod_name", response.module[0]);
-      }
+        if (Array.isArray(response.module) && response.module.length) {
+          localStorage.setItem("mod_name", response.module[0]);
+        }
 
-      toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
+        toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
 
-      const userResponse = await Userapi();
-      localStorage.setItem("CustomerID", JSON.stringify(userResponse.customerId.id));
-      localStorage.setItem("authority", JSON.stringify(userResponse.authority));
-      localStorage.setItem("firstName", JSON.stringify(userResponse.firstName));
-      localStorage.setItem("lastName", JSON.stringify(userResponse.lastName));
+        const userResponse = await Userapi();
+        localStorage.setItem("CustomerID", JSON.stringify(userResponse.customerId.id));
+        localStorage.setItem("authority", JSON.stringify(userResponse.authority));
+        localStorage.setItem("firstName", JSON.stringify(userResponse.firstName));
+        localStorage.setItem("lastName", JSON.stringify(userResponse.lastName));
 
-      await tenantLogin();
+        await tenantLogin();
 
-      const secondUserResponse = await Userapi1();
-      localStorage.setItem("CustomerID1", JSON.stringify(secondUserResponse.customerId.id));
+        const secondUserResponse = await Userapi1();
+        localStorage.setItem("CustomerID1", JSON.stringify(secondUserResponse.customerId.id));
 
-      navigate("/company");
-      
-    } else {
-      await tenantLogin();
-      const operatorResponse = await getOperatorDetails("690d2210-8a3a-11f0-a3ac-9b534c07af2b");
-      const responseData = operatorResponse?.[0]?.value;
+        navigate("/company");
 
-      if (responseData && responseData.length > 0) {
-        const operator = responseData.find((res) => res.operatorname === data.username);
-
-        if (operator && operator.operatorid === data.password) {
-          localStorage.setItem("role_name", 'OPERATOR');
-          toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
-          navigate("/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV");
+      } else {
+        await tenantLogin();
+        const operatorResponse = await getOperatorDetails("690d2210-8a3a-11f0-a3ac-9b534c07af2b");
+        const responseData = operatorResponse?.[0]?.value;
+        if (responseData && responseData.length > 0) {
+          const operator = responseData.find((res) => res.operatorname === data.username);
+          if (operator) {
+            const decryptedPassword = decryptText(operator.password || "");
+            if (decryptedPassword === data.password) { 
+              localStorage.setItem("role_name", 'OPERATOR');
+              toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
+              navigate("/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV");
+            } else {
+              toast.error("Login failed: Invalid username or password", {
+                position: "top-center",
+                autoClose: 1500,
+              });
+            }
+          } else {
+            toast.error("Login failed: Invalid username or password", {
+              position: "top-center",
+              autoClose: 1500,
+            });
+          }
         } else {
           toast.error("Login failed: Invalid username or password", {
             position: "top-center",
             autoClose: 1500,
           });
         }
-      } else {
-        toast.error("Login failed: Invalid username or password", {
-          position: "top-center",
-          autoClose: 1500,
-        });
+
       }
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.message || error.message || "Something went wrong";
+      console.log(errorMsg)
+      console.error("Login failed:", errorMsg);
+      toast.error("Login failed: " + errorMsg, {
+        position: "top-center",
+        autoClose: 1500,
+      });
+    } finally {
+      setLoginLoading(false);
     }
-  } catch (error) {
-     const errorMsg =
-    error.response?.data?.message || error.message || "Something went wrong";
-    console.log(errorMsg)
-    console.error("Login failed:", errorMsg);
-    toast.error("Login failed: " + errorMsg, {
-      position: "top-center",
-      autoClose: 1500,
-    });
-  } finally {
-    setLoginLoading(false);
-  }
-};
+  };
 
   const tenantLogin = async () => {
-     const secondUsername = "pms@gmail.com";
-      const secondPassword = "pmspms";
-      const secondResponse = await Loginapi(secondUsername, secondPassword);
-      localStorage.setItem('email1', secondUsername);
-      localStorage.setItem('token1', secondResponse.token);
-      localStorage.setItem('refreshToken1', secondResponse.refreshToken);
-      localStorage.setItem('Companyname1', secondResponse.Companyname);
-      localStorage.setItem('role_name1', secondResponse.Role);
+    const secondUsername = "pms@gmail.com";
+    const secondPassword = "pmspms";
+    const secondResponse = await Loginapi(secondUsername, secondPassword);
+    localStorage.setItem('email1', secondUsername);
+    localStorage.setItem('token1', secondResponse.token);
+    localStorage.setItem('refreshToken1', secondResponse.refreshToken);
+    localStorage.setItem('Companyname1', secondResponse.Companyname);
+    localStorage.setItem('role_name1', secondResponse.Role);
   }
 
   return (

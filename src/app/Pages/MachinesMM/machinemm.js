@@ -1,4 +1,4 @@
-import React, { useState , useMemo } from "react";
+import React, { useState , useMemo, useRef } from "react";
 import dayjs from "dayjs";
 
 import {
@@ -482,13 +482,57 @@ useEffect(() => {
 
 
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now()); // always in ms
-    }, 5000);
+const intervalRef = useRef(null);
 
-    return () => clearInterval(interval);
-  }, []);
+function getShiftEndDateTime(selectedDate, shiftObj) {
+  if (!shiftObj) return null;
+
+  const baseDate = dayjs(selectedDate);
+
+  // adjust if shift crosses into next day
+  const endDate = baseDate.add(Number(shiftObj.end_day) - 1, "day");
+
+  const [h, m, s] = shiftObj.end_time.split(":").map(Number);
+
+  return endDate.hour(h).minute(m).second(s).millisecond(0).toDate();
+}
+
+useEffect(() => {
+  // Normalize selectedShift -> shiftObj
+  const shiftNo =
+    typeof selectedShift === "string"
+      ? selectedShift.replace("Shift ", "")
+      : String(selectedShift ?? "");
+
+  const shiftObj = shifts.find(s => s.shift_no === shiftNo);
+
+  const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
+
+  if (isToday) {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    intervalRef.current = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+
+    console.log("⏱ Live update (today)");
+  } else if (shiftObj) {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    const endDate = getShiftEndDateTime(selectedDate, shiftObj);
+    if (endDate) {
+      setCurrentTime(endDate.getTime());
+      console.log("📅 Past date, fixed at shift end:", endDate.toString());
+    }
+  }
+
+  return () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+}, [selectedDate, selectedShift, shifts]);
 
   console.log("Current Time", currentTime);
 

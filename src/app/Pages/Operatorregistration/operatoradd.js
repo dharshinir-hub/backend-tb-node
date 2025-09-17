@@ -15,7 +15,7 @@ import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
-
+import { decryptText, encryptText } from '../../Shared/utils/cryptoUtils';
 export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId }) {
     console.log('datasource', datasource);
     //console.log('setDatasource', setDatasource);
@@ -33,6 +33,7 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
     operatorname: '',
     operatorid: '',
     mode: '',
+    password: ''   
     // language:'',
     // experiencelevel: ''
   }), []);
@@ -87,16 +88,21 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
   const onSubmit = async (data) => {
     try {
       const id = Math.random().toString(36).substr(2, 9);
-  
+  const encryptedPassword =
+  shiftForm.mode === "Operator" ? encryptText(shiftForm.password) : "";
       const currentShiftData = {
         id: id,
         operatorname: shiftForm.operatorname,
         operatorid: shiftForm.operatorid,
         mode: shiftForm.mode,
+          ...(shiftForm.mode === "Operator" && { password: encryptedPassword })
         // language: shiftForm.language,
         // experiencelevel: shiftForm.experiencelevel,
       };
   
+      const decryptedPassword = decryptText(encryptedPassword);
+console.log("Decrypted:", decryptedPassword);
+
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
   
       // ✅ Check for duplicates BEFORE inserting
@@ -397,12 +403,57 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
                   {errors.mode && <div className="mat-error">Mode is required</div>} 
                 </div>
 
-                
+                            {shiftForm.mode === "Operator" && (
+  <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
+    <TextField
+      {...register("password", {
+        required: shiftForm.mode === "Operator" ? "Password is required" : false,
+        minLength: {
+          value: 6,
+          message: "Password must be at least 6 characters"
+        },
+        maxLength: {
+          value: 20,
+          message: "Password must not exceed 20 characters"
+        }
+      })}
+      onBlur={() => trigger("password")}
+      label="Password"
+      type="password"
+      name="password"
+      value={shiftForm.password}
+      onChange={handleFormChange}
+      error={!!errors.password}
+      InputLabelProps={{
+        required: true,
+        sx: {
+          color: "black",
+          "&.Mui-focused": {
+            color: "orange",
+          },
+        },
+      }}
+      fullWidth
+      sx={{
+        "& .MuiOutlinedInput-root": {
+          "& fieldset": { borderColor: "black" },
+          "&:hover fieldset": { borderColor: "black" },
+          "&.Mui-focused fieldset": { borderColor: "orange" },
+          "& .MuiOutlinedInput-input": { color: "black" },
+          "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
+        },
+      }}
+    />
+    {errors.password && <div className="mat-error">{errors.password.message}</div>}
+  </div>
+)}
               </div>
 
 
 
             </LocalizationProvider>
+
+
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
               <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning" >
                 Save

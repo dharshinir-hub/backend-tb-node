@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
+import { decryptText, encryptText } from '../../Shared/utils/cryptoUtils';
 
 // Helper function to parse time strings robustly
 // It attempts to parse the string as HH:mm:ss first by prepending a dummy date.
@@ -59,6 +60,7 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
         operatorname: '',
         operatorid: '',
         mode: '',
+        password: ''
         // language:'',
         // experiencelevel: ''
     }), []);
@@ -114,6 +116,8 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
           operatorname: shiftForm.operatorname,
           operatorid: shiftForm.operatorid,
           mode: shiftForm.mode,
+           ...(shiftForm.mode === "Operator" && { password: encryptText(shiftForm.password) })
+
           // language: shiftForm.language,
           // experiencelevel: shiftForm.experiencelevel,
         };
@@ -170,7 +174,8 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                     operatorid: dialogData.operatorid || '',
                     mode: dialogData.mode || '',
                     language:dialogData.language || '',
-                    experiencelevel: dialogData.experiencelevel || ''                
+                    experiencelevel: dialogData.experiencelevel || '' ,
+                    password: dialogData.mode === 'Operator' ? decryptText(dialogData.password) : ''            
                 };
     
                 // Find the correct module value if shiftsmodule is already loaded
@@ -448,6 +453,23 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                   />
                   {errors.mode && <div className="mat-error">Mode is required</div>} {/* Changed to div and mat-error */}
                 </div>
+                {shiftForm.mode === "Operator" && (
+  <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
+    <TextField
+      {...register("password", { required: "Password is required" })}
+      onBlur={() => trigger('password')}
+      label="Password"
+      type="password"
+      name="password"
+      value={shiftForm.password}
+      onChange={handleFormChange}
+      error={!!errors.password}
+      fullWidth
+    />
+    {errors.password && <div className="mat-error">{errors.password.message}</div>}
+  </div>
+)}
+
               </div>
 
 
