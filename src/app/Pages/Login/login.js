@@ -51,7 +51,7 @@ const onSubmit = async (data) => {
       localStorage.setItem("CustomerID1", JSON.stringify(secondUserResponse.customerId.id));
 
       navigate("/company");
-      startTokenAutoRefresh()
+      
     } else {
       await tenantLogin();
       const operatorResponse = await getOperatorDetails("690d2210-8a3a-11f0-a3ac-9b534c07af2b");

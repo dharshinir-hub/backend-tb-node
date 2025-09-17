@@ -6,6 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import useIdleTimer from './idletimer';
 import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { stopTokenAutoRefresh } from './app/Services/app/loginservice';
 
 function App() {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ function App() {
       cancelButtonText: 'Cancel'
     }).then((result) => {
       if (result.isConfirmed) {
+        stopTokenAutoRefresh()
         localStorage.clear();
         navigate('/');
       }

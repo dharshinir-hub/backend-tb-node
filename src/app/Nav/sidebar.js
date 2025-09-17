@@ -20,6 +20,7 @@ import { GoChevronDown, GoChevronUp  } from "react-icons/go";
 import { IoSettingsOutline } from "react-icons/io5";
 import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
+import { stopTokenAutoRefresh } from '../Services/app/loginservice';
 
 
 
@@ -126,6 +127,7 @@ const menuItem = useMemo(() => [
       cancelButtonText: 'Cancel'
     }).then((result) => {
       if (result.isConfirmed) {
+        stopTokenAutoRefresh();
         localStorage.clear();
         navigate('/');
       }

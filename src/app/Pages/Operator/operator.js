@@ -5,9 +5,8 @@ import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
-import { Downtimeadd1, Deviceattributeget } from '../../Services/app/masterservice';
 import Swal from 'sweetalert2';
-import { getFirstMachineActive, getMachineLock, operatorTelemetry } from '../../Services/app/operatorservice'
+import { customerbaseddevices, customerbasedshift, Deviceattributeget, Downtimeadd1, getFirstMachineActive, getMachineLock, operatorTelemetry, telemetrykeydata } from '../../Services/app/operatorservice'
 import {
     FormControl,
     Select,
@@ -18,9 +17,8 @@ import {
     DialogActions,
     Button,
 } from "@mui/material";
-import { customerbaseddevices, customerbasedshift, telemetrykeydata, telemetrylatestdata } from '../../Services/app/alarmservice';
-import { Loginapi } from '../../Services/app/authservice';
-import { getOperatorDetails } from '../../Services/app/loginservice';
+
+import { getOperatorDetails, Loginapi, startTokenAutoRefresh } from '../../Services/app/loginservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
 import CircularProgress from '../../Shared/Pages/circularprogress/circularprogress';
 import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogress';
@@ -716,8 +714,10 @@ useEffect(() => {
                 const secondResponse = await Loginapi(secondUsername, secondPassword);
                 localStorage.setItem("email1", secondUsername);
                 localStorage.setItem("token1", secondResponse.token);
+                localStorage.setItem("refreshToken1", secondResponse.refreshToken);
                 localStorage.setItem("Companyname1", secondResponse.Companyname);
                 localStorage.setItem("role_name1", secondResponse.Role);
+                startTokenAutoRefresh();
                 await fetchDevices();
                 const operatorResponse = await getOperatorDetails(
                     "690d2210-8a3a-11f0-a3ac-9b534c07af2b"

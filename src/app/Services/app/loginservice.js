@@ -25,8 +25,8 @@ export const Loginapi = async (username,password) => {
 //   password: "tenant"
 // });
 
-
     console.log('Response' ,response)
+    startTokenAutoRefresh()
     return response.data; // Return the response data
   } 
   catch (error) {
@@ -42,7 +42,7 @@ export const refreshTokenApi = async () => {
       refreshToken
     });
 
-    console.log('tenant response',response.data);
+    console.log('customer response',response.data);
     const newToken = response.data.token;
     localStorage.setItem('token', newToken);
     localStorage.setItem('newToken', newToken);
@@ -64,7 +64,7 @@ export const refreshTenantTokenApi = async () => {
       refreshToken
     });
 
-    console.log('customer response',response.data);
+    console.log('tenant response',response.data);
 
     const newToken = response.data.token;
     localStorage.setItem('token1', newToken);
@@ -79,19 +79,30 @@ export const refreshTenantTokenApi = async () => {
 };
 
 
+let refreshIntervalId = null;
+
 export const startTokenAutoRefresh = () => {
-  // Refresh every 5 minutes (300000ms)
-  setInterval(async () => {
+  if (refreshIntervalId) clearInterval(refreshIntervalId);
+  refreshIntervalId = setInterval(async () => {
     try {
       await refreshTokenApi();
-      await refreshTenantTokenApi()
     } catch (err) {
-      console.error("Auto refresh failed", err);
-      // Optional: handle re-login or logout if refresh fails
+      console.error("Customer token refresh failed", err);
     }
-  }, 30 * 60 * 1000); // 5 minutes
+    try {
+      await refreshTenantTokenApi();
+    } catch (err) {
+      console.error("Tenant token refresh failed", err);
+    }
+  }, 10 * 60 * 1000);
 };
 
+export const stopTokenAutoRefresh = () => {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+  }
+};
 
 export const Userapi = async () => {
   try {
