@@ -563,6 +563,7 @@ if (locked && !isLocked) {
         allowEscapeKey: false,
         showCancelButton: false,
         confirmButtonText: "Submit",
+        width: "auto",
         preConfirm: () => {
             const reasonId = document.getElementById("reason").value;
             if (!reasonId) {
@@ -795,9 +796,6 @@ useEffect(() => {
                     name: op.operatorname,
                 }));
                 setOperators(mappedOperators);
-                if (mappedOperators.length > 0) {
-                    setSelectedOperator(mappedOperators[0].id);
-                }
             } catch (err) {
                 console.error("Init failed", err);
             }
