@@ -1389,7 +1389,7 @@ const handleReasonChange = (index, val) => {
 
   useEffect(() => {
     const fallbackOptions = [
-      { value: 'Operator', label: 'Operator' },
+      // { value: 'Operator', label: 'Operator' },
       { value: 'Component', label: 'Component'},
       { value: 'Reason', label: 'Reason'},
       { value: 'Supervisor', label: 'Supervisor'},
@@ -1442,7 +1442,7 @@ const handleReasonChange = (index, val) => {
 
   const getiframedata = async () => {
     const fallbackOptions = [
-      { value: 'Operator', label: 'Operator' },
+      // { value: 'Operator', label: 'Operator' },
       { value: 'Component', label: 'Component' },
       { value: 'Reason', label: 'Reason' },
       { value: 'Supervisor', label: 'Supervisor' },
