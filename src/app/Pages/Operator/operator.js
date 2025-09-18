@@ -223,29 +223,41 @@ const fetchTelemetry = async (deviceId) => {
 
 
 
-    const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
-        const now = dayjs();
-        const baseDate = selectedDate ? dayjs(selectedDate) : dayjs();
-        for (let shift of allShifts) {
-            let start = baseDate.startOf("day");
-            let end = baseDate.startOf("day");
-            start = start
-                .add(Number(shift.start_time.split(":")[0]), "hour")
-                .add(Number(shift.start_time.split(":")[1]), "minute")
-                .add(Number(shift.start_time.split(":")[2]), "second");
-            end = end
-                .add(Number(shift.end_time.split(":")[0]), "hour")
-                .add(Number(shift.end_time.split(":")[1]), "minute")
-                .add(Number(shift.end_time.split(":")[2]), "second");
-            if (shift.start_day !== shift.end_day) {
-                end = end.add(1, "day");
-            }
-            if (now.isAfter(start) && now.isBefore(end)) {
-                return shift;
+const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
+    const now = dayjs(selectedDate);
+    const baseDate = selectedDate ? dayjs(selectedDate) : dayjs();
+
+    for (let shift of allShifts) {
+        let start = baseDate.startOf("day");
+        let end = baseDate.startOf("day");
+
+        start = start
+            .add(Number(shift.start_time.split(":")[0]), "hour")
+            .add(Number(shift.start_time.split(":")[1]), "minute")
+            .add(Number(shift.start_time.split(":")[2]), "second");
+
+        end = end
+            .add(Number(shift.end_time.split(":")[0]), "hour")
+            .add(Number(shift.end_time.split(":")[1]), "minute")
+            .add(Number(shift.end_time.split(":")[2]), "second");
+
+        if (shift.start_day !== shift.end_day) {
+            end = end.add(1, "day");
+
+            // ✅ Handle overnight case (after midnight but before shift start)
+            if (now.isBefore(start)) {
+                start = start.subtract(1, "day");
+                end = end.subtract(1, "day");
             }
         }
-        return null;
-    };
+
+        if (now.isAfter(start) && now.isBefore(end)) {
+            return shift;
+        }
+    }
+    return null;
+};
+
 
     const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, deviceId }) => {
         if (!deviceId || !shiftNo || !selectedDate || !fromEpoch || !toEpoch) return [];

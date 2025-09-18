@@ -8,33 +8,52 @@ function VerticalProgress({
     shiftEnd = "22:00",
     firstActive
 }) {
-    const [currentTime, setCurrentTime] = useState(new Date());
+    
+    const [currentTime, setCurrentTime] = useState(dayjs());
 
     const [startH, startM] = shiftStart.split(":").map(Number);
     const [endH, endM] = shiftEnd.split(":").map(Number);
 
-    const shiftStartTime = new Date();
-    shiftStartTime.setHours(startH, startM, 0, 0);
+    // Build shift start & end times based on today
+    let shiftStartTime = dayjs().hour(startH).minute(startM).second(0).millisecond(0);
+    let shiftEndTime = dayjs().hour(endH).minute(endM).second(0).millisecond(0);
 
-    const shiftEndTime = new Date();
-    shiftEndTime.setHours(endH, endM, 0, 0);
-
-    const total = shiftEndTime - shiftStartTime;
-    const passed = currentTime - shiftStartTime;
-    const progressPercent = Math.min(100, Math.max(0, (passed / total) * 100));
-
-    let loginPercent = 0;
-    let formattedLoginTime = "N/A";
-
-    if (firstActive) {
-        const loginDate = new Date(firstActive);
-        const loginOffset = loginDate - shiftStartTime;
-        loginPercent = Math.min(100, Math.max(0, (loginOffset / total) * 100));
-        formattedLoginTime = dayjs(loginDate).format("HH:mm");
+    // ✅ If overnight shift (end < start), push end to next day
+    if (shiftEndTime.isBefore(shiftStartTime)) {
+        shiftEndTime = shiftEndTime.add(1, "day");
     }
 
+    // ✅ Make sure currentTime falls inside the correct shift window
+    if (currentTime.isBefore(shiftStartTime)) {
+        // Shift hasn't started yet → use previous day's window
+        shiftStartTime = shiftStartTime.subtract(1, "day");
+        shiftEndTime = shiftEndTime.subtract(1, "day");
+    } else if (currentTime.isAfter(shiftEndTime)) {
+        // Shift already ended → move to next cycle
+        shiftStartTime = shiftStartTime.add(1, "day");
+        shiftEndTime = shiftEndTime.add(1, "day");
+    }
+
+    // Calculate progress
+    const total = shiftEndTime.diff(shiftStartTime);
+    const passed = currentTime.diff(shiftStartTime);
+    let progressPercent = (passed / total) * 100;
+    if (progressPercent < 0) progressPercent = 0;
+    if (progressPercent > 100) progressPercent = 100;
+
+    // Handle login marker
+    let loginPercent = 0;
+    let formattedLoginTime = "N/A";
+    if (firstActive) {
+        const loginDate = dayjs(firstActive);
+        const loginOffset = loginDate.diff(shiftStartTime);
+        loginPercent = Math.min(100, Math.max(0, (loginOffset / total) * 100));
+        formattedLoginTime = loginDate.format("HH:mm");
+    }
+
+    // Update clock every second
     useEffect(() => {
-        const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+        const interval = setInterval(() => setCurrentTime(dayjs()), 1000);
         return () => clearInterval(interval);
     }, []);
 
