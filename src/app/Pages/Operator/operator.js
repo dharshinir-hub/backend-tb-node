@@ -1091,7 +1091,7 @@ const handleConfirm = () => {
       </MenuItem>
       {operators.map((op) => (
         <MenuItem key={op.id} value={op.id}>
-          {op.name}
+          {op?.name[0]?.toUpperCase() + op?.name?.slice(1)?.toLowerCase()}
         </MenuItem>
       ))}
     </Select>
@@ -1101,7 +1101,7 @@ const handleConfirm = () => {
                 </div>
                 <div className="contect-section">
                     <p style={{textAlign: 'center'}}>
-                        {telemetry.jobName}
+                        {telemetry.jobName }
                     </p>
                     <div style={{ textAlign: "end", marginTop: "0.2rem" }}>
                         <p className="actual">Actual vs Target</p>
