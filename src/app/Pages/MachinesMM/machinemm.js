@@ -32,9 +32,34 @@ import './machinemm.css';
 
 
 export default function MachineDashboard() {
- const grafanaURL =
-    "http://demo.yantra24x7.com:3000/d/feff3544-eecf-4d2b-8185-f02d94aaf4b1/machine-dashboard?orgId=1&from=1754874810269&to=1754896410269&theme=light&kiosk&var-from=${from}&var-to=${to}";
-   console.log('Grafana url',grafanaURL);
+
+
+
+const [newToken, setNewToken] = useState(localStorage.getItem("token"));
+  console.log(newToken)
+
+  // ✅ Listen for token changes in localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const latestToken = localStorage.getItem("token");
+      if (latestToken && latestToken !== newToken) {
+        setNewToken(latestToken);
+        console.log("🔄 Token updated:", latestToken);
+      }
+    };
+
+    // Case 1: token updated in another tab
+    window.addEventListener("storage", handleStorageChange);
+
+    // Case 2: token updated in same tab by refresh API
+    const interval = setInterval(handleStorageChange, 1000); // check every 5s
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [newToken]);
+
 
   const [selectedDevice, setSelectedDevice] = useState("all");
   const [searchText, setSearchText] = useState("");
@@ -72,7 +97,6 @@ export default function MachineDashboard() {
 
 
   const customerId = localStorage.getItem("CustomerID");
-  const newToken = localStorage.getItem("newToken");
 
   const fetchShifts = async () => {
     try {
@@ -555,7 +579,6 @@ const handleTabClick = (tab, machine) => {
     toolMonitoring: `${window._env_.GRAFANA_URL}d/da065e50-263c-43e5-8a19-610e8c09820c/main-screen-valve-c-56-tool-monitoring`,
   };
 
-  const newToken = localStorage.getItem("newToken");
   const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
 
   const GRAFANA_URL = window._env_.GRAFANA_URL;
@@ -857,7 +880,7 @@ useEffect(() => {
     setSelectedMachine(firstMachine);
     handleTabClick(activeTab, firstMachine);
   }
-}, [filteredDevices, selectedMachineId, activeTab]);
+}, [filteredDevices, selectedMachineId, activeTab, newToken]);
 
  useEffect(() => {
     const savedDate = localStorage.getItem("selectedDate");
@@ -981,7 +1004,7 @@ useEffect(() => {
     handleTabClick("overview", selectedMachine);
     setAutoSelected(true);
   }
-}, [from, to, fromTime, toTime, selectedMachine, autoSelected]);
+}, [from, to, fromTime, toTime, selectedMachine, autoSelected, newToken]);
 
 
 

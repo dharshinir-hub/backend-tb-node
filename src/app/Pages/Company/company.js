@@ -18,9 +18,31 @@ import './company.css';
 
 const CompanyDashboard = () => {
   const customerId = localStorage.getItem('CustomerID');
-  const newToken = localStorage.getItem('token1');
+  const [newToken, setNewToken] = useState(localStorage.getItem("token"));
+  console.log(newToken)
 
-  console.log(' Token', newToken)
+  // ✅ Listen for token changes in localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const latestToken = localStorage.getItem("token");
+      if (latestToken && latestToken !== newToken) {
+        setNewToken(latestToken);
+        console.log("🔄 Token updated:", latestToken);
+      }
+    };
+
+    // Case 1: token updated in another tab
+    window.addEventListener("storage", handleStorageChange);
+
+    // Case 2: token updated in same tab by refresh API
+    const interval = setInterval(handleStorageChange, 1000); // check every 5s
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [newToken]);
+
 
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
@@ -57,7 +79,7 @@ useEffect(() => {
 
   useEffect(() => {
     updateGrafanaURL();
-  }, [selectedDevice, formattedUtilization, formattedTime, selectedShiftData, fromTime, toTime, from, to]);
+  }, [selectedDevice, formattedUtilization, formattedTime, selectedShiftData, fromTime, toTime, from, to, newToken]);
 
   useEffect(() => {
   if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
@@ -688,20 +710,16 @@ const handleViewMachineCard = (deviceName) => {
   const deviceId = deviceNameIdJson[deviceName];
   console.log('clicked device id', deviceId);
 
-  // Check if all required variables are defined
   if (deviceId && fromTime && toTime && from && to) {
-    // Assume you already have these variables from props/context/state
     const baseUrl = window._env_.SERVER_URL;
     const GRAFANA_URL = window._env_.GRAFANA_URL;
     const grafanaUrl = grafanaUrls[4];
     const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
 
-    // Construct the Grafana iframe URL
     const url = `${grafanaUrl}&var-deviceId=${deviceId}&var-deviceName=${encodeURIComponent(deviceName)}`;
 
     console.log('Navigating to /machineutilization with:', { url, deviceId, deviceName, fromTime, toTime, baseUrl, grafanaUrl });
 
-    // Navigate with query params + state
     navigate(`/machineutilization?deviceId=${deviceId}&token=${bearerToken}&fromTime=${fromTime}&toTime=${toTime}&from=${from}&to=${to}&grafanaurl=${GRAFANA_URL}&baseurl=${baseUrl}&deviceName=${encodeURIComponent(deviceName)}`);
   } else {
     console.error("Missing required variables or device ID not found for:", deviceName);

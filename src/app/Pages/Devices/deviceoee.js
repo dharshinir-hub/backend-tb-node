@@ -1,51 +1,106 @@
 import React, { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import {
- cleanCustomerId,
+  cleanCustomerId,
   telemetrylatestdata,
-  customerbaseddevices,
-  customerbasedshift,
   telemetrykeydata,
   getCustomerName
 } from '../../Services/app/companyservice';
+import { getOperatorDetails, Loginapi, startTokenAutoRefresh } from '../../Services/app/loginservice';
+import { customerbasedshift, customerbaseddevices } from '../../Services/app/operatorservice';
 
 const OeeDashboard = () => {
+  const [newToken, setNewToken] = useState(localStorage.getItem("token1"));
+  console.log('Token ', newToken);
+  const location = useLocation();
+
+  const [customerId1, setCustomerId1] = useState(null);
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
+  const [shifts, setShifts] = useState([]);
+  const [currentShift, setCurrentShift] = useState(null);
+  const [from, setFrom] = useState(null);
+  const [to, setTo] = useState(null);
 
   const baseUrl = window._env_.SERVER_URL;
   const GRAFANA_URL = window._env_.GRAFANA_URL;
-
   const customerId = localStorage.getItem('CustomerID');
-  const newToken = localStorage.getItem('newToken');
 
-     const [shifts, setShifts] = useState([]);
-  const [currentShift, setCurrentShift] = useState(null);
-  const [from, setFrom] = useState(null); // epoch ms
-  const [to, setTo] = useState(null);     // epoch ms
+  // ✅ Watch token changes in localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const latestToken = localStorage.getItem("token1"); // ✅ use token1 consistently
+      if (latestToken && latestToken !== newToken) {
+        setNewToken(latestToken);
+        console.log("🔄 Token updated:", latestToken);
+      }
+    };
 
-  // Convert HH:mm:ss to epoch ms
+    // Case 1: token updated in another tab
+    window.addEventListener("storage", handleStorageChange);
+
+    // Case 2: token updated in same tab by refresh API
+    const interval = setInterval(handleStorageChange, 5000);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [newToken]);
+
+  // ✅ login and set customerId1
+  useEffect(() => {
+    if (location.pathname !== "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp") {
+      return;
+    }
+
+    const init = async () => {
+      try {
+        const secondUsername = "pms@gmail.com";
+        const secondPassword = "pmspms";
+        const secondResponse = await Loginapi(secondUsername, secondPassword);
+
+        localStorage.setItem("email1", secondUsername);
+        localStorage.setItem("token1", secondResponse.token); // ✅ write to token1
+        localStorage.setItem("refreshToken1", secondResponse.refreshToken);
+        localStorage.setItem("Companyname1", secondResponse.Companyname);
+        localStorage.setItem("role_name1", secondResponse.Role);
+
+        setCustomerId1("690d2210-8a3a-11f0-a3ac-9b534c07af2b");
+        
+
+        startTokenAutoRefresh();
+      } catch (err) {
+        console.error("Init failed", err);
+      }
+    };
+
+    init();
+
+
+const storedToken1 = localStorage.getItem("token1");
+console.log(" token1 from localStorage:", storedToken1);
+setNewToken(storedToken1);
+
+
+  }, [location.pathname]);
+
+  // Convert shift times to epoch
   const convertShiftToEpoch = (fromTimeStr, toTimeStr) => {
     const today = new Date();
-    const dateStr = today.toISOString().split("T")[0]; // "YYYY-MM-DD"
-
+    const dateStr = today.toISOString().split("T")[0];
     let fromDate = new Date(`${dateStr}T${fromTimeStr}`);
     let toDate = new Date(`${dateStr}T${toTimeStr}`);
 
-    // Handle overnight shifts
     if (toDate <= fromDate) {
       toDate.setDate(toDate.getDate() + 1);
     }
-
-    return {
-      from: fromDate.getTime(),
-      to: toDate.getTime(),
-    };
+    return { from: fromDate.getTime(), to: toDate.getTime() };
   };
 
-  // Determine current shift based on time
+  // Find current shift
   const getCurrentShift = (shiftsList) => {
     if (!Array.isArray(shiftsList) || shiftsList.length === 0) return null;
 
@@ -59,25 +114,22 @@ const OeeDashboard = () => {
       const fromMinutes = fromH * 60 + fromM;
       const toMinutes = toH * 60 + toM;
 
-      // normal or overnight
       if (
         (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
         (fromMinutes > toMinutes &&
           (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
       ) {
-        // Set epoch times
         const { from: fromEpoch, to: toEpoch } = convertShiftToEpoch(
           s.start_time,
           s.end_time
         );
         setFrom(fromEpoch);
         setTo(toEpoch);
-
-        return s; // return the active shift object
+        return s;
       }
     }
 
-    // Fallback to first shift
+    // fallback
     const fallback = shiftsList[0];
     const { from: fromEpoch, to: toEpoch } = convertShiftToEpoch(
       fallback.start_time,
@@ -85,18 +137,16 @@ const OeeDashboard = () => {
     );
     setFrom(fromEpoch);
     setTo(toEpoch);
-
     return fallback;
   };
 
-  // Fetch shifts from API
+  // Fetch shifts
   const fetchShifts = async () => {
     try {
-      const result = await customerbasedshift(customerId, "allShift");
+      const result = await customerbasedshift(customerId || customerId1, "allShift");
       const shiftList = result[0]?.value || [];
       setShifts(shiftList);
 
-      // Determine active shift immediately
       const activeShift = getCurrentShift(shiftList);
       setCurrentShift(activeShift);
     } catch (err) {
@@ -105,176 +155,193 @@ const OeeDashboard = () => {
   };
 
   useEffect(() => {
-    fetchShifts();
-  }, []);
+    if (customerId || customerId1) {
+      fetchShifts();
+    }
+  }, [customerId, customerId1]);
 
-  console.log("Shifts:", shifts);
-  console.log("Current Shift:", currentShift);
-  console.log("From (epoch ms):", from, "To (epoch ms):", to);
-
-  // 🔹 Fetch Devices
+  // Fetch devices
   const fetchDevices = async () => {
     try {
-      const result = await customerbaseddevices(customerId, 100, 0);
-      console.log("📡 Raw API result:", result);
-
+      const result = await customerbaseddevices(customerId || customerId1, 100, 0);
       const devicesList = result?.data?.data || result?.data || [];
-      console.log("✅ Extracted devices list:", devicesList);
-
       setDevices(devicesList);
 
-      // Map { deviceName: deviceId }
       const nameIdMap = devicesList.reduce((acc, device) => {
         if (device?.name && device?.id?.id) {
           acc[device.name] = device.id.id;
         }
         return acc;
       }, {});
-      console.log("📌 Device Name → ID map:", nameIdMap);
-
       setDeviceNameIdJson(nameIdMap);
-
     } catch (err) {
       console.error("❌ Failed to fetch devices", err);
     }
   };
 
-  // 🔹 Run when customerId changes
   useEffect(() => {
-    if (customerId) {
+    if (customerId || customerId1) {
       fetchDevices();
-    } else {
-      console.warn("⚠️ No customerId found in localStorage");
     }
-  }, [customerId]);
+  }, [customerId, customerId1]);
 
- 
-
-  // 🔹 Build Grafana URL for each device
+  // Build grafana url
   const buildGrafanaUrl = (device) => {
     if (!device?.id?.id) return "";
 
     const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
-    const cleanedId = cleanCustomerId(customerId);
+    const cleanedId = cleanCustomerId(customerId) || cleanCustomerId(customerId1);
     const encodedid = encodeURIComponent(JSON.stringify(deviceNameIdJson));
 
-    return `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b0/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`;
+  const url = `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b0/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`;
+
+  console.log("🔗 Grafana Iframe URL:", url); // ✅ log URL
+
+  return url;
   };
 
+  // 🔹 Refresh page at each shift end
+useEffect(() => {
+  if (!shifts || shifts.length === 0) return;
+
+  let refreshTimers = [];
+
+  const scheduleShiftRefreshes = () => {
+    const now = dayjs();
+
+    // Clear old timers
+    refreshTimers.forEach((t) => clearTimeout(t));
+    refreshTimers = [];
+
+    shifts.forEach((shift) => {
+      if (!shift.end_time) return;
+
+      const [h, m, s] = shift.end_time.split(":").map(Number);
+      let endTime = dayjs().hour(h).minute(m).second(s);
+
+      // If the end time already passed today, schedule for tomorrow
+      if (endTime.isBefore(now)) {
+        endTime = endTime.add(1, "day");
+      }
+
+      const delay = endTime.diff(now, "millisecond");
+
+      if (delay > 0) {
+        console.log(
+          `⏳ Scheduling refresh for Shift ${
+            shift.shift_no || "?"
+          } at ${endTime.format("YYYY-MM-DD HH:mm:ss")}, in ${Math.round(
+            delay / 1000 / 60
+          )} minutes`
+        );
+
+        const timer = setTimeout(() => {
+          console.log(
+            `🔄 Auto-refreshing at shift ${
+              shift.shift_no || "?"
+            } end → ${shift.end_time}`
+          );
+          window.location.reload();
+        }, delay);
+
+        refreshTimers.push(timer);
+      }
+    });
+  };
+
+  // Schedule immediately
+  scheduleShiftRefreshes();
+
+  // 🔹 Calculate how long until midnight → then reschedule daily
+  const now = dayjs();
+  const nextMidnight = now.add(1, "day").startOf("day");
+  const msUntilMidnight = nextMidnight.diff(now, "millisecond");
+
+  const midnightTimer = setTimeout(() => {
+    scheduleShiftRefreshes();
+
+    // after first midnight, repeat every 24h
+    setInterval(scheduleShiftRefreshes, 24 * 60 * 60 * 1000);
+  }, msUntilMidnight);
+
+  return () => {
+    refreshTimers.forEach((t) => clearTimeout(t));
+    clearTimeout(midnightTimer);
+  };
+}, [shifts]);
+
+  // ✅ Final UI return
   return (
-  <div style={{ width: "100%", height: "100%", overflowY: "auto", padding: "40px 10px" }}>
+    <div style={{ width: "100%", height: "100%", overflowY: "auto", padding: "40px 10px" }}>
+      {currentShift && (
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: "20px",
+            fontWeight: "600",
+            color: "#444",
+            marginBottom: "20px",
+          }}
+        >
+          {`Shift ${currentShift.shift_no || ""} : `}
+          {dayjs(from).format("MMM D YYYY, h:mm:ss A")} -{" "}
+          {dayjs(to).format("MMM D YYYY, h:mm:ss A")}
+        </div>
+      )}
 
-    {currentShift && (
-  <div
-    style={{
-      textAlign: "center",
-      fontSize: "20px",
-      fontWeight: "600",
-      color: "#444",
-      marginBottom: "20px",
-    }}
-  >
-    {`Shift ${currentShift.shift_no || ""} : `}
-    {dayjs(from).format("MMM D YYYY, h:mm:ss A")} -{" "}
-    {dayjs(to).format("MMM D YYYY, h:mm:ss A")}
-  </div>
-)}
-    {/* 🔹 Header */}
-    {/* <div
-      style={{
-        position: "sticky",
-        top: 0, // stick to top of container
-       
-        background: "#fff",
-        padding: "15px 10px",
-        borderBottom: "2px solid #ddd",
-        textAlign: "center",
-      }}
-    >
-      <h2
-        style={{
-          fontSize: "24px",
-          fontWeight: "700",
-          margin: 0,
-          color: "#333",
-        }}
-      >
-        OEE Details
-      </h2>
-    </div> */}
-
-    {/* 🔹 Content */}
-    {devices.length === 0 ? (
-      <div
-        style={{
-          textAlign: "center",
-          fontSize: "18px",
-          fontWeight: "500",
-          color: "#666",
-          padding: "40px 0",
-        }}
-      >
-        No Devices
-      </div>
-    ) : (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-          gap: "15px",
-          width: "100%",
-          marginTop: "20px",
-          gridAutoRows: "600px",
-        }}
-      >
-        {devices.map((device, index) => {
-          const url = buildGrafanaUrl(device);
-          console.log("🖼️ Final iframe URL:", url);
-
-          return (
-            <div
-              key={index}
-              style={{
-                position: "relative",
-                width: "100%",
-                height: "100%",
-                borderRadius: "8px",
-                overflow: "hidden",
-                boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                cursor: "pointer",
-                display: "flex",
-                flexDirection: "column",
-              }}
-              onClick={() => console.log("🖱️ Clicked device:", device)}
-            >
-              {/* 🔹 Machine Name Header
+      {devices.length === 0 ? (
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: "18px",
+            fontWeight: "500",
+            color: "#666",
+            padding: "40px 0",
+          }}
+        >
+          No Devices
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+            gap: "15px",
+            width: "100%",
+            marginTop: "20px",
+            gridAutoRows: "600px",
+          }}
+        >
+          {devices.map((device, index) => {
+            const url = buildGrafanaUrl(device);
+            return (
               <div
+                key={index}
                 style={{
-                  background: "#f5f5f5",
-                  fontWeight: "600",
-                  textAlign: "center",
-                  padding: "6px 0",
-                  fontSize: "14px",
-                  borderBottom: "1px solid #ddd",
+                  position: "relative",
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
                 }}
               >
-                {device?.name || "Unnamed Device"}
-              </div> */}
-
-              {/* 🔹 Iframe */}
-              <iframe
-                src={url}
-                style={{ flex: 1, border: "0", width: "100%", height: "1000px" }}
-                title={`OEE-${device.name}`}
-              />
-            </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-);
-
+                <iframe
+                  key={url} // ✅ force reload when token changes
+                  src={url}
+                  style={{ flex: 1, border: "0", width: "100%", height: "1000px" }}
+                  title={`OEE-${device.name}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default OeeDashboard;
