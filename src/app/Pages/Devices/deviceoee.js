@@ -332,7 +332,7 @@ useEffect(() => {
                 <iframe
                   key={url} // ✅ force reload when token changes
                   src={url}
-                  style={{ flex: 1, border: "0", width: "100%", height: "1000px" }}
+                  style={{ flex: 1, border: "0", width: "100%", height: "1000px", pointerEvents: 'none' }}
                   title={`OEE-${device.name}`}
                 />
               </div>
