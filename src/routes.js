@@ -26,8 +26,9 @@ import OeeDashboard from './app/Pages/Devices/deviceoee';
 
 const AppRoutes = () => (
     <Routes>
-      <Route path="/" element={<Login />} />
+      <Route path="/" element={<Login />} />      
       <Route path="/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" element={<Operator />} />
+      <Route path="/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp" element={< OeeDashboard />} />
       <Route path="/" element={<Layout />}>
         <Route path="andon-dashboard" element={<Andondashboard />} />
         <Route path="/shift" element={<Shift />} />
