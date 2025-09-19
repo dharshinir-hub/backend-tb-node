@@ -104,20 +104,35 @@ const fetchDevices = async () => {
         return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
     };
 
-    function getShiftEpoch(shiftTime = "06:00") {
-        const [hour, minute] = shiftTime.split(":").map(Number);
+function getShiftEpoch(startTime = "06:00", endTime = "14:00") {
+    const now = dayjs();
+    const [startH, startM] = startTime.split(":").map(Number);
+    const [endH, endM] = endTime.split(":").map(Number);
 
-        const shiftStart = dayjs()
-            .hour(hour)
-            .minute(minute)
-            .second(0)
-            .millisecond(0)
-            .valueOf();
+    let shiftStart = dayjs().hour(startH).minute(startM).second(0).millisecond(0);
+    let shiftEnd = dayjs().hour(endH).minute(endM).second(0).millisecond(0);
 
-        const now = dayjs().valueOf();
-
-        return { shiftStart, now };
+    // Handle overnight shift
+    if (shiftEnd.isBefore(shiftStart)) {
+        if (now.isBefore(shiftEnd)) {
+            // After midnight but before shift ends → start was yesterday
+            shiftStart = shiftStart.subtract(1, "day");
+        } else {
+            // Shift ends tomorrow
+            shiftEnd = shiftEnd.add(1, "day");
+        }
     }
+
+    const shiftStartEpoch = shiftStart.valueOf();
+    const shiftEndEpoch = shiftEnd.valueOf();
+    const nowEpoch = now.valueOf();
+
+    // Optional: progress in percentage
+    const progress = Math.min(Math.max(((nowEpoch - shiftStartEpoch) / (shiftEndEpoch - shiftStartEpoch)) * 100, 0), 100);
+
+    return { shiftStart: shiftStartEpoch, shiftEnd: shiftEndEpoch, now: nowEpoch, progress };
+}
+
 
     const statusText = (code) => {
   switch (code) {
@@ -138,7 +153,17 @@ const fetchDevices = async () => {
 
 const fetchTelemetry = async (deviceId) => {
   try {
-    const { shiftStart, now } = getShiftEpoch(currentShift?.start_time);
+      const response = await customerbasedshift(
+                    "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
+                    "allShift"
+                );
+                const shifts = response[0]?.value || [];
+
+                // 🔑 Always recalc current shift from NOW
+                const currentActiveShift = await getCurrentShift(shifts, dayjs());
+
+    const { shiftStart, now } = getShiftEpoch(currentActiveShift?.start_time);
+
 
     const keysConfig = [
       { key: "machine_status", isJson: false },
@@ -222,32 +247,23 @@ const fetchTelemetry = async (deviceId) => {
 
 
 
-
 const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
     const now = dayjs(selectedDate);
-    const baseDate = selectedDate ? dayjs(selectedDate) : dayjs();
 
     for (let shift of allShifts) {
-        let start = baseDate.startOf("day");
-        let end = baseDate.startOf("day");
+        const [startH, startM, startS = 0] = shift.start_time.split(":").map(Number);
+        const [endH, endM, endS = 0] = shift.end_time.split(":").map(Number);
 
-        start = start
-            .add(Number(shift.start_time.split(":")[0]), "hour")
-            .add(Number(shift.start_time.split(":")[1]), "minute")
-            .add(Number(shift.start_time.split(":")[2]), "second");
+        // Base start and end times for today
+        let start = dayjs(now).hour(startH).minute(startM).second(startS).millisecond(0);
+        let end = dayjs(now).hour(endH).minute(endM).second(endS).millisecond(0);
 
-        end = end
-            .add(Number(shift.end_time.split(":")[0]), "hour")
-            .add(Number(shift.end_time.split(":")[1]), "minute")
-            .add(Number(shift.end_time.split(":")[2]), "second");
-
-        if (shift.start_day !== shift.end_day) {
-            end = end.add(1, "day");
-
-            // ✅ Handle overnight case (after midnight but before shift start)
-            if (now.isBefore(start)) {
+        // Handle overnight shift
+        if (end.isBefore(start)) {
+            if (now.isBefore(end)) {
                 start = start.subtract(1, "day");
-                end = end.subtract(1, "day");
+            } else {
+                end = end.add(1, "day");
             }
         }
 
@@ -255,9 +271,9 @@ const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
             return shift;
         }
     }
+
     return null;
 };
-
 
     const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, deviceId }) => {
         if (!deviceId || !shiftNo || !selectedDate || !fromEpoch || !toEpoch) return [];
@@ -371,7 +387,6 @@ const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
                     "allShift"
                 );
                 const shifts = response[0]?.value || [];
-                console.log("Shifts:", shifts);
 
                 // 🔑 Always recalc current shift from NOW
                 const currentActiveShift = await getCurrentShift(shifts, dayjs());
@@ -482,7 +497,6 @@ const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
                 });
                 setfilteredResult([...data].reverse());
                 setopenDownTimeModal(true);
-                console.log(data, 'data for the table')
             } else {
                 console.warn("⚠️ No active shift found right now");
             }
@@ -549,7 +563,6 @@ if (locked && !isLocked) {
     const idleStart = lastIdleOrAlarm ? lastIdleOrAlarm.ts : dayjs().valueOf();
     setIdleStartTime(idleStart);
 
-    console.log("Idle/Alarm started at:", idleStart);
 
     const reasonOptions = reasonsList2
         .map(
