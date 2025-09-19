@@ -587,7 +587,7 @@ const handleTabClick = (tab, machine) => {
   const baseUrl = window._env_.SERVER_URL;
   console.log("baseurl", baseUrl);
 
-  let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-token=${bearerToken}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
+  let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-token=${bearerToken}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk&refresh=5s`;
 
   if (tab === "diagnostics") {
     url = `${baseUrls[tab]}?&from=${from}&to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;

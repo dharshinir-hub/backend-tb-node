@@ -23,6 +23,7 @@ const OeeDashboard = () => {
   const [currentShift, setCurrentShift] = useState(null);
   const [from, setFrom] = useState(null);
   const [to, setTo] = useState(null);
+  const [countdown, setCountdown] = useState("");
 
   const baseUrl = window._env_.SERVER_URL;
   const GRAFANA_URL = window._env_.GRAFANA_URL;
@@ -88,58 +89,28 @@ setNewToken(storedToken1);
   }, [location.pathname]);
 
   // Convert shift times to epoch
-  const convertShiftToEpoch = (fromTimeStr, toTimeStr) => {
-    const today = new Date();
-    const dateStr = today.toISOString().split("T")[0];
-    let fromDate = new Date(`${dateStr}T${fromTimeStr}`);
-    let toDate = new Date(`${dateStr}T${toTimeStr}`);
+const convertShiftToEpoch = (date, start, end) => {
+  const startTime = dayjs(`${date.format("YYYY-MM-DD")} ${start}`);
+  let endTime = dayjs(`${date.format("YYYY-MM-DD")} ${end}`);
 
-    if (toDate <= fromDate) {
-      toDate.setDate(toDate.getDate() + 1);
-    }
-    return { from: fromDate.getTime(), to: toDate.getTime() };
-  };
+  if (endTime.isBefore(startTime)) {
+    endTime = endTime.add(1, "day"); // overnight shift case
+  }
+
+  return { from: startTime.valueOf(), to: endTime.valueOf() };
+};
 
   // Find current shift
-  const getCurrentShift = (shiftsList) => {
-    if (!Array.isArray(shiftsList) || shiftsList.length === 0) return null;
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    for (const s of shiftsList) {
-      const [fromH, fromM] = s.start_time.split(":").map(Number);
-      const [toH, toM] = s.end_time.split(":").map(Number);
-
-      const fromMinutes = fromH * 60 + fromM;
-      const toMinutes = toH * 60 + toM;
-
-      if (
-        (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
-        (fromMinutes > toMinutes &&
-          (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
-      ) {
-        const { from: fromEpoch, to: toEpoch } = convertShiftToEpoch(
-          s.start_time,
-          s.end_time
-        );
-        setFrom(fromEpoch);
-        setTo(toEpoch);
-        return s;
-      }
+  const getCurrentShift = (shiftList) => {
+  const now = dayjs();
+  for (const s of shiftList) {
+    const { from, to } = convertShiftToEpoch(now, s.start_time, s.end_time);
+    if (now.valueOf() >= from && now.valueOf() < to) {
+      return { ...s, from, to };
     }
-
-    // fallback
-    const fallback = shiftsList[0];
-    const { from: fromEpoch, to: toEpoch } = convertShiftToEpoch(
-      fallback.start_time,
-      fallback.end_time
-    );
-    setFrom(fromEpoch);
-    setTo(toEpoch);
-    return fallback;
-  };
-
+  }
+  return null;
+};
   // Fetch shifts
   const fetchShifts = async () => {
     try {
@@ -159,6 +130,51 @@ setNewToken(storedToken1);
       fetchShifts();
     }
   }, [customerId, customerId1]);
+
+  const formatCountdown = (ms) => {
+  if (ms <= 0) return "00:00:00";
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+};
+
+const updateShift = () => {
+  if (!shifts || shifts.length === 0) return;
+  const active = getCurrentShift(shifts);
+  setCurrentShift(active);
+};
+
+useEffect(() => {
+  updateShift(); // find active shift on mount
+  const shiftChecker = setInterval(updateShift, 60 * 1000); // recheck every minute
+  return () => clearInterval(shiftChecker);
+}, [shifts]);
+
+useEffect(() => {
+  if (!currentShift) return;
+
+  const timer = setInterval(() => {
+    const remaining = currentShift.to - dayjs().valueOf();
+    setCountdown(formatCountdown(remaining));
+
+    if (remaining <= 0) {
+      clearInterval(timer);
+      updateShift(); // move to next shift
+    }
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, [currentShift]);
+
+// After you set currentShift
+useEffect(() => {
+  if (currentShift) {
+    setFrom(currentShift.from);
+    setTo(currentShift.to);
+  }
+}, [currentShift]);
 
   // Fetch devices
   const fetchDevices = async () => {
@@ -272,76 +288,105 @@ useEffect(() => {
 
   // ✅ Final UI return
   return (
-    <div style={{ width: "100%", height: "100%", overflowY: "auto", padding: "40px 10px" }}>
-      {currentShift && (
-        <div
-          style={{
-            textAlign: "center",
-            fontSize: "20px",
-            fontWeight: "600",
-            color: "#444",
-            marginBottom: "20px",
-          }}
-        >
-          {`Shift ${currentShift.shift_no || ""} : `}
-          {dayjs(from).format("MMM D YYYY, h:mm:ss A")} -{" "}
-          {dayjs(to).format("MMM D YYYY, h:mm:ss A")}
+  <div
+    style={{
+      width: "100%",
+      height: "100%",
+      overflowY: "auto",
+      padding: "40px 10px",
+    }}
+  >
+    {/* ✅ Show current shift info always */}
+    {currentShift && (
+      <>
+     <div
+  style={{
+    textAlign: "center",
+    fontSize: "20px",
+    fontWeight: "600",
+    color: "#444",
+    marginBottom: "10px",
+  }}
+>
+           {`Shift ${currentShift.shift_no} : `}
+  {dayjs(from).format("MMM D YYYY, h:mm:ss A")} –{" "}
+  {dayjs(to).format("MMM D YYYY, h:mm:ss A")}
         </div>
-      )}
 
-      {devices.length === 0 ? (
         <div
           style={{
             textAlign: "center",
             fontSize: "18px",
             fontWeight: "500",
-            color: "#666",
-            padding: "40px 0",
+            color: "#d9534f",
+            marginBottom: "20px",
           }}
         >
-          No Devices
+          ⏳ Time Left: {countdown}
         </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: "15px",
-            width: "100%",
-            marginTop: "20px",
-            gridAutoRows: "600px",
-          }}
-        >
-          {devices.map((device, index) => {
-            const url = buildGrafanaUrl(device);
-            return (
-              <div
-                key={index}
+      </>
+    )}
+
+    {/* ✅ Always render devices below */}
+    {devices.length === 0 ? (
+      <div
+        style={{
+          textAlign: "center",
+          fontSize: "18px",
+          fontWeight: "500",
+          color: "#666",
+          padding: "40px 0",
+        }}
+      >
+        No Devices
+      </div>
+    ) : (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+          gap: "15px",
+          width: "100%",
+          marginTop: "20px",
+          gridAutoRows: "600px",
+        }}
+      >
+        {devices.map((device, index) => {
+          const url = buildGrafanaUrl(device);
+          return (
+            <div
+              key={index}
+              style={{
+                position: "relative",
+                width: "100%",
+                height: "100%",
+                borderRadius: "8px",
+                overflow: "hidden",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <iframe
+                key={url} // ✅ forces reload when token changes
+                src={url}
                 style={{
-                  position: "relative",
+                  flex: 1,
+                  border: "0",
                   width: "100%",
-                  height: "100%",
-                  borderRadius: "8px",
-                  overflow: "hidden",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
+                  height: "1000px",
                 }}
-              >
-                <iframe
-                  key={url} // ✅ force reload when token changes
-                  src={url}
-                  style={{ flex: 1, border: "0", width: "100%", height: "1000px", pointerEvents: 'none' }}
-                  title={`OEE-${device.name}`}
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+                title={`OEE-${device.name}`}
+              />
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
+
 };
 
 export default OeeDashboard;
