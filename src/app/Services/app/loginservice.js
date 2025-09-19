@@ -94,7 +94,7 @@ export const startTokenAutoRefresh = () => {
     } catch (err) {
       console.error("Tenant token refresh failed", err);
     }
-  }, 10 * 60 * 1000);
+  }, 24 * 60 * 60 * 1000);
 };
 
 export const stopTokenAutoRefresh = () => {
