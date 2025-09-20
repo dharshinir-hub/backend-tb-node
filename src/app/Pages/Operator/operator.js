@@ -224,7 +224,7 @@ const fetchTelemetry = async (deviceId) => {
     const jobCode = liveComponent.code || "";
 
     const liveOperator = getLatest("live_operator", true);
-    const liveOperatorCode = liveOperator.code || "";
+    const liveOperatorCode = liveOperator?.code || null;
 
     setTelemetry({
       machineStatus,
@@ -530,53 +530,56 @@ const [idleStartTime, setIdleStartTime] = useState(null);
 const [activeReason, setActiveReason] = useState(null); // store reason until running again
 
 useEffect(() => {
-    if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
-    const deviceId = deviceNameIdJson[selectedMachine];
+  if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
+  const deviceId = deviceNameIdJson[selectedMachine];
 
-    const refreshData = async () => {
-        try {
-            // fetch telemetry (already getting machine_status)
-            const data = await fetchTelemetry(deviceId);
+  const refreshData = async () => {
+    try {
+      // fetch telemetry (already getting machine_status)
+      const data = await fetchTelemetry(deviceId);
 
-            // latest machine status
-            const machineStatusArray = data?.machine_status || [];
-            const latestStatusCode = parseInt(machineStatusArray[0]?.value || 0, 10);
-            const machineStatus = statusText(latestStatusCode);
+      // latest machine status
+      const machineStatusArray = data?.machine_status || [];
+      const latestStatusCode = parseInt(machineStatusArray[0]?.value || 0, 10);
+      const machineStatus = statusText(latestStatusCode);
 
-            // lock_status check
-            const response = await getMachineLock("DEVICE", deviceId, {
-                keys: "lock_status",
-            });
-            const lockValue = response?.lock_status?.[0]?.value || "";
-            const locked = String(lockValue).toLowerCase() === "locked";
+      // lock_status check
+      const response = await getMachineLock("DEVICE", deviceId, {
+        keys: "lock_status",
+      });
+      const lockValue = response?.lock_status?.[0]?.value || "";
+      const locked = String(lockValue).toLowerCase() === "locked";
+      if (!locked && isLocked) {
+        setIsLocked(false);
+        setIdleStartTime(null);
+        setActiveReason(null);
+        Swal.close();
+      }
 
-            /* ---------------- When Machine Locks ---------------- */
-if (locked && !isLocked) {
-    setIsLocked(true);
+      /* ---------------- When Machine Locks ---------------- */
+      if (locked && !isLocked) {
+        setIsLocked(true);
 
-    // find last Idle/Alarm event before lock
-    const lastIdleOrAlarm = machineStatusArray.find(
-        (item) => ["0", "1", "2", "5"].includes(String(item.value))
-    );
+        // find last Idle/Alarm event before lock
+        const lastIdleOrAlarm = machineStatusArray.find((item) =>
+          ["0", "1", "2", "5"].includes(String(item.value))
+        );
 
-    // use true idle/alarm start time, fallback to popup time
-    const idleStart = lastIdleOrAlarm ? lastIdleOrAlarm.ts : dayjs().valueOf();
-    setIdleStartTime(idleStart);
+        // use true idle/alarm start time, fallback to popup time
+        const idleStart = lastIdleOrAlarm ? lastIdleOrAlarm.ts : dayjs().valueOf();
+        setIdleStartTime(idleStart);
 
-
-    const reasonOptions = reasonsList2
-        .map(
+        const reasonOptions = reasonsList2
+          .map(
             (r) =>
-                `<option value="${r.id}">${r.reason
-                    .charAt(0)
-                    .toUpperCase()}${r.reason.slice(1)}</option>`
-        )
-        .join("");
+              `<option value="${r.id}">${r.reason.charAt(0).toUpperCase()}${r.reason.slice(1)}</option>`
+          )
+          .join("");
 
-    Swal.fire({
-        icon: "info",
-        title: "Machine Locked",
-        html: `
+        Swal.fire({
+          icon: "info",
+          title: "Machine Locked",
+          html: `
             <p>Machine has been locked due to downhold threshold reached.</p>
             <label for="reason">Select Reason:</label>
             <select id="reason" class="swal2-select">
@@ -584,133 +587,154 @@ if (locked && !isLocked) {
               ${reasonOptions}
             </select>
           `,
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showCancelButton: false,
-        confirmButtonText: "Submit",
-        width: "auto",
-        preConfirm: () => {
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showCancelButton: false,
+          confirmButtonText: "Submit",
+          width: "auto",
+          preConfirm: () => {
             const reasonId = document.getElementById("reason").value;
             if (!reasonId) {
-                Swal.showValidationMessage("Please select a reason");
-                return false;
+              Swal.showValidationMessage("Please select a reason");
+              return false;
             }
             return reasonsList2.find((r) => r.id === reasonId);
-        },
-    }).then((result) => {
-        if (result.isConfirmed) {
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
             const selectedReason = result.value;
             setActiveReason(selectedReason);
 
             Swal.fire({
-                icon: "question",
-                title: "Confirm Submission",
-                text: `You selected:  ${selectedReason.reason.charAt(0).toUpperCase()}${selectedReason.reason.slice(1)}. Do you want to confirm?`,
-                showCancelButton: true,
-                confirmButtonText: "Yes, Submit",
-                cancelButtonText: "No, Go Back",
-                allowOutsideClick: false,
-                allowEscapeKey: false,
+              icon: "question",
+              title: "Confirm Submission",
+              text: `You selected: ${selectedReason.reason
+                .charAt(0)
+                .toUpperCase()}${selectedReason.reason.slice(1)}. Do you want to confirm?`,
+              showCancelButton: true,
+              confirmButtonText: "Yes, Submit",
+              cancelButtonText: "No, Go Back",
+              allowOutsideClick: false,
+              allowEscapeKey: false,
             }).then(async (confirmResult) => {
-                if (confirmResult.isConfirmed) {
-                    const payload = {
-                        ts: idleStart, // ✅ true start time
-                        values: {
-                            live_reason: {
-                                name: selectedReason.reason,
-                                code: selectedReason.code || "",
-                                mode: selectedReason.mode || "",
-                                module: selectedReason.module || "",
-                                idle_start: idleStart,
-                                idle_end: 0,
-                                idle_duration: 0,
-                            },
-                        },
-                    };
-                    try {
-                        await operatorTelemetry("DEVICE", deviceId, payload);
-                        await operatorTelemetry("DEVICE", deviceId, {
-                            lock_status: "unlocked",
-                        });
+              if (confirmResult.isConfirmed) {
+                const payload = {
+                  ts: idleStart,
+                  values: {
+                    live_reason: {
+                      name: selectedReason.reason,
+                      code: selectedReason.code || "",
+                      mode: selectedReason.mode || "",
+                      module: selectedReason.module || "",
+                      idle_start: idleStart,
+                      idle_end: 0,
+                      idle_duration: 0,
+                    },
+                  },
+                };
+                try {
+                  await operatorTelemetry("DEVICE", deviceId, payload);
+                  await operatorTelemetry("DEVICE", deviceId, {
+                    lock_status: "unlocked",
+                  });
 
-                        Swal.fire({
-                            icon: "success",
-                            title: "Submitted!",
-                            text: "Reason submitted successfully.",
-                            timer: 1500,
-                            showConfirmButton: false,
-                            allowOutsideClick: false,
-                            allowEscapeKey: false,
-                        });
-                    } catch (err) {
-                        console.error("Error submitting reason:", err);
-                        Swal.fire({
-                            icon: "error",
-                            title: "Error",
-                            text: "Failed to submit reason. Please try again.",
-                        });
-                    }
-                } else {
-                    setIsLocked(false);
-                    setIdleStartTime(null);
-                    setActiveReason(null);
+                  Swal.fire({
+                    icon: "success",
+                    title: "Submitted!",
+                    text: "Reason submitted successfully.",
+                    timer: 1500,
+                    showConfirmButton: false,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                  });
+                } catch (err) {
+                  console.error("Error submitting reason:", err);
+                  Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: "Failed to submit reason. Please try again.",
+                  });
                 }
+              } else {
+                setIsLocked(false);
+                setIdleStartTime(null);
+                setActiveReason(null);
+              }
             });
+          }
+        });
+      }
+
+      /* ---------------- When Machine Back to Running ---------------- */
+      if (
+        machineStatus.toLowerCase() === "running" &&
+        idleStartTime &&
+        activeReason
+      ) {
+        const runningEvent = machineStatusArray.find(
+          (item) => item.value === "3" && item.ts > idleStartTime
+        );
+        if (runningEvent) {
+          const idleEndTime = runningEvent.ts;
+          const duration = Math.floor((idleEndTime - idleStartTime) / 1000);
+
+          const payload = {
+            ts: idleEndTime,
+            values: {
+              live_reason: {
+                name: activeReason.reason,
+                code: activeReason.code || "",
+                mode: activeReason.mode || "",
+                module: activeReason.module || "",
+                idle_start: idleStartTime,
+                idle_end: idleEndTime,
+                idle_duration: duration,
+              },
+            },
+          };
+          try {
+            await operatorTelemetry("DEVICE", deviceId, payload);
+          } catch (err) {
+            console.error("Error submitting idle end:", err);
+          }
+
+          // reset
+          setIdleStartTime(null);
+          setActiveReason(null);
+          setIsLocked(false);
         }
-    });
-}
+      }
+    } catch (err) {
+      console.error("Error refreshing telemetry/lock:", err);
+    }
+  };
 
-            /* ---------------- When Machine Back to Running ---------------- */
-            if (machineStatus.toLowerCase() === "running" && idleStartTime && activeReason) {
-                // find first running event after idle_start
-                const runningEvent = machineStatusArray.find(
-                    (item) => item.value === "3" && item.ts > idleStartTime
-                );
-
-                if (runningEvent) {
-                    const idleEndTime = runningEvent.ts;
-                    const duration = Math.floor((idleEndTime - idleStartTime) / 1000); 
-                    const payload = {
-                        ts: idleEndTime,
-                        values: {
-                            live_reason: {
-                                name: activeReason.reason,
-                                code: activeReason.code || "",
-                                mode: activeReason.mode || "",
-                                module: activeReason.module || "",
-                                idle_start: idleStartTime,
-                                idle_end: idleEndTime,
-                                idle_duration: duration,
-                            },
-                        },
-                    };
-
-                    try {
-                        await operatorTelemetry("DEVICE", deviceId, payload);
-                    } catch (err) {
-                        console.error("Error submitting idle end:", err);
-                    }
-
-                    // reset
-                    setIdleStartTime(null);
-                    setActiveReason(null);
-                    setIsLocked(false);
-                }
-            }
-        } catch (err) {
-            console.error("Error refreshing telemetry/lock:", err);
-        }
-    };
-
-    refreshData();
-    const interval = setInterval(refreshData, 5000);
-    return () => clearInterval(interval);
-}, [selectedMachine, deviceNameIdJson, isLocked, reasonsList2, idleStartTime, activeReason]);
+  refreshData();
+  const interval = setInterval(refreshData, 5000);
+  return () => clearInterval(interval);
+}, [
+  selectedMachine,
+  deviceNameIdJson,
+  isLocked,
+  reasonsList2,
+  idleStartTime,
+  activeReason,
+]);
 
 useEffect(() => {
-  if (!telemetry.liveOperator || !operators.length) return;
-  const found = operators.find(op => String(op.id) === String(telemetry.liveOperator));
-  if (found) setSelectedOperator(found.id);
+  if (!operators.length) return;
+  if (!telemetry.liveOperator) {
+    setSelectedOperator("");
+    return;
+  }
+  const found = operators.find(
+    op => String(op.id) === String(telemetry.liveOperator)
+  );
+  if (found) {
+    setSelectedOperator(found.id);
+  } else {
+    setSelectedOperator("");
+  }
 }, [telemetry.liveOperator, operators]);
 
     const cancelreason = async () => {

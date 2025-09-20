@@ -9,8 +9,12 @@ function CircularProgress({
   partsRejects = 0,
   status = "Running",
 }) {
-  let percentage = Math.min(100, Math.round((actual / target) * 100));
-  if (isNaN(percentage)) {
+  let percentage = 0;
+  if (typeof actual === "number" && typeof target === "number" && target > 0) {
+    percentage = Math.min(100, Math.round((actual / target) * 100));
+  }
+
+  if (isNaN(percentage) || percentage < 0) {
     percentage = 0;
   }
 
