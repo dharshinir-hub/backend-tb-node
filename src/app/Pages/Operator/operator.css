@@ -176,7 +176,7 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
   flex-grow: 1;
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* 3 equal columns */
+  grid-template-columns: repeat(3, 1fr);
   gap: 2rem;
   align-items: center;
   justify-items: center;
@@ -483,20 +483,8 @@ p, h1, h2, h3, h4, h5, h6, li, ol, a, div {
     transform: scale(0.97);
 }
 
-/* @media (max-width: 1024px) {
-     .content {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    padding: 0 1rem;
-  }
-} */
 
 @media (max-width: 768px) {
-   /* .content {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    padding: 0 1rem;
-  } */
     .progress-circle {
         width: 200px;
         height: 200px;
@@ -660,7 +648,6 @@ div:where(.swal2-icon) {
 }
 
 
-/* Large desktop (1440px and above) */
 @media (min-width: 1440px) {
   .progress-circle {
     width: 440px !important;
@@ -716,7 +703,6 @@ div:where(.swal2-icon) {
   }
 }
 
-/* Ultra-wide / 4K displays (1920px and above) */
 @media (min-width: 1920px) {
   .progress-circle {
     width: 520px !important;
@@ -772,9 +758,7 @@ div:where(.swal2-icon) {
   }
 }
 
-/* Large screens 1440px+ */
 @media (min-width: 1440px) {
-  /* Username section */
   .username-section {
     min-width: 220px;
     padding: 10px 45px;
@@ -798,19 +782,17 @@ div:where(.swal2-icon) {
     right: 12px;
   }
 
-  /* Dropdown menu */
   .MuiSelect-root .MuiPaper-root {
-    min-width: 220px !important; /* match the trigger width */
-    max-height: 300px !important; /* taller dropdown */
-    font-size: 1.2rem !important; /* bigger text */
+    min-width: 220px !important; 
+    max-height: 300px !important; 
+    font-size: 1.2rem !important; 
   }
 
   .MuiMenuItem-root {
-    min-height: 50px !important; /* more vertical spacing */
+    min-height: 50px !important;
   }
 }
 
-/* Ultra-wide / 4K displays 1920px+ */
 @media (min-width: 1920px) {
   .username-section {
     min-width: 270px;
@@ -835,7 +817,6 @@ div:where(.swal2-icon) {
     right: 14px;
   }
 
-  /* Dropdown menu */
   .MuiSelect-root .MuiPaper-root {
     min-width: 270px !important;
     max-height: 350px !important;

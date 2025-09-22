@@ -64,7 +64,6 @@
   color: #fff;
 }
 
-/* Tablet (slightly smaller) */
 @media (max-width: 1024px) {
   .progress-circle {
     width: 250px;
@@ -86,7 +85,6 @@
   }
 }
 
-/* Mobile */
 @media (max-width: 768px) {
   .progress-circle {
     width: 200px;
@@ -107,7 +105,6 @@
   }
 }
 
-/* Small Mobile */
 @media (max-width: 480px) {
   .progress-circle {
     width: 160px;

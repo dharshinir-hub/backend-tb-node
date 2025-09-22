@@ -13,18 +13,14 @@ function CircularProgress({
   if (typeof actual === "number" && typeof target === "number" && target > 0) {
     percentage = Math.min(100, Math.round((actual / target) * 100));
   }
-
   if (isNaN(percentage) || percentage < 0) {
     percentage = 0;
   }
-
   const intPartsBehind = Math.round(partsBehind);
   const intPartsRejects = Math.round(partsRejects);
   const partsAhead = actual > target ? actual - target : 0;
-
   let circleBackground;
   let innerBackground;
-
   if (status === "Alarm") {
     circleBackground = `conic-gradient(#742a2a ${percentage * 3.6}deg, #fc8181 ${percentage * 3.6}deg)`;
     innerBackground = "#c53030";
@@ -48,7 +44,6 @@ function CircularProgress({
         <div className="progress-percentage1-inner">
           <span className="big">{percentage}%</span>
         </div>
-
         <div className="progress-metrics">
           {target > 0 && (
             <>
@@ -85,7 +80,6 @@ function CircularProgress({
               )}
             </>
           )}
-
           <div className="metric">
             <FaTimesCircle style={{ color: "#f56565", fontSize: "1.2rem" }} />
             <span className="value">{intPartsRejects}</span>
