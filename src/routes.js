@@ -21,6 +21,7 @@ import MachineReport from './app/Pages/Reports/report';
 import MachineUtilization from './app/Pages/Machineutilization/machineutilization';
 import Operator from './app/Pages/Operator/operator';
 import OeeDashboard from './app/Pages/Devices/deviceoee';
+import Oee from './app/Pages/Oee/oee';
 
 // Import other components for your routes
 
@@ -29,6 +30,7 @@ const AppRoutes = () => (
       <Route path="/" element={<Login />} />      
       <Route path="/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" element={<Operator />} />
       <Route path="/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp" element={< OeeDashboard />} />
+      <Route path="/o" element={< Oee />} />
       <Route path="/" element={<Layout />}>
         <Route path="andon-dashboard" element={<Andondashboard />} />
         <Route path="/shift" element={<Shift />} />

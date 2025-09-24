@@ -696,10 +696,16 @@ const handleFormChange3 = (event) => {
       }));
       setShiftOptions(options);
   
+             const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
+  if (selectedShiftData) {
+    setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
+    setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+  }
       if (options.length > 0) {
         const defaultShift = options[0].value;
             setSelectedDate(dayjs()); // Set to current date
             setSelectedShift(defaultShift);
+
             setfilteredResult([]); // (Optional) clear table
   
             // Calculate initial epoch range for current date and first shift
@@ -726,14 +732,9 @@ const handleFormChange3 = (event) => {
         setSelectedDevicename(devicename);
         const key2 = 'live_component';
         const entitytype = 'DEVICE';
-  
         await fetchLiveComponent(deviceid, entitytype, key2, fromEpoch, toEpoch);
-        
-        // Clear time fields for fresh start
-        setStartTime(null);
-        setEndTime(null);
-        
         setOpenEditDialog1(true);
+              
       }
     } catch (err) {
       console.error('Error in handleOpenEditDialog:', err);
@@ -792,7 +793,7 @@ const handleFormChange3 = (event) => {
           const defaultShift = options[0].value;
           setSelectedDate(dayjs()); // Set to current date
           setSelectedShift(defaultShift);
-          setfilteredResult([]); // (Optional) clear table
+                      setfilteredResult([]); // (Optional) clear table
 
           // Calculate initial epoch range for current date and first shift
           const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
@@ -1485,7 +1486,7 @@ const handleReasonChange = (index, val) => {
           entityId = Deviceid;
           break;
         default:
-          keys = 'live_operator';
+          keys = 'live_component';
           entitytype = 'DEVICE';
           entityId = Deviceid;
       }

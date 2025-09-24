@@ -429,117 +429,77 @@ useEffect(() => {
 }, [shifts, selectedShift, selectedDate]); 
 
 
-const [finalUtilizationData, setFinalUtilizationData] = useState({});
 
-useEffect(() => {
-  const fetchUtilizationData = async () => {
-    if (!from || !to || devices.length === 0) return;
+// const [finalUtilizationData, setFinalUtilizationData] = useState({});
 
-    const results = {};
-    const devicesToFetch =
-      selectedDevice === "all"
-        ? devices
-        : devices.filter(d => d.id?.id === selectedDevice);
+// useEffect(() => {
+//   const fetchUtilizationData = async () => {
+//     if (!from || !to || devices.length === 0) return;
 
-    // Helper: normalize numeric string like "4%", " 4.0 " -> 4
-    const toNumber = (v) => {
-      if (v === null || v === undefined) return 0;
-      const s = String(v).replace(/[^\d\.\-]/g, "");
-      return s === "" ? 0 : parseFloat(s);
-    };
+//     const results = {};
+//     const devicesToFetch =
+//       selectedDevice === "all"
+//         ? devices
+//         : devices.filter(d => d.id?.id === selectedDevice);
 
-    // Helper: try to locate the device's data inside parsed value
-    const extractDeviceEntry = (parsed, machine) => {
-      if (!parsed || typeof parsed !== "object") return null;
-      if (parsed[machine.name]) return parsed[machine.name];
-      if (machine.id?.id && parsed[machine.id.id]) return parsed[machine.id.id];
-      if ("utilization" in parsed || "expected_utilization" in parsed || "expected" in parsed) {
-        return parsed;
-      }
-      for (const k of Object.keys(parsed)) {
-        const v = parsed[k];
-        if (v && typeof v === "object" && ("utilization" in v || "expected_utilization" in v || "expected" in v)) {
-          return v;
-        }
-      }
-      return null;
-    };
+//     const toNumber = (v) => {
+//       if (v === null || v === undefined) return 0;
+//       const s = String(v).replace(/[^\d\.\-]/g, "");
+//       return s === "" ? 0 : parseFloat(s);
+//     };
 
-    await Promise.all(
-      devicesToFetch.map(async (machine) => {
-        try {
-          const resp = await telemetrykeydata(
-            machine.id.id,
-            "DEVICE",
-            "lowerutilization",
-            from,
-            to
-          );
+//     await Promise.all(
+//       devicesToFetch.map(async (machine) => {
+//         try {
+//           const resp = await telemetrykeydata(
+//             machine.id.id,
+//             "DEVICE",
+//             "utilization",
+//             from,
+//             to
+//           );
 
-          const rows = Array.isArray(resp?.lowerutilization) ? resp.lowerutilization : [];
-          if (rows.length === 0) {
-            results[machine.name] = {};
-            return;
-          }
+//           const rows = Array.isArray(resp?.utilization) ? resp.utilization : [];
+//           if (rows.length === 0) {
+//             results[machine.name] = null;
+//             return;
+//           }
 
-          // ✅ pick latest row only
-          let latestRow = rows.reduce((latest, row) => {
-            const tsNum = Number(row.ts);
-            return (!latest || tsNum > Number(latest.ts)) ? row : latest;
-          }, null);
+//           const firstRow = rows[0];
+//           let firstValue = 0;
 
-          if (!latestRow) {
-            results[machine.name] = {};
-            return;
-          }
+//           if (typeof firstRow === "number") {
+//             firstValue = firstRow;
+//           } else if (typeof firstRow === "string") {
+//             try {
+//               const parsed = JSON.parse(firstRow);
+//               firstValue = toNumber(parsed.utilization ?? parsed.value ?? 0);
+//             } catch {
+//               firstValue = toNumber(firstRow);
+//             }
+//           } else if (typeof firstRow === "object" && firstRow !== null) {
+//             firstValue = toNumber(firstRow.value ?? firstRow.utilization ?? 0);
+//           }
 
-          let parsed;
-          try {
-            parsed = typeof latestRow.value === "string" ? JSON.parse(latestRow.value) : latestRow.value;
-          } catch (err) {
-            console.warn("failed parse row.value", latestRow.value, err);
-            results[machine.name] = {};
-            return;
-          }
+//           results[machine.name] = firstValue;
 
-          const dev = extractDeviceEntry(parsed, machine);
-          if (!dev) {
-            results[machine.name] = {};
-            return;
-          }
+//         } catch (err) {
+//           console.error("Error fetching utilization for", machine.name, err);
+//           results[machine.name] = null;
+//         }
+//       })
+//     );
 
-          // ✅ Store full latest JSON
-          results[machine.name] = dev;
+//     setFinalUtilizationData(results);
+//     window.FinalUtilization = results;
 
-        } catch (err) {
-          console.error("Error for", machine.name, err);
-          results[machine.name] = {};
-        }
-      })
-    );
+//     console.log("✅ Utilization for devices:", results);
+//   };
 
-    // ✅ Filter only machines where utilization < expected
-    const filteredResults = Object.fromEntries(
-      Object.entries(results).filter(([_, dev]) => {
-        const util = toNumber(dev.utilization ?? dev.util ?? dev.u ?? 0);
-        const expected = toNumber(dev.expected_utilization ?? dev.expected ?? dev.expectedUtilization ?? 0);
-        return util < expected;
-      })
-    );
+//   fetchUtilizationData();
+// }, [devices, selectedDevice, from, to]);
 
-    setFinalUtilizationData(filteredResults);
-    window.FinalLowerUtilization = results;
-    window.FilteredLowerUtilization = filteredResults;
-
-    console.log("✅ All latest lower utilization JSON:", results);
-    console.log("⚠️ Filtered (util < expected):", filteredResults);
-  };
-
-  fetchUtilizationData();
-}, [devices, selectedDevice, from, to]);
-
-
-console.log('Final Lower utilization', finalUtilizationData);
+// console.log('Final Utilization', finalUtilizationData);
 
 
 
@@ -616,6 +576,99 @@ console.log('Lower CycleTime',allMachinesData);
 
 
 
+const [finalUtilizationBaseline, setFinalUtilizationBaseline] = useState({});
+
+useEffect(() => {
+  const fetchUtilizationAndBaseline = async () => {
+    if (!from || !to || devices.length === 0) return;
+
+    const results = {};
+    const devicesToFetch =
+      selectedDevice === "all"
+        ? devices
+        : devices.filter(d => d.id?.id === selectedDevice);
+
+    // Helper: normalize to number
+    const toNumber = (v) => {
+      if (v === null || v === undefined) return 0;
+      const s = String(v).replace(/[^\d\.\-]/g, "");
+      return s === "" ? 0 : parseFloat(s);
+    };
+
+    await Promise.all(
+      devicesToFetch.map(async (machine) => {
+        try {
+          // --- Fetch utilization key ---
+          const utilResp = await telemetrykeydata(
+            machine.id.id,
+            "DEVICE",
+            "utilization",
+            from,
+            to
+          );
+
+          const utilRows = Array.isArray(utilResp?.utilization) ? utilResp.utilization : [];
+          let latestUtil = null;
+          if (utilRows.length > 0) {
+            latestUtil = toNumber(utilRows[0]?.value); // 👈 first row
+          }
+
+          // --- Fetch historicalbaseline key ---
+          const baselineResp = await telemetrykeydata(
+            machine.id.id,
+            "DEVICE",
+            "historicalbaseline",
+            from,
+            to
+          );
+
+          const baselineRows = Array.isArray(baselineResp?.historicalbaseline) ? baselineResp.historicalbaseline : [];
+          let baselineUtil = null;
+          if (baselineRows.length > 0) {
+            try {
+              const parsed = JSON.parse(baselineRows[0]?.value); // 👈 first row
+              baselineUtil = toNumber(parsed.utilization);
+            } catch (err) {
+              console.error("Error parsing baseline JSON for", machine.name, baselineRows[0]?.value, err);
+            }
+          }
+
+          // --- Store both values ---
+          results[machine.name] = {
+            utilization: latestUtil,
+            baseline: baselineUtil
+          };
+           console.log('full utilization data', results);
+        } catch (err) {
+          console.error("Error for", machine.name, err);
+          results[machine.name] = { utilization: null, baseline: null };
+        }
+      })
+    );
+
+    // ✅ Filter only machines where utilization < baseline
+    const filtered = Object.fromEntries(
+      Object.entries(results).filter(([_, data]) =>
+        data.utilization != null &&
+        data.baseline != null &&
+        data.utilization < data.baseline
+      )
+    );
+
+    setFinalUtilizationBaseline(filtered);
+    window.FinalUtilizationBaseline = filtered;
+
+    console.log("✅ Filtered machines (util < baseline):", filtered);
+  };
+
+  fetchUtilizationAndBaseline();
+
+
+}, [devices, selectedDevice, from, to]);
+
+
+console.log('final utilization', finalUtilizationBaseline);
+
 
 
 
@@ -655,9 +708,6 @@ const updateGrafanaURL = () => {
   grafanaUrls.forEach((url, i) => {
     console.log(`Iframe url ${i + 1}:`, url);
   });
-
-  
-
 };
 
 
@@ -911,7 +961,7 @@ const handleViewMachineCard = (deviceName) => {
       {(() => {
         const iframeHeight = 200;
 
-        const validEntries = Object.entries(finalUtilizationData).filter(
+        const validEntries = Object.entries(finalUtilizationBaseline).filter(
           ([_, values]) => Object.keys(values).length > 0
         );
 
@@ -946,7 +996,7 @@ const handleViewMachineCard = (deviceName) => {
                 JSON.stringify({
                   machine,
                   utilization: values.utilization,
-                  expected: values.expected_utilization,
+                  expected: values.baseline,
                 })
               );
 
