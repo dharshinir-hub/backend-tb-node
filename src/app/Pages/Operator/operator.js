@@ -3,7 +3,7 @@ import logo from '../../../assets/yantraimage.png';
 import { FaRegClock, FaRegCalendarAlt } from "react-icons/fa";
 import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import Swal from 'sweetalert2';
 import { customerbaseddevices, customerbasedshift, Deviceattributeget, Downtimeadd1, getFirstMachineActive, getMachineLock, operatorTelemetry, telemetrykeydata } from '../../Services/app/operatorservice'
@@ -240,93 +240,121 @@ function Operator() {
         return null;
     };
 
-    const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, deviceId }) => {
-        if (!deviceId || !shiftNo || !selectedDate || !fromEpoch || !toEpoch) return [];
-        const fromTime = fromEpoch;
-        const toTime = toEpoch;
-        try {
-            const machineStatusResponse = await telemetrykeydata(deviceId, "DEVICE", "machine_status", fromTime, toTime);
-            const machineData = machineStatusResponse?.machine_status || [];
-            const statusMapping = {
-                0: { state: "Idle", color: "#FFEB3B" },
-                1: { state: "Idle", color: "#FFEB3B" },
-                2: { state: "Idle", color: "#FFEB3B" },
-                3: { state: "Run", color: "#4CAF50" },
-                100: { state: "Disconnect", color: "#808080" },
-                4: { state: "Alarm", color: "#F44336" },
-            };
-            const sortedData = [...machineData].sort((a, b) => Number(a.ts) - Number(b.ts));
-            const transformedData = sortedData
-                .filter(item => item.ts && item.value !== undefined)
-                .map(item => ({ ts: item.ts, value: item.value }));
-            const extractStartEndFromOneToThree = (data) => {
-                const result = [];
-                let recording = false;
-                let segment = { start: null, value: null };
-                for (let i = 0; i < data.length; i++) {
-                    const current = data[i];
-                    const numericValue = Number(current.value);
-                    if (!recording && [0, 1, 2].includes(numericValue)) {
-                        segment.start = current.ts;
-                        segment.value = numericValue;
-                        recording = true;
-                    }
-                    if (recording && numericValue === 3) {
-                        segment.end = current.ts;
-                        const duration = Math.floor((segment.end - segment.start) / 1000);
+const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, deviceId }) => {
+    if (!deviceId || !shiftNo || !selectedDate || !fromEpoch || !toEpoch) return [];
 
-                        result.push({ start: segment.start, end: segment.end, duration, value: segment.value, status: "IDLE" });
-                        recording = false;
-                        segment = { start: null, value: null };
-                    }
-                    if (recording && [0, 1, 2].includes(numericValue)) {
-                        segment.value = numericValue;
-                    }
+    const fromTime = fromEpoch;
+    const toTime = toEpoch;
+
+    try {
+        // Fetch machine status
+        const machineStatusResponse = await telemetrykeydata(deviceId, "DEVICE", "machine_status", fromTime, toTime);
+        const machineData = machineStatusResponse?.machine_status || [];
+
+        // Sort and transform machine status
+        const sortedData = [...machineData].sort((a, b) => Number(a.ts) - Number(b.ts));
+        const transformedData = sortedData
+            .filter(item => item.ts && item.value !== undefined)
+            .map(item => ({ ts: item.ts, value: item.value }));
+
+        // Extract idle segments (0,1,2 -> Idle; 3 -> Run)
+        const extractStartEndFromOneToThree = (data) => {
+            const result = [];
+            let recording = false;
+            let segment = { start: null, value: null };
+
+            for (let i = 0; i < data.length; i++) {
+                const current = data[i];
+                const numericValue = Number(current.value);
+
+                if (!recording && [0, 1, 2].includes(numericValue)) {
+                    segment.start = current.ts;
+                    segment.value = numericValue;
+                    recording = true;
                 }
-                if (recording) {
-                    const lastKnownTs = data.length > 0 ? data[data.length - 1].ts : fromTime;
-                    const now = Date.now();
-                    const safeEnd = Math.min(toTime, now, lastKnownTs);
-                    segment.end = safeEnd;
+
+                if (recording && numericValue === 3) {
+                    segment.end = current.ts;
                     const duration = Math.floor((segment.end - segment.start) / 1000);
-                    result.push({
-                        start: segment.start,
-                        end: segment.end,
-                        duration,
-                        value: segment.value,
-                        status: "IDLE"
-                    });
+
+                    result.push({ start: segment.start, end: segment.end, duration, value: segment.value, status: "IDLE" });
+                    recording = false;
+                    segment = { start: null, value: null };
                 }
-                return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: "NO_DATA" }];
-            };
-            const key = "downtime_threasold";
-            const results = await Deviceattributeget(deviceId, key);
-            let filteredResult = [];
-            if (results && results.length > 0) {
-                const downtime = results[0].value;
-                const result = extractStartEndFromOneToThree(transformedData);
-                filteredResult = result.filter(entry => entry.duration > downtime);
+
+                if (recording && [0, 1, 2].includes(numericValue)) {
+                    segment.value = numericValue;
+                }
             }
-            const response = await telemetrykeydata(deviceId, "DEVICE", "live_reason", fromEpoch, toEpoch);
-            if (response?.live_reason?.length > 0) {
-                const parsedLiveReasons = response.live_reason
-                    .map(entry => {
-                        try {
-                            return { ts: entry.ts, ...JSON.parse(entry.value) };
-                        } catch { return null; }
-                    })
-                    .filter(Boolean);
-                filteredResult = filteredResult.map(item => {
-                    const matched = parsedLiveReasons.find(reason => String(reason.ts) === String(item.start));
-                    return { ...item, reasonselected: matched?.name || item.reasonselected || "" };
+
+            if (recording) {
+                const lastKnownTs = data.length > 0 ? data[data.length - 1].ts : fromTime;
+                const now = Date.now();
+                const safeEnd = Math.min(toTime, now, lastKnownTs);
+                segment.end = safeEnd;
+                const duration = Math.floor((segment.end - segment.start) / 1000);
+
+                result.push({
+                    start: segment.start,
+                    end: segment.end,
+                    duration,
+                    value: segment.value,
+                    status: "IDLE"
                 });
             }
-            return filteredResult;
-        } catch (error) {
-            console.error("Error fetching downtime data:", error);
-            return [];
+
+            return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: "NO_DATA" }];
+        };
+
+        // Apply downtime threshold
+        const key = "downtime_threasold";
+        const results = await Deviceattributeget(deviceId, key);
+        let filteredResult = [];
+        if (results && results.length > 0) {
+            const downtime = results[0].value;
+            const result = extractStartEndFromOneToThree(transformedData);
+            filteredResult = result.filter(entry => entry.duration > downtime);
         }
-    };
+
+        // Fetch live reasons
+        const response = await telemetrykeydata(deviceId, "DEVICE", "live_reason", fromEpoch, toEpoch);
+        if (response?.live_reason?.length > 0) {
+            const parsedLiveReasons = response.live_reason
+                .map(entry => {
+                    try { return { ts: entry.ts, ...JSON.parse(entry.value) }; }
+                    catch { return null; }
+                })
+                .filter(Boolean);
+
+            // Make a copy to track unused reasons
+            const unusedLiveReasons = [...parsedLiveReasons];
+
+            filteredResult = filteredResult.map(item => {
+                // Only assign a reason if the idle segment truly overlaps the live_reason
+                const index = unusedLiveReasons.findIndex(reason => {
+                    const reasonStart = Number(reason.idle_start);
+                    const reasonEnd = reason.idle_end && reason.idle_end !== 0 ? Number(reason.idle_end) : reasonStart;
+                    return reasonStart <= item.end && reasonEnd >= item.start;
+                });
+
+                let reasonName = "";
+                if (index !== -1) {
+                    reasonName = unusedLiveReasons[index].name;
+                    unusedLiveReasons.splice(index, 1); // mark as used
+                }
+
+                return { ...item, reasonselected: reasonName || item.reasonselected || "" };
+            });
+        }
+
+        return filteredResult;
+
+    } catch (error) {
+        console.error("Error fetching downtime data:", error);
+        return [];
+    }
+};
+
 
     const [firstMachineActive, setFirstMachineActive] = useState(null);
 
@@ -411,7 +439,7 @@ function Operator() {
             let chosenShiftNo = currentShift?.shift_no || (options.length > 0 ? options[0].value : null);
             if (chosenShiftNo) {
                 setSelectedShift(chosenShiftNo);
-                const { fromEpoch, toEpoch } = getEpochFromShift2(chosenShiftNo, dayjs(), allShifts);
+                const { shiftStart: fromEpoch, now:toEpoch  } = getShiftEpoch(currentShift?.start_time);
                 setEpochRange({ from: fromEpoch, to: toEpoch });
                 const data = await downtimereason({
                     shiftNo: chosenShiftNo,
@@ -420,6 +448,7 @@ function Operator() {
                     toEpoch,
                     deviceId: deviceid,
                 });
+                console.log([...data].reverse(), 'data table')
                 setfilteredResult([...data].reverse());
                 setopenDownTimeModal(true);
             } else {
@@ -452,179 +481,196 @@ function Operator() {
     }, []);
 
     const [idleStartTime, setIdleStartTime] = useState(null);
-    const [activeReason, setActiveReason] = useState(null); // store reason until running again
 
-    useEffect(() => {
-        if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
-        const deviceId = deviceNameIdJson[selectedMachine];
-        const refreshData = async () => {
-            try {
-                const data = await fetchTelemetry(deviceId);
-                const machineStatusArray = data?.machine_status || [];
-                const latestStatusCode = parseInt(machineStatusArray[0]?.value || 0, 10);
-                const machineStatus = statusText(latestStatusCode);
-                const response = await getMachineLock("DEVICE", deviceId, {
-                    keys: "lock_status",
-                });
-                const lockValue = response?.lock_status?.[0]?.value || "";
-                const locked = String(lockValue).toLowerCase() === "locked";
-                if (!locked && isLocked) {
-                    setIsLocked(false);
-                    setIdleStartTime(null);
-                    setActiveReason(null);
-                    Swal.close();
-                }
-                if (locked && !isLocked) {
-                    setIsLocked(true);
-                    const lastIdleOrAlarm = machineStatusArray.find((item) =>
-                        ["0", "1", "2", "5"].includes(String(item.value))
-                    );
-                    const idleStart = lastIdleOrAlarm ? lastIdleOrAlarm.ts : dayjs().valueOf();
-                    setIdleStartTime(idleStart);
-                    const reasonOptions = reasonsList2
-                        .map(
-                            (r) =>
-                                `<option value="${r.id}">${r.reason.charAt(0).toUpperCase()}${r.reason.slice(1)}</option>`
-                        )
-                        .join("");
-                    Swal.fire({
-                        icon: "info",
-                        title: "Machine Locked",
-                        html: `
-            <p>Machine has been locked due to downhold threshold reached.</p>
-            <label for="reason">Select Reason:</label>
-            <select id="reason" class="swal2-select">
-              <option value="">-- Select --</option>
-              ${reasonOptions}
-            </select>
-          `,
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        showCancelButton: false,
-                        confirmButtonText: "Submit",
-                        width: "auto",
-                        preConfirm: () => {
-                            const reasonId = document.getElementById("reason").value;
-                            if (!reasonId) {
-                                Swal.showValidationMessage("Please select a reason");
-                                return false;
-                            }
-                            return reasonsList2.find((r) => r.id === reasonId);
-                        },
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            const selectedReason = result.value;
-                            setActiveReason(selectedReason);
-                            Swal.fire({
-                                icon: "question",
-                                title: "Confirm Submission",
-                                text: `You selected: ${selectedReason.reason
-                                    .charAt(0)
-                                    .toUpperCase()}${selectedReason.reason.slice(1)}. Do you want to confirm?`,
-                                showCancelButton: true,
-                                confirmButtonText: "Yes, Submit",
-                                cancelButtonText: "No, Go Back",
-                                allowOutsideClick: false,
-                                allowEscapeKey: false,
-                            }).then(async (confirmResult) => {
-                                if (confirmResult.isConfirmed) {
-                                    const payload = {
-                                        ts: idleStart,
-                                        values: {
-                                            live_reason: {
-                                                name: selectedReason.reason,
-                                                code: selectedReason.code || "",
-                                                mode: selectedReason.mode || "",
-                                                module: selectedReason.module || "",
-                                                idle_start: idleStart,
-                                                idle_end: 0,
-                                                idle_duration: 0,
-                                            },
-                                        },
-                                    };
-                                    try {
-                                        await operatorTelemetry("DEVICE", deviceId, payload);
-                                        await operatorTelemetry("DEVICE", deviceId, {
-                                            lock_status: "unlocked",
-                                        });
+// near top of component
 
-                                        Swal.fire({
-                                            icon: "success",
-                                            title: "Submitted!",
-                                            text: "Reason submitted successfully.",
-                                            timer: 1500,
-                                            showConfirmButton: false,
-                                            allowOutsideClick: false,
-                                            allowEscapeKey: false,
-                                        });
-                                    } catch (err) {
-                                        console.error("Error submitting reason:", err);
-                                        Swal.fire({
-                                            icon: "error",
-                                            title: "Error",
-                                            text: "Failed to submit reason. Please try again.",
-                                        });
-                                    }
-                                } else {
-                                    setIsLocked(false);
-                                    setIdleStartTime(null);
-                                    setActiveReason(null);
-                                }
-                            });
-                        }
-                    });
-                }
-                if (
-                    machineStatus.toLowerCase() === "running" &&
-                    idleStartTime &&
-                    activeReason
-                ) {
-                    const runningEvent = machineStatusArray.find(
-                        (item) => item.value === "3" && item.ts > idleStartTime
-                    );
-                    if (runningEvent) {
-                        const idleEndTime = runningEvent.ts;
-                        const duration = Math.floor((idleEndTime - idleStartTime) / 1000);
-                        const payload = {
-                            ts: idleEndTime,
-                            values: {
-                                live_reason: {
-                                    name: activeReason.reason,
-                                    code: activeReason.code || "",
-                                    mode: activeReason.mode || "",
-                                    module: activeReason.module || "",
-                                    idle_start: idleStartTime,
-                                    idle_end: idleEndTime,
-                                    idle_duration: duration,
-                                },
-                            },
-                        };
-                        try {
-                            await operatorTelemetry("DEVICE", deviceId, payload);
-                        } catch (err) {
-                            console.error("Error submitting idle end:", err);
-                        }
-                        setIdleStartTime(null);
-                        setActiveReason(null);
-                        setIsLocked(false);
-                    }
-                }
-            } catch (err) {
-                console.error("Error refreshing telemetry/lock:", err);
+// near top of component
+// --- refs only ---
+const prevStatusRef = useRef(null);
+const lockedIdleStartRef = useRef(null);
+const activeReasonRef = useRef(null);
+const isLockedRef = useRef(false);
+
+// On mount, restore any locked idle info from localStorage
+useEffect(() => {
+  const savedLockedIdleStart = localStorage.getItem("lockedIdleStartTime");
+  const savedActiveReason = localStorage.getItem("activeReason");
+
+  if (savedLockedIdleStart && savedActiveReason) {
+    lockedIdleStartRef.current = Number(savedLockedIdleStart);
+    activeReasonRef.current = JSON.parse(savedActiveReason);
+    isLockedRef.current = true;
+    console.log("[INIT] restored locked idle from storage", savedLockedIdleStart, savedActiveReason);
+  }
+}, []);
+
+useEffect(() => {
+  if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
+  const deviceId = deviceNameIdJson[selectedMachine];
+
+  const refreshData = async () => {
+    try {
+      const data = await fetchTelemetry(deviceId);
+      let machineStatusArray = data?.machine_status || [];
+      if (!machineStatusArray.length) return;
+
+      machineStatusArray = machineStatusArray.slice().sort((a, b) => b.ts - a.ts);
+      const latestSample = machineStatusArray[0];
+      const latestValue = String(latestSample?.value ?? "").trim();
+      const latestStatusText = statusText(parseInt(latestValue || "0", 10)).toLowerCase();
+
+      console.log("[refreshData] latestValue:", latestValue, "latestStatus:", latestStatusText);
+
+      // --- Lock check ---
+      const response = await getMachineLock("DEVICE", deviceId, { keys: "lock_status" });
+      const lockValue = response?.lock_status?.[0]?.value || "";
+      const locked = String(lockValue).toLowerCase() === "locked";
+
+      if (!locked && isLockedRef.current) {
+        console.log("[refreshData] unlocking via lock API");
+        isLockedRef.current = false;
+        Swal.close();
+      }
+
+      if (locked && !isLockedRef.current) {
+        console.log("[refreshData] detected lock -> opening Swal");
+        isLockedRef.current = true;
+
+        const lastIdleOrAlarm = machineStatusArray.find(item => ["0","1","2","5"].includes(String(item.value)));
+        const idleStart = lastIdleOrAlarm ? lastIdleOrAlarm.ts : dayjs().valueOf();
+
+        lockedIdleStartRef.current = idleStart;
+        console.log("[LOCKED_IDLE START] at", idleStart);
+
+        // --- Swal for reason ---
+        const reasonOptions = reasonsList2
+          .map(r => `<option value="${r.id}">${r.reason.charAt(0).toUpperCase() + r.reason.slice(1)}</option>`)
+          .join("");
+
+        Swal.fire({
+          icon: "info",
+          title: "Machine Locked",
+          html: `<p>Machine has been locked due to downhold threshold reached.</p>
+                 <label for="reason">Select Reason:</label>
+                 <select id="reason" class="swal2-select">
+                   <option value="">-- Select --</option>
+                   ${reasonOptions}
+                 </select>`,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showCancelButton: false,
+          confirmButtonText: "Submit",
+          preConfirm: () => {
+            const reasonId = document.getElementById("reason").value;
+            if (!reasonId) {
+              Swal.showValidationMessage("Please select a reason");
+              return false;
             }
-        };
+            return reasonsList2.find(r => r.id === reasonId);
+          },
+        }).then(result => {
+          if (result.isConfirmed) {
+            const selectedReason = result.value;
+            activeReasonRef.current = selectedReason;
+            localStorage.setItem("lockedIdleStartTime", idleStart);
+            localStorage.setItem("activeReason", JSON.stringify(selectedReason));
 
-        refreshData();
-        const interval = setInterval(refreshData, 5000);
-        return () => clearInterval(interval);
-    }, [
-        selectedMachine,
-        deviceNameIdJson,
-        isLocked,
-        reasonsList2,
-        idleStartTime,
-        activeReason,
-    ]);
+            Swal.fire({
+              icon: "question",
+              title: "Confirm Submission",
+              text: `You selected: ${selectedReason.reason.charAt(0).toUpperCase() + selectedReason.reason.slice(1)}. Do you want to confirm?`,
+              showCancelButton: true,
+              confirmButtonText: "Yes, Submit",
+              cancelButtonText: "No, Go Back",
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+            }).then(async confirmResult => {
+              if (confirmResult.isConfirmed) {
+                const payload = {
+                  ts: idleStart,
+                  values: {
+                    live_reason: {
+                      name: selectedReason.reason,
+                      code: selectedReason.code || "",
+                      mode: selectedReason.mode || "",
+                      module: selectedReason.module || "",
+                      idle_start: idleStart,
+                      idle_end: 0,
+                      idle_duration: 0,
+                    },
+                  },
+                };
+                try {
+                  await operatorTelemetry("DEVICE", deviceId, payload);
+                  await operatorTelemetry("DEVICE", deviceId, { lock_status: "unlocked" });
+                  console.log("[LOCKED_IDLE] reason submitted, machine unlocked, waiting for running to close idle");
+                  Swal.fire({ icon: "success", title: "Submitted!", text: "Reason submitted successfully.", timer: 1500, showConfirmButton: false });
+                } catch (err) {
+                  console.error("Error submitting reason:", err);
+                  Swal.fire({ icon: "error", title: "Error", text: "Failed to submit reason. Please try again." });
+                }
+              } else {
+                isLockedRef.current = false;
+                lockedIdleStartRef.current = null;
+                activeReasonRef.current = null;
+                localStorage.removeItem("lockedIdleStartTime");
+                localStorage.removeItem("activeReason");
+              }
+            });
+          }
+        });
+      }
+
+      // --- Transition detection ---
+      const prevStatus = prevStatusRef.current;
+      if (prevStatus !== latestStatusText) {
+        console.log(`[refreshData] status changed ${prevStatus} -> ${latestStatusText}`);
+      }
+
+      // --- Close locked idle ---
+      if (latestStatusText === "running" && lockedIdleStartRef.current && activeReasonRef.current) {
+        const runningEvent = machineStatusArray.find(item => String(item.value) === "3" && item.ts >= lockedIdleStartRef.current) || latestSample;
+        if (runningEvent) {
+          const idleEndTime = runningEvent.ts;
+          const duration = Math.floor((idleEndTime - lockedIdleStartRef.current) / 1000);
+          console.log("[LOCKED_IDLE END] closing at", idleEndTime, "duration(s):", duration);
+
+          const payload = {
+            ts: idleEndTime,
+            values: {
+              live_reason: {
+                name: activeReasonRef.current.reason,
+                code: activeReasonRef.current.code || "",
+                mode: activeReasonRef.current.mode || "",
+                module: activeReasonRef.current.module || "",
+                idle_start: lockedIdleStartRef.current,
+                idle_end: idleEndTime,
+                idle_duration: duration,
+              },
+            },
+          };
+
+          try { await operatorTelemetry("DEVICE", deviceId, payload); } 
+          catch (err) { console.error("Error submitting locked idle end:", err); }
+
+          lockedIdleStartRef.current = null;
+          activeReasonRef.current = null;
+          isLockedRef.current = false;
+          localStorage.removeItem("lockedIdleStartTime");
+          localStorage.removeItem("activeReason");
+        }
+      }
+
+      prevStatusRef.current = latestStatusText;
+    } catch (err) {
+      console.error("Error refreshing telemetry/lock:", err);
+    }
+  };
+
+  refreshData();
+  const interval = setInterval(refreshData, 5000);
+  return () => clearInterval(interval);
+}, [selectedMachine, deviceNameIdJson, reasonsList2]);
 
     useEffect(() => {
         if (!operators.length) return;
