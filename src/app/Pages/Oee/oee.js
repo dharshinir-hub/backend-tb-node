@@ -94,28 +94,41 @@ const Oee = () => {
 
   }, [location.pathname]);
 
-  const convertShiftToEpoch = (date, start, end) => {
-    const startTime = dayjs(`${date.format("YYYY-MM-DD")} ${start}`);
-    let endTime = dayjs(`${date.format("YYYY-MM-DD")} ${end}`);
+ const convertShiftToEpoch = (date, start, end) => {
+  let startTime = dayjs(`${date.format("YYYY-MM-DD")} ${start}`);
+  let endTime = dayjs(`${date.format("YYYY-MM-DD")} ${end}`);
 
-    if (endTime.isBefore(startTime)) {
-      endTime = endTime.add(1, "day"); // overnight shift case
+  if (endTime.isBefore(startTime)) {
+    endTime = endTime.add(1, "day"); // overnight shift
+  }
+
+  return { from: startTime.valueOf(), to: endTime.valueOf() };
+};
+
+const getCurrentShift = (shiftList) => {
+  const now = dayjs();
+
+  for (const s of shiftList) {
+    // ✅ Check today
+    let { from, to } = convertShiftToEpoch(now, s.start_time, s.end_time);
+    if (now.valueOf() >= from && now.valueOf() < to) {
+      return { ...s, from, to };
     }
 
-    return { from: startTime.valueOf(), to: endTime.valueOf() };
-  };
-
-  // Find current shift
-  const getCurrentShift = (shiftList) => {
-    const now = dayjs();
-    for (const s of shiftList) {
-      const { from, to } = convertShiftToEpoch(now, s.start_time, s.end_time);
-      if (now.valueOf() >= from && now.valueOf() < to) {
-        return { ...s, from, to };
-      }
+    // ✅ Also check yesterday (for overnight shifts)
+    let { from: fromY, to: toY } = convertShiftToEpoch(
+      now.subtract(1, "day"),
+      s.start_time,
+      s.end_time
+    );
+    if (now.valueOf() >= fromY && now.valueOf() < toY) {
+      return { ...s, from: fromY, to: toY };
     }
-    return null;
-  };
+  }
+
+  return null;
+};
+
   // Fetch shifts
   const fetchShifts = async () => {
     try {
@@ -149,7 +162,9 @@ const Oee = () => {
   const updateShift = () => {
     if (!shifts || shifts.length === 0) return;
     const active = getCurrentShift(shifts);
+   
     setCurrentShift(active);
+    
   };
 
   useEffect(() => {
@@ -539,7 +554,7 @@ const Oee = () => {
               `🔄 Auto-refreshing at shift ${shift.shift_no || "?"
               } end → ${shift.end_time}`
             );
-            window.location.reload();
+            // window.location.reload();
           }, delay);
           refreshTimers.push(timer);
         }

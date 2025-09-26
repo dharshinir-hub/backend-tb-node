@@ -90,27 +90,40 @@ setNewToken(storedToken1);
 
   // Convert shift times to epoch
 const convertShiftToEpoch = (date, start, end) => {
-  const startTime = dayjs(`${date.format("YYYY-MM-DD")} ${start}`);
+  let startTime = dayjs(`${date.format("YYYY-MM-DD")} ${start}`);
   let endTime = dayjs(`${date.format("YYYY-MM-DD")} ${end}`);
 
   if (endTime.isBefore(startTime)) {
-    endTime = endTime.add(1, "day"); // overnight shift case
+    endTime = endTime.add(1, "day"); // overnight shift
   }
 
   return { from: startTime.valueOf(), to: endTime.valueOf() };
 };
 
-  // Find current shift
-  const getCurrentShift = (shiftList) => {
+const getCurrentShift = (shiftList) => {
   const now = dayjs();
+
   for (const s of shiftList) {
-    const { from, to } = convertShiftToEpoch(now, s.start_time, s.end_time);
+    // ✅ Check today
+    let { from, to } = convertShiftToEpoch(now, s.start_time, s.end_time);
     if (now.valueOf() >= from && now.valueOf() < to) {
       return { ...s, from, to };
     }
+
+    // ✅ Also check yesterday (for overnight shifts)
+    let { from: fromY, to: toY } = convertShiftToEpoch(
+      now.subtract(1, "day"),
+      s.start_time,
+      s.end_time
+    );
+    if (now.valueOf() >= fromY && now.valueOf() < toY) {
+      return { ...s, from: fromY, to: toY };
+    }
   }
+
   return null;
 };
+
   // Fetch shifts
   const fetchShifts = async () => {
     try {

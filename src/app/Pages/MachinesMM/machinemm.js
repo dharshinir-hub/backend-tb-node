@@ -324,6 +324,7 @@ useEffect(() => {
               total: 0,
               disconnect: 0,
               alarm: 0,
+              settings : 0,
               firstActiveTime: null
             };
             console.log(`Machine: ${machine.name} → No data at all`);
@@ -365,11 +366,12 @@ useEffect(() => {
             total_run_duration = 0,
             total_idle_duration = 0,
             total_disconnect_duration = 0,
-            total_alarm_duration = 0   // 🔹 new field
+            total_alarm_duration = 0 ,
+            total_setting_duration = 0,  
           } = durations;
 
           const totalSeconds =
-            total_run_duration + total_idle_duration + total_alarm_duration;
+            total_run_duration + total_idle_duration +   total_disconnect_duration+ total_alarm_duration + total_setting_duration;
 
           results[machine.id.id] = {
             run: total_run_duration,
@@ -377,11 +379,12 @@ useEffect(() => {
             total: totalSeconds,
             disconnect: total_disconnect_duration,
             alarm: total_alarm_duration,
+             setting: total_setting_duration,
             firstActiveTime
           };
 
           console.log(
-            `Final Totals for ${machine.name}: Run=${total_run_duration}, Idle=${total_idle_duration}, Alarm=${total_alarm_duration}, Disconnect=${total_disconnect_duration}, Total=${totalSeconds}, First Active=${firstActiveTime}`
+            `Final Totals for ${machine.name}: Run=${total_run_duration}, Idle=${total_idle_duration}, Alarm=${total_alarm_duration}, Disconnect=${total_disconnect_duration}, Alarm=${total_alarm_duration}, Setting=${total_setting_duration} Total=${totalSeconds}, First Active=${firstActiveTime}`
           );
         } catch (error) {
           console.error("Error fetching durations for", machine.name, error);
@@ -391,6 +394,7 @@ useEffect(() => {
             total: 0,
             disconnect: 0,
             alarm: 0,
+            setting: 0,
             firstActiveTime: null
           };
         }
@@ -630,28 +634,30 @@ useEffect(() => {
             return;
           }
 
-          // Pick the latest data point
-          const latestPoint = values.reduce((latest, current) =>
-            new Date(current.ts) > new Date(latest.ts) ? current : latest
-          );
+          // ✅ Take the 0th value directly
+          const firstPoint = values[0];
 
           let keyName = null;
           let durationSeconds = null;
 
           const parseValue =
-            typeof latestPoint.value === "string"
-              ? JSON.parse(latestPoint.value)
-              : latestPoint.value;
+            typeof firstPoint.value === "string"
+              ? JSON.parse(firstPoint.value)
+              : firstPoint.value;
 
           if (parseValue && typeof parseValue === "object") {
-            // Find which duration key exists
-            const foundKey = Object.keys(parseValue).find((k) =>
-              ["runduration", "idleduration", "disconnectduration"].includes(k)
-            );
+            if (parseValue.idleduration !== undefined && parseValue.idleduration !== null) {
+              keyName = "idleduration";
+              durationSeconds = Number(parseValue.idleduration);
+            } else {
+              const foundKey = Object.keys(parseValue).find((k) =>
+                ["runduration", "disconnectduration", "alarmduration", "settings"].includes(k)
+              );
 
-            if (foundKey) {
-              keyName = foundKey;
-              durationSeconds = parseValue[foundKey]?.currentslot ?? null;
+              if (foundKey) {
+                keyName = foundKey;
+                durationSeconds = Number(parseValue[foundKey]) ?? null;
+              }
             }
           }
 
@@ -665,7 +671,7 @@ useEffect(() => {
           );
         } catch (error) {
           console.error(
-            `Error fetching latest idlerunstate for ${machine.name}`,
+            `Error fetching idlerunstate (0th value) for ${machine.name}`,
             error
           );
           results[machine.id.id] = null;
@@ -678,6 +684,8 @@ useEffect(() => {
 
   fetchLatestIdleRunDuration();
 }, [filteredDevices, from, to]);
+
+
 
 
 useEffect(() => {
@@ -1214,7 +1222,7 @@ function formatMillisecondsTo12HourTime(ms) {
   ) : (
     filteredDevices.map((machine) => {
       const changePositive = machine.changeFromBaseline >= 0;
-      const { run = 0, idle = 0, total = 0 , disconnect = 0, alarm = 0} =
+      const { run = 0, idle = 0, total = 0 , disconnect = 0, alarm = 0,setting = 0} =
         machineDurations[machine.id.id] || {};
       // const firstActiveTime =
       //   machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
@@ -1242,6 +1250,8 @@ function formatMillisecondsTo12HourTime(ms) {
     ? "#f44336" // Red
     : machineStatuses[machine.id.id]?.status === "Disconnect"
     ? "#9e9e9e" // Gray
+    : machineStatuses[machine.id.id]?.status === "Setting"
+    ? "#81c8f5ff" // blue
     : "#f44336" // Default Red for others
 }`,
             boxShadow: 1,
@@ -1276,6 +1286,8 @@ function formatMillisecondsTo12HourTime(ms) {
         ? "#9e9e9e" // Gray
         : machineStatuses[machine.id.id]?.status === "Alarm"
         ? "#f44336" // Red
+        : machineStatuses[machine.id.id]?.status === "Setting"
+        ? "#81c8f5ff" // blue
         : "#9e9e9e", // Default Gray
     mr: 1,
   }}
@@ -1297,7 +1309,9 @@ function formatMillisecondsTo12HourTime(ms) {
     : machineStatuses[machine.id.id]?.status === "Disconnect"
     ? `Disconnect: ${formatTime(disconnect)}`
     : machineStatuses[machine.id.id]?.status === "Alarm"
-    ? `Alarm: ${formatTime(total)}`
+    ? `Alarm: ${formatTime(alarm)}` 
+    : machineStatuses[machine.id.id]?.status === "Setting"
+    ? `Setting: ${formatTime(setting)}`
     : `Total: ${formatTime(total)}`}
               </Typography>
               
