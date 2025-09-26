@@ -60,7 +60,7 @@ function LoginForm() {
 
       } else {
         await tenantLogin();
-        const operatorResponse = await getOperatorDetails("690d2210-8a3a-11f0-a3ac-9b534c07af2b");
+        const operatorResponse = await getOperatorDetails(window._env_.CUSTOMER_ID);
         const responseData = operatorResponse?.[0]?.value;
         if (responseData && responseData.length > 0) {
           const operator = responseData.find((res) => res.operatorname === data.username);
@@ -105,8 +105,8 @@ function LoginForm() {
   };
 
   const tenantLogin = async () => {
-    const secondUsername = "pms@gmail.com";
-    const secondPassword = "pmspms";
+    const secondUsername = window._env_.TENANT_GMAIL;
+    const secondPassword = window._env_.TENANT_PASSWORD;
     const secondResponse = await Loginapi(secondUsername, secondPassword);
     localStorage.setItem('email1', secondUsername);
     localStorage.setItem('token1', secondResponse.token);
@@ -119,7 +119,7 @@ function LoginForm() {
     <div
       className="container-fluid"
       style={{
-        backgroundImage: `url(${window._env_.SERVER_URL}api/images/public/76qC9HzBmPBNFqTBaHGwF40Wka0Ri03C)`,
+        backgroundImage: `url(${window._env_.SERVER_URL}api/images/public/${window._env_.BG_IMAGE})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         minHeight: "100vh",
@@ -133,7 +133,7 @@ function LoginForm() {
         <Card className="login-card">
           <div style={{ padding: '15px 0' }}>
             <img
-              src={`${window._env_.SERVER_URL}api/images/public/b0coVWpU9C1Ztg9CrjtkHgi87ia4gFxH`}
+              src={`${window._env_.SERVER_URL}api/images/public/${window._env_.LOGO}`}
               alt="yantra-logo.png"
               style={{ maxWidth: '300px', display: 'block', margin: '0 auto', height: '80px' }}
             />

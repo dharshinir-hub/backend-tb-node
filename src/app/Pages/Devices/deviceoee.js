@@ -59,8 +59,8 @@ const OeeDashboard = () => {
 
     const init = async () => {
       try {
-        const secondUsername = "pms@gmail.com";
-        const secondPassword = "pmspms";
+        const secondUsername = window._env_.TENANT_GMAIL;
+        const secondPassword = window._env_.TENANT_PASSWORD;
         const secondResponse = await Loginapi(secondUsername, secondPassword);
 
         localStorage.setItem("email1", secondUsername);
@@ -69,7 +69,7 @@ const OeeDashboard = () => {
         localStorage.setItem("Companyname1", secondResponse.Companyname);
         localStorage.setItem("role_name1", secondResponse.Role);
 
-        setCustomerId1("690d2210-8a3a-11f0-a3ac-9b534c07af2b");
+        setCustomerId1(window._env_.CUSTOMER_ID);
         
 
         startTokenAutoRefresh();

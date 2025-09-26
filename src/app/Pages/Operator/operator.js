@@ -61,7 +61,7 @@ function Operator() {
 
     const fetchDevices = async () => {
         try {
-            const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
+            const customerId = window._env_.CUSTOMER_ID;
             const result = await customerbaseddevices(customerId, 1000, 0);
             const devicesList = result.data || [];
             setMachines(devicesList.map((d) => d.name));
@@ -145,7 +145,7 @@ function Operator() {
     const fetchTelemetry = async (deviceId) => {
         try {
             const response = await customerbasedshift(
-                "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
+                window._env_.CUSTOMER_ID,
                 "allShift"
             );
             const shifts = response[0]?.value || [];
@@ -369,7 +369,7 @@ const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, devic
                 }
 
                 const response = await customerbasedshift(
-                    "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
+                    window._env_.CUSTOMER_ID,
                     "allShift"
                 );
                 const shifts = response[0]?.value || [];
@@ -415,7 +415,7 @@ const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, devic
 
 
     const openDownTime = async (devicename, deviceid) => {
-        const customerId = "690d2210-8a3a-11f0-a3ac-9b534c07af2b";
+        const customerId = window._env_.CUSTOMER_ID;
         setLoading(true);
         try {
             const [reasonsData, shiftsData] = await Promise.all([
@@ -468,7 +468,7 @@ const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, devic
         const getReasons = async () => {
             try {
                 const response = await customerbasedshift(
-                    "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
+                    window._env_.CUSTOMER_ID,
                     "reason"
                 );
                 const reasons = response?.[0]?.value || [];
@@ -777,8 +777,8 @@ useEffect(() => {
     useEffect(() => {
         const init = async () => {
             try {
-                const secondUsername = "pms@gmail.com";
-                const secondPassword = "pmspms";
+                const secondUsername = window._env_.TENANT_GMAIL;
+                const secondPassword = window._env_.TENANT_PASSWORD;
                 const secondResponse = await Loginapi(secondUsername, secondPassword);
                 localStorage.setItem("email1", secondUsername);
                 localStorage.setItem("token1", secondResponse.token);
@@ -788,7 +788,7 @@ useEffect(() => {
                 startTokenAutoRefresh();
                 await fetchDevices();
                 const operatorResponse = await getOperatorDetails(
-                    "690d2210-8a3a-11f0-a3ac-9b534c07af2b"
+                    window._env_.CUSTOMER_ID
                 );
                 const responseData = operatorResponse?.[0]?.value || [];
                 const mappedOperators = responseData.map((op) => ({
