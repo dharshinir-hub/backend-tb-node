@@ -547,37 +547,32 @@ useEffect(() => {
 }, [shifts]);
 
 
-    const date = dayjs().format("MMM D, YYYY");
+const date = dayjs().format("MMM D, YYYY");
 
-  const contentRef = useRef(null);
-
+const contentRef = useRef(null);
+const autoScroll = true;
 useEffect(() => {
-  if (!contentRef.current) return;
-
+  if (!contentRef.current || !autoScroll) return;
   const container = contentRef.current;
-
-  // Scroll step in pixels (you can adjust)
-  const step = 200;
-
-  let scrollInterval = setInterval(() => {
-    if (!container) return;
-
-    const maxScrollTop = container.scrollHeight - container.clientHeight;
-
-    if (container.scrollTop >= maxScrollTop) {
-      // Reached bottom → snap instantly to top
-      container.scrollTop = 0;
-    } else {
-      // Scroll down smoothly by step
-      container.scrollBy({ top: step, behavior: "smooth" });
-    }
-  }, 3000); // scroll every 3 seconds
-
-  return () => clearInterval(scrollInterval);
+  const step = 440; 
+  let scrollInterval;
+  const startScrolling = () => {
+    scrollInterval = setInterval(() => {
+      if (!container) return;
+      const maxScrollTop = container.scrollHeight - container.clientHeight;
+      if (container.scrollTop >= maxScrollTop - 100) {
+        container.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        container.scrollBy({ top: step, behavior: "smooth" });
+      }
+    }, 3000);
+  };
+  const delayTimer = setTimeout(startScrolling, 20000);
+  return () => {
+    clearTimeout(delayTimer);
+    clearInterval(scrollInterval);
+  };
 }, []);
-
-
-
 
 
 
@@ -618,7 +613,7 @@ return (
         </div>
     </div>
 
-      <div
+      {/* <div
       style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -636,10 +631,20 @@ return (
       <div>Month OEE</div>
       <div>Last Week Downtime</div>
       <div>Current Week Downtime</div>
-    </div>
+    </div> */}
 
 </div>
   <div ref={contentRef}  
+   style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+      gap: '15px',
+      width: '100%',
+      gridAutoRows: 'auto',
+      overflowY: 'auto',
+      height: '95vh',
+      paddingBottom: "20px"
+    }}
  >
       {devices.length === 0 ? (
         <div
