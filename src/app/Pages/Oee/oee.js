@@ -258,45 +258,45 @@ const Oee = () => {
   console.log("This week To:", THIS_WEEK_TO_EPOCH);
 
 
-let monfrom = null;
-let monto = null;
+  let monfrom = null;
+  let monto = null;
 
-if (!shifts || shifts.length === 0) {
-  console.error("Shifts array is empty or undefined!");
-} else {
-  // Get first shift start and last shift end
-  const firstShiftStart = shifts[0].start_time;
-  const lastShiftEnd = shifts[shifts.length - 1].end_time;
+  if (!shifts || shifts.length === 0) {
+    console.error("Shifts array is empty or undefined!");
+  } else {
+    // Get first shift start and last shift end
+    const firstShiftStart = shifts[0].start_time;
+    const lastShiftEnd = shifts[shifts.length - 1].end_time;
 
-  function parseTime(timeStr) {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    return { hours, minutes };
+    function parseTime(timeStr) {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return { hours, minutes };
+    }
+
+    // Calculate start time (30 days ago from first shift start)
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    const startTime = parseTime(firstShiftStart);
+    start.setHours(startTime.hours, startTime.minutes, 0, 0);
+
+    // Calculate end time (today last shift end)
+    const end = new Date();
+    const endTime = parseTime(lastShiftEnd);
+    end.setHours(endTime.hours, endTime.minutes, 0, 0);
+
+    // Handle overnight shift
+    if (endTime.hours < startTime.hours) {
+      end.setDate(end.getDate() + 1);
+    }
+
+    monfrom = start.getTime();
+    monto = end.getTime();
+
+    console.log("First shift start time:", firstShiftStart);
+    console.log("Last shift end time:", lastShiftEnd);
+    console.log("Last 30 days From:", monfrom, "->", start);
+    console.log("Last 30 days To:", monto, "->", end);
   }
-
-  // Calculate start time (30 days ago from first shift start)
-  const start = new Date();
-  start.setDate(start.getDate() - 30);
-  const startTime = parseTime(firstShiftStart);
-  start.setHours(startTime.hours, startTime.minutes, 0, 0);
-
-  // Calculate end time (today last shift end)
-  const end = new Date();
-  const endTime = parseTime(lastShiftEnd);
-  end.setHours(endTime.hours, endTime.minutes, 0, 0);
-
-  // Handle overnight shift
-  if (endTime.hours < startTime.hours) {
-    end.setDate(end.getDate() + 1);
-  }
-
-  monfrom = start.getTime();
-  monto = end.getTime();
-
-  console.log("First shift start time:", firstShiftStart);
-  console.log("Last shift end time:", lastShiftEnd);
-  console.log("Last 30 days From:", monfrom, "->", start);
-  console.log("Last 30 days To:", monto, "->", end);
-}
   const [oeeData, setOEEData] = useState({});
 
   useEffect(() => {
@@ -363,53 +363,53 @@ if (!shifts || shifts.length === 0) {
   const [avgData, setAvgData] = useState({});
 
 
-useEffect(() => {
-  if (!oeeData || Object.keys(oeeData).length === 0 || !shifts) return;
-  const results = {};
-  Object.keys(oeeData).forEach((machineId) => {
-    const oeeArray = oeeData[machineId]?.oeeValues || [];
-    results[machineId] = {};
-    oeeArray.forEach((point) => {
-      const ts = point.ts;
-      const value = point.value;
-      const pointDate = new Date(ts);
-      shifts.forEach((shift, idx) => {
-        const [shHour, shMin, shSec] = shift.start_time.split(":").map(Number);
-        const [enHour, enMin, enSec] = shift.end_time.split(":").map(Number);
-        const testShift = (baseDate, label) => {
-          const shiftStart = new Date(baseDate);
-          shiftStart.setHours(shHour, shMin, shSec, 0);
-          let shiftEnd = new Date(baseDate);
-          shiftEnd.setHours(enHour, enMin, enSec, 0);
-          if (shiftEnd <= shiftStart) {
-            shiftEnd.setDate(shiftEnd.getDate() + 1);
-          }
-          if (ts >= shiftStart.getTime() && ts <= shiftEnd.getTime()) {
-            const dateKey = shiftStart.toISOString().split("T")[0];
-            if (!results[machineId][dateKey]) {
-              results[machineId][dateKey] = {};
-              shifts.forEach((_, i) => {
-                results[machineId][dateKey][`Shift ${i + 1}`] = 0;
-              });
+  useEffect(() => {
+    if (!oeeData || Object.keys(oeeData).length === 0 || !shifts) return;
+    const results = {};
+    Object.keys(oeeData).forEach((machineId) => {
+      const oeeArray = oeeData[machineId]?.oeeValues || [];
+      results[machineId] = {};
+      oeeArray.forEach((point) => {
+        const ts = point.ts;
+        const value = point.value;
+        const pointDate = new Date(ts);
+        shifts.forEach((shift, idx) => {
+          const [shHour, shMin, shSec] = shift.start_time.split(":").map(Number);
+          const [enHour, enMin, enSec] = shift.end_time.split(":").map(Number);
+          const testShift = (baseDate, label) => {
+            const shiftStart = new Date(baseDate);
+            shiftStart.setHours(shHour, shMin, shSec, 0);
+            let shiftEnd = new Date(baseDate);
+            shiftEnd.setHours(enHour, enMin, enSec, 0);
+            if (shiftEnd <= shiftStart) {
+              shiftEnd.setDate(shiftEnd.getDate() + 1);
             }
-            if (results[machineId][dateKey][`Shift ${idx + 1}`] === 0) {
-              results[machineId][dateKey][`Shift ${idx + 1}`] = value;
+            if (ts >= shiftStart.getTime() && ts <= shiftEnd.getTime()) {
+              const dateKey = shiftStart.toISOString().split("T")[0];
+              if (!results[machineId][dateKey]) {
+                results[machineId][dateKey] = {};
+                shifts.forEach((_, i) => {
+                  results[machineId][dateKey][`Shift ${i + 1}`] = 0;
+                });
+              }
+              if (results[machineId][dateKey][`Shift ${idx + 1}`] === 0) {
+                results[machineId][dateKey][`Shift ${idx + 1}`] = value;
+              }
             }
+          };
+          if (enHour > shHour || (enHour === shHour && enMin > shMin)) {
+            testShift(pointDate, "same-day");
+          } else {
+            const yesterday = new Date(pointDate);
+            yesterday.setDate(yesterday.getDate() - 1);
+            testShift(yesterday, "yesterday");
+            testShift(pointDate, "today");
           }
-        };
-        if (enHour > shHour || (enHour === shHour && enMin > shMin)) {
-          testShift(pointDate, "same-day");
-        } else {
-          const yesterday = new Date(pointDate);
-          yesterday.setDate(yesterday.getDate() - 1);
-          testShift(yesterday, "yesterday");
-          testShift(pointDate, "today");
-        }
+        });
       });
     });
-  });
-  setShiftWiseOEEByDate(results);
-}, [oeeData, shifts]);
+    setShiftWiseOEEByDate(results);
+  }, [oeeData, shifts]);
 
 
   console.log('Shift Wise OEE data', shiftWiseOEEByDate);
@@ -480,7 +480,7 @@ useEffect(() => {
     const machineData = shiftWiseOEEByDate[machineId];
     lastWeekShiftWiseOEE[machineId] = {};
     for (const dateStr in machineData) {
-      const dateEpoch = new Date(dateStr).getTime(); 
+      const dateEpoch = new Date(dateStr).getTime();
       if (dateEpoch >= LAST_WEEK_FROM_EPOCH && dateEpoch <= LAST_WEEK_TO_EPOCH) {
         lastWeekShiftWiseOEE[machineId][dateStr] = machineData[dateStr];
       }
@@ -576,6 +576,28 @@ useEffect(() => {
     localStorage.setItem("autoScroll", JSON.stringify(autoScroll));
   }, [autoScroll]);
 
+  const [scrollDelay, setScrollDelay] = useState(15000);
+
+  useEffect(() => {
+    const fetchDelay = async () => {
+      try {
+        const scrollDuration = await customerbasedshift(
+          customerId || customerId1,
+          "oeeScrollDuration"
+        );
+        const delayValue = Number(scrollDuration[0]?.value);
+        if (!isNaN(delayValue) && delayValue > 0) {
+          setScrollDelay(delayValue * 1000);
+        }
+        console.log("Scroll delay set to:", delayValue, "seconds");
+      } catch (err) {
+        console.error("Failed to fetch scroll delay:", err);
+      }
+    };
+    fetchDelay();
+  }, [customerId, customerId1]);
+
+
   useEffect(() => {
     if (!contentRef.current || !autoScroll) return;
     const container = contentRef.current;
@@ -591,7 +613,7 @@ useEffect(() => {
         } else {
           container.scrollBy({ top: step, behavior: "smooth" });
         }
-      }, 3000);
+      }, scrollDelay);
     };
     let delayTimer;
     if (firstLoad.current) {
@@ -607,143 +629,143 @@ useEffect(() => {
       clearTimeout(delayTimer);
       clearInterval(scrollInterval);
     };
-  }, [autoScroll]);
+  }, [autoScroll, scrollDelay]);
 
   return (
 
     <div style={{ paddingBottom: '0.5rem', position: 'relative' }}>
-     <div
-  style={{
-    position: "sticky",
-    top: 0,
-    zIndex: 100,
-    background: "#EDEDED",
-    padding: "0.8rem 2rem",
-    borderBottom: "1px solid #d1d1d1",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
-  }}
->
-  {/* Left Section */}
-  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-    <div
-      style={{
-        fontSize: "15px",
-        fontWeight: 600,
-        color: "#111",
-        letterSpacing: "0.3px",
-      }}
-    >
-      Date:{" "}
-      <span>{date}</span>
-    </div>
-
-    {currentShift && (
       <div
         style={{
-          fontSize: "14px",
-          fontWeight: 600,
-          padding: "5px 14px",
-          borderRadius: "8px",
-          background: "#fff",
-          borderLeft: "4px solid #FFA500",
-          color: "#222",
-          boxShadow: "0 2px 5px rgba(0,0,0,0.08)",
-          display: "inline-block",
-          transition: "transform 0.2s ease",
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          background: "#EDEDED",
+          padding: "0.8rem 2rem",
+          borderBottom: "1px solid #d1d1d1",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
         }}
       >
-        Shift {currentShift.shift_no}:{" "}
-        {dayjs(from).format("h:mm A")} – {dayjs(to).format("h:mm A")}
-      </div>
-    )}
-  </div>
+        {/* Left Section */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 600,
+              color: "#111",
+              letterSpacing: "0.3px",
+            }}
+          >
+            Date:{" "}
+            <span>{date}</span>
+          </div>
 
-  {/* Center Section */}
-  <div
-    style={{
-      fontSize: "22px",
-      fontWeight: "800",
-      color: "#111",
-      letterSpacing: "1px",
-      textTransform: "uppercase",
-      textShadow: "0 1px 1px rgba(0,0,0,0.05)",
-    }}
-  >
-    PMI GLOBAL
-  </div>
+          {currentShift && (
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                padding: "5px 14px",
+                borderRadius: "8px",
+                background: "#fff",
+                borderLeft: "4px solid #FFA500",
+                color: "#222",
+                boxShadow: "0 2px 5px rgba(0,0,0,0.08)",
+                display: "inline-block",
+                transition: "transform 0.2s ease",
+              }}
+            >
+              Shift {currentShift.shift_no}:{" "}
+              {dayjs(from).format("h:mm A")} – {dayjs(to).format("h:mm A")}
+            </div>
+          )}
+        </div>
 
-  {/* Right Section */}
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "flex-end",
-      gap: "0.5rem",
-    }}
-  >
-    <div
-      style={{
-        fontSize: "14px",
-        fontWeight: 600,
-        padding: "5px 14px",
-        borderRadius: "8px",
-        background: "#fff",
-        borderLeft: "4px solid #FFA500",
-        color: "#222",
-        boxShadow: "0 2px 5px rgba(0,0,0,0.08)",
-        display: "inline-block",
-        transition: "transform 0.2s ease",
-      }}
-    >
-      <FiscalWeek fiscalYearStartMonth={1} onWeekChange={setFiscalWeekNumber} />
-    </div>
-
-    <FormControlLabel
-      control={
-        <Switch
-          checked={autoScroll}
-          onChange={(e) => setAutoScroll(e.target.checked)}
-          sx={{
-            "& .MuiSwitch-switchBase": {
-              "&.Mui-checked": { color: "#fff" },
-            },
-            "& .MuiSwitch-track": {
-              backgroundColor: "#bbb",
-              borderRadius: 20,
-            },
-            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-              backgroundColor: "#FFA500",
-            },
-            "& .MuiSwitch-thumb": {
-              backgroundColor: "#fff",
-              border: "1px solid #666",
-            },
+        {/* Center Section */}
+        <div
+          style={{
+            fontSize: "22px",
+            fontWeight: "800",
+            color: "#111",
+            letterSpacing: "1px",
+            textTransform: "uppercase",
+            textShadow: "0 1px 1px rgba(0,0,0,0.05)",
           }}
-        />
-      }
-      label="Auto Scroll"
-      slotProps={{
-        typography: {
-          sx: { fontSize: "14px", fontWeight: 600, color: "#111" },
-        },
-      }}
-    />
-  </div>
-</div>
+        >
+          PMI GLOBAL
+        </div>
+
+        {/* Right Section */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "0.5rem",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: 600,
+              padding: "5px 14px",
+              borderRadius: "8px",
+              background: "#fff",
+              borderLeft: "4px solid #FFA500",
+              color: "#222",
+              boxShadow: "0 2px 5px rgba(0,0,0,0.08)",
+              display: "inline-block",
+              transition: "transform 0.2s ease",
+            }}
+          >
+            <FiscalWeek fiscalYearStartMonth={1} onWeekChange={setFiscalWeekNumber} />
+          </div>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={autoScroll}
+                onChange={(e) => setAutoScroll(e.target.checked)}
+                sx={{
+                  "& .MuiSwitch-switchBase": {
+                    "&.Mui-checked": { color: "#fff" },
+                  },
+                  "& .MuiSwitch-track": {
+                    backgroundColor: "#bbb",
+                    borderRadius: 20,
+                  },
+                  "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                    backgroundColor: "#FFA500",
+                  },
+                  "& .MuiSwitch-thumb": {
+                    backgroundColor: "#fff",
+                    border: "1px solid #666",
+                  },
+                }}
+              />
+            }
+            label="Auto Scroll"
+            slotProps={{
+              typography: {
+                sx: { fontSize: "14px", fontWeight: 600, color: "#111" },
+              },
+            }}
+          />
+        </div>
+      </div>
 
       <div ref={contentRef}
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '15px',
-          width: '100%',
-          gridAutoRows: 'auto',
-          overflowY: 'auto',
-          height: '95vh',
-          paddingBottom: "20px"
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+          gap: "15px",
+          width: "100%",
+          gridAutoRows: "auto",
+          overflowY: "auto",
+          height: "calc(100vh - 6.5rem)",
+          paddingBottom: "20px",
         }}
       >
         {devices.length === 0 ? (
