@@ -365,55 +365,49 @@ if (!shifts || shifts.length === 0) {
 
 useEffect(() => {
   if (!oeeData || Object.keys(oeeData).length === 0 || !shifts) return;
-
   const results = {};
-
   Object.keys(oeeData).forEach((machineId) => {
     const oeeArray = oeeData[machineId]?.oeeValues || [];
     results[machineId] = {};
-
     oeeArray.forEach((point) => {
-        const ts = point.ts; // timestamp in ms
+      const ts = point.ts;
       const value = point.value;
-
-        const pointDate = new Date(ts);
-        const dateKey = pointDate.toISOString().split("T")[0]; // YYYY-MM-DD
-
-      if (!results[machineId][dateKey]) {
-          // Initialize shifts for this date
-        results[machineId][dateKey] = {};
-          shifts.forEach((shift, idx) => {
-            results[machineId][dateKey][`Shift ${idx + 1}`] = 0; // default as 0
-        });
-      }
-
-        // Assign to the correct shift
+      const pointDate = new Date(ts);
       shifts.forEach((shift, idx) => {
-          const [shHour, shMin, shSec] = shift.start_time.split(":").map(Number);
-          const [enHour, enMin, enSec] = shift.end_time.split(":").map(Number);
-
-          const shiftStart = new Date(pointDate);
+        const [shHour, shMin, shSec] = shift.start_time.split(":").map(Number);
+        const [enHour, enMin, enSec] = shift.end_time.split(":").map(Number);
+        const testShift = (baseDate, label) => {
+          const shiftStart = new Date(baseDate);
           shiftStart.setHours(shHour, shMin, shSec, 0);
-
-          let shiftEnd = new Date(pointDate);
+          let shiftEnd = new Date(baseDate);
           shiftEnd.setHours(enHour, enMin, enSec, 0);
-
-          // Handle shifts crossing midnight
           if (shiftEnd <= shiftStart) {
             shiftEnd.setDate(shiftEnd.getDate() + 1);
-        }
-
-          if (
-            ts >= shiftStart.getTime() &&
-            ts <= shiftEnd.getTime() &&
-            results[machineId][dateKey][`Shift ${idx + 1}`] === 0 // only update if still 0
-          ) {
-          results[machineId][dateKey][`Shift ${idx + 1}`] = value;
+          }
+          if (ts >= shiftStart.getTime() && ts <= shiftEnd.getTime()) {
+            const dateKey = shiftStart.toISOString().split("T")[0];
+            if (!results[machineId][dateKey]) {
+              results[machineId][dateKey] = {};
+              shifts.forEach((_, i) => {
+                results[machineId][dateKey][`Shift ${i + 1}`] = 0;
+              });
+            }
+            if (results[machineId][dateKey][`Shift ${idx + 1}`] === 0) {
+              results[machineId][dateKey][`Shift ${idx + 1}`] = value;
+            }
+          }
+        };
+        if (enHour > shHour || (enHour === shHour && enMin > shMin)) {
+          testShift(pointDate, "same-day");
+        } else {
+          const yesterday = new Date(pointDate);
+          yesterday.setDate(yesterday.getDate() - 1);
+          testShift(yesterday, "yesterday");
+          testShift(pointDate, "today");
         }
       });
     });
   });
-
   setShiftWiseOEEByDate(results);
 }, [oeeData, shifts]);
 
