@@ -22,41 +22,41 @@ import MachineUtilization from './app/Pages/Machineutilization/machineutilizatio
 import Operator from './app/Pages/Operator/operator';
 import OeeDashboard from './app/Pages/Devices/deviceoee';
 import Oee from './app/Pages/Oee/oee';
+import NewAnalytics from './app/Pages/New-Analytics/new-analytics';
+import { Box } from '@mui/material';
 
 // Import other components for your routes
 
 const AppRoutes = () => (
-    <Routes>
-      <Route path="/" element={<Login />} />      
-      <Route path="/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" element={<Operator />} />
-      <Route path="/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp" element={< OeeDashboard />} />
-      <Route path="/o" element={< Oee />} />
-      <Route path="/" element={<Layout />}>
-        <Route path="andon-dashboard" element={<Andondashboard />} />
-        <Route path="/shift" element={<Shift />} />
-        <Route path="/machine-card" element={<MachineCard />} />
-        <Route path="/shift-registration" element={<ShiftRegistration />} />
-        <Route path="/component-registration" element={<ComponentRegistration />} />
-        <Route path="/operator-registration" element={<OperatorRegistration />} />
-        <Route path="/reason-registration" element={<ReasonRegistration/>} />
-         <Route path="/machines" element={<MachineList/>} />
-         <Route path="/company" element={<Company/>} />
-         <Route path="/CurrentShift" element={<CurrentShift/>} />
-         <Route path="/analytics" element={<Analytics/>} />
-         <Route path="/allocation" element={<Allocation/>} />
-         <Route path="/operator-details" element={<OperatorDetails/>} />
-        <Route path="/machinemm" element={<GrafanaEmbed/>} />
-         <Route path="/report" element={<MachineReport/>} />
-           <Route path="/machineutilization" element={<MachineUtilization />} />
-           <Route path="/deviceoee" element={<OeeDashboard />} />
-
-           
-
-        {/* Define other routes here */}
-        {/* Define other routes here */}
-        {/* <Route path="other-page" element={<OtherPage />} /> */}
-      </Route>
-    </Routes>
+  <Routes>
+    <Route path="/" element={<Login />} />
+    <Route path="/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" element={<Operator />} />
+    <Route path="/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp" element={< Oee />} />
+    <Route path="/o" element={< Oee />} />
+    <Route path="/" element={<Layout />}>
+      <Route path="andon-dashboard" element={<Andondashboard />} />
+      <Route path="/shift" element={<Shift />} />
+      <Route path="/machine-card" element={<MachineCard />} />
+      <Route path="/shift-registration" element={<ShiftRegistration />} />
+      <Route path="/component-registration" element={<ComponentRegistration />} />
+      <Route path="/operator-registration" element={<OperatorRegistration />} />
+      <Route path="/reason-registration" element={<ReasonRegistration />} />
+      <Route path="/machines" element={<MachineList />} />
+      <Route path="/company" element={<Company />} />
+      <Route path="/CurrentShift" element={<CurrentShift />} />
+      <Route path="/analytics" element={<NewAnalytics />} />
+      <Route path="/allocation" element={<Allocation />} />
+      <Route path="/operator-details" element={<OperatorDetails />} />
+      <Route path="/machinemm" element={<GrafanaEmbed />} />
+      <Route path="/report" element={<MachineReport />} />
+      <Route path="/machineutilization" element={<MachineUtilization />} />
+      <Route path="/deviceoee" element={
+        <Box mt={3}>
+          <Oee />
+        </Box>
+      } />
+    </Route>
+  </Routes>
 );
 
 export default AppRoutes;

@@ -3,11 +3,12 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { Button, Navbar } from 'react-bootstrap';
 import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import {
-  BiSolidDashboard, BiTimeFive, BiChip, BiBarChartAlt2
+  BiSolidDashboard, BiTimeFive, BiChip, BiBarChartAlt2,
+  BiBarChart
 } from "react-icons/bi";
 import {
   MdPowerSettingsNew, MdInsertInvitation, MdMarkunreadMailbox, MdAccountCircle,
-  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment,MdTrendingUp,
+  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment, MdTrendingUp,
 } from "react-icons/md";
 import { Tooltip } from '@mui/material';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
@@ -16,7 +17,7 @@ import Swal from 'sweetalert2';
 import useMobileWidth from './smalldevicesidebar';
 import './sidebars.css';
 import { SlArrowDown } from "react-icons/sl";
-import { GoChevronDown, GoChevronUp  } from "react-icons/go";
+import { GoChevronDown, GoChevronUp } from "react-icons/go";
 import { IoSettingsOutline } from "react-icons/io5";
 import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
@@ -29,11 +30,13 @@ const handleConfigurationClick = () => {
   window.open(`${window._env_.SERVER_URL}home`, "_blank");
 };
 
- export default function PersistentDrawerLeft({ children }) {
+export default function PersistentDrawerLeft({ children }) {
   const [isOpen, setIsOpen] = useState(false);
-    const [masterOpen, setMasterOpen] = useState(false);
-    const [dashboardOpen, setDashboardOpen] = useState(false);
-    const [operationOpen, setOperationOpen] = useState(false);
+  const [masterOpen, setMasterOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [operationOpen, setOperationOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+
   const isMobile = useMobileWidth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -59,59 +62,68 @@ const handleConfigurationClick = () => {
     } else if (isMobile) {
       setIsOpen(false);
     } else {
-      toggle();
+      // toggle();
     }
   };
 
-const menuItem = useMemo(() => [
-  ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
+  const menuItem = useMemo(() => [
+    ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
 
-  // 1️⃣ Dashboard / Overview Group
-  {
-    name: "Dashboard",
-    icon: <BiSolidDashboard />,
-    children: [
-      { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
-      { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
-       { path: "/deviceoee", name: "Oee", icon: <FaChartLine  style={{fontSize:"23px"}}/> },
+    // 1️⃣ Dashboard / Overview Group
+    {
+      name: "Dashboard",
+      icon: <BiSolidDashboard />,
+      children: [
+        { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
+        { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
+        { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
 
 
-    ]
-  },
+      ]
+    },
 
-  // { path: "/report", name: "Reports", icon: <MdAssessment /> },
- 
-  {
-    name: "Operation",
-    icon: <MdPrecisionManufacturing />,
-    children: [
-      { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
-    ]
-  },
 
-  {
-    name: "Analytics",
-    icon: <BiChip />,
-    children: [
-      { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
-      { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
-    ]
-  },
+    // {
+    //   name: "Analytics",
+    //   icon: <BiBarChart />,
+    //   children: [
+    //     { path: "/analytics", name: "Analytics 1", icon: <BiBarChart /> },
+    //   ]
+    // },
 
-  {
-    name: "Master",
-    icon: <MdList />,
-    children: [
-               { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
-               { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
-               { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
-               { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
-               { path: "/reason-registration", name: "Reason", icon: <MdList /> },
-    ]
-  },
+    // { path: "/report", name: "Reports", icon: <MdAssessment /> },
 
-], [user]);
-    
+    {
+      name: "Operation",
+      icon: <MdPrecisionManufacturing />,
+      children: [
+        { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
+      ]
+    },
+
+    // {
+    //   name: "Analytics",
+    //   icon: <BiChip />,
+    //   children: [
+    //     { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
+    //     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
+    //   ]
+    // },
+
+    {
+      name: "Master",
+      icon: <MdList />,
+      children: [
+        { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
+        { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
+        { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
+        { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
+        { path: "/reason-registration", name: "Reason", icon: <MdList /> },
+      ]
+    },
+
+  ], [user]);
+
 
 
 
@@ -138,58 +150,58 @@ const menuItem = useMemo(() => [
     ? user.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
     : '';
 
-    const renderDropdown = (item, isOpenState, setIsOpenState) => (
-        <div key={item.name}>
-          <div
-            className="link navlink"
-            style={{
-              textDecoration: 'none',
-              color: 'inherit',
-              display: 'flex',
-              alignItems: 'baseline',
-              cursor: 'pointer',
-              padding: '8px 12px'
-            }}
-            onClick={() => setIsOpenState(!isOpenState)}
-          >
-            <div className="icon">{item.icon}</div>
-            {isOpen && (
-              <div style={{ marginLeft: '8px' }} className="link_text">
-                {item.name} {isOpenState ? <GoChevronUp /> : <GoChevronDown />}
-              </div>
-            )}
+  const renderDropdown = (item, isOpenState, setIsOpenState) => (
+    <div key={item.name}>
+      <div
+        className="link navlink"
+        style={{
+          textDecoration: 'none',
+          color: 'inherit',
+          display: 'flex',
+          alignItems: 'baseline',
+          cursor: 'pointer',
+          padding: '8px 12px'
+        }}
+        onClick={() => setIsOpenState(!isOpenState)}
+      >
+        <div className="icon">{item.icon}</div>
+        {isOpen && (
+          <div style={{ marginLeft: '8px' }} className="link_text">
+            {item.name} {isOpenState ? <GoChevronUp /> : <GoChevronDown />}
           </div>
-    
-          {isOpenState && (
-            <div style={{ marginLeft: isOpen ? '30px' : '0' }}>
-              {item.children.map((child, idx) => (
-                <NavLink
-                  to={child.path}
-                  key={idx}
-                  className={({ isActive }) =>
-                    isActive ? 'link navlink active' : 'link navlink'
-                  }
-                  onClick={handleMenuItemClick(child)}
-                  style={{
-                    textDecoration: 'none',
-                    color: 'inherit',
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '6px 12px'
-                  }}
-                >
-                  <div className="icon">{child.icon}</div>
-                  {isOpen && (
-                    <div style={{ marginLeft: '8px' }} className="link_text">
-                      {child.name}
-                    </div>
-                  )}
-                </NavLink>
-              ))}
-            </div>
-          )}
+        )}
+      </div>
+
+      {isOpenState && (
+        <div style={{ marginLeft: isOpen ? '30px' : '0' }}>
+          {item.children.map((child, idx) => (
+            <NavLink
+              to={child.path}
+              key={idx}
+              className={({ isActive }) =>
+                isActive ? 'link navlink active' : 'link navlink'
+              }
+              onClick={handleMenuItemClick(child)}
+              style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '6px 12px'
+              }}
+            >
+              <div className="icon">{child.icon}</div>
+              {isOpen && (
+                <div style={{ marginLeft: '8px' }} className="link_text">
+                  {child.name}
+                </div>
+              )}
+            </NavLink>
+          ))}
         </div>
-      );
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -199,7 +211,7 @@ const menuItem = useMemo(() => [
             <span className="menu-icon">&#9776;</span>
           </Button>
           <img className="Logo" src={logo} alt="Logo" />
-         <span style={{ fontWeight: '500', fontSize: '20px' }}></span>
+          <span style={{ fontWeight: '500', fontSize: '20px' }}></span>
           <div className="rightsidecontents">
             <span className="person" style={{
               backgroundColor: 'black',
@@ -210,7 +222,7 @@ const menuItem = useMemo(() => [
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginRight:'15px',
+              marginRight: '15px',
             }}>
               <PersonOutlineIcon style={{ fontSize: '24px' }} />
             </span>
@@ -233,42 +245,44 @@ const menuItem = useMemo(() => [
           <img className="Logo1" src={logo} alt="Sidebar Logo" />
           <br />
         </div>
-         {menuItem.map((item) => (
-                  item.children ? (
-                    item.name === "Master" ? renderDropdown(item, masterOpen, setMasterOpen) :
-                    item.name === "Dashboard" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
-                    item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
+        {menuItem.map((item) => (
+          item.children ? (
+            item.name === "Master" ? renderDropdown(item, masterOpen, setMasterOpen) :
+              item.name === "Dashboard" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
+                item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
+                  item.name === "Analytics" ? renderDropdown(item, analyticsOpen, setAnalyticsOpen) :
+
                     null
-                  ) : (
-                    <NavLink
-                      to={item.path}
-                      key={item.name}
-                      className={({ isActive }) =>
-                        isActive ? 'link navlink active' : 'link navlink'
-                      }
-                      onClick={handleMenuItemClick(item)}
-                      style={{
-                        textDecoration: 'none',
-                        color: 'inherit',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '8px 12px'
-                      }}
-                    >
-                      <div className="icon">{item.icon}</div>
-                      {isOpen && (
-                        <div style={{ marginLeft: '8px' }} className="link_text">
-                          {item.name}
-                        </div>
-                      )}
-                    </NavLink>
-                  )
-                ))}
+          ) : (
+            <NavLink
+              to={item.path}
+              key={item.name}
+              className={({ isActive }) =>
+                isActive ? 'link navlink active' : 'link navlink'
+              }
+              onClick={handleMenuItemClick(item)}
+              style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '8px 12px'
+              }}
+            >
+              <div className="icon">{item.icon}</div>
+              {isOpen && (
+                <div style={{ marginLeft: '8px' }} className="link_text">
+                  {item.name}
+                </div>
+              )}
+            </NavLink>
+          )
+        ))}
       </div>
 
       <main
         className="main-content"
-        style={{ paddingLeft: isOpen ? '200px' : '85px', transition: 'padding-left 0.3s ease' }}
+        style={{ paddingLeft: isOpen ? '210px' : '85px', transition: 'padding-left 0.3s ease' }}
       >
         <Outlet />
       </main>

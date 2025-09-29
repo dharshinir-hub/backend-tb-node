@@ -225,93 +225,104 @@ const getCurrentShift = (shiftList) => {
 
 
   let LAST_WEEK_FROM_EPOCH;
-  let LAST_WEEK_TO_EPOCH;
+let LAST_WEEK_TO_EPOCH;
+let THIS_WEEK_FROM_EPOCH;
+let THIS_WEEK_TO_EPOCH;
 
-  function setLastMondayToSaturdayEpoch() {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
+function parseTime(timeStr) {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  return { hours, minutes };
+}
 
-    const lastMonday = new Date(now);
-    const diffToMonday = (dayOfWeek + 6) % 7 + 7;
-    lastMonday.setDate(now.getDate() - diffToMonday);
-    lastMonday.setHours(0, 0, 0, 0);
+function isOvernightShift(shift) {
+  const start = parseTime(shift.start_time);
+  const end = parseTime(shift.end_time);
+  return (end.hours < start.hours) || (end.hours === start.hours && end.minutes <= start.minutes);
+}
 
-    const lastSaturday = new Date(lastMonday);
-    lastSaturday.setDate(lastMonday.getDate() + 5);
-    lastSaturday.setHours(23, 59, 59, 999);
+function setLastWeekShiftEpoch(shifts) {
+  if (!shifts || shifts.length === 0) return;
 
-    LAST_WEEK_FROM_EPOCH = lastMonday.getTime();
-    LAST_WEEK_TO_EPOCH = lastSaturday.getTime();
+  const today = new Date();
+  const firstShiftStart = parseTime(shifts[0].start_time);
+  const lastShift = shifts[shifts.length - 1];
+  const lastShiftEnd = parseTime(lastShift.end_time);
+
+  const lastWeekStart = new Date(today);
+  lastWeekStart.setDate(today.getDate() - 7);
+  lastWeekStart.setHours(firstShiftStart.hours, firstShiftStart.minutes, 0, 0);
+
+  const lastWeekEnd = new Date(lastWeekStart);
+  lastWeekEnd.setDate(lastWeekStart.getDate() + 5); // Saturday
+  lastWeekEnd.setHours(lastShiftEnd.hours, lastShiftEnd.minutes, 0, 0);
+
+  if (isOvernightShift(lastShift)) lastWeekEnd.setDate(lastWeekEnd.getDate() + 1);
+
+  LAST_WEEK_FROM_EPOCH = lastWeekStart.getTime();
+  LAST_WEEK_TO_EPOCH = lastWeekEnd.getTime();
+}
+
+function setThisWeekShiftEpoch(shifts) {
+  if (!shifts || shifts.length === 0) return;
+
+  const today = new Date();
+  const firstShiftStart = parseTime(shifts[0].start_time);
+  const lastShift = shifts[shifts.length - 1];
+  const lastShiftEnd = parseTime(lastShift.end_time);
+
+  const thisWeekStart = new Date(today);
+  thisWeekStart.setHours(firstShiftStart.hours, firstShiftStart.minutes, 0, 0);
+
+  const thisWeekEnd = new Date(thisWeekStart);
+  thisWeekEnd.setDate(thisWeekStart.getDate() + 5); // Saturday
+  thisWeekEnd.setHours(lastShiftEnd.hours, lastShiftEnd.minutes, 0, 0);
+
+  if (isOvernightShift(lastShift)) thisWeekEnd.setDate(thisWeekEnd.getDate() + 1);
+
+  THIS_WEEK_FROM_EPOCH = thisWeekStart.getTime();
+  THIS_WEEK_TO_EPOCH = thisWeekEnd.getTime();
+}
+
+
+setLastWeekShiftEpoch(shifts);
+setThisWeekShiftEpoch(shifts);
+
+console.log("Last Week From Epoch:", LAST_WEEK_FROM_EPOCH);
+console.log("Last Week To Epoch:", LAST_WEEK_TO_EPOCH);
+console.log("This Week From Epoch:", THIS_WEEK_FROM_EPOCH);
+console.log("This Week To Epoch:", THIS_WEEK_TO_EPOCH);
+
+let monfrom = null;
+let monto = null;
+
+if (!shifts || shifts.length === 0) {
+  console.error("Shifts array is empty or undefined!");
+} else {
+  const lastShiftEnd = shifts[shifts.length - 1].end_time;
+
+  function parseTime(timeStr) {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return { hours, minutes };
   }
 
-  setLastMondayToSaturdayEpoch();
+  // Calculate tomorrow's last shift end (to include today fully)
+  const end = new Date();
+  end.setDate(end.getDate() + 1); // move to tomorrow
+  const endTime = parseTime(lastShiftEnd);
+  end.setHours(endTime.hours, endTime.minutes, 0, 0);
 
-  console.log("From:", LAST_WEEK_FROM_EPOCH);
-  console.log("To:", LAST_WEEK_TO_EPOCH);
+  // Calculate 30 days before that
+  const start = new Date(end);
+  start.setDate(start.getDate() - 30);
 
-  let THIS_WEEK_FROM_EPOCH;
-  let THIS_WEEK_TO_EPOCH;
+  monfrom = start.getTime();
+  monto = end.getTime();
 
-  function setThisWeekMondayToSaturdayEpoch() {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const thisMonday = new Date(now);
-    const diffToMonday = (dayOfWeek + 6) % 7;
-    thisMonday.setDate(now.getDate() - diffToMonday);
-    thisMonday.setHours(0, 0, 0, 0);
-    const thisSaturday = new Date(thisMonday);
-    thisSaturday.setDate(thisMonday.getDate() + 5);
-    thisSaturday.setHours(23, 59, 59, 999);
+  console.log("Last shift end time:", lastShiftEnd);
+  console.log("Last 30 days From:", monfrom, "->", start);
+  console.log("Last 30 days To:", monto, "->", end);
+}
 
-    THIS_WEEK_FROM_EPOCH = thisMonday.getTime();
-    THIS_WEEK_TO_EPOCH = thisSaturday.getTime();
-  }
-
-  setThisWeekMondayToSaturdayEpoch();
-
-  console.log("This week From:", THIS_WEEK_FROM_EPOCH);
-  console.log("This week To:", THIS_WEEK_TO_EPOCH);
-
-
-  let monfrom = null;
-  let monto = null;
-
-  if (!shifts || shifts.length === 0) {
-    console.error("Shifts array is empty or undefined!");
-  } else {
-    // Get first shift start and last shift end
-    const firstShiftStart = shifts[0].start_time;
-    const lastShiftEnd = shifts[shifts.length - 1].end_time;
-
-    function parseTime(timeStr) {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      return { hours, minutes };
-    }
-
-    // Calculate start time (30 days ago from first shift start)
-    const start = new Date();
-    start.setDate(start.getDate() - 30);
-    const startTime = parseTime(firstShiftStart);
-    start.setHours(startTime.hours, startTime.minutes, 0, 0);
-
-    // Calculate end time (today last shift end)
-    const end = new Date();
-    const endTime = parseTime(lastShiftEnd);
-    end.setHours(endTime.hours, endTime.minutes, 0, 0);
-
-    // Handle overnight shift
-    if (endTime.hours < startTime.hours) {
-      end.setDate(end.getDate() + 1);
-    }
-
-    monfrom = start.getTime();
-    monto = end.getTime();
-
-    console.log("First shift start time:", firstShiftStart);
-    console.log("Last shift end time:", lastShiftEnd);
-    console.log("Last 30 days From:", monfrom, "->", start);
-    console.log("Last 30 days To:", monto, "->", end);
-  }
   const [oeeData, setOEEData] = useState({});
 
   useEffect(() => {

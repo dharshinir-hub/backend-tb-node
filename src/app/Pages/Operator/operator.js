@@ -915,7 +915,7 @@ useEffect(() => {
                 const counterEl = Swal.getHtmlContainer().querySelector("#counterValue");
                 const incBtn = Swal.getHtmlContainer().querySelector("#increment");
                 const decBtn = Swal.getHtmlContainer().querySelector("#decrement");
-                const produced = telemetry.goodParts || 0;
+                const produced = telemetry.totalShots || 0;
                 const alreadyRejected = telemetry.scrap || 0;
                 const maxReject = produced - alreadyRejected;
                 incBtn.addEventListener("click", () => {
@@ -1048,9 +1048,9 @@ useEffect(() => {
                 </div>
                 <div className="contect-section circular-progress-section">
                     <CircularProgress
-                        actual={telemetry.goodParts}
+                        actual={telemetry.totalShots}
                         target={telemetry.targetParts}
-                        partsBehind={Math.max(0, telemetry.targetParts - telemetry.goodParts)}
+                        partsBehind={Math.max(0, telemetry.targetParts - telemetry.totalShots)}
                         partsRejects={telemetry.scrap}
                         status={telemetry.machineStatus}
                     />
@@ -1098,7 +1098,7 @@ useEffect(() => {
                     <div style={{ textAlign: "end", marginTop: "0.2rem" }}>
                         <p className="actual">Actual vs Target</p>
                         <p className="actual-value">
-                            {telemetry.goodParts}/{telemetry.targetParts}
+                            {telemetry.totalShots}/{telemetry.targetParts}
                         </p>
                     </div>
                 </div>

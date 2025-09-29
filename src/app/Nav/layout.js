@@ -19,13 +19,9 @@ const Layout = () => {
                       location.pathname === '/allocation' ||
                       location.pathname === '/machinemm' ||
                       location.pathname === '/report' ||
+                      location.pathname === '/analytics' ||
                       location.pathname === '/deviceoee' ||
                       location.pathname === '/machineutilization';
-
-
-
-
-
   return (
     <>
       {showSidebar && <Sidebar />} {/* Conditionally render the Sidebar */}

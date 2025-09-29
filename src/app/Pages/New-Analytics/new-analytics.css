@@ -1,0 +1,26 @@
+.header-1 {
+    display: flex;
+    flex-wrap: wrap; 
+    justify-content: flex-end; 
+    align-items: center;
+    height: 6rem;
+    width: 100%;
+    padding: 0 2rem;
+    gap: 1rem;
+    background-color: #FEFCFC;
+}
+
+.header-1 .MuiFormControl-root,
+.header-1 .MuiTextField-root {
+    min-width: 160px;    
+    background-color: #fff; 
+    border-radius: 0.5rem;     
+}
+
+@media (max-width: 768px) {
+    .header-1 {
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 1rem;
+    }
+}
