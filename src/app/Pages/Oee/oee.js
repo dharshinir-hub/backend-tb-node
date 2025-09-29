@@ -216,72 +216,61 @@ const getCurrentShift = (shiftList) => {
 
 
   let LAST_WEEK_FROM_EPOCH;
-let LAST_WEEK_TO_EPOCH;
-let THIS_WEEK_FROM_EPOCH;
-let THIS_WEEK_TO_EPOCH;
-
-function parseTime(timeStr) {
-  const [hours, minutes] = timeStr.split(":").map(Number);
-  return { hours, minutes };
-}
-
-function isOvernightShift(shift) {
-  const start = parseTime(shift.start_time);
-  const end = parseTime(shift.end_time);
-  return (end.hours < start.hours) || (end.hours === start.hours && end.minutes <= start.minutes);
-}
-
-function setLastWeekShiftEpoch(shifts) {
-  if (!shifts || shifts.length === 0) return;
-
-  const today = new Date();
-  const firstShiftStart = parseTime(shifts[0].start_time);
-  const lastShift = shifts[shifts.length - 1];
-  const lastShiftEnd = parseTime(lastShift.end_time);
-
-  const lastWeekStart = new Date(today);
-  lastWeekStart.setDate(today.getDate() - 7);
-  lastWeekStart.setHours(firstShiftStart.hours, firstShiftStart.minutes, 0, 0);
-
-  const lastWeekEnd = new Date(lastWeekStart);
-  lastWeekEnd.setDate(lastWeekStart.getDate() + 5); // Saturday
-  lastWeekEnd.setHours(lastShiftEnd.hours, lastShiftEnd.minutes, 0, 0);
-
-  if (isOvernightShift(lastShift)) lastWeekEnd.setDate(lastWeekEnd.getDate() + 1);
-
-  LAST_WEEK_FROM_EPOCH = lastWeekStart.getTime();
-  LAST_WEEK_TO_EPOCH = lastWeekEnd.getTime();
-}
-
-function setThisWeekShiftEpoch(shifts) {
-  if (!shifts || shifts.length === 0) return;
-
-  const today = new Date();
-  const firstShiftStart = parseTime(shifts[0].start_time);
-  const lastShift = shifts[shifts.length - 1];
-  const lastShiftEnd = parseTime(lastShift.end_time);
-
-  const thisWeekStart = new Date(today);
-  thisWeekStart.setHours(firstShiftStart.hours, firstShiftStart.minutes, 0, 0);
-
-  const thisWeekEnd = new Date(thisWeekStart);
-  thisWeekEnd.setDate(thisWeekStart.getDate() + 5); // Saturday
-  thisWeekEnd.setHours(lastShiftEnd.hours, lastShiftEnd.minutes, 0, 0);
-
-  if (isOvernightShift(lastShift)) thisWeekEnd.setDate(thisWeekEnd.getDate() + 1);
-
-  THIS_WEEK_FROM_EPOCH = thisWeekStart.getTime();
-  THIS_WEEK_TO_EPOCH = thisWeekEnd.getTime();
-}
+  let LAST_WEEK_TO_EPOCH;
 
 
-setLastWeekShiftEpoch(shifts);
-setThisWeekShiftEpoch(shifts);
+  function setLastMondayToSaturdayEpoch() {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const lastMonday = new Date(now);
+    const diffToMonday = (dayOfWeek + 6) % 7 + 7;
+    lastMonday.setDate(now.getDate() - diffToMonday);
+    lastMonday.setHours(0, 0, 0, 0);
 
-console.log("Last Week From Epoch:", LAST_WEEK_FROM_EPOCH);
-console.log("Last Week To Epoch:", LAST_WEEK_TO_EPOCH);
-console.log("This Week From Epoch:", THIS_WEEK_FROM_EPOCH);
-console.log("This Week To Epoch:", THIS_WEEK_TO_EPOCH);
+
+    const lastSaturday = new Date(lastMonday);
+    lastSaturday.setDate(lastMonday.getDate() + 5);
+    lastSaturday.setHours(23, 59, 59, 999);
+
+  LAST_WEEK_FROM_EPOCH = lastMonday.getTime();
+    LAST_WEEK_TO_EPOCH = lastSaturday.getTime();
+  }
+
+  setLastMondayToSaturdayEpoch();
+
+ console.log("From:", LAST_WEEK_FROM_EPOCH);
+  console.log("To:", LAST_WEEK_TO_EPOCH);
+
+
+  let THIS_WEEK_FROM_EPOCH;
+  let THIS_WEEK_TO_EPOCH;
+
+ function setThisWeekMondayToSaturdayEpoch() {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const thisMonday = new Date(now);
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    thisMonday.setDate(now.getDate() - diffToMonday);
+    thisMonday.setHours(0, 0, 0, 0);
+    const thisSaturday = new Date(thisMonday);
+    thisSaturday.setDate(thisMonday.getDate() + 5);
+    thisSaturday.setHours(23, 59, 59, 999);
+
+
+THIS_WEEK_FROM_EPOCH = thisMonday.getTime();
+    THIS_WEEK_TO_EPOCH = thisSaturday.getTime();
+  }
+
+
+setThisWeekMondayToSaturdayEpoch();
+
+
+  console.log("This week To:", THIS_WEEK_TO_EPOCH);
+
+
+
+
+
 
 let monfrom = null;
 let monto = null;
