@@ -46,7 +46,7 @@ const AppRoutes = () => (
          <Route path="/allocation" element={<Allocation/>} />
          <Route path="/operator-details" element={<OperatorDetails/>} />
         <Route path="/machinemm" element={<GrafanaEmbed/>} />
-         {/* <Route path="/report" element={<MachineReport/>} /> */}
+         <Route path="/report" element={<MachineReport/>} />
            <Route path="/machineutilization" element={<MachineUtilization />} />
            <Route path="/deviceoee" element={<OeeDashboard />} />
 

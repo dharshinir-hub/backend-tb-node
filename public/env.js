@@ -1,7 +1,7 @@
 //live
 window._env_ = {
     SERVER_URL: "http://74.224.122.231:8080/",
-    SERVER_URL2: "http://20.235.246.38:3000/",
+    SERVER_URL2: "http://74.224.122.231:5000/",
     GRAFANA_URL: "http://demo.yantra24x7.com:9097/",
     CUSTOMER_ID: "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
     TENANT_GMAIL: "pms@gmail.com",
