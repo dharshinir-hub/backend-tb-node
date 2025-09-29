@@ -827,3 +827,7 @@ div:where(.swal2-icon) {
     min-height: 60px !important;
   }
 }
+
+div:where(.swal2-container).swal2-center>.swal2-popup {
+  width: auto !important;
+}

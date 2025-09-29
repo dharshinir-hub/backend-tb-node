@@ -68,30 +68,21 @@ const Oee = () => {
         const secondUsername = window._env_.TENANT_GMAIL;
         const secondPassword = window._env_.TENANT_PASSWORD;
         const secondResponse = await Loginapi(secondUsername, secondPassword);
-
         localStorage.setItem("email1", secondUsername);
         localStorage.setItem("token1", secondResponse.token); // ✅ write to token1
         localStorage.setItem("refreshToken1", secondResponse.refreshToken);
         localStorage.setItem("Companyname1", secondResponse.Companyname);
         localStorage.setItem("role_name1", secondResponse.Role);
-
         setCustomerId1(window._env_.CUSTOMER_ID);
-
-
         startTokenAutoRefresh();
       } catch (err) {
         console.error("Init failed", err);
       }
     };
-
     init();
-
-
-    const storedToken1 = localStorage.getItem("token1");
-    console.log(" token1 from localStorage:", storedToken1);
-    setNewToken(storedToken1);
-
-
+const storedToken1 = localStorage.getItem("token1");
+console.log(" token1 from localStorage:", storedToken1);
+setNewToken(storedToken1);
   }, [location.pathname]);
 
  const convertShiftToEpoch = (date, start, end) => {

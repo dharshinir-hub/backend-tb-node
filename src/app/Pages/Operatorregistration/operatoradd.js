@@ -215,62 +215,46 @@ console.log("Decrypted:", decryptedPassword);
                   />
                   {errors.operatorname && <div className="mat-error">{errors.operatorname.message}</div>} {/* Changed to div and mat-error */}
                 </div>
-                <div className={`form_field  ${errors.operatorid ? 'error-outline' : ''}`}>
-                  <TextField
-                    {...register("operatorid", { required: "User ID is required" ,
-                      maxLength: {
-                        value: 100,
-                        message: "Maximum length is 100 characters"
-                      } ,
-                      validate: value => {
-                        if (isNaN(value)) return "User Id must be a number";
-                        if (Number(value) <= 0) return "User Id must be greater than 0";
-                        return true;
-                      }})}
-                    onBlur={() => trigger('operatorid')}
-                    label="User ID"
-                    type="number"
-                    name="operatorid"
-                    value={shiftForm.operatorid}
-                    onChange={handleFormChange}
-                    error={!!errors.operatorid}
-                    inputProps={{ maxLength: 100, min: 1 }}
-                    InputLabelProps={{
-                      required: true, 
-                      sx: {
-                        color: 'black',
-                        '&.Mui-focused': {
-                          color: 'orange',
-                        },
-                      },
-                    }}
-                    fullWidth
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        '& fieldset': {
-                          borderColor: 'black',
-                        },
-                        '&:hover fieldset': {
-                          borderColor: 'black',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: 'orange',
-                        },
-                        '& .MuiOutlinedInput-input': {
-                          color: 'black',
-                        },
-                        '&.Mui-focused .MuiOutlinedInput-input': {
-                          caretColor: 'orange',
-                        },
-                        '&::placeholder': {
-                          color: 'black',
-                          opacity: 1,
-                        },
-                      },
-                    }}
-                  />
-                  {errors.operatorid && <div className="mat-error">{errors.operatorid.message}</div>} {/* Changed to div and mat-error */}
-                </div>
+              <div className={`form_field  ${errors.operatorid ? 'error-outline' : ''}`}>
+  <TextField
+    {...register("operatorid", {
+      required: "User ID is required",
+      maxLength: {
+        value: 100,
+        message: "Maximum length is 100 characters"
+      },
+      validate: value => /^[a-zA-Z0-9\s]*$/.test(value) || "Special characters are not allowed",
+    })}
+    onBlur={() => trigger('operatorid')}
+    label="User ID"
+    type="text"
+    name="operatorid"
+    value={shiftForm.operatorid}
+    onChange={handleFormChange}
+    error={!!errors.operatorid}
+    inputProps={{ maxLength: 100 }}
+    InputLabelProps={{
+      required: true, 
+      sx: {
+        color: 'black',
+        '&.Mui-focused': { color: 'orange' },
+      },
+    }}
+    fullWidth
+    sx={{
+      '& .MuiOutlinedInput-root': {
+        '& fieldset': { borderColor: 'black' },
+        '&:hover fieldset': { borderColor: 'black' },
+        '&.Mui-focused fieldset': { borderColor: 'orange' },
+        '& .MuiOutlinedInput-input': { color: 'black' },
+        '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+        '&::placeholder': { color: 'black', opacity: 1 },
+      },
+    }}
+  />
+  {errors.operatorid && <div className="mat-error">{errors.operatorid.message}</div>}
+</div>
+
 
 
                 

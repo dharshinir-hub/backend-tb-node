@@ -2052,7 +2052,7 @@ const fallbackOptions =
         const operator = reasonslist.find(op => op.reason === item.reasonselected);
         const code = operator ? operator.code : null;
         const mode = operator ? operator.mode : null;
-        const module = operator ? operator.module : null;
+        const category = operator ? operator.category : null;
   
         const key = {
           ts: item.start,  // This becomes the top-level "ts" field
@@ -2061,7 +2061,7 @@ const fallbackOptions =
               name: item.reasonselected,
               code: code,
               mode: mode,
-              module: module,
+              category: category,
               idle_start: item.start,
               idle_end:item.end,
               idle_duration:item.duration

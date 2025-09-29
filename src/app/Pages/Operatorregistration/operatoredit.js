@@ -269,14 +269,10 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                         value: 100,
                         message: "Maximum length is 100 characters"
                       } ,
-                      validate: value => {
-                        if (isNaN(value)) return "User Id must be a number";
-                        if (Number(value) <= 0) return "User Id must be greater than 0";
-                        return true;
-                      }})}
+                       validate: value => /^[a-zA-Z0-9\s]*$/.test(value) || "Special characters are not allowed"})}
                     onBlur={() => trigger('operatorid')}
                     label="User ID"
-                    type="number"
+                    type="text"
                     name="operatorid"
                     value={shiftForm.operatorid}
                     onChange={handleFormChange}
@@ -456,7 +452,17 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                 {shiftForm.mode === "Operator" && (
   <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
     <TextField
-      {...register("password", { required: "Password is required" })}
+      {...register("password",  {
+        required: shiftForm.mode === "Operator" ? "Password is required" : false,
+        minLength: {
+          value: 6,
+          message: "Password must be at least 6 characters"
+        },
+        maxLength: {
+          value: 20,
+          message: "Password must not exceed 20 characters"
+        }
+      })}
       onBlur={() => trigger('password')}
       label="Password"
       type="password"

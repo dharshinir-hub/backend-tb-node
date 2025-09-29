@@ -46,11 +46,11 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
     operation_name: '',
     factorval: '',
     factor: '',
-    jobcard:'',
-    drawingcode:'',
+    jobcard: '',
+    drawingcode: '',
     cycle_time: dayjs('00:00:00', 'HH:mm:ss'),
-  handling_time: dayjs('00:00:00', 'HH:mm:ss'),
-  setupTime: dayjs('00:00:00', 'HH:mm:ss')
+    handling_time: dayjs('00:00:00', 'HH:mm:ss'),
+    setupTime: dayjs('00:00:00', 'HH:mm:ss')
   }), []);
 
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
@@ -83,7 +83,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
     } catch (error) {
       const fallbackOptions = [
         { value: 'Multiplication Factor', label: 'Multiplication Factor' },
-        { value: 'Divide Factor', label: 'Divide Factor' },    
+        { value: 'Divide Factor', label: 'Divide Factor' },
       ];
       setShiftsmodule(fallbackOptions);
       console.error('Error fetching shifts:', error);
@@ -109,16 +109,16 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
   const onSubmit = async (data) => {
     try {
       if (
-        !data.cycle_time||
+        !data.cycle_time ||
         data.cycle_time.format('HH:mm:ss') === '00:00:00'
-       
+
       ) {
         handleClose();
         Swal.fire('Error', 'Cycle Time must not be 00:00:00.', 'error');
         return;
       }
       const id = Math.random().toString(36).substr(2, 9); // Generate a new ID
-  
+
       const currentShiftData = {
         id,
         component_name: data.component_name,
@@ -133,9 +133,9 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
         handling_time: data.handling_time ? data.handling_time.format('HH:mm:ss') : null,
         setupTime: data.setupTime ? data.setupTime.format('HH:mm:ss') : null
       };
-  
+
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
-  
+
       // 🔍 Check for duplicate based on component_name & component_number
       const duplicateName = existingShifts.find(
         shift => shift.component_name.trim().toLowerCase() === data.component_name.trim().toLowerCase()
@@ -157,28 +157,28 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
         Swal.fire("Duplicate entry", errorMessage, "error");
         return;
       }
-  
+
       existingShifts.push(currentShiftData);
-  
+
       const formData = {
         component: existingShifts,
         lastUpdateTs: Date.now()
       };
-  
+
       console.log('Submitted component data:', JSON.stringify(formData));
       console.log('customerId', customerId);
       const scope = 'SERVER_SCOPE';
       const response = await shiftadd(formData, customerId, scope);
-  
+
       if (response.msg) {
         Swal.fire(response.msg);
       } else {
         Swal.fire("Created Successfully");
       }
-  
+
       handleClose();
       reset(defaultShiftForm);
-  
+
     } catch (error) {
       handleClose();
       reset(defaultShiftForm);
@@ -186,10 +186,10 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
       Swal.fire('Error submitting data: ' + error.message);
     }
   };
-  
+
 
   return (
-    <Dialog open={open} onClose={handleClose}  maxWidth="300px" PaperProps={{ style: { backgroundColor: dialogBackgroundColor } }}>
+    <Dialog open={open} onClose={handleClose} maxWidth="300px" PaperProps={{ style: { backgroundColor: dialogBackgroundColor } }}>
       <DialogTitle style={{ color: 'black' }}>Add Component</DialogTitle>
       <div className="close_modal">
         <Tooltip title="Close">
@@ -206,16 +206,14 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                 {/* Component Name Field */}
                 <div className={`form_field ${errors.component_name ? 'error-outline' : ''}`}>
                   <TextField
-                   inputRef={componentNameRef}
-                   {...register("component_name", {
-                    required: "Component Name is required",
-                    maxLength: {
-                      value: 100,
-                      message: "Maximum length is 100 characters"
-                    },
-                    validate: value =>
-                      /^[a-zA-Z0-9\s]*$/.test(value) || "Special characters are not allowed"
-                  })}
+                    inputRef={componentNameRef}
+                    {...register("component_name", {
+                      required: "Component Name is required",
+                      maxLength: {
+                        value: 100,
+                        message: "Maximum length is 100 characters"
+                      }
+                    })}
                     label="Component Name"
                     type="text"
                     name="component_name"
@@ -223,7 +221,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                     onChange={handleFormChange}
                     error={!!errors.component_name}
                     InputLabelProps={{
-                      required: true, 
+                      required: true,
                       sx: {
                         color: 'black',
                         '&.Mui-focused': {
@@ -263,25 +261,21 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                 {/* Component Number Field */}
                 <div className={`form_field ${errors.component_number ? 'error-outline' : ''}`}>
                   <TextField
-                    {...register("component_number", { required: "Component Number is required",
+                    {...register("component_number", {
+                      required: "Component Number is required",
                       maxLength: {
                         value: 100,
                         message: "Maximum length is 100 characters"
-                      } ,
-                      validate: value => {
-                        if (isNaN(value)) return "Component Number must be a number";
-                        if (Number(value) <= 0) return "Component Number must be greater than 0";
-                        return true;
-                      }})}
+                      }
+                    })}
                     label="Component Number"
-                    type="number"
+                    type="text"
                     name="component_number"
                     value={shiftForm.component_number}
                     onChange={handleFormChange}
                     error={!!errors.component_number}
-
                     InputLabelProps={{
-                      required: true, 
+                      required: true,
                       sx: {
                         color: 'black',
                         '&.Mui-focused': {
@@ -289,7 +283,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                         },
                       },
                     }}
-                    inputProps={{ maxLength: 100, min: 1 }}
+                    inputProps={{ maxLength: 100 }}
                     fullWidth
                     sx={{
                       '& .MuiOutlinedInput-root': {
@@ -315,8 +309,11 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                       },
                     }}
                   />
-                  {errors.component_number && <div className="mat-error">{errors.component_number.message}</div>}
+                  {errors.component_number && (
+                    <div className="mat-error">{errors.component_number.message}</div>
+                  )}
                 </div>
+
 
                 {/* Operation Number Field 
                 <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>
@@ -464,7 +461,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                         return true;
                       }
                     })}
-                    
+
                     onBlur={() => trigger('factorval')}
                     label="Factor Value"
                     type="number"
@@ -474,7 +471,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                     error={!!errors.factorval}
                     inputProps={{ maxLength: 4, min: 1 }}
                     InputLabelProps={{
-                      required: true, 
+                      required: true,
                       sx: {
                         color: 'black',
                         '&.Mui-focused': {
@@ -510,15 +507,15 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   {errors.factorval && <div className="mat-error">{errors.factorval.message}</div>} {/* Changed to div and mat-error */}
                 </div>
                 <div className={`form_field  ${errors.factor ? 'error-outline' : ''}`}>
-                <CustomDaySelect
+                  <CustomDaySelect
                     {...register("factor", { required: "Factor is required" })}
                     onBlur={() => trigger('factor')}
                     ref={customDaySelectRef}
                     name="factor"
                     value={shiftForm.factor}
                     onChange={handleFormChange}
-                    label="Select Factor" 
-                    required={true} 
+                    label="Select Factor"
+                    required={true}
                     options={shiftsmodule}
                     error={!!errors.factor}
                   />
@@ -557,7 +554,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                       views={['hours', 'minutes', 'seconds']}
                       openTo="hours"
                       format="HH:mm:ss"
-                      label="Cycle Time *" 
+                      label="Cycle Time *"
                       ampm={false}
                       error={!!errors.cycle_time}
                       InputLabelProps={{ required: true }}
@@ -654,8 +651,8 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                 </div>
                 <div className={`form_field  ${errors.setupTime ? 'error-outline' : ''}`}>
                   <DemoItem>
-                    <MobileTimePicker 
-                      {...register("setupTime", { 
+                    <MobileTimePicker
+                      {...register("setupTime", {
                         required: "Setup Time is required",
                         validate: (value, formValues) => {
                           const setupTime = value;
@@ -688,7 +685,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                       label="Setup Time *"
                       ampm={false}
                       error={!!errors.setupTime}
-                      InputLabelProps={{ required: true }} 
+                      InputLabelProps={{ required: true }}
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           '& fieldset': {
@@ -716,7 +713,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   </DemoItem>
                   {errors.setupTime && <div className="mat-error">{errors.setupTime.message}</div>}
                 </div>
-              
+
 
                 {/* Operation Number Field 
                 <div className={`form_field ${errors.jobcard ? 'error-outline' : ''}`}>
@@ -827,7 +824,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   />
                   {errors.drawingcode && <div className="mat-error">{errors.drawingcode.message}</div>}
                 </div>  */}
-             
+
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>

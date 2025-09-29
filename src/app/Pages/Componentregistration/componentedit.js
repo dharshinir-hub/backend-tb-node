@@ -348,9 +348,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     maxLength: {
                       value: 100,
                       message: "Maximum length is 100 characters"
-                    }, validate: value =>
-                      /^[a-zA-Z0-9\s]*$/.test(value) || "Special characters are not allowed"
-                  
+                    }
                      })}
                     label="Component Name"
                     type="text"
@@ -404,14 +402,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       maxLength: {
                         value: 100,
                         message: "Maximum length is 100 characters"
-                      } ,
-                      validate: value => {
-                        if (isNaN(value)) return "Component Number must be a number";
-                        if (Number(value) <= 0) return "Component Number must be greater than 0";
-                        return true;
                       }})}
                     label="Component Number"
-                    type="number"
+                    type="text"
                     disabled
                     name="component_number"
                     value={shiftForm.component_number}

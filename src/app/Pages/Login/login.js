@@ -63,7 +63,7 @@ function LoginForm() {
         const operatorResponse = await getOperatorDetails(window._env_.CUSTOMER_ID);
         const responseData = operatorResponse?.[0]?.value;
         if (responseData && responseData.length > 0) {
-          const operator = responseData.find((res) => res.operatorname === data.username);
+          const operator = responseData.find((res) => res.operatorid === data.username);
           if (operator) {
             const decryptedPassword = decryptText(operator.password || "");
             if (decryptedPassword === data.password) { 
