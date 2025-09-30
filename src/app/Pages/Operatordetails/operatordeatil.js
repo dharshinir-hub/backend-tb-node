@@ -612,7 +612,11 @@ const handleFormChange3 = (event) => {
         label: `Shift${shift.shift_no}`,
       }));
       setShiftOptions(options);
-  
+      const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
+      if (selectedShiftData) {
+        setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
+        setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+      }
       if (options.length > 0) {
         const defaultShift = options[0].value;
             setSelectedDate(dayjs()); // Set to current date
@@ -647,11 +651,6 @@ const handleFormChange3 = (event) => {
         const entitytype = 'DEVICE';
   
         await fetchLiveOperator(deviceid, entitytype, key2, fromEpoch, toEpoch);
-        
-        // Clear time fields for fresh start
-        setStartTime(null);
-        setEndTime(null);
-        
         setOpenEditDialog(true);
       }
     } catch (err) {
@@ -816,7 +815,11 @@ const handleOpenEditDialog4= async ()=>{
       label: `Shift${shift.shift_no}`,
     }));
     setShiftOptions(options);
-
+  const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
+  if (selectedShiftData) {
+    setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
+    setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+  }
     if (options.length > 0) {
       const defaultShift = options[0].value;
           setSelectedDate(dayjs()); // Set to current date
@@ -829,8 +832,7 @@ const handleOpenEditDialog4= async ()=>{
       console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:',  dayjs());
      
       setfilteredResult([]);
-      setStartTime(null);
-      setEndTime(null);
+
 
       const key = 'alloperator';
   customerbasedshift(customerId, key)
