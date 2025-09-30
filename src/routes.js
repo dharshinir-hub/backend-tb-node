@@ -24,6 +24,7 @@ import OeeDashboard from './app/Pages/Devices/deviceoee';
 import Oee from './app/Pages/Oee/oee';
 import NewAnalytics from './app/Pages/New-Analytics/new-analytics';
 import { Box } from '@mui/material';
+import NewDeviceOee from './app/Pages/NewDeviceOee/newdeviceoee';
 
 // Import other components for your routes
 
@@ -52,7 +53,7 @@ const AppRoutes = () => (
       <Route path="/machineutilization" element={<MachineUtilization />} />
       <Route path="/deviceoee" element={
         <Box mt={3}>
-          <Oee />
+          <NewDeviceOee />
         </Box>
       } />
     </Route>
