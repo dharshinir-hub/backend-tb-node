@@ -59,8 +59,8 @@ export default function NewAnalytics() {
             setFrom(fromDT.valueOf());
             setTo(lastShiftEndDT.valueOf());
         } else {
-                const shift = shifts.find(s => String(s.shift_no) === String(selectedShift)) || shifts[0];
-                shiftHandler(shift);
+            const shift = shifts.find(s => String(s.shift_no) === String(selectedShift)) || shifts[0];
+            shiftHandler(shift);
         }
     }, [fromDate, toDate, selectedShift, shifts]);
 
@@ -136,15 +136,12 @@ export default function NewAnalytics() {
         const GRAFANA_URL = window._env_.GRAFANA_URL;
         const url =
             `${GRAFANA_URL}d/a56900cd-961f-4ed4-99c5-3ec120450653/alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${analysisType}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`;
-               const payload = { bearerToken: bearerToken, cleanedId: cleanedId, entityId: entityId, entityType: entityType, fromTime: fromTime, toTime: toTime, from: from, to: to, analysisType: analysisType }
-        
-        console.log(payload , 'payload')
         console.log(url, 'Grafana URL');
         setGrafanaUrl(url);
     };
 
     return (
-        <Box display="flex" flexWrap="wrap" height="calc(100vh - 2.6rem)" paddingTop="20px" bgcolor="#FEFCFC" flexDirection="column" justifyContent="space-between">
+        <Box display="flex" flexWrap="wrap" height="calc(100vh - 2.6rem)" paddingTop="20px" bgcolor="#FEFCFC" flexDirection="column">
             <div className="header-1">
                 <FormControl size="small" sx={{ minWidth: 160, background: '#fff' }}>
                     <InputLabel id="machines-label" style={{ background: '#fff' }}>Machines</InputLabel>
@@ -159,22 +156,7 @@ export default function NewAnalytics() {
                         ))}
                     </Select>
                 </FormControl>
-                <FormControl size="small" sx={{ minWidth: 160, background: "#fff" }}>
-                    <InputLabel id="shift-label" style={{ background: '#fff' }}>Shifts</InputLabel>
-                    <Select
-                        labelId="shift-label"
-                        value={selectedShift}
-                        onChange={(e) => setSelectedShift(e.target.value)}
-                        disabled={isShiftDisabled}
-                    >
-                        <MenuItem value="all">All Shifts</MenuItem>
-                        {shifts.map((s) => (
-                            <MenuItem key={s.shift_no} value={s.shift_no}>
-                                {`Shift ${s.shift_no}`}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+
                 <FormControl size="small" sx={{ minWidth: 160, background: "#fff" }}>
                     <InputLabel id="analysis-label" style={{ background: '#fff' }}>Analysis Type</InputLabel>
                     <Select
@@ -204,13 +186,29 @@ export default function NewAnalytics() {
                         slotProps={{ textField: { size: "small", sx: { minWidth: 160, background: "#fff" } } }}
                     />
                 </LocalizationProvider>
+                <FormControl size="small" sx={{ minWidth: 160, background: "#fff" }}>
+                    <InputLabel id="shift-label" style={{ background: '#fff' }}>Shifts</InputLabel>
+                    <Select
+                        labelId="shift-label"
+                        value={selectedShift}
+                        onChange={(e) => setSelectedShift(e.target.value)}
+                        disabled={isShiftDisabled}
+                    >
+                        <MenuItem value="all">All Shifts</MenuItem>
+                        {shifts.map((s) => (
+                            <MenuItem key={s.shift_no} value={s.shift_no}>
+                                {`Shift ${s.shift_no}`}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
             </div>
-            <div style={{width:"100%", height: "40rem"}}>
-  <iframe 
-      src={grafanaUrl}
-      style={{ width: "100%", height: "100%", border: "0" }}
-      title="Grafana Right"
-    />
+            <div style={{ flexGrow: 1 }}>
+                <iframe
+                    src={grafanaUrl}
+                    style={{ width: "100%", height: "100%", border: "0" }}
+                    title="Grafana Right"
+                />
             </div>
         </Box>
     );
