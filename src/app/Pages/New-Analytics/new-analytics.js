@@ -144,7 +144,7 @@ export default function NewAnalytics() {
     };
 
     return (
-        <Box display="flex" flexWrap="wrap" height="calc(100vh - 2.5rem)" paddingTop="20px" bgcolor="#FEFCFC" flexDirection="column">
+        <Box display="flex" flexWrap="wrap" height="calc(100vh - 2.6rem)" paddingTop="20px" bgcolor="#FEFCFC" flexDirection="column" justifyContent="space-between">
             <div className="header-1">
                 <FormControl size="small" sx={{ minWidth: 160, background: '#fff' }}>
                     <InputLabel id="machines-label" style={{ background: '#fff' }}>Machines</InputLabel>
@@ -205,8 +205,8 @@ export default function NewAnalytics() {
                     />
                 </LocalizationProvider>
             </div>
-            <div style={{ flexGrow: 1}}>
-  <iframe
+            <div style={{width:"100%", height: "40rem"}}>
+  <iframe 
       src={grafanaUrl}
       style={{ width: "100%", height: "100%", border: "0" }}
       title="Grafana Right"

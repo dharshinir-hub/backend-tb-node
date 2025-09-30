@@ -29,7 +29,7 @@ const Oee = () => {
   const [to, setTo] = useState(null);
   const [countdown, setCountdown] = useState("");
   const [fiscalWeekNumber, setFiscalWeekNumber] = useState(0);
-  const [customerName, setCustomerName] = useState("");
+  const [customerTitle, setCustomerTitle] = useState("");
   const baseUrl = window._env_.SERVER_URL;
   const GRAFANA_URL = window._env_.GRAFANA_URL;
   const customerId = localStorage.getItem('CustomerID');
@@ -585,9 +585,8 @@ if (!shifts || shifts.length === 0) {
   const [scrollDelay, setScrollDelay] = useState(15000);
 
 useEffect(() => {
-  const stored = localStorage.getItem('firstName');
-  const customerName = stored ? JSON.parse(stored) : 'PMI';
-  setCustomerName(customerName);
+  const customerTitle = localStorage.getItem('customerTitle') || 'PMI';
+  setCustomerTitle(customerTitle);
 }, []);
 
   useEffect(() => {
@@ -706,7 +705,7 @@ useEffect(() => {
             textShadow: "0 1px 1px rgba(0,0,0,0.05)",
           }}
         >
-         PMI GLOBAL
+          {customerTitle}
         </div>
 
         {/* Right Section */}

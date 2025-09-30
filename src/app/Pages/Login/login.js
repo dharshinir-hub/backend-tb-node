@@ -9,7 +9,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import mail from '../../../assets/mail.png';
 import lock from '../../../assets/lock.png';
-import { getOperatorDetails, Loginapi, startTokenAutoRefresh, Userapi, Userapi1 } from '../../Services/app/loginservice';
+import { getCustomerTitle, getOperatorDetails, Loginapi, startTokenAutoRefresh, Userapi, Userapi1 } from '../../Services/app/loginservice';
 import { decryptText } from '../../Shared/utils/cryptoUtils';
 
 function LoginForm() {
@@ -50,7 +50,8 @@ function LoginForm() {
         localStorage.setItem("authority", JSON.stringify(userResponse.authority));
         localStorage.setItem("firstName", JSON.stringify(userResponse.firstName));
         localStorage.setItem("lastName", JSON.stringify(userResponse.lastName));
-
+        const customerTitle = await getCustomerTitle(userResponse.customerId.id);
+        localStorage.setItem("customerTitle", customerTitle);
         await tenantLogin();
 
         const secondUserResponse = await Userapi1();

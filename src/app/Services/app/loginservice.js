@@ -144,3 +144,18 @@ export const getOperatorDetails = async (customerId) => {
       throw error;
     }
   };
+
+export const getCustomerTitle = async (customerId) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const cleanedCustomerId = cleanCustomerId(customerId);
+    const url = `${baseUrl}/api/customer/${cleanedCustomerId}/title`;
+    console.log('Customer title API URL:', url);
+    const response = await axiosInstance.get(url);
+    console.log('Customer title API Response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('Error during Customer title data:', error);
+    throw error;
+  }
+};
