@@ -1495,7 +1495,7 @@ function formatMillisecondsTo12HourTime(ms) {
       sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
     >
       <strong>{viewedMachine.name}</strong>
-      <span
+      {/* <span
         style={{
           width: 8,
           height: 8,
@@ -1505,8 +1505,8 @@ function formatMillisecondsTo12HourTime(ms) {
         }}
       ></span>
       <Typography variant="body2.3" color="textSecondary" component="span">
-        {displayLabel} {formatTime(data.durationSeconds || 0)}
-      </Typography>
+        {displayLabel} 
+      </Typography> */}
     </Typography>
   );
 })()}
