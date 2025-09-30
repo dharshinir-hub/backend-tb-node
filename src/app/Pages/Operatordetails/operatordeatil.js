@@ -1389,7 +1389,7 @@ const handleReasonChange = (index, val) => {
   }, []);
 
   useEffect(() => {
-   const customerName = JSON.parse(localStorage.getItem('firstName'))
+   const customerTitle = localStorage.getItem('customerTitle');
    const commonOptions = [
   { value: 'Component', label: 'Component' },
   { value: 'Reason', label: 'Reason' },
@@ -1397,7 +1397,7 @@ const handleReasonChange = (index, val) => {
 ];
 
 const fallbackOptions =
-  customerName === 'PMI'
+  customerTitle === 'PMI GLOBAL'
     ? commonOptions
     : [{ value: 'Operator', label: 'Operator' }, ...commonOptions];
    
@@ -1439,7 +1439,7 @@ const fallbackOptions =
     if (Deviceid && token) {
       const fromEpoch = todayStart.valueOf();
       const toEpoch = todayEnd.valueOf();
-      const keys=  customerName === 'PMI' ? 'live_component' : 'live_operator';
+      const keys = customerTitle === 'PMI GLOBAL' ? 'live_component' : 'live_operator';
       const entitytype='DEVICE';
       const url = `${window._env_.GRAFANA_URL}d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${Deviceid}&var-entityType=${entitytype}&var-entityId=${Deviceid}&var-token=${token}&var-key=${keys}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
       setIframeUrl(url);

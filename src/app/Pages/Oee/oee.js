@@ -585,7 +585,7 @@ if (!shifts || shifts.length === 0) {
   const [scrollDelay, setScrollDelay] = useState(15000);
 
 useEffect(() => {
-  const customerTitle = localStorage.getItem('customerTitle') || 'PMI';
+  const customerTitle = localStorage.getItem('customerTitle') || 'PMI GLOBAL';
   setCustomerTitle(customerTitle);
 }, []);
 
