@@ -5,7 +5,7 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
-import { MobileTimePicker, LocalizationProvider } from '@mui/x-date-pickers';
+import { MobileTimePicker, LocalizationProvider, TimePicker } from '@mui/x-date-pickers';
 import { DemoItem } from '@mui/x-date-pickers/internals/demo';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import './componentreg.css';
@@ -29,11 +29,11 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
           componentNameRef.current.focus();
         }
       }, 100); // reduced delay for better responsiveness
-    
+
       return () => clearTimeout(timer); // cleanup on unmount
     }
   }, [open]);
-  
+
   const { register, handleSubmit, formState: { errors }, trigger, setValue, reset } = useForm({
     shouldFocusError: true,
     mode: 'onBlur'
@@ -144,16 +144,9 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
         shift => shift.component_number.trim().toLowerCase() === data.component_number.trim().toLowerCase()
       );
 
-      if (duplicateName || duplicateNumber) {
+      if (duplicateNumber) {
         handleClose();
-        let errorMessage = "Duplicate entry: ";
-        if (duplicateName && duplicateNumber) {
-          errorMessage += "Component Name and Number already exist";
-        } else if (duplicateName) {
-          errorMessage += "Component Name already exists";
-        } else {
-          errorMessage += "Component Number already exists";
-        }
+        let errorMessage = "Duplicate entry: Component Number already exists";
         Swal.fire("Duplicate entry", errorMessage, "error");
         return;
       }
@@ -523,7 +516,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                 </div>
                 <div className={`form_field  ${errors.cycle_time ? 'error-outline' : ''}`}>
                   <DemoItem className="white-label">
-                    <MobileTimePicker
+                    <TimePicker
                       {...register("cycle_time", {
                         required: "Cycle Time is required",
                         validate: (value, formValues) => {
@@ -558,27 +551,19 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                       ampm={false}
                       error={!!errors.cycle_time}
                       InputLabelProps={{ required: true }}
+                      slotProps={{
+                        textField: {
+                          placeholder: "HH:mm:ss",   // allows typing manually
+                        }
+                      }}
                       sx={{
                         '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: 'orange',
-                          },
-                          '& .MuiOutlinedInput-input': {
-                            color: 'black',
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-input': {
-                            caretColor: 'orange',
-                          },
-                          '&::placeholder': {
-                            color: 'black',
-                            opacity: 1,
-                          },
+                          '& fieldset': { borderColor: 'black' },
+                          '&:hover fieldset': { borderColor: 'black' },
+                          '&.Mui-focused fieldset': { borderColor: 'orange' },
+                          '& .MuiOutlinedInput-input': { color: 'black' },
+                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+                          '&::placeholder': { color: 'black', opacity: 1 },
                         },
                       }}
                     />
@@ -587,7 +572,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                 </div>
                 <div className={`form_field  ${errors.handling_time ? 'error-outline' : ''}`}>
                   <DemoItem>
-                    <MobileTimePicker
+                    <TimePicker
                       {...register("handling_time", {
                         required: "Handling Time is required",
                         validate: (value, formValues) => {
@@ -622,27 +607,19 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                       label="Handling Time *"
                       error={!!errors.handling_time}
                       InputLabelProps={{ required: true }}
+                      slotProps={{
+                        textField: {
+                          placeholder: "HH:mm:ss",   // ✅ allows manual typing
+                        }
+                      }}
                       sx={{
                         '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: 'orange',
-                          },
-                          '& .MuiOutlinedInput-input': {
-                            color: 'black',
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-input': {
-                            caretColor: 'orange',
-                          },
-                          '&::placeholder': {
-                            color: 'black',
-                            opacity: 1,
-                          },
+                          '& fieldset': { borderColor: 'black' },
+                          '&:hover fieldset': { borderColor: 'black' },
+                          '&.Mui-focused fieldset': { borderColor: 'orange' },
+                          '& .MuiOutlinedInput-input': { color: 'black' },
+                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+                          '&::placeholder': { color: 'black', opacity: 1 },
                         },
                       }}
                     />
@@ -651,7 +628,8 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                 </div>
                 <div className={`form_field  ${errors.setupTime ? 'error-outline' : ''}`}>
                   <DemoItem>
-                    <MobileTimePicker
+
+                    <TimePicker
                       {...register("setupTime", {
                         required: "Setup Time is required",
                         validate: (value, formValues) => {
@@ -686,30 +664,23 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                       ampm={false}
                       error={!!errors.setupTime}
                       InputLabelProps={{ required: true }}
+                      slotProps={{
+                        textField: {
+                          placeholder: "HH:mm:ss",   // ✅ allows manual typing
+                        }
+                      }}
                       sx={{
                         '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: 'orange',
-                          },
-                          '& .MuiOutlinedInput-input': {
-                            color: 'black',
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-input': {
-                            caretColor: 'orange',
-                          },
-                          '&::placeholder': {
-                            color: 'black',
-                            opacity: 1,
-                          },
+                          '& fieldset': { borderColor: 'black' },
+                          '&:hover fieldset': { borderColor: 'black' },
+                          '&.Mui-focused fieldset': { borderColor: 'orange' },
+                          '& .MuiOutlinedInput-input': { color: 'black' },
+                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+                          '&::placeholder': { color: 'black', opacity: 1 },
                         },
                       }}
                     />
+
                   </DemoItem>
                   {errors.setupTime && <div className="mat-error">{errors.setupTime.message}</div>}
                 </div>

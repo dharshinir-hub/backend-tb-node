@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef,useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
-import { MobileTimePicker, LocalizationProvider } from '@mui/x-date-pickers';
+import { MobileTimePicker, LocalizationProvider, TimePicker } from '@mui/x-date-pickers';
 import { DemoItem } from '@mui/x-date-pickers/internals/demo';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs'; // Added dayjs import for parsing time strings
 import './componentreg.css';
 import { useForm } from 'react-hook-form';
-import { CustomDaySelect,convertTo24Hour } from '../Inputfield/inputfield';
+import { CustomDaySelect, convertTo24Hour } from '../Inputfield/inputfield';
 import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
@@ -23,81 +23,81 @@ import { shiftadd } from '../../Services/app/masterservice';
 // and the 'format' prop on the picker will ensure only the time is displayed.
 
 const parseTime = (timeString) => {
-    if (!timeString) return null;
-    
-    let parsed = null;
-    
-    // Attempt 1: Parse as HH:mm:ss by prepending a dummy date.
-    // This is the most common format for the dialogData times (e.g., "08:00:00").
-    parsed = dayjs(`2000-01-01 ${timeString}`, 'YYYY-MM-DD HH:mm:ss');
-    if (parsed.isValid()) {
+  if (!timeString) return null;
+
+  let parsed = null;
+
+  // Attempt 1: Parse as HH:mm:ss by prepending a dummy date.
+  // This is the most common format for the dialogData times (e.g., "08:00:00").
+  parsed = dayjs(`2000-01-01 ${timeString}`, 'YYYY-MM-DD HH:mm:ss');
+  if (parsed.isValid()) {
+    // Convert from GMT to IST (add 5 hours 30 minutes)
+    return parsed.add(5, 'hour').add(30, 'minute');
+  }
+
+  // Attempt 2: If the above fails, try parsing as a full date/time string
+  // (e.g., "Tue10jun2025 18:30:00 GMT"). 
+  parsed = dayjs(timeString);
+  if (parsed.isValid()) {
+    // Check if the string contains 'GMT' to determine if conversion is needed
+    if (timeString.includes('GMT')) {
       // Convert from GMT to IST (add 5 hours 30 minutes)
       return parsed.add(5, 'hour').add(30, 'minute');
+    } else {
+      // If no GMT indication, assume it's already in local time
+      return parsed;
     }
-  
-    // Attempt 2: If the above fails, try parsing as a full date/time string
-    // (e.g., "Tue10jun2025 18:30:00 GMT"). 
-    parsed = dayjs(timeString);
+  }
+
+  // Attempt 3: Try parsing with explicit GMT timezone
+  parsed = dayjs(timeString + ' GMT');
+  if (parsed.isValid()) {
+    // Convert from GMT to IST (add 5 hours 30 minutes)
+    return parsed.add(5, 'hour').add(30, 'minute');
+  }
+
+  // If still not valid, return null
+  return null;
+};
+const parseTime24 = (timeString) => {
+  if (!timeString) return null;
+
+  try {
+    // Parse using 24-hour format
+    const parsed = dayjs(timeString, 'HH:mm:ss', true);
+
     if (parsed.isValid()) {
-      // Check if the string contains 'GMT' to determine if conversion is needed
-      if (timeString.includes('GMT')) {
-        // Convert from GMT to IST (add 5 hours 30 minutes)
-        return parsed.add(5, 'hour').add(30, 'minute');
-      } else {
-        // If no GMT indication, assume it's already in local time
+      const hours = parsed.hour();
+      const minutes = parsed.minute();
+      const seconds = parsed.second();
+
+      // Validate 24-hour format bounds
+      if (
+        hours >= 0 && hours <= 23 &&
+        minutes >= 0 && minutes <= 59 &&
+        seconds >= 0 && seconds <= 59
+      ) {
+        // Return the dayjs object instead of formatted string
         return parsed;
       }
     }
-    
-    // Attempt 3: Try parsing with explicit GMT timezone
-    parsed = dayjs(timeString + ' GMT');
-    if (parsed.isValid()) {
-      // Convert from GMT to IST (add 5 hours 30 minutes)
-      return parsed.add(5, 'hour').add(30, 'minute');
-    }
-    
-    // If still not valid, return null
+
     return null;
-  };
-  const parseTime24 = (timeString) => {
-    if (!timeString) return null;
-
-    try {
-        // Parse using 24-hour format
-        const parsed = dayjs(timeString, 'HH:mm:ss', true);
-
-        if (parsed.isValid()) {
-            const hours = parsed.hour();
-            const minutes = parsed.minute();
-            const seconds = parsed.second();
-
-            // Validate 24-hour format bounds
-            if (
-                hours >= 0 && hours <= 23 &&
-                minutes >= 0 && minutes <= 59 &&
-                seconds >= 0 && seconds <= 59
-            ) {
-                // Return the dayjs object instead of formatted string
-                return parsed;
-            }
-        }
-
-        return null;
-    } catch (error) {
-        console.error('Error parsing time:', error);
-        return null;
-    }
+  } catch (error) {
+    console.error('Error parsing time:', error);
+    return null;
+  }
 };
 
 
 export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId, dialogData }) {
-    console.log('datasource', datasource);
-    console.log('dialogData', dialogData);
+  console.log('datasource', datasource);
+  console.log('dialogData', dialogData);
   const customDaySelectRef = useRef();
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
   const [shiftsmodule, setShiftsmodule] = useState([]);
 
-      
+
 
   const modeSelectRef = useRef();
 
@@ -114,20 +114,20 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
           }
         }
       }, 300);
-  
+
       return () => clearTimeout(timer);
     }
   }, [open]);
   const { register, handleSubmit, formState: { errors }, trigger, setValue, reset } = useForm({
     shouldFocusError: true,
     mode: 'onBlur'
-});
-    const handleFormChange = (event) => {
-        const { name, value } = event.target;
-        setShiftForm({ ...shiftForm, [name]: value });
-        setValue(name, value); // Update the form state in react-hook-form
-        trigger(name); // Trigger validation for this field
-      };
+  });
+  const handleFormChange = (event) => {
+    const { name, value } = event.target;
+    setShiftForm({ ...shiftForm, [name]: value });
+    setValue(name, value); // Update the form state in react-hook-form
+    trigger(name); // Trigger validation for this field
+  };
   const defaultShiftForm = useMemo(() => ({
     component_name: '',
     component_number: '',
@@ -135,200 +135,200 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
     operation_name: '',
     factorval: '',
     factor: '',
-    jobcard:'',
-    drawingcode:'',
+    jobcard: '',
+    drawingcode: '',
     cycle_time: null,
     handling_time: null,
     setupTime: null
   }), []);
-    const handleTimeChange = (name, value) => {
-        if (value && value.isValid()) {
-            setShiftForm((prevShiftForm) => ({
-                ...prevShiftForm,
-                [name]: value,
-            }));
-            setValue(name, value); // Update the form state in react-hook-form
-            trigger(name); // Trigger validation for this field
-        }
-    };
-    const [shiftForm, setShiftForm] = useState(defaultShiftForm);
-    const onSubmit = async (data) => {
-        try {
-          const startTimeString = shiftForm.cycle_time.format('hh:mm:ss A');
-          const endTimeString = shiftForm.handling_time.format('hh:mm:ss A');
-          const breakTimeString = shiftForm.setupTime.format('hh:mm:ss A'); // Changed to 'hh:mm:ss A' for consistency
-      
-          const cycle_time = convertTo24Hour(startTimeString);
-          const handling_time = convertTo24Hour(endTimeString);
-          const setupTime = convertTo24Hour(breakTimeString);
-          
-          console.log('Shift start time:', cycle_time); // Should print "08:30:00" or similar
-          console.log('Shift end time:', handling_time);     // Should print "17:45:00" or similar
-          console.log('Break time:', setupTime);       // Should print "12:00:00" or similar
-          const selectedModule = shiftsmodule.find(option => option.value === data.factor);
-        const moduleLabel = selectedModule ? selectedModule.label : '';
-        
-      
-          // Find the end day label based on the selected value
-          // Get the ID of the shift being edited from dialogData.
-          // dialogData is expected to be available in this component's scope,
-          // typically passed as a prop or derived from context/state when the dialog opens for editing.
-          const shiftIdToEdit = dialogData?.id;
-    
-          // Assuming 'datasource' is an array containing existing shift data.
-          // If 'datasource' is not an array or is undefined, initialize as an empty array.
-          let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
-    
-          let existingShiftIndex = -1;
-          let existingIdStructure = null; // To preserve the original ID structure (e.g., { $oid: "..." } or string)
-    
-          if (shiftIdToEdit) {
-              // Find the index of the shift to be updated based on its ID.
-              // Handle both string IDs and object IDs (like { $oid: "..." }) as per the concept.
-              existingShiftIndex = existingShifts.findIndex(item => {
-                  const itemId = typeof item.id === 'object' && item.id !== null ? item.id.$oid : item.id;
-                  const targetId = typeof shiftIdToEdit === 'object' && shiftIdToEdit !== null ? shiftIdToEdit.$oid : shiftIdToEdit;
-                  return itemId === targetId;
-              });
-    
-              if (existingShiftIndex !== -1) {
-                  // If the shift is found, preserve its original ID structure.
-                  existingIdStructure = existingShifts[existingShiftIndex].id;
-              }
-          }
-    
-          if (existingShiftIndex === -1) {
-              // If the shift to edit was not found, it's an error in an edit context.
-              console.error('Shift not found for ID:', shiftIdToEdit, 'Cannot update.');
-              Swal.fire('Error', 'Shift not found for update. Please try again.', 'error');
-              handleClose(); // Close the dialog
-              reset(defaultShiftForm); // Reset form state
-              return; // Stop the submission process
-          }
-    
-          // This object represents the updated shift data.
-          // Use the preserved ID structure for the updated shift.
-          const updatedShiftData = {
-            id: existingIdStructure,
-            component_name:  data.component_name,
-            component_number:  data.component_number,
-            operation_number: data.operation_number,
-            operation_name:data.operation_name,
-            factorval: data.factorval,
-            factor: moduleLabel,
-            jobcard:data.jobcard,
-            drawingcode:data.drawingcode,
-            cycle_time: cycle_time,
-            handling_time: handling_time,
-            setupTime: setupTime
- 
-          };
-    
-          // Update the existing shift in the array with the new data.
-          existingShifts[existingShiftIndex] = updatedShiftData;
-          console.log('Shift updated at index:', existingShiftIndex, 'with data:', updatedShiftData);
-    
-          console.log('existingShifts after update:', existingShifts);
-          // const isDuplicate = existingShifts.some(
-          //   shift =>
-          //     shift.component_name.trim().toLowerCase() === data.component_name.trim().toLowerCase() &&
-          //     shift.component_number.trim().toLowerCase() === data.component_number.trim().toLowerCase()
-          // );
-      
-          // if (isDuplicate) {
-          //   handleClose();
-          //   Swal.fire("Duplicate entry", "Component Name and Number already exist", "error");
-          //   return;
-          // }
-          // Prepare the final payload to be sent to the API.
-          // This structure aligns with the existing `formData` definition in this file,
-          // where 'allShift' contains the updated list of shifts.
-          const formData = {
-            component: existingShifts,
-            lastUpdateTs: Date.now()
-          };
-    
-          console.log('Submitted shift data:', JSON.stringify(formData));
-          console.log('customerId', customerId);
-          const scope = 'SERVER_SCOPE';
-          // Make the API call
-          
-          const response = await shiftadd(formData,customerId,scope);
-          console.log('Shift Updated response:', response);
-      
-          if (response.msg) {
-            Swal.fire(response.msg);
-          } else {
-            Swal.fire("Updated Successfully");
-          }
-      
-          handleClose();
-          reset(defaultShiftForm);
-        } catch (error) {
-          
-          handleClose();
-          reset(defaultShiftForm);
-          console.error('Error submitting shift data:', error);
-          Swal.fire('Error submitting shift data: ' + error.message);
-        }
-      };
-      useEffect(() => {
-        // Initialize shiftsmodule when component mounts
-        const fallbackOptions = [
-            { value: 'Multiplication Factor', label: 'Multiplication Factor' },
-            { value: 'Divide Factor', label: 'Divide Factor' },    
-          ];
-        setShiftsmodule(fallbackOptions);
-    }, []); // Empty dependency array - runs only once
-  useEffect(() => {
-        
-    if (!open) {
-        reset(defaultShiftForm);
-        setShiftForm(defaultShiftForm);
-    } else {
-        
-        if (dialogData) {
-
-            // Convert 24-hour time strings to Dayjs objects for 12-hour display
-            const initialFormState = {
-                // Use the helper function to parse 24-hour times
-                    cycle_time: parseTime24(dialogData.cycle_time),
-                    handling_time: parseTime24(dialogData.handling_time),
-                    setupTime: parseTime24(dialogData.setupTime),
-                    component_name: dialogData.component_name || '',
-                    component_number: dialogData.component_number || '',
-                    operation_number: dialogData.operation_number ? Number(dialogData.operation_number) : '',
-                    operation_name: dialogData.operation_name || '',
-                    factorval: dialogData.factorval ? Number(dialogData.factorval) : '',
-                    factor: dialogData.factor || '',
-                    jobcard: dialogData.jobcard || '',
-                    drawingcode: dialogData.drawingcode || '',
-            };
-
-            // Find the correct module value if shiftsmodule is already loaded
-            if (shiftsmodule.length > 0 && dialogData.module) {
-                const selectedModuleOption = shiftsmodule.find(option => option.label === dialogData.module);
-                if (selectedModuleOption) {
-                    initialFormState.module = selectedModuleOption.value;
-                }
-            }
-            
-            setShiftForm(initialFormState);
-            reset(initialFormState);
-        } else {
-            setShiftForm(defaultShiftForm);
-            reset(defaultShiftForm);
-        }
+  const handleTimeChange = (name, value) => {
+    if (value && value.isValid()) {
+      setShiftForm((prevShiftForm) => ({
+        ...prevShiftForm,
+        [name]: value,
+      }));
+      setValue(name, value); // Update the form state in react-hook-form
+      trigger(name); // Trigger validation for this field
     }
-}, [open, reset, defaultShiftForm, dialogData, shiftsmodule]);
+  };
+  const [shiftForm, setShiftForm] = useState(defaultShiftForm);
+  const onSubmit = async (data) => {
+    try {
+      const startTimeString = shiftForm.cycle_time.format('hh:mm:ss A');
+      const endTimeString = shiftForm.handling_time.format('hh:mm:ss A');
+      const breakTimeString = shiftForm.setupTime.format('hh:mm:ss A'); // Changed to 'hh:mm:ss A' for consistency
 
-    // Rest of the component remains the same...
-    // (keeping all the existing code for getShiftsAdddata, handleFormChange, handleTimeChange, onSubmit, and the JSX return)
+      const cycle_time = convertTo24Hour(startTimeString);
+      const handling_time = convertTo24Hour(endTimeString);
+      const setupTime = convertTo24Hour(breakTimeString);
+
+      console.log('Shift start time:', cycle_time); // Should print "08:30:00" or similar
+      console.log('Shift end time:', handling_time);     // Should print "17:45:00" or similar
+      console.log('Break time:', setupTime);       // Should print "12:00:00" or similar
+      const selectedModule = shiftsmodule.find(option => option.value === data.factor);
+      const moduleLabel = selectedModule ? selectedModule.label : '';
+
+
+      // Find the end day label based on the selected value
+      // Get the ID of the shift being edited from dialogData.
+      // dialogData is expected to be available in this component's scope,
+      // typically passed as a prop or derived from context/state when the dialog opens for editing.
+      const shiftIdToEdit = dialogData?.id;
+
+      // Assuming 'datasource' is an array containing existing shift data.
+      // If 'datasource' is not an array or is undefined, initialize as an empty array.
+      let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
+
+      let existingShiftIndex = -1;
+      let existingIdStructure = null; // To preserve the original ID structure (e.g., { $oid: "..." } or string)
+
+      if (shiftIdToEdit) {
+        // Find the index of the shift to be updated based on its ID.
+        // Handle both string IDs and object IDs (like { $oid: "..." }) as per the concept.
+        existingShiftIndex = existingShifts.findIndex(item => {
+          const itemId = typeof item.id === 'object' && item.id !== null ? item.id.$oid : item.id;
+          const targetId = typeof shiftIdToEdit === 'object' && shiftIdToEdit !== null ? shiftIdToEdit.$oid : shiftIdToEdit;
+          return itemId === targetId;
+        });
+
+        if (existingShiftIndex !== -1) {
+          // If the shift is found, preserve its original ID structure.
+          existingIdStructure = existingShifts[existingShiftIndex].id;
+        }
+      }
+
+      if (existingShiftIndex === -1) {
+        // If the shift to edit was not found, it's an error in an edit context.
+        console.error('Shift not found for ID:', shiftIdToEdit, 'Cannot update.');
+        Swal.fire('Error', 'Shift not found for update. Please try again.', 'error');
+        handleClose(); // Close the dialog
+        reset(defaultShiftForm); // Reset form state
+        return; // Stop the submission process
+      }
+
+      // This object represents the updated shift data.
+      // Use the preserved ID structure for the updated shift.
+      const updatedShiftData = {
+        id: existingIdStructure,
+        component_name: data.component_name,
+        component_number: data.component_number,
+        operation_number: data.operation_number,
+        operation_name: data.operation_name,
+        factorval: data.factorval,
+        factor: moduleLabel,
+        jobcard: data.jobcard,
+        drawingcode: data.drawingcode,
+        cycle_time: cycle_time,
+        handling_time: handling_time,
+        setupTime: setupTime
+
+      };
+
+      // Update the existing shift in the array with the new data.
+      existingShifts[existingShiftIndex] = updatedShiftData;
+      console.log('Shift updated at index:', existingShiftIndex, 'with data:', updatedShiftData);
+
+      console.log('existingShifts after update:', existingShifts);
+      // const isDuplicate = existingShifts.some(
+      //   shift =>
+      //     shift.component_name.trim().toLowerCase() === data.component_name.trim().toLowerCase() &&
+      //     shift.component_number.trim().toLowerCase() === data.component_number.trim().toLowerCase()
+      // );
+
+      // if (isDuplicate) {
+      //   handleClose();
+      //   Swal.fire("Duplicate entry", "Component Name and Number already exist", "error");
+      //   return;
+      // }
+      // Prepare the final payload to be sent to the API.
+      // This structure aligns with the existing `formData` definition in this file,
+      // where 'allShift' contains the updated list of shifts.
+      const formData = {
+        component: existingShifts,
+        lastUpdateTs: Date.now()
+      };
+
+      console.log('Submitted shift data:', JSON.stringify(formData));
+      console.log('customerId', customerId);
+      const scope = 'SERVER_SCOPE';
+      // Make the API call
+
+      const response = await shiftadd(formData, customerId, scope);
+      console.log('Shift Updated response:', response);
+
+      if (response.msg) {
+        Swal.fire(response.msg);
+      } else {
+        Swal.fire("Updated Successfully");
+      }
+
+      handleClose();
+      reset(defaultShiftForm);
+    } catch (error) {
+
+      handleClose();
+      reset(defaultShiftForm);
+      console.error('Error submitting shift data:', error);
+      Swal.fire('Error submitting shift data: ' + error.message);
+    }
+  };
+  useEffect(() => {
+    // Initialize shiftsmodule when component mounts
+    const fallbackOptions = [
+      { value: 'Multiplication Factor', label: 'Multiplication Factor' },
+      { value: 'Divide Factor', label: 'Divide Factor' },
+    ];
+    setShiftsmodule(fallbackOptions);
+  }, []); // Empty dependency array - runs only once
+  useEffect(() => {
+
+    if (!open) {
+      reset(defaultShiftForm);
+      setShiftForm(defaultShiftForm);
+    } else {
+
+      if (dialogData) {
+
+        // Convert 24-hour time strings to Dayjs objects for 12-hour display
+        const initialFormState = {
+          // Use the helper function to parse 24-hour times
+          cycle_time: parseTime24(dialogData.cycle_time),
+          handling_time: parseTime24(dialogData.handling_time),
+          setupTime: parseTime24(dialogData.setupTime),
+          component_name: dialogData.component_name || '',
+          component_number: dialogData.component_number || '',
+          operation_number: dialogData.operation_number ? Number(dialogData.operation_number) : '',
+          operation_name: dialogData.operation_name || '',
+          factorval: dialogData.factorval ? Number(dialogData.factorval) : '',
+          factor: dialogData.factor || '',
+          jobcard: dialogData.jobcard || '',
+          drawingcode: dialogData.drawingcode || '',
+        };
+
+        // Find the correct module value if shiftsmodule is already loaded
+        if (shiftsmodule.length > 0 && dialogData.module) {
+          const selectedModuleOption = shiftsmodule.find(option => option.label === dialogData.module);
+          if (selectedModuleOption) {
+            initialFormState.module = selectedModuleOption.value;
+          }
+        }
+
+        setShiftForm(initialFormState);
+        reset(initialFormState);
+      } else {
+        setShiftForm(defaultShiftForm);
+        reset(defaultShiftForm);
+      }
+    }
+  }, [open, reset, defaultShiftForm, dialogData, shiftsmodule]);
+
+  // Rest of the component remains the same...
+  // (keeping all the existing code for getShiftsAdddata, handleFormChange, handleTimeChange, onSubmit, and the JSX return)
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="300px" PaperProps={{ style: { backgroundColor: dialogBackgroundColor } }}>
-            {/* Dialog content remains the same, but update the MobileTimePicker components */}
-            <DialogTitle style={{ color: 'black' }}>Edit Component </DialogTitle>
+      {/* Dialog content remains the same, but update the MobileTimePicker components */}
+      <DialogTitle style={{ color: 'black' }}>Edit Component </DialogTitle>
       <div className="close_modal">
         <Tooltip title="Close">
           <IconButton aria-label="close" onClick={handleClose} style={{ backgroundColor: '#ffffff' }}>
@@ -341,15 +341,16 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
           <form onSubmit={handleSubmit(onSubmit)} className="form_sec shift_form" autoComplete="off">
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <div className="form_sec_fields">
-                    {/* Component Name Field */}
-                    <div className={`form_field ${errors.component_name ? 'error-outline' : ''}`}>
+                {/* Component Name Field */}
+                <div className={`form_field ${errors.component_name ? 'error-outline' : ''}`}>
                   <TextField
-                    {...register("component_name", { required: "Component Name is required",                      
-                    maxLength: {
-                      value: 100,
-                      message: "Maximum length is 100 characters"
-                    }
-                     })}
+                    {...register("component_name", {
+                      required: "Component Name is required",
+                      maxLength: {
+                        value: 100,
+                        message: "Maximum length is 100 characters"
+                      }
+                    })}
                     label="Component Name"
                     type="text"
                     name="component_name"
@@ -359,7 +360,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     inputProps={{ maxLength: 100 }}
                     disabled
                     InputLabelProps={{
-                      required: true, 
+                      required: true,
                       sx: {
                         color: 'black',
                         '&.Mui-focused': {
@@ -398,11 +399,13 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                 {/* Component Number Field */}
                 <div className={`form_field ${errors.component_number ? 'error-outline' : ''}`}>
                   <TextField
-                    {...register("component_number", { required: "Component Number is required",
+                    {...register("component_number", {
+                      required: "Component Number is required",
                       maxLength: {
                         value: 100,
                         message: "Maximum length is 100 characters"
-                      }})}
+                      }
+                    })}
                     label="Component Number"
                     type="text"
                     disabled
@@ -602,9 +605,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     value={shiftForm.factorval}
                     onChange={handleFormChange}
                     error={!!errors.factorval}
-                    inputProps={{ maxLength: 100,min:1 }}
+                    inputProps={{ maxLength: 100, min: 1 }}
                     InputLabelProps={{
-                      required: true, 
+                      required: true,
                       sx: {
                         color: 'black',
                         '&.Mui-focused': {
@@ -640,16 +643,16 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                   {errors.factorval && <div className="mat-error">{errors.factorval.message}</div>} {/* Changed to div and mat-error */}
                 </div>
                 <div className={`form_field  ${errors.factor ? 'error-outline' : ''}`}>
-                <CustomDaySelect
+                  <CustomDaySelect
                     {...register("factor", { required: "Factor is required" })}
                     onBlur={() => trigger('factor')}
                     ref={customDaySelectRef}
                     name="factor"
                     value={shiftForm.factor}
                     onChange={handleFormChange}
-                    label="Select Factor" 
+                    label="Select Factor"
                     inputProps={{ maxLength: 100 }}
-                    required={true} 
+                    required={true}
                     options={shiftsmodule}
                     error={!!errors.factor}
                   />
@@ -657,7 +660,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                 </div>
                 <div className={`form_field  ${errors.cycle_time ? 'error-outline' : ''}`}>
                   <DemoItem className="white-label">
-                    <MobileTimePicker
+                    <TimePicker
                       {...register("cycle_time", {
                         required: "Cycle Time is required",
                         validate: (value, formValues) => {
@@ -688,31 +691,23 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       views={['hours', 'minutes', 'seconds']}
                       openTo="hours"
                       format="HH:mm:ss"
-                      label="Cycle Time *" 
+                      label="Cycle Time *"
                       ampm={false}
                       error={!!errors.cycle_time}
                       InputLabelProps={{ required: true }}
+                      slotProps={{
+                        textField: {
+                          placeholder: "HH:mm:ss",   // allows typing manually
+                        }
+                      }}
                       sx={{
                         '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: 'orange',
-                          },
-                          '& .MuiOutlinedInput-input': {
-                            color: 'black',
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-input': {
-                            caretColor: 'orange',
-                          },
-                          '&::placeholder': {
-                            color: 'black',
-                            opacity: 1,
-                          },
+                          '& fieldset': { borderColor: 'black' },
+                          '&:hover fieldset': { borderColor: 'black' },
+                          '&.Mui-focused fieldset': { borderColor: 'orange' },
+                          '& .MuiOutlinedInput-input': { color: 'black' },
+                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+                          '&::placeholder': { color: 'black', opacity: 1 },
                         },
                       }}
                     />
@@ -721,7 +716,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                 </div>
                 <div className={`form_field  ${errors.handling_time ? 'error-outline' : ''}`}>
                   <DemoItem>
-                    <MobileTimePicker
+                    <TimePicker
                       {...register("handling_time", {
                         required: "Handling Time is required",
                         validate: (value, formValues) => {
@@ -756,27 +751,19 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       label="Handling Time *"
                       error={!!errors.handling_time}
                       InputLabelProps={{ required: true }}
+                      slotProps={{
+                        textField: {
+                          placeholder: "HH:mm:ss",   // ✅ allows manual typing
+                        }
+                      }}
                       sx={{
                         '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: 'orange',
-                          },
-                          '& .MuiOutlinedInput-input': {
-                            color: 'black',
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-input': {
-                            caretColor: 'orange',
-                          },
-                          '&::placeholder': {
-                            color: 'black',
-                            opacity: 1,
-                          },
+                          '& fieldset': { borderColor: 'black' },
+                          '&:hover fieldset': { borderColor: 'black' },
+                          '&.Mui-focused fieldset': { borderColor: 'orange' },
+                          '& .MuiOutlinedInput-input': { color: 'black' },
+                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+                          '&::placeholder': { color: 'black', opacity: 1 },
                         },
                       }}
                     />
@@ -785,8 +772,8 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                 </div>
                 <div className={`form_field  ${errors.setupTime ? 'error-outline' : ''}`}>
                   <DemoItem>
-                    <MobileTimePicker 
-                      {...register("setupTime", { 
+                    <TimePicker
+                      {...register("setupTime", {
                         required: "Setup Time is required",
                         validate: (value, formValues) => {
                           const setupTime = value;
@@ -819,36 +806,28 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       label="Setup Time *"
                       ampm={false}
                       error={!!errors.setupTime}
-                      InputLabelProps={{ required: true }} 
+                      InputLabelProps={{ required: true }}
+                      slotProps={{
+                        textField: {
+                          placeholder: "HH:mm:ss",   // ✅ allows manual typing
+                        }
+                      }}
                       sx={{
                         '& .MuiOutlinedInput-root': {
-                          '& fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: 'black',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: 'orange',
-                          },
-                          '& .MuiOutlinedInput-input': {
-                            color: 'black',
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-input': {
-                            caretColor: 'orange',
-                          },
-                          '&::placeholder': {
-                            color: 'black',
-                            opacity: 1,
-                          },
+                          '& fieldset': { borderColor: 'black' },
+                          '&:hover fieldset': { borderColor: 'black' },
+                          '&.Mui-focused fieldset': { borderColor: 'orange' },
+                          '& .MuiOutlinedInput-input': { color: 'black' },
+                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+                          '&::placeholder': { color: 'black', opacity: 1 },
                         },
                       }}
                     />
                   </DemoItem>
                   {errors.setupTime && <div className="mat-error">{errors.setupTime.message}</div>}
                 </div>
-              
-                               
+
+
                 {/* Operation Number Field 
                 <div className={`form_field ${errors.jobcard ? 'error-outline' : ''}`}>
                   <TextField
@@ -963,11 +942,11 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
 
 
 
-             {/* Rest of the form fields remain the same */}
+                {/* Rest of the form fields remain the same */}
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
-                            <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning">
+              <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning">
                 Save
               </Button>
             </div>
