@@ -151,6 +151,13 @@ function Operator() {
             const shifts = response[0]?.value || [];
             const currentActiveShift = await getCurrentShift(shifts, dayjs());
             const { shiftStart, now } = getShiftEpoch(currentActiveShift?.start_time);
+            const operatorResponse = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
+            const operatorData = operatorResponse?.[0]?.value || [];
+            const mappedOperators = operatorData.map((op) => ({
+                id: op.operatorid,
+                name: op.operatorname,
+            }));
+            setOperators(mappedOperators);
             const keysConfig = [
                 { key: "machine_status", isJson: false },
                 { key: "targetparts", isJson: false },
@@ -848,15 +855,15 @@ function Operator() {
                 localStorage.setItem("role_name1", secondResponse.Role);
                 startTokenAutoRefresh();
                 await fetchDevices();
-                const operatorResponse = await getOperatorDetails(
-                    window._env_.CUSTOMER_ID
-                );
-                const responseData = operatorResponse?.[0]?.value || [];
-                const mappedOperators = responseData.map((op) => ({
-                    id: op.operatorid,
-                    name: op.operatorname,
-                }));
-                setOperators(mappedOperators);
+                // const operatorResponse = await getOperatorDetails(
+                //     window._env_.CUSTOMER_ID
+                // );
+                // const responseData = operatorResponse?.[0]?.value || [];
+                // const mappedOperators = responseData.map((op) => ({
+                //     id: op.operatorid,
+                //     name: op.operatorname,
+                // }));
+                // setOperators(mappedOperators);
             } catch (err) {
                 console.error("Init failed", err);
             }
