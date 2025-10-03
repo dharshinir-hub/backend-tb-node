@@ -23,6 +23,13 @@ const OperatorRegistration = () => {
     const [datasource, setDatasource] = useState([]);
     const customerId = localStorage.getItem('CustomerID');
 
+      const [customerTitle, setCustomerTitle] = useState("");
+    
+      useEffect(() => {
+        const title = localStorage.getItem("customerTitle") || "";
+        setCustomerTitle(title);
+      }, []);
+
     // Handlers for Add Shift dialog
     const handleOpenAddDialog = () => {
         setIsAddDialogOpen(true);
@@ -191,7 +198,7 @@ const OperatorRegistration = () => {
                                     <TableCell>User Name</TableCell>                                   
                                     <TableCell>User ID</TableCell>                                   
                                     <TableCell>Role</TableCell>
-                                   <TableCell>Password</TableCell>
+                                     {customerTitle === 'PMI GLOBAL' && (<TableCell>Password</TableCell>)}
                                     {/* <TableCell>Experience Level</TableCell> */}
                                     {/* <TableCell>Languages</TableCell> */}
                                     <TableCell>Action</TableCell>
@@ -203,7 +210,10 @@ const OperatorRegistration = () => {
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operatorname || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operatorid || '---'}</TableCell>                                        
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.mode || '---'}</TableCell>
-                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.password ? '***' : '---'}</TableCell>
+                                        {customerTitle === 'PMI GLOBAL' && (
+ <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.password ? '***' : '---'}</TableCell>
+                                        )}
+                                        
                                         {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                             {row.experiencelevel || '---'}
                                         </TableCell>
