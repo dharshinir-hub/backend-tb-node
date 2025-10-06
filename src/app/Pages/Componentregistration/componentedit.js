@@ -696,6 +696,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       {...register("cycle_time", {
                         required: "Cycle Time is required",
                         validate: (value, formValues) => {
+                          if (customerTitle === "ATECH") {
+                            return true;
+                          }
                           const cycleTime = value;
                           const handlingTime = formValues.handling_time;
                           const setupTime = formValues.setupTime;
@@ -752,6 +755,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       {...register("handling_time", {
                         required: "Handling Time is required",
                         validate: (value, formValues) => {
+                          if (customerTitle === "ATECH") {
+                            return true;
+                          }
                           const handlingTime = value;
                           const cycleTime = formValues.cycle_time;
                           const setupTime = formValues.setupTime;
@@ -808,6 +814,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       {...register("setupTime", {
                         required: "Setup Time is required",
                         validate: (value, formValues) => {
+                          if (customerTitle === "ATECH") {
+                            return true;
+                          }
                           const setupTime = value;
                           const cycleTime = formValues.cycle_time;
                           const handlingTime = formValues.handling_time;

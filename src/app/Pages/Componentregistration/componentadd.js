@@ -557,7 +557,11 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                     <TimePicker
                       {...register("cycle_time", {
                         required: "Cycle Time is required",
+                        
                         validate: (value, formValues) => {
+                          if (customerTitle === "ATECH") {
+                            return true;
+                          }
                           const cycleTime = value;
                           const handlingTime = formValues.handling_time;
                           const setupTime = formValues.setupTime;
@@ -614,6 +618,9 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                       {...register("handling_time", {
                         required: "Handling Time is required",
                         validate: (value, formValues) => {
+                          if (customerTitle === "ATECH") {
+                            return true;
+                          }
                           const handlingTime = value;
                           const cycleTime = formValues.cycle_time;
                           const setupTime = formValues.setupTime;
@@ -671,6 +678,9 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                       {...register("setupTime", {
                         required: "Setup Time is required",
                         validate: (value, formValues) => {
+                          if (customerTitle === "ATECH") {
+                            return true;
+                          }
                           const setupTime = value;
                           const cycleTime = formValues.cycle_time;
                           const handlingTime = formValues.handling_time;

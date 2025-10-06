@@ -115,13 +115,12 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
 
       // ✅ Check for duplicates BEFORE inserting
       const isDuplicate = existingShifts.some(item =>
-        item.operatorid?.toString().trim().toLowerCase() === shiftForm.operatorid.toString().trim().toLowerCase() ||
-        item.operatorname?.toString().trim().toLowerCase() === shiftForm.operatorname.toString().trim().toLowerCase()
+        item.operatorid?.toString().trim().toLowerCase() === shiftForm.operatorid.toString().trim().toLowerCase()
       );
 
       if (isDuplicate) {
         handleClose();
-        Swal.fire('Error', 'Duplicate Operator ID or Operator Name is not allowed.', 'error');
+        Swal.fire('Error', 'Duplicate Operator ID is not allowed.', 'error');
         return;
       }
 
