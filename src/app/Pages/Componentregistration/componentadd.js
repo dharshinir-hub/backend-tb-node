@@ -20,6 +20,8 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
   const customDaySelectRef = useRef();
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
   const [shiftsmodule, setShiftsmodule] = useState([]);
+  const [customerTitle, setCustomerTitle] = useState("");
+  
   const componentNameRef = useRef();
 
   useEffect(() => {
@@ -34,6 +36,11 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
     }
   }, [open]);
 
+  useEffect(() => {
+    const customerTitle = localStorage.getItem('customerTitle');
+    setCustomerTitle(customerTitle);
+  }, []);
+
   const { register, handleSubmit, formState: { errors }, trigger, setValue, reset } = useForm({
     shouldFocusError: true,
     mode: 'onBlur'
@@ -44,6 +51,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
     component_number: '',
     operation_number: '',
     operation_name: '',
+    operation_type: '',
     factorval: '',
     factor: '',
     jobcard: '',
@@ -125,6 +133,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
         component_number: data.component_number,
         operation_number: data.operation_number,
         operation_name: data.operation_name,
+        operation_type: data.operation_type,
         factorval: data.factorval,
         jobcard: data.jobcard,
         drawingcode: data.drawingcode,
@@ -307,6 +316,35 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   )}
                 </div>
 
+                {customerTitle === 'ATECH' && (
+     <div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
+                  <CustomDaySelect
+                    {...register("operation_type", { required: "Operation type is required" })}
+                    onBlur={() => trigger('operation_type')}
+                    name="operation_type"
+                    value={shiftForm.operation_type}
+                    onChange={handleFormChange}
+                    label="Operation Type"
+                    required={true}
+                    options={[
+                      { value: 'VMC', label: 'VMC' },
+                      { value: 'HMC', label: 'HMC' },
+                      { value: 'CNC', label: 'CNC' },
+                      { value: 'TC', label: 'TC' },
+                    ]}
+                    error={!!errors.operation_type}
+                    sx={{
+                     '& .MuiInputLabel-root': {
+                        top: '-6px',
+                        backgroundColor: '#ededed',
+                        padding: '0 4px',
+                      },
+                    }}
+                  />
+                  {errors.operation_type && <div className="mat-error">{errors.operation_type.message}</div>}
+                </div>
+                )}
+               
 
                 {/* Operation Number Field 
                 <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>

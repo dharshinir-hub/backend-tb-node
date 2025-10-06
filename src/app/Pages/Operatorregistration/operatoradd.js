@@ -33,8 +33,7 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
     operatorname: '',
     operatorid: '',
     mode: 'Operator',
-    password: '',
-    type: '',
+    password: ''
     // language:'',
     // experiencelevel: ''
   }), []);
@@ -104,7 +103,6 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
         operatorname: shiftForm.operatorname,
         operatorid: shiftForm.operatorid,
         mode: shiftForm.mode,
-        type: shiftForm.type,
         ...(shiftForm.mode === "Operator" && { password: encryptedPassword })
         // language: shiftForm.language,
         // experiencelevel: shiftForm.experiencelevel,
@@ -452,31 +450,6 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
                     {errors.password && <div className="mat-error">{errors.password.message}</div>}
                   </div>
                 )}
-                <div className={`form_field ${errors.type ? 'error-outline' : ''}`}>
-                  <CustomDaySelect
-                    {...register("type", { required: "Type is required" })}
-                    onBlur={() => trigger('type')}
-                    name="type"
-                    value={shiftForm.type}
-                    onChange={handleFormChange}
-                    label="Select Type"
-                    required={true}
-                    options={[
-                      { value: 'VMC', label: 'VMC' },
-                      { value: 'HMC', label: 'HMC' },
-                      { value: 'CNC', label: 'CNC' },
-                    ]}
-                    error={!!errors.type}
-                    sx={{
-                      width: 250, '& .MuiInputLabel-root': {
-                        top: '-8px',
-                        backgroundColor: '#ededed',
-                        padding: '0 4px',
-                      },
-                    }}
-                  />
-                  {errors.type && <div className="mat-error">{errors.type.message}</div>}
-                </div>
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>

@@ -67,8 +67,7 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
     operatorname: '',
     operatorid: '',
     mode: 'Operator',
-    password: '',
-    type: ''
+    password: ''
     // language:'',
     // experiencelevel: ''
   }), []);
@@ -124,7 +123,6 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
         operatorname: shiftForm.operatorname,
         operatorid: shiftForm.operatorid,
         mode: shiftForm.mode,
-        type: shiftForm.type,
         ...(shiftForm.mode === "Operator" && { password: encryptText(shiftForm.password) })
 
         // language: shiftForm.language,
@@ -184,8 +182,7 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
           mode: dialogData.mode || '',
           language: dialogData.language || '',
           experiencelevel: dialogData.experiencelevel || '',
-          password: dialogData.mode === 'Operator' ? decryptText(dialogData.password) : '',
-          type: dialogData.type || ''
+          password: dialogData.mode === 'Operator' ? decryptText(dialogData.password) : ''
         };
 
         // Find the correct module value if shiftsmodule is already loaded
@@ -498,35 +495,7 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                     {errors.password && <div className="mat-error">{errors.password.message}</div>}
                   </div>
                 )}
-
-                <div className={`form_field ${errors.type ? 'error-outline' : ''}`}>
-                  <CustomDaySelect
-                    {...register("type", { required: "Type is required" })}
-                    name="type"
-                    value={shiftForm.type || ''}
-                    onChange={handleFormChange}
-                    onBlur={() => trigger('type')}
-                    label="Select Type"
-                    required={true}
-                    options={[
-                      { value: 'VMC', label: 'VMC' },
-                      { value: 'HMC', label: 'HMC' },
-                      { value: 'CNC', label: 'CNC' },
-                    ]}
-                    error={!!errors.type}
-                    sx={{
-                      width: 250, '& .MuiInputLabel-root': {
-                        top: '-8px',
-                        backgroundColor: '#ededed',
-                        padding: '0 4px',
-                      },
-                    }}
-                  />
-                  {errors.type && <div className="mat-error">{errors.type.message}</div>}
-                </div>
               </div>
-
-
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
               <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning">

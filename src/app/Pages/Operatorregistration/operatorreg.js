@@ -205,7 +205,7 @@ const OperatorRegistration = () => {
                             sx: { color: 'black', '&.Mui-focused': { color: 'orange' } },
                         }}
                         sx={{
-                            minWidth: 240
+                            minWidth: 300
                         }}
                     />
                 </div>

@@ -18,6 +18,7 @@ const ComponentRegistration = () => {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editDialogData, setEditDialogData] = useState(null); // To store data for the edit dialog
     const [searchText, setSearchText] = useState('');
+  const [customerTitle, setCustomerTitle] = useState("");
 
     // dialogOpenCount is used for background color in dialogs, tracks total open dialogs
     const [dialogOpenCount, setDialogOpenCount] = useState(0);
@@ -34,7 +35,10 @@ const ComponentRegistration = () => {
         setIsAddDialogOpen(true);
         setDialogOpenCount(prevCount => prevCount + 1);
     };
-
+  useEffect(() => {
+    const customerTitle = localStorage.getItem('customerTitle');
+    setCustomerTitle(customerTitle);
+  }, []);
     const handleCloseAddDialog = (event, reason) => {
         if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
             return;
@@ -192,7 +196,7 @@ const ComponentRegistration = () => {
                         </div>
                     </div>
                     <TextField
-                        label="Search Component"
+                        label="Search Component Name or Number"
                         type="text"
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
@@ -200,7 +204,7 @@ const ComponentRegistration = () => {
                             sx: { color: 'black', '&.Mui-focused': { color: 'orange' } },
                         }}
                         sx={{
-                            minWidth: 240
+                            minWidth: 300
                         }}
                     />
                 </div>
@@ -212,6 +216,7 @@ const ComponentRegistration = () => {
                                 <TableRow>
                                     <TableCell>Component Name</TableCell>
                                     <TableCell>Component Number</TableCell>
+                                     {customerTitle === 'ATECH' && (<TableCell>Operation Type</TableCell>)}
                                     {/* <TableCell>Route Card</TableCell> */}
                                     {/* <TableCell>Drawing Code</TableCell> */}
                                     {/* <TableCell>Mould Name</TableCell> */}
@@ -234,6 +239,9 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_number || '---'}
                                             </TableCell>
+                                              {customerTitle === 'ATECH' && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row.operation_type || '---'}
+                                            </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.factor || '---'}
                                             </TableCell>

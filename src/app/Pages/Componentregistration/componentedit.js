@@ -96,10 +96,14 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
   const customDaySelectRef = useRef();
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
   const [shiftsmodule, setShiftsmodule] = useState([]);
-
-
+  const [customerTitle, setCustomerTitle] = useState("");
 
   const modeSelectRef = useRef();
+
+  useEffect(() => {
+    const customerTitle = localStorage.getItem('customerTitle');
+    setCustomerTitle(customerTitle);
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -133,6 +137,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
     component_number: '',
     operation_number: '',
     operation_name: '',
+    operation_type: '',
     factorval: '',
     factor: '',
     jobcard: '',
@@ -214,6 +219,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
         component_number: data.component_number,
         operation_number: data.operation_number,
         operation_name: data.operation_name,
+        operation_type: data.operation_type,
         factorval: data.factorval,
         factor: moduleLabel,
         jobcard: data.jobcard,
@@ -299,6 +305,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
           component_number: dialogData.component_number || '',
           operation_number: dialogData.operation_number ? Number(dialogData.operation_number) : '',
           operation_name: dialogData.operation_name || '',
+          operation_type: dialogData.operation_type || '',
           factorval: dialogData.factorval ? Number(dialogData.factorval) : '',
           factor: dialogData.factor || '',
           jobcard: dialogData.jobcard || '',
@@ -453,7 +460,32 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                   )}
                 </div>
 
-
+    {customerTitle === 'ATECH' && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
+                  <CustomDaySelect
+                    {...register("operation_type", { required: "Operation type is required" })}
+                    onBlur={() => trigger('operation_type')}
+                    name="operation_type"
+                    value={shiftForm.operation_type}
+                    onChange={handleFormChange}
+                    label="Operation Type"
+                    required={true}
+                    options={[
+                      { value: 'VMC', label: 'VMC' },
+                      { value: 'HMC', label: 'HMC' },
+                      { value: 'CNC', label: 'CNC' },
+                      { value: 'TC', label: 'TC' },
+                    ]}
+                    error={!!errors.operation_type}
+                    sx={{
+                     '& .MuiInputLabel-root': {
+                        top: '-6px',
+                        backgroundColor: '#ededed',
+                        padding: '0 4px',
+                      },
+                    }}
+                  />
+                  {errors.operation_type && <div className="mat-error">{errors.operation_type.message}</div>}
+                </div>)}
                 {/* Operation Number Field 
                 <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>
                   <TextField
