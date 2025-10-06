@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Tooltip, IconButton } from '@mui/material';
+import { useMemo, useState } from 'react';
+import { Tooltip, IconButton, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { Card, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import classNames from 'classnames';
@@ -22,7 +22,15 @@ const OperatorRegistration = () => {
     const [dialogOpenCount, setDialogOpenCount] = useState(0);
     const [datasource, setDatasource] = useState([]);
     const customerId = localStorage.getItem('CustomerID');
+    const [searchText, setSearchText] = useState('');
+    const filteredDatasource = useMemo(() => {
+        return datasource.filter(row =>
+            row.operatorname?.toLowerCase().includes(searchText.toLowerCase()) ||
+            row.operatorid?.toLowerCase().includes(searchText.toLowerCase()) || 
+            row.mode?.toLowerCase().includes(searchText.toLowerCase())
 
+        );
+    }, [datasource, searchText]);
       const [customerTitle, setCustomerTitle] = useState("");
     
       useEffect(() => {
@@ -188,6 +196,18 @@ const OperatorRegistration = () => {
                             />
                         </div>
                     </div>
+                    <TextField
+                        label="Search User"
+                        type="text"
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        InputLabelProps={{
+                            sx: { color: 'black', '&.Mui-focused': { color: 'orange' } },
+                        }}
+                        sx={{
+                            minWidth: 240
+                        }}
+                    />
                 </div>
 
                 <Card className="card_sec">
@@ -205,7 +225,8 @@ const OperatorRegistration = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {Array.isArray(datasource) && datasource.map((row, index) => (
+                               {filteredDatasource.length > 0 ? (
+                                    filteredDatasource.map((row, index) => (
                                     <TableRow key={index}>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operatorname || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operatorid || '---'}</TableCell>                                        
@@ -233,7 +254,14 @@ const OperatorRegistration = () => {
                                             </Tooltip>
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                ))) : (
+                                    <TableRow>
+                                        <TableCell colSpan={9} align="center" style={{ padding: '20px', background: '#EDEDED', fontSize: '1rem',
+    letterSpacing:' 0.02rem'}}>
+                                            No Results found
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </div>

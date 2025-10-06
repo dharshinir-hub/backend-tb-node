@@ -921,7 +921,7 @@ function Operator() {
                 values: {
                     live_operator: {
                         name: operatorName,
-                        code: +pendingOperator,
+                        code: pendingOperator,
                         start_time: startTime,
                         end_time: "-",
                         duration: 0

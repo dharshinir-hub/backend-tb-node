@@ -67,7 +67,8 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
     operatorname: '',
     operatorid: '',
     mode: 'Operator',
-    password: ''
+    password: '',
+    type: ''
     // language:'',
     // experiencelevel: ''
   }), []);
@@ -123,6 +124,7 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
         operatorname: shiftForm.operatorname,
         operatorid: shiftForm.operatorid,
         mode: shiftForm.mode,
+        type: shiftForm.type,
         ...(shiftForm.mode === "Operator" && { password: encryptText(shiftForm.password) })
 
         // language: shiftForm.language,
@@ -182,7 +184,8 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
           mode: dialogData.mode || '',
           language: dialogData.language || '',
           experiencelevel: dialogData.experiencelevel || '',
-          password: dialogData.mode === 'Operator' ? decryptText(dialogData.password) : ''
+          password: dialogData.mode === 'Operator' ? decryptText(dialogData.password) : '',
+          type: dialogData.type || ''
         };
 
         // Find the correct module value if shiftsmodule is already loaded
@@ -280,9 +283,9 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                         message: "Maximum length is 100 characters"
                       },
                       validate: value => {
-                        if (/[^0-9]/.test(value)) {
-                          if (/[a-zA-Z]/.test(value)) {
-                            return "Alphabets are not allowed";
+                        if (/[^a-zA-Z0-9]/.test(value)) {
+                          if (/\s/.test(value)) {
+                            return "Spaces are not allowed";
                           } else {
                             return "Special characters are not allowed";
                           }
@@ -496,6 +499,31 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
                   </div>
                 )}
 
+                <div className={`form_field ${errors.type ? 'error-outline' : ''}`}>
+                  <CustomDaySelect
+                    {...register("type", { required: "Type is required" })}
+                    name="type"
+                    value={shiftForm.type || ''}
+                    onChange={handleFormChange}
+                    onBlur={() => trigger('type')}
+                    label="Select Type"
+                    required={true}
+                    options={[
+                      { value: 'VMC', label: 'VMC' },
+                      { value: 'HMC', label: 'HMC' },
+                      { value: 'CNC', label: 'CNC' },
+                    ]}
+                    error={!!errors.type}
+                    sx={{
+                      width: 250, '& .MuiInputLabel-root': {
+                        top: '-8px',
+                        backgroundColor: '#ededed',
+                        padding: '0 4px',
+                      },
+                    }}
+                  />
+                  {errors.type && <div className="mat-error">{errors.type.message}</div>}
+                </div>
               </div>
 
 

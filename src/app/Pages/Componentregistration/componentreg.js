@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Tooltip, IconButton } from '@mui/material';
+import { useMemo, useState } from 'react';
+import { Tooltip, IconButton, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { Card, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import classNames from 'classnames';
@@ -9,7 +9,7 @@ import './componentreg.css';
 import { customerbasedshift } from '../../Services/app/masterservice';
 import EditIcon from '@mui/icons-material/Edit';
 import Swal from 'sweetalert2'; // Ensure Swal is imported
-import {shiftadd } from '../../Services/app/masterservice'; // Ensure shiftadd is imported
+import { shiftadd } from '../../Services/app/masterservice'; // Ensure shiftadd is imported
 import ComponentEdit from '../Componentregistration/componentedit';
 import ComponentAdd from '../Componentregistration/componentadd'
 const ComponentRegistration = () => {
@@ -17,12 +17,18 @@ const ComponentRegistration = () => {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editDialogData, setEditDialogData] = useState(null); // To store data for the edit dialog
+    const [searchText, setSearchText] = useState('');
 
     // dialogOpenCount is used for background color in dialogs, tracks total open dialogs
     const [dialogOpenCount, setDialogOpenCount] = useState(0);
     const [datasource, setDatasource] = useState([]);
     const customerId = localStorage.getItem('CustomerID');
-
+    const filteredDatasource = useMemo(() => {
+        return datasource.filter(row =>
+            row.component_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+            row.component_number?.toLowerCase().includes(searchText.toLowerCase())
+        );
+    }, [datasource, searchText]);
     // Handlers for Add Shift dialog
     const handleOpenAddDialog = () => {
         setIsAddDialogOpen(true);
@@ -54,7 +60,7 @@ const ComponentRegistration = () => {
         getComponents(); // Refresh data after edit/close
     };
 
-   
+
     const deleteshift = (row) => {
         console.log("Attempting to delete row:", row);
 
@@ -159,7 +165,7 @@ const ComponentRegistration = () => {
 
     useEffect(() => {
         getComponents();
-    },[]);
+    }, []);
 
     return (
         <div className="pages">
@@ -181,10 +187,22 @@ const ComponentRegistration = () => {
                                 datasource={datasource}
                                 customerId={customerId}
                                 setDatasource={setDatasource}
-                                // dialogData is intentionally omitted for ShiftAdd to ensure it's empty
+                            // dialogData is intentionally omitted for ShiftAdd to ensure it's empty
                             />
                         </div>
                     </div>
+                    <TextField
+                        label="Search Component"
+                        type="text"
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        InputLabelProps={{
+                            sx: { color: 'black', '&.Mui-focused': { color: 'orange' } },
+                        }}
+                        sx={{
+                            minWidth: 240
+                        }}
+                    />
                 </div>
 
                 <Card className="card_sec">
@@ -207,34 +225,54 @@ const ComponentRegistration = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {Array.isArray(datasource) && datasource.map((row, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.component_name || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.component_number || '---'}</TableCell>
-                                        {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.jobcard || '---'}</TableCell> */}
-                                        {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.drawingcode || '---'}</TableCell> */}
-                                        {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operation_name || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.operation_number || '---'}</TableCell> */}
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.factor || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.factorval || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.cycle_time || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.handling_time}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.setupTime}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
-                                            <Tooltip title="Edit Component">
-                                                <IconButton onClick={() => handleOpenEditDialog(row)}>
-                                                    <EditIcon sx={{ color: 'black' }} />
-                                                </IconButton>
-                                            </Tooltip>
-                                            <Tooltip title="Delete Component">
-                                                <IconButton onClick={() => deleteshift(row, datasource)}>
-                                                    <DeleteIcon sx={{ color: 'black' }} />
-                                                </IconButton>
-                                            </Tooltip>
+                                {filteredDatasource.length > 0 ? (
+                                    filteredDatasource.map((row, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row.component_name || '---'}
+                                            </TableCell>
+                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row.component_number || '---'}
+                                            </TableCell>
+                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row.factor || '---'}
+                                            </TableCell>
+                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row.factorval || '---'}
+                                            </TableCell>
+                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row.cycle_time || '---'}
+                                            </TableCell>
+                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row.handling_time || '---'}
+                                            </TableCell>
+                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row.setupTime || '---'}
+                                            </TableCell>
+                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                <Tooltip title="Edit Component">
+                                                    <IconButton onClick={() => handleOpenEditDialog(row)}>
+                                                        <EditIcon sx={{ color: 'black' }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Delete Component">
+                                                    <IconButton onClick={() => deleteshift(row, datasource)}>
+                                                        <DeleteIcon sx={{ color: 'black' }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={9} align="center" style={{ padding: '20px', background: '#EDEDED', fontSize: '1rem',
+    letterSpacing:' 0.02rem'}}>
+                                            No Results found
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                )}
                             </TableBody>
+
                         </Table>
                     </div>
                 </Card>

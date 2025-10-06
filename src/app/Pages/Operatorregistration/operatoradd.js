@@ -33,7 +33,8 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
     operatorname: '',
     operatorid: '',
     mode: 'Operator',
-    password: ''
+    password: '',
+    type: '',
     // language:'',
     // experiencelevel: ''
   }), []);
@@ -103,6 +104,7 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
         operatorname: shiftForm.operatorname,
         operatorid: shiftForm.operatorid,
         mode: shiftForm.mode,
+        type: shiftForm.type,
         ...(shiftForm.mode === "Operator" && { password: encryptedPassword })
         // language: shiftForm.language,
         // experiencelevel: shiftForm.experiencelevel,
@@ -234,9 +236,9 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
                         message: "Maximum length is 100 characters"
                       },
                       validate: value => {
-                        if (/[^0-9]/.test(value)) {
-                          if (/[a-zA-Z]/.test(value)) {
-                            return "Alphabets are not allowed";
+                        if (/[^a-zA-Z0-9]/.test(value)) {
+                          if (/\s/.test(value)) {
+                            return "Spaces are not allowed";
                           } else {
                             return "Special characters are not allowed";
                           }
@@ -406,7 +408,7 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
                   {errors.mode && <div className="mat-error">Mode is required</div>}
                 </div> */}
 
-                {shiftForm.mode === "Operator" &&  customerTitle === "PMI GLOBAL" && (
+                {shiftForm.mode === "Operator" && customerTitle === "PMI GLOBAL" && (
                   <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
                     <TextField
                       {...register("password", {
@@ -450,13 +452,33 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
                     {errors.password && <div className="mat-error">{errors.password.message}</div>}
                   </div>
                 )}
+                <div className={`form_field ${errors.type ? 'error-outline' : ''}`}>
+                  <CustomDaySelect
+                    {...register("type", { required: "Type is required" })}
+                    onBlur={() => trigger('type')}
+                    name="type"
+                    value={shiftForm.type}
+                    onChange={handleFormChange}
+                    label="Select Type"
+                    required={true}
+                    options={[
+                      { value: 'VMC', label: 'VMC' },
+                      { value: 'HMC', label: 'HMC' },
+                      { value: 'CNC', label: 'CNC' },
+                    ]}
+                    error={!!errors.type}
+                    sx={{
+                      width: 250, '& .MuiInputLabel-root': {
+                        top: '-8px',
+                        backgroundColor: '#ededed',
+                        padding: '0 4px',
+                      },
+                    }}
+                  />
+                  {errors.type && <div className="mat-error">{errors.type.message}</div>}
+                </div>
               </div>
-
-
-
             </LocalizationProvider>
-
-
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
               <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning" >
                 Save
