@@ -482,16 +482,20 @@ if (!shifts || shifts.length === 0) {
 
   let lastWeekShiftWiseOEE = {};
 
-  for (const machineId in shiftWiseOEEByDate) {
-    const machineData = shiftWiseOEEByDate[machineId];
-    lastWeekShiftWiseOEE[machineId] = {};
-    for (const dateStr in machineData) {
-      const dateEpoch = new Date(dateStr).getTime();
-      if (dateEpoch >= LAST_WEEK_FROM_EPOCH && dateEpoch <= LAST_WEEK_TO_EPOCH) {
-        lastWeekShiftWiseOEE[machineId][dateStr] = machineData[dateStr];
+ for (const machineId in shiftWiseOEEByDate) {
+  const machineData = shiftWiseOEEByDate[machineId];
+  lastWeekShiftWiseOEE[machineId] = {};
+  for (const dateStr in machineData) {
+    const dateEpoch = new Date(dateStr).getTime();
+    if (dateEpoch >= LAST_WEEK_FROM_EPOCH && dateEpoch <= LAST_WEEK_TO_EPOCH) {
+      const shiftData = machineData[dateStr];
+      const allZero = Object.values(shiftData).every(v => Number(v) === 0);
+      if (!allZero) {
+        lastWeekShiftWiseOEE[machineId][dateStr] = shiftData;
       }
     }
   }
+}
 
   console.log('Last week shift wise oee', lastWeekShiftWiseOEE);
 
