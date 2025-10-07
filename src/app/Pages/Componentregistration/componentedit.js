@@ -460,7 +460,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                   )}
                 </div>
 
-    {customerTitle === 'ATECH' && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
+    {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
                   <CustomDaySelect
                     {...register("operation_type", { required: "Operation type is required" })}
                     onBlur={() => trigger('operation_type')}
@@ -695,24 +695,24 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     <TimePicker
                       {...register("cycle_time", {
                         required: "Cycle Time is required",
-                        validate: (value, formValues) => {
-                          if (customerTitle === "ATECH") {
-                            return true;
-                          }
-                          const cycleTime = value;
-                          const handlingTime = formValues.handling_time;
-                          const setupTime = formValues.setupTime;
+                        // validate: (value, formValues) => {
+                        //   if (customerTitle === "ATECH") {
+                        //     return true;
+                        //   }
+                        //   const cycleTime = value;
+                        //   const handlingTime = formValues.handling_time;
+                        //   const setupTime = formValues.setupTime;
 
-                          if (cycleTime && cycleTime.isValid()) {
-                            if (handlingTime && handlingTime.isValid() && cycleTime.isSame(handlingTime, 'second')) {
-                              return "Cycle Time cannot be same as Handling Time";
-                            }
-                            if (setupTime && setupTime.isValid() && cycleTime.isSame(setupTime, 'second')) {
-                              return "Cycle Time cannot be same as Setup Time";
-                            }
-                          }
-                          return true;
-                        }
+                        //   if (cycleTime && cycleTime.isValid()) {
+                        //     if (handlingTime && handlingTime.isValid() && cycleTime.isSame(handlingTime, 'second')) {
+                        //       return "Cycle Time cannot be same as Handling Time";
+                        //     }
+                        //     if (setupTime && setupTime.isValid() && cycleTime.isSame(setupTime, 'second')) {
+                        //       return "Cycle Time cannot be same as Setup Time";
+                        //     }
+                        //   }
+                        //   return true;
+                        // }
                       })}
                       onBlur={() => trigger('cycle_time')}
                       value={shiftForm.cycle_time}
@@ -754,24 +754,24 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     <TimePicker
                       {...register("handling_time", {
                         required: "Handling Time is required",
-                        validate: (value, formValues) => {
-                          if (customerTitle === "ATECH") {
-                            return true;
-                          }
-                          const handlingTime = value;
-                          const cycleTime = formValues.cycle_time;
-                          const setupTime = formValues.setupTime;
+                        // validate: (value, formValues) => {
+                        //   if (customerTitle === "ATECH") {
+                        //     return true;
+                        //   }
+                        //   const handlingTime = value;
+                        //   const cycleTime = formValues.cycle_time;
+                        //   const setupTime = formValues.setupTime;
 
-                          if (handlingTime && handlingTime.isValid()) {
-                            if (cycleTime && cycleTime.isValid() && handlingTime.isSame(cycleTime, 'second')) {
-                              return "Handling Time cannot be same as Cycle Time";
-                            }
-                            if (setupTime && setupTime.isValid() && handlingTime.isSame(setupTime, 'second')) {
-                              return "Handling Time cannot be same as Setup Time";
-                            }
-                          }
-                          return true;
-                        }
+                        //   if (handlingTime && handlingTime.isValid()) {
+                        //     if (cycleTime && cycleTime.isValid() && handlingTime.isSame(cycleTime, 'second')) {
+                        //       return "Handling Time cannot be same as Cycle Time";
+                        //     }
+                        //     if (setupTime && setupTime.isValid() && handlingTime.isSame(setupTime, 'second')) {
+                        //       return "Handling Time cannot be same as Setup Time";
+                        //     }
+                        //   }
+                        //   return true;
+                        // }
                       })}
                       onBlur={() => trigger('handling_time')}
                       value={shiftForm.handling_time}
@@ -813,24 +813,24 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     <TimePicker
                       {...register("setupTime", {
                         required: "Setup Time is required",
-                        validate: (value, formValues) => {
-                          if (customerTitle === "ATECH") {
-                            return true;
-                          }
-                          const setupTime = value;
-                          const cycleTime = formValues.cycle_time;
-                          const handlingTime = formValues.handling_time;
+                        // validate: (value, formValues) => {
+                        //   if (customerTitle === "ATECH") {
+                        //     return true;
+                        //   }
+                        //   const setupTime = value;
+                        //   const cycleTime = formValues.cycle_time;
+                        //   const handlingTime = formValues.handling_time;
 
-                          if (setupTime && setupTime.isValid()) {
-                            if (cycleTime && cycleTime.isValid() && setupTime.isSame(cycleTime, 'second')) {
-                              return "Setup Time cannot be same as Cycle Time";
-                            }
-                            if (handlingTime && handlingTime.isValid() && setupTime.isSame(handlingTime, 'second')) {
-                              return "Setup Time cannot be same as Handling Time";
-                            }
-                          }
-                          return true;
-                        }
+                        //   if (setupTime && setupTime.isValid()) {
+                        //     if (cycleTime && cycleTime.isValid() && setupTime.isSame(cycleTime, 'second')) {
+                        //       return "Setup Time cannot be same as Cycle Time";
+                        //     }
+                        //     if (handlingTime && handlingTime.isValid() && setupTime.isSame(handlingTime, 'second')) {
+                        //       return "Setup Time cannot be same as Handling Time";
+                        //     }
+                        //   }
+                        //   return true;
+                        // }
                       })}
                       onBlur={() => trigger('setupTime')}
                       value={shiftForm.setupTime}

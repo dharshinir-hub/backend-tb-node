@@ -216,7 +216,7 @@ const ComponentRegistration = () => {
                                 <TableRow>
                                     <TableCell>Component Name</TableCell>
                                     <TableCell>Component Number</TableCell>
-                                     {customerTitle === 'ATECH' && (<TableCell>Operation Type</TableCell>)}
+                                     {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<TableCell>Operation Type</TableCell>)}
                                     {/* <TableCell>Route Card</TableCell> */}
                                     {/* <TableCell>Drawing Code</TableCell> */}
                                     {/* <TableCell>Mould Name</TableCell> */}
@@ -239,7 +239,7 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_number || '---'}
                                             </TableCell>
-                                              {customerTitle === 'ATECH' && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                              {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.operation_type || '---'}
                                             </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>

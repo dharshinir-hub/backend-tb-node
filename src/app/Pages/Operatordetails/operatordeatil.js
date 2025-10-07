@@ -394,7 +394,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Operator")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
+              label: `${shift.operatorid} - ${shift.operatorname}`
             }));
 
           setoperators(operatorNames);
@@ -469,7 +469,7 @@ const OperatorDetails = () => {
           .filter(shift => shift.mode === "Operator")  // <-- filter added
           .map(shift => ({
             value: shift.operatorname,
-            label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
+            label:`${shift.operatorid} - ${shift.operatorname}`
           }));
 
         setoperators(operatorNames);
@@ -513,9 +513,9 @@ const OperatorDetails = () => {
 
       const reasons = allShifts.map(shift => ({
         value: shift.component_name,
-             label: customerTitle === "ATECH"
-              ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
-              : shift.component_name
+        label: customerTitle === 'ATECH' || customerTitle === 'HITECH'
+          ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
+          : `${shift.component_number} - ${shift.component_name}`
       }));
 
       setcomponents(reasons);
@@ -568,7 +568,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Supervisor")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
+              label: `${shift.operatorid} - ${shift.operatorname}`
             }));
 
           setsupervisors(operatorNames);
@@ -650,7 +650,7 @@ const OperatorDetails = () => {
           .filter((shift) => shift.mode === "Operator")
           .map((shift) => ({
             value: shift.operatorname,
-            label:  customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
+            label: `${shift.operatorid} - ${shift.operatorname}`
           }));
         setoperators(operatorNames);
 
@@ -733,9 +733,9 @@ const OperatorDetails = () => {
         const reasons = allShifts.map((shift) => {
           return {
             value: shift.component_name,
-            label: customerTitle === "ATECH"
+            label: customerTitle === 'ATECH' || customerTitle === 'HITECH'
               ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
-              : shift.component_name
+              : `${shift.component_number} - ${shift.component_name}`
           };
         });
         setcomponents(reasons);
@@ -860,7 +860,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Supervisor")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
+              label: `${shift.operatorid} - ${shift.operatorname}`
             }));
 
           setsupervisors(operatorNames);
@@ -1367,7 +1367,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Operator")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
+              label:`${shift.operatorid} - ${shift.operatorname}`
             }));
 
           setoperators(operatorNames);
