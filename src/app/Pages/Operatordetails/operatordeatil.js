@@ -71,6 +71,14 @@ const OperatorDetails = () => {
   const [supervisorsByDevice, setSupervisorByDevice] = useState([]);
   const [supervisorselected, setselectedsupervisor] = useState('');
   const [OpenEditDialog4, setOpenEditDialog4] = useState(false);
+  const [customerTitle, setCustomerTitle] = useState("");
+  
+
+  useEffect(() => {
+    const customerTitle = localStorage.getItem('customerTitle');
+    setCustomerTitle(customerTitle);
+  }, []);
+  
   const getEpochFromShift = (shiftNo, selectedDateObj) => {
     if (!shiftNo || !selectedDateObj || shifts.length === 0) {
       return { fromEpoch: null, toEpoch: null };
@@ -386,7 +394,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Operator")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label: shift.operatorname
+              label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
             }));
 
           setoperators(operatorNames);
@@ -461,7 +469,7 @@ const OperatorDetails = () => {
           .filter(shift => shift.mode === "Operator")  // <-- filter added
           .map(shift => ({
             value: shift.operatorname,
-            label: shift.operatorname
+            label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
           }));
 
         setoperators(operatorNames);
@@ -505,7 +513,9 @@ const OperatorDetails = () => {
 
       const reasons = allShifts.map(shift => ({
         value: shift.component_name,
-        label: shift.component_name
+             label: customerTitle === "ATECH"
+              ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
+              : shift.component_name
       }));
 
       setcomponents(reasons);
@@ -558,7 +568,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Supervisor")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label: shift.operatorname
+              label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
             }));
 
           setsupervisors(operatorNames);
@@ -640,7 +650,7 @@ const OperatorDetails = () => {
           .filter((shift) => shift.mode === "Operator")
           .map((shift) => ({
             value: shift.operatorname,
-            label: shift.operatorname
+            label:  customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
           }));
         setoperators(operatorNames);
 
@@ -720,10 +730,14 @@ const OperatorDetails = () => {
         const allShifts = operatorData[0]?.value || [];
         setcomponentslist(allShifts);
         console.log('componentss', allShifts)
-        const reasons = allShifts.map(shift => ({
-          value: shift.component_name,
-          label: shift.component_name
-        }));
+        const reasons = allShifts.map((shift) => {
+          return {
+            value: shift.component_name,
+            label: customerTitle === "ATECH"
+              ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
+              : shift.component_name
+          };
+        });
         setcomponents(reasons);
 
         // ✅ Now safely fetch live_operator after all data is ready
@@ -846,7 +860,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Supervisor")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label: shift.operatorname
+              label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
             }));
 
           setsupervisors(operatorNames);
@@ -1353,7 +1367,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Operator")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label: shift.operatorname
+              label: customerTitle === "ATECH" ? `${shift.operatorid} - ${shift.operatorname}`: shift.operatorname
             }));
 
           setoperators(operatorNames);

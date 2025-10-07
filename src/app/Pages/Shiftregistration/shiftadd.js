@@ -239,9 +239,9 @@ export default function ShiftAdd({ open, handleClose, handleAdd, dialogOpenCount
 
                           // Only validate if both times are present and valid Dayjs objects
                           if (startTime && endTime && startTime.isValid() && endTime.isValid()) {
-                            if (startTime.isAfter(endTime)) {
-                              return "Start Time must be before End Time";
-                            }
+                            // if (startTime.isAfter(endTime)) {
+                            //   return "Start Time must be before End Time";
+                            // }
                             if (startTime.isSame(endTime, 'second')) { // Compare down to seconds
                               return "Start Time and End Time cannot be the same";
                             }
@@ -311,9 +311,9 @@ export default function ShiftAdd({ open, handleClose, handleAdd, dialogOpenCount
 
                           // Only validate if both times are present and valid Dayjs objects
                           if (startTime && endTime && startTime.isValid() && endTime.isValid()) {
-                            if (endTime.isBefore(startTime)) {
-                              return "End Time must be after Start Time";
-                            }
+                            // if (endTime.isBefore(startTime)) {
+                            //   return "End Time must be after Start Time";
+                            // }
                             if (endTime.isSame(startTime, 'second')) { // Compare down to seconds
                               return "Start Time and End Time cannot be the same";
                             }

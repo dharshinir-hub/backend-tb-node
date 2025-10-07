@@ -1280,7 +1280,7 @@ export default function MachineDashboard() {
                     {/* Component Chip */}
                     {(() => {
                       const componentName =
-                        liveComponent[machine.id.id]?.componentName ?? "N/A";
+                        liveComponent[machine.id.id]?.componentName ?? "No Component";
 
                       return (
                         <Chip
@@ -1294,9 +1294,9 @@ export default function MachineDashboard() {
                             fontWeight: "bold",
                             paddingLeft: "4px",
                             bgcolor:
-                              componentName !== "N/A" ? "#e8f5e9" : "#ffebee",
+                              componentName !== "No Component" ? "#e8f5e9" : "#ffebee",
                             color:
-                              componentName !== "N/A" ? "#2e7d32" : "#c62828",
+                              componentName !== "No Component" ? "#2e7d32" : "#c62828",
                           }}
                         />
                       );
