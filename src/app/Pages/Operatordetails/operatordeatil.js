@@ -19,6 +19,8 @@ import DialogContent from '@mui/material/DialogContent';
 import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 import Swal from 'sweetalert2';
 import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, DowntimeaddDelete1 } from '../../Services/app/masterservice';
+import { Autocomplete } from '@mui/material';
+
 const OperatorDetails = () => {
   const params = new URLSearchParams(window.location.search);
   const token = localStorage.getItem('token');
@@ -2414,7 +2416,7 @@ const OperatorDetails = () => {
               required
               options={shiftOptions}
             />
-            <CustomDaySelect
+            {/* <CustomDaySelect
               name="operatorselected"
               value={operatorselected}
               onChange={handleFormChange}
@@ -2423,6 +2425,43 @@ const OperatorDetails = () => {
               options={operators}
               error={!operatorselected}
               ref={customDaySelectRef}
+            /> */}
+            <Autocomplete
+              sx={{
+                width: '100%',
+                '& .MuiOutlinedInput-root': {
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'orange',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-input': {
+                    caretColor: 'orange',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: 'orange',
+                },
+              }}
+              options={operators}
+              getOptionLabel={(option) => option.label}
+              value={operators.find(c => c.value === operatorselected) || null}
+              onChange={(event, newValue) => {
+                handleFormChange({
+                  target: { name: 'operatorselected', value: newValue ? newValue.value : '' }
+                });
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Operator"
+                  required
+                  error={!operatorselected}
+                  helperText={!operatorselected ? 'Operator is required' : ''}
+                />
+              )}
+              isOptionEqualToValue={(option, value) => option.value === value.value}
+              autoHighlight
+              filterSelectedOptions
+              componentsProps={{ popper: { style: { minWidth: 'fit-content' } } }}
             />
 
           </div>
@@ -2551,7 +2590,7 @@ const OperatorDetails = () => {
               required
               options={shiftOptions}
             />
-            <CustomDaySelect
+            {/* <CustomDaySelect
               name="componentselected"
               value={componentselected}
               onChange={handleFormChange2}
@@ -2560,6 +2599,43 @@ const OperatorDetails = () => {
               options={components}
               error={!componentselected}
               ref={customDaySelectRef}
+            /> */}
+            <Autocomplete
+              sx={{
+                width: '100%',
+                '& .MuiOutlinedInput-root': {
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'orange',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-input': {
+                    caretColor: 'orange',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: 'orange',
+                },
+              }}
+              options={components}
+              getOptionLabel={(option) => option.label}
+              value={components.find(c => c.value === componentselected) || null}
+              onChange={(event, newValue) => {
+                handleFormChange2({
+                  target: { name: 'componentselected', value: newValue ? newValue.value : '' }
+                });
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Component"
+                  required
+                  error={!componentselected}
+                  helperText={!componentselected ? 'Component is required' : ''}
+                />
+              )}
+              isOptionEqualToValue={(option, value) => option.value === value.value}
+              autoHighlight
+              filterSelectedOptions
+              componentsProps={{ popper: { style: { width: 'fit-content' } } }}
             />
           </div>
           <br></br>
