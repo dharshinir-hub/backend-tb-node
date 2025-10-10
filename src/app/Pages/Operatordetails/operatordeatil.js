@@ -1226,7 +1226,8 @@ const OperatorDetails = () => {
 
               // Handle case where recording never ended (no 3 found)
               if (recording) {
-                segment.end = toTime;
+                const now = Date.now();
+                segment.end = Math.min(toTime, now);
                 const startTime = new Date(segment.start);
                 const endTime = new Date(segment.end);
                 const duration = Math.floor((endTime - startTime) / 1000);
