@@ -25,6 +25,10 @@ import Oee from './app/Pages/Oee/oee';
 import NewAnalytics from './app/Pages/New-Analytics/new-analytics';
 import { Box } from '@mui/material';
 import NewDeviceOee from './app/Pages/NewDeviceOee/newdeviceoee';
+import Cycletime from "./app/Pages/CycleTime/cycletime";
+import AnalyticOee from "./app/Pages/CycleTime/analyticoee";
+import Inprogress from "./app/Pages/CycleTime/inprogress";
+import Component from "./app/Pages/CycleTime/component";
 
 // Import other components for your routes
 
@@ -56,6 +60,11 @@ const AppRoutes = () => (
           <NewDeviceOee />
         </Box>
       } />
+       <Route path="/componentanalysis" element={<Analytics />} />
+            <Route path="cycletime" element={<Cycletime />} />
+       <Route path="component" element={<Component />} />
+      <Route path="inprogress" element={<Inprogress />} />
+      <Route path="analyticoee" element={<AnalyticOee />} />
     </Route>
   </Routes>
 );

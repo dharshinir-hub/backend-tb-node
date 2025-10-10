@@ -79,17 +79,24 @@ export default function PersistentDrawerLeft({ children }) {
         { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
 
 
+
       ]
     },
 
 
-    // {
-    //   name: "Analytics",
-    //   icon: <BiBarChart />,
-    //   children: [
-    //     { path: "/analytics", name: "Analytics 1", icon: <BiBarChart /> },
-    //   ]
-    // },
+    {
+      name: "Analytics",
+      icon: <BiBarChart />,
+      children: [
+        { path: "/analytics", name: "Analytics 1", icon: <BiBarChart /> },
+      ]
+    },
+
+
+
+    { path: "/componentanalysis", name: "Component Analysis", icon: <BiBarChart /> },
+
+
 
     // { path: "/report", name: "Reports", icon: <MdAssessment /> },
 
