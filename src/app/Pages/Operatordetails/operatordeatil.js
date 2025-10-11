@@ -2100,7 +2100,6 @@ const OperatorDetails = () => {
     }
   };
   const handleSaveThreshold2 = async () => {
-    debugger
     if (
       !startTime || !endTime ||
       !isTimeInShift(startTime, selectedShiftData) ||
@@ -2109,7 +2108,7 @@ const OperatorDetails = () => {
       setOpenEditDialog(false);
       setOpenEditDialog1(false);
       setOpenEditDialog4(false);
-      Swal.fire('Error', 'Selected time is outside the shift range!  eee', 'error');
+      Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
       return;
     }
     try {
