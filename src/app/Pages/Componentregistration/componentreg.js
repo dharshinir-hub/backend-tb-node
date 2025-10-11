@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Tooltip, IconButton, TextField } from '@mui/material';
+import { Tooltip, IconButton, TextField, CardActions, TablePagination } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { Card, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import classNames from 'classnames';
@@ -18,8 +18,9 @@ const ComponentRegistration = () => {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editDialogData, setEditDialogData] = useState(null); // To store data for the edit dialog
     const [searchText, setSearchText] = useState('');
-  const [customerTitle, setCustomerTitle] = useState("");
-
+    const [customerTitle, setCustomerTitle] = useState("");
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
     // dialogOpenCount is used for background color in dialogs, tracks total open dialogs
     const [dialogOpenCount, setDialogOpenCount] = useState(0);
     const [datasource, setDatasource] = useState([]);
@@ -35,10 +36,10 @@ const ComponentRegistration = () => {
         setIsAddDialogOpen(true);
         setDialogOpenCount(prevCount => prevCount + 1);
     };
-  useEffect(() => {
-    const customerTitle = localStorage.getItem('customerTitle');
-    setCustomerTitle(customerTitle);
-  }, []);
+    useEffect(() => {
+        const customerTitle = localStorage.getItem('customerTitle');
+        setCustomerTitle(customerTitle);
+    }, []);
     const handleCloseAddDialog = (event, reason) => {
         if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
             return;
@@ -167,9 +168,27 @@ const ComponentRegistration = () => {
     // };
 
 
+    const paginatedData = useMemo(() => {
+        const start = page * rowsPerPage;
+        return filteredDatasource.slice(start, start + rowsPerPage);
+    }, [filteredDatasource, page, rowsPerPage]);
+
+    const handleChangePage = (event, newPage) => {
+        setPage(newPage);
+    };
+
+    const handleChangeRowsPerPage = (event) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setPage(0);
+    };
+
     useEffect(() => {
         getComponents();
     }, []);
+
+    useEffect(() => {
+        setPage(0);
+    }, [searchText]);
 
     return (
         <div className="pages">
@@ -216,7 +235,7 @@ const ComponentRegistration = () => {
                                 <TableRow>
                                     <TableCell>Component Name</TableCell>
                                     <TableCell>Component Number</TableCell>
-                                     {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<TableCell>Operation Type</TableCell>)}
+                                    {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<TableCell>Operation Type</TableCell>)}
                                     {/* <TableCell>Route Card</TableCell> */}
                                     {/* <TableCell>Drawing Code</TableCell> */}
                                     {/* <TableCell>Mould Name</TableCell> */}
@@ -230,8 +249,8 @@ const ComponentRegistration = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {filteredDatasource.length > 0 ? (
-                                    filteredDatasource.map((row, index) => (
+                                {paginatedData.length > 0 ? (
+                                    paginatedData.map((row, index) => (
                                         <TableRow key={index}>
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_name || '---'}
@@ -239,7 +258,7 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_number || '---'}
                                             </TableCell>
-                                              {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.operation_type || '---'}
                                             </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
@@ -273,8 +292,10 @@ const ComponentRegistration = () => {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={9} align="center" style={{ padding: '20px', background: '#EDEDED', fontSize: '1rem',
-    letterSpacing:' 0.02rem'}}>
+                                        <TableCell colSpan={9} align="center" style={{
+                                            padding: '20px', background: '#EDEDED', fontSize: '1rem',
+                                            letterSpacing: ' 0.02rem'
+                                        }}>
                                             No Results found
                                         </TableCell>
                                     </TableRow>
@@ -283,6 +304,18 @@ const ComponentRegistration = () => {
 
                         </Table>
                     </div>
+                    <CardActions sx={{ px: 2, justifyContent: 'end', background: '#dddddd' }}>
+                        <TablePagination
+                            rowsPerPageOptions={[5, 10, 25, 50]}
+                            component="div"
+                            count={filteredDatasource.length}
+                            rowsPerPage={rowsPerPage}
+                            page={page}
+                            onPageChange={handleChangePage}
+                            onRowsPerPageChange={handleChangeRowsPerPage}
+                            labelRowsPerPage="Items per page"
+                        />
+                    </CardActions>
                 </Card>
             </div>
             {/* Render ShiftEdit conditionally outside the table loop */}

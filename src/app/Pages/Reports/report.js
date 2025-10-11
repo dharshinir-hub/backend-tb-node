@@ -300,9 +300,10 @@ export default function MachineReport() {
       .join(":");
   };
 
-  const formatDateTime = (dateString) => {
-    if (!dateString) return "";
-    return dayjs(dateString).format("DD-MM-YYYY HH:mm:ss");
+  const formatDateTime = (value) => {
+    if (!value) return "";
+    const date = typeof value === "number" ? dayjs(value) : dayjs(Number(value));
+    return date.isValid() ? date.format("DD-MM-YYYY HH:mm:ss") : "---";
   };
 
   const formatDate = (dateString) => {
