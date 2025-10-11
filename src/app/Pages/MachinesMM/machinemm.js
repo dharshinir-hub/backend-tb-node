@@ -630,12 +630,12 @@ export default function MachineDashboard() {
             const data = await telemetrykeydata(
               machine.id.id,
               "DEVICE",
-              "utilization",
+              "hour_utilization",
               from,
               to
             );
 
-            const values = data?.utilization || [];
+            const values = data?.hour_utilization || [];
 
             // 📌 Console the full array of data
             console.log(`\n🔹 Full utilization array for ${machine.name}:`, values);
@@ -645,21 +645,40 @@ export default function MachineDashboard() {
               console.log(`⚠️ Machine: ${machine.name} → No utilization data`);
               return;
             }
-
-            const latestPoint = values.reduce((latest, point) =>
-              new Date(point.ts) > new Date(latest.ts) ? point : latest
+            const hourlyGroups = {};
+            values.forEach((point) => {
+              const date = new Date(point.ts);
+              const hourKey = new Date(
+                date.getFullYear(),
+                date.getMonth(),
+                date.getDate(),
+                date.getHours(),
+                0,
+                0,
+                0
+              ).toISOString();
+              if (!hourlyGroups[hourKey]) {
+                hourlyGroups[hourKey] = [];
+              }
+              hourlyGroups[hourKey].push(point);
+            });
+            const hourlyLatestValues = Object.entries(hourlyGroups).map(
+              ([hour, points]) => {
+                const latestPoint = points.reduce((latest, point) =>
+                  new Date(point.ts) > new Date(latest.ts) ? point : latest
+                );
+                return {
+                  hour,
+                  value: Number(latestPoint.value) || 0,
+                  timestamp: latestPoint.ts,
+                };
+              }
             );
-
-            console.log(`✅ Latest utilization point for ${machine.name}:`, latestPoint);
-
-            let utilizationValue = Number(latestPoint.value);
-            if (!isNaN(utilizationValue)) {
-              utilizationValue = parseFloat(utilizationValue.toFixed(1));
-            } else {
-              utilizationValue = 0;
-            }
-
-            results[machine.id.id] = { utilization: utilizationValue };
+            const avgUtilization =
+              hourlyLatestValues.reduce((sum, obj) => sum + obj.value, 0) /
+              hourlyLatestValues.length;
+            const finalValue = parseInt(avgUtilization);
+            results[machine.id.id] = { utilization: finalValue };
           } catch (error) {
             console.error("❌ Error fetching utilization for", machine.name, error);
             results[machine.id.id] = { utilization: 0 };
