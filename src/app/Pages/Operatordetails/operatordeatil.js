@@ -803,7 +803,11 @@ const OperatorDetails = () => {
           label: `Shift${shift.shift_no}`,
         }));
         setShiftOptions(options);
-
+     const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
+    if (selectedShiftData) {
+      setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
+      setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+    }
         if (options.length > 0) {
           const defaultShift = options[0].value;
           setSelectedDate(dayjs()); // Set to current date
@@ -2096,6 +2100,7 @@ const OperatorDetails = () => {
     }
   };
   const handleSaveThreshold2 = async () => {
+    debugger
     if (
       !startTime || !endTime ||
       !isTimeInShift(startTime, selectedShiftData) ||
@@ -2104,7 +2109,7 @@ const OperatorDetails = () => {
       setOpenEditDialog(false);
       setOpenEditDialog1(false);
       setOpenEditDialog4(false);
-      Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
+      Swal.fire('Error', 'Selected time is outside the shift range!  eee', 'error');
       return;
     }
     try {
