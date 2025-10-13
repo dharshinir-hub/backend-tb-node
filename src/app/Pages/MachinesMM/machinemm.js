@@ -358,50 +358,51 @@ export default function MachineDashboard() {
 
 
 
-  function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
-    if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
-      return { fromEpoch: null, toEpoch: null };
-    }
-
-    const baseDate = dayjs(selectedDate).subtract(1, 'day').format("YYYY-MM-DD");
-    const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
-
-    let fromEpoch = null;
-    let toEpoch = null;
-
-    const normalizedShift = selectedShift?.trim().toLowerCase() || "";
-
-    if (normalizedShift === "allshift" || normalizedShift === "all shift") {
-      const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
-      const firstShiftStart = sortedShifts[0]?.start_time;
-      const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
-
-      if (firstShiftStart && lastShiftEnd) {
-        fromEpoch = new Date(`${baseDate}T${firstShiftStart}`).getTime();
-        toEpoch = new Date(`${baseDate}T${lastShiftEnd}`).getTime();
-
-        if (lastShiftEnd <= firstShiftStart) {
-          toEpoch = new Date(`${todayStr}T${lastShiftEnd}`).getTime();
-        }
-      }
-    } else {
-      const shiftData = shifts.find((s) => String(s.shift_no) === String(selectedShift));
-      if (shiftData) {
-        const shiftStart = shiftData.start_time;
-        const shiftEnd = shiftData.end_time;
-
-        fromEpoch = new Date(`${baseDate}T${shiftStart}`).getTime();
-        toEpoch = new Date(`${baseDate}T${shiftEnd}`).getTime();
-
-        if (shiftEnd <= shiftStart) {
-          toEpoch = new Date(`${todayStr}T${shiftEnd}`).getTime();
-        }
-      }
-    }
-
-
-    return { fromEpoch, toEpoch };
+function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
+  if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
+    return { fromEpoch: null, toEpoch: null };
   }
+
+  const shiftValue = typeof selectedShift === "number" ? String(selectedShift) : selectedShift || "";
+  const baseDate = dayjs(selectedDate).subtract(1, "day").format("YYYY-MM-DD");
+  const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
+
+  let fromEpoch = null;
+  let toEpoch = null;
+
+  const normalizedShift = shiftValue.trim().toLowerCase();
+
+  if (normalizedShift === "allshift" || normalizedShift === "all shift") {
+    const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
+    const firstShiftStart = sortedShifts[0]?.start_time;
+    const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
+
+    if (firstShiftStart && lastShiftEnd) {
+      fromEpoch = new Date(`${baseDate}T${firstShiftStart}`).getTime();
+      toEpoch = new Date(`${baseDate}T${lastShiftEnd}`).getTime();
+
+      if (lastShiftEnd <= firstShiftStart) {
+        toEpoch = new Date(`${todayStr}T${lastShiftEnd}`).getTime();
+      }
+    }
+  } else {
+    const shiftData = shifts.find((s) => String(s.shift_no) === String(shiftValue));
+    if (shiftData) {
+      const shiftStart = shiftData.start_time;
+      const shiftEnd = shiftData.end_time;
+
+      fromEpoch = new Date(`${baseDate}T${shiftStart}`).getTime();
+      toEpoch = new Date(`${baseDate}T${shiftEnd}`).getTime();
+
+      if (shiftEnd <= shiftStart) {
+        toEpoch = new Date(`${todayStr}T${shiftEnd}`).getTime();
+      }
+    }
+  }
+  
+
+  return { fromEpoch, toEpoch };
+}
 
   console.log("FromTime (epoch):", fromTime);
   console.log("ToTime (epoch):", toTime);
@@ -463,10 +464,9 @@ export default function MachineDashboard() {
         : String(selectedShift ?? "");
 
     const shiftObj = shifts.find(s => s.shift_no === shiftNo);
-
+    const currentShift = getCurrentShift(shifts);
     const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
-
-    if (isToday) {
+    if (isToday && currentShift === shiftNo) {
       if (intervalRef.current) clearInterval(intervalRef.current);
 
       intervalRef.current = setInterval(() => {
