@@ -463,7 +463,7 @@ function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
         ? selectedShift.replace("Shift ", "")
         : String(selectedShift ?? "");
 
-    const shiftObj = shifts.find(s => s.shift_no === shiftNo);
+    const shiftObj = shifts.find(s => String(s.shift_no) === shiftNo);
     const currentShift = getCurrentShift(shifts);
     const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
     if (isToday && currentShift === shiftNo) {
