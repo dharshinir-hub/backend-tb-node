@@ -36,10 +36,21 @@ const Component1 = () => {
   const navigate = useNavigate();
 
   const location = useLocation();
-  const { from, to, selectedDevice, componentName, code ,  previousScreen, } = location.state || {
-    from: dayjs().subtract(6, "day").startOf("day").valueOf(),
-    to: dayjs().endOf("day").valueOf()
-  };
+  const { componentName, code, previousScreen, codeWiseSummary } = location.state
+  const storedStart = localStorage.getItem("analyticsStartDate");
+  const from = storedStart
+    ? Number(storedStart)
+    : dayjs().subtract(6, "day").startOf("day").valueOf();
+
+  // Get end date from localStorage or default to today
+  const storedEnd = localStorage.getItem("analyticsEndDate");
+  const to = storedEnd
+    ? Number(storedEnd)
+    : dayjs().endOf("day").valueOf();
+
+  // Get selected device from location state (optional)
+  const selectedDevice = location.state?.selectedDevice || null;
+
 
   console.log('From', from, 'to', to, 'Selected Device', selectedDevice, 'Component', componentName, 'Code', code)
 
@@ -176,7 +187,7 @@ const Component1 = () => {
   const componentMachineArray = getComponentMachineArray(liveComponent);
   console.log("Unique component array with machines:", componentMachineArray);
 
-  
+
 
 
   function formatDuration(seconds) {
@@ -187,7 +198,7 @@ const Component1 = () => {
   }
 
   function formatEpoch(epoch) {
-    
+
     // If epoch is in seconds, convert to milliseconds
     if (epoch.toString().length === 10) {
       epoch *= 1000;
@@ -239,14 +250,17 @@ const Component1 = () => {
   const filteredComponentData = getSelectedComponentData(componentName, liveComponent);
   console.log("Filtered Component Data:", filteredComponentData);
 
-  const handleBoxClick = (item,  deviceName) => {
+  const handleBoxClick = (item, deviceName) => {
     navigate("/summary", {
       state: {
+        selectedDevice: selectedDevice,
+        previousScreen: location.pathname,
         componentName: item.name || 'Component',
         start_time: item.start_time,
         end_time: item.end_time,
         deviceName: deviceName,
-        code: item.code
+        code: item.code,
+        highcode:codeWiseSummary
 
       },
     });
@@ -266,6 +280,8 @@ const Component1 = () => {
         formatDuration={formatDuration}
         from={from}
         to={to}
+        highestcomponent={codeWiseSummary}
+
       />
 
 
@@ -279,9 +295,9 @@ const Component1 = () => {
           {/* Back Button */}
           <Button
             variant="contained"
-            onClick={() => navigate(previousScreen , {
-            state : {selectedDevice, from , to}
-          })}
+            onClick={() => navigate("/component", {
+              state: { selectedDevice, componentName, code }
+            })}
             color="warning"
             sx={{
               backgroundColor: '#626262',
@@ -390,9 +406,9 @@ const Component1 = () => {
                         cursor: 'pointer',
                         transition: 'transform 0.2s',
                         '&:hover': { transform: 'scale(1.03)' },
-                         
+
                       }}
-                        onClick={() => handleBoxClick(item, deviceName)}
+                      onClick={() => handleBoxClick(item, deviceName)}
                     >
                       {/* Machine Name */}
                       <Typography variant="subtitle2" fontWeight="bold" mb={1} fontSize="1.1rem">

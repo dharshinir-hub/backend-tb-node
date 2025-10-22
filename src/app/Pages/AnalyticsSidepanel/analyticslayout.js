@@ -30,7 +30,32 @@ export function SidebarPanel({
   formatDuration,
   from,
   to,
+  highestcomponent
 }) {
+
+
+  const highComponent = highestcomponent;
+const filteredHighComponent = (highComponent || [])
+  .filter(
+    (item) =>
+      item.operation_name.toLowerCase() !== "no operations" &&
+      item.code.toLowerCase() !== "unknown"
+  )
+  .slice()
+  .sort((a, b) => b.occurrence - a.occurrence);
+const top5HighComponent = (filteredHighComponent || [])
+  .filter(
+    (item) =>
+      item.operation_name.toLowerCase() !== "no operations" &&
+      item.code.toLowerCase() !== "unknown"
+  )
+  .sort((a, b) => b.occurrence - a.occurrence)
+  .slice(0, 5);
+
+// Now top5HighComponent contains the top 5 items
+console.log(top5HighComponent);
+
+  console.log('Sidebar high component list', top5HighComponent);
 
 
   const Id = localStorage.getItem("CustomerID");
@@ -108,10 +133,13 @@ export function SidebarPanel({
     fetchPartTimeVsExp();
   }, [customerId, from, to]);
 
+
+
+
   return (
     <div
       style={{
-        width: "280px",
+        width: "350px",
         background: "#f2f6fd",
         borderRight: "1px solid #e0e0e0",
         padding: "1rem",
@@ -204,11 +232,82 @@ export function SidebarPanel({
           Summary
         </div>
         <div style={{ fontSize: "13px", color: "#666" }}>
-          Completed runs listed by latest
+          Completed runs listed by highest
         </div>
       </div>
 
       {/* 🧩 Report Cards */}
+
+<div
+  style={{
+    marginTop: "1.2rem",
+    display: "grid",
+    gap: "12px",
+  }}
+>
+  {(top5HighComponent || []).map((item, index) => {
+    return (
+      <div
+        key={index}
+        style={{
+          background: "#fff",
+          borderRadius: "10px",
+          border: "2px solid #e5e0e0ff",
+          padding: "10px 12px",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px",
+          transition: "transform 0.2s ease",
+        }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.transform = "scale(1.02)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.transform = "scale(1)")
+        }
+      >
+        {/* Operation Name */}
+        <div
+          style={{
+            fontSize: "16px",
+            fontWeight: 600,
+            color: "#222",
+          }}
+        >
+          {item.operation_name}
+        </div>
+
+        {/* Code and Occurrence */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "12px",
+            color: "#3a3838ff",
+          }}
+        >
+          <span>Code: {item.code}</span>
+          <span>Occurrence: {item.occurrence}</span>
+        </div>
+
+        {/* Good vs Expected */}
+        <div
+          style={{
+            marginTop: "4px",
+            fontSize: "14px",
+            fontWeight: 600,
+            color: "#111",
+          }}
+        >
+          Parts : {item.goodvsexp_numerator}
+        </div>
+      </div>
+    );
+  })}
+</div>
+
+
       {/* <div
         style={{
           marginTop: "1.2rem",

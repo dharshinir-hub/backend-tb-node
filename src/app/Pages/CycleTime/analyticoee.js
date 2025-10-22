@@ -86,47 +86,7 @@ const AnalyticOee = () => {
     }, [customerId, newToken]);
 
 
-    const [operationsData, setOperationsData] = useState([]);
 
-    useEffect(() => {
-        let isMounted = true; // ✅ Prevent state updates if component unmounts
-
-        const fetchOperationsData = async () => {
-            if (!from || !to) return;
-
-            try {
-                const data = await telemetrykeydata(
-                    customerId,
-                    "CUSTOMER",
-                    "operations",
-                    from,
-                    to
-                );
-
-                if (!data) {
-                    console.warn("No data received for operations");
-                    if (isMounted) setOperationsData([]);
-                    return;
-                }
-
-                const parsedValues = parseTelemetryValues(data, "operations");
-                console.log("Final operations values:", parsedValues);
-
-                if (isMounted) setOperationsData(parsedValues);
-            } catch (error) {
-                console.error("Error fetching operations data:", error);
-                if (isMounted) setOperationsData([]);
-            }
-        };
-
-        fetchOperationsData();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [customerId, from, to]);
-
-    console.log('operations key data', operationsData)
 
 
     const [oeeSlower, setOeeTimeSlower] = useState([]);
@@ -150,136 +110,7 @@ const AnalyticOee = () => {
             .filter(v => v !== null);
     };
 
-    // 1️⃣ oee_slower
-    useEffect(() => {
-        const fetchOeeSlower = async () => {
-            if (!from || !to) return;
 
-            try {
-                const data = await telemetrykeydata(customerId, "CUSTOMER", "oee_slower", from, to);
-                const parsedValues = parseTelemetryValues(data, "oee_slower");
-                console.log("Final oee_slower values:", parsedValues);
-                setOeeTimeSlower(parsedValues);
-            } catch (error) {
-                console.error("Error fetching oee_slower:", error);
-                setOeeTimeSlower([]);
-            }
-        };
-
-        fetchOeeSlower();
-    }, [customerId, from, to]);
-
-    // 2️⃣ oee_faster
-    useEffect(() => {
-        const fetchOeeFaster = async () => {
-            if (!from || !to) return;
-
-            try {
-                const data = await telemetrykeydata(
-                    customerId,
-                    "CUSTOMER",
-                    "oee_faster",
-                    from,
-                    to
-                );
-
-                if (!data) {
-                    console.warn("No data received for oee_faster");
-                    setOeeTimeFaster([]);
-                    return;
-                }
-
-                const parsedValues = parseTelemetryValues(data, "oee_faster");
-                console.log("Final oee_faster values:", parsedValues);
-
-                setOeeTimeFaster(parsedValues);
-            } catch (error) {
-                console.error("Error fetching oee_faster:", error);
-                setOeeTimeFaster([]);
-            }
-        };
-
-        fetchOeeFaster();
-    }, [customerId, from, to]);
-
-
-    // 3️⃣ oee_Baseline_slower
-    useEffect(() => {
-        let isMounted = true; // ✅ Prevent state updates if component unmounts
-
-        const fetchOeeBaselineSlower = async () => {
-            if (!from || !to) return;
-
-            try {
-                const data = await telemetrykeydata(
-                    customerId,
-                    "CUSTOMER",
-                    "oee_Baseline_slower",
-                    from,
-                    to
-                );
-
-                if (!data) {
-                    console.warn("No data received for oee_Baseline_slower");
-                    if (isMounted) setOeeBaselineSlower([]);
-                    return;
-                }
-
-                const parsedValues = parseTelemetryValues(
-                    data,
-                    "oee_Baseline_slower"
-                );
-                console.log("Final oee_Baseline_slower values:", parsedValues);
-
-                if (isMounted) setOeeBaselineSlower(parsedValues);
-            } catch (error) {
-                console.error("Error fetching oee_Baseline_slower:", error);
-                if (isMounted) setOeeBaselineSlower([]);
-            }
-        };
-
-        fetchOeeBaselineSlower();
-
-        return () => {
-            isMounted = false; // ✅ Cleanup on unmount
-        };
-    }, [customerId, from, to]);
-
-    // 4️⃣ oee_Baseline_faster
-    useEffect(() => {
-        const fetchOeeBaselineFaster = async () => {
-            if (!from || !to) return;
-
-            try {
-                const data = await telemetrykeydata(
-                    customerId,
-                    "CUSTOMER",
-                    "oee_Baseline_faster",
-                    from,
-                    to
-                );
-
-                if (!data) {
-                    console.warn("No data received for oee_Baseline_faster");
-                    setOeeBaselineFaster([]);
-                    return;
-                }
-
-                const parsedValues = parseTelemetryValues(
-                    data,
-                    "oee_Baseline_faster"
-                );
-                console.log("Final oee_Baseline_faster values:", parsedValues);
-
-                setOeeBaselineFaster(parsedValues);
-            } catch (error) {
-                console.error("Error fetching oee_Baseline_faster:", error);
-                setOeeBaselineFaster([]);
-            }
-        };
-
-        fetchOeeBaselineFaster();
-    }, [customerId, from, to]);
 
 
     const [firstOperationsItem, setFirstOperationsItem] = useState([]);
@@ -333,7 +164,8 @@ const AnalyticOee = () => {
     const oeebaselineLower = [];
 
     firstOperationsItem.forEach(item => {
-        const itemOEE = item.oee ?? 0; // fallback to 0 if undefined
+        debugger
+        const itemOEE = item?.oee ?? 0; // fallback to 0 if undefined
         const baselineOEE = item.baseline?.oee ?? 0; // fallback to 0 if undefined
 
         if (itemOEE > baselineOEE) {
@@ -604,7 +436,7 @@ const AnalyticOee = () => {
                 <Grid container spacing={3} mt={1}>
                     {/* Slower than Baseline */}
                     <Grid item xs={12} md={6}>
-                        <Card variant="outlined" sx={{ p: 2, height: "400px", overflow: "hidden" }}>
+                        <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}>
                             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                                 Oee Slower Than Baseline
                             </Typography>
@@ -618,8 +450,8 @@ const AnalyticOee = () => {
                       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
                     };
 
-                    const actual = Number(item.oee);
-                    const expected = Number(item.baseline.oee);
+                    const actual = Number(item?.oee || 0);
+                    const expected = Number(item?.baseline?.oee || 0);
                     const diff = actual - expected;
 
                     return (
@@ -679,9 +511,9 @@ const AnalyticOee = () => {
                             <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{actual}</p>
                             <Typography
                               variant="caption"
-                              sx={{ color: "success.main", fontWeight: "bold", ml: 1 }}
+                              sx={{ color: "error.main", fontWeight: "bold", ml: 1 }}
                             >
-                              ↑ {diff}
+                              ↓ {diff}
                             </Typography>
                           </Box>
                         </Box>
@@ -714,9 +546,8 @@ const AnalyticOee = () => {
                       const s = Math.floor(sec % 60);
                       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
                     };
-
-                    const actual = Number(item.oee);
-                    const expected = Number(item.baseline.oee);
+     const actual = Number(item?.oee || 0);
+                    const expected = Number(item?.baseline?.oee || 0);
                     const diff = actual - expected;
 
                     return (

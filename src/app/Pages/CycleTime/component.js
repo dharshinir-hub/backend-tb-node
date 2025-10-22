@@ -227,30 +227,133 @@ const Component = () => {
 
   console.log('Operations Data', operationsData);
 
-  const [groupedoperations, setGroupedOperations] = useState([]);
+const [groupedOperations, setGroupedOperations] = useState([]);
+const [finalGroup, setFinalGroup] = useState([]); // ✅ now an array
 
+useEffect(() => {
+  if (!operationsData || Object.keys(operationsData).length === 0) return;
 
-  useEffect(() => {
-    if (!operationsData || Object.keys(operationsData).length === 0) return;
-
-    // Group data per machine by code
-    const groupedData = Object.entries(operationsData).reduce((acc, [machineName, dataArray]) => {
-      // dataArray = array of telemetry objects for that machine
-      const groupedByCode = dataArray.reduce((codeAcc, item) => {
-        const code = item.code || "Unknown Code";
-        if (!codeAcc[code]) codeAcc[code] = [];
-        codeAcc[code].push(item);
-        return codeAcc;
-      }, {});
-
-      acc[machineName] = groupedByCode;
-      return acc;
+  const groupedData = Object.entries(operationsData).reduce((acc, [machineName, dataArray]) => {
+    // Group by code
+    const groupedByCode = dataArray.reduce((codeAcc, item) => {
+      const code = item.code || "Unknown Code";
+      if (!codeAcc[code]) codeAcc[code] = [];
+      codeAcc[code].push(item);
+      return codeAcc;
     }, {});
 
-    console.log("✅ Grouped operations by code per machine:", groupedData);
-    setGroupedOperations(groupedData);
-  }, [operationsData]);
+    // Group by start_time + end_time within each code
+    const finalGroupForMachine = Object.entries(groupedByCode).flatMap(([code, items]) => {
+      const groupedByTime = items.reduce((timeAcc, item) => {
+        const start = item.start_time || "Unknown Start";
+        const end = item.end_time || "Unknown End";
+        const key = `${start}_${end}`;
+        if (!timeAcc[key]) timeAcc[key] = [];
+        timeAcc[key].push(item);
+        return timeAcc;
+      }, {});
 
+      // ✅ Convert the grouped object into array format
+      return Object.entries(groupedByTime).map(([key, timeItems]) => {
+        const [start_time, end_time] = key.split("_");
+        return { code, start_time, end_time, items: timeItems };
+      });
+    });
+
+    acc[machineName] = finalGroupForMachine;
+    return acc;
+  }, {});
+
+  // ✅ Flatten all machine data into one array (optional)
+  const allFinalGroups = Object.values(groupedData).flat();
+
+  console.log("✅ Grouped by code + time per machine:", groupedData);
+  console.log("✅ Final group data (array format):", allFinalGroups);
+
+  setGroupedOperations(groupedData);
+  setFinalGroup(allFinalGroups); // ✅ now array-based
+}, [operationsData]);
+
+
+const getFirstItemsFromGroups = (finalGroupArray) => {
+  if (!finalGroupArray || finalGroupArray.length === 0) return [];
+
+  return finalGroupArray
+    .map(group => group.items[0]) // pick first item of each group
+    .filter(Boolean); // remove undefined/nulls if any
+};
+
+// Usage:
+const firstItems = getFirstItemsFromGroups(finalGroup);
+
+console.log("✅ First item from each group:", firstItems);
+
+// firstItems: array of items, each with a "code" property
+
+const sortItemsByCodeFrequencyDesc = (items) => {
+  if (!items || items.length === 0) return [];
+
+  // 1️⃣ Count occurrences of each code
+  const codeCount = items.reduce((acc, item) => {
+    const code = item.code || "Unknown";
+    acc[code] = (acc[code] || 0) + 1;
+    return acc;
+  }, {});
+
+  // 2️⃣ Sort items by the frequency of their code (descending)
+  return [...items].sort((a, b) => {
+    const countA = codeCount[a.code] || 0;
+    const countB = codeCount[b.code] || 0;
+    return countB - countA; // descending
+  });
+};
+
+// Usage:
+const sortedFirstItems = sortItemsByCodeFrequencyDesc(firstItems);
+
+console.log("✅ First items sorted by code frequency (desc):", sortedFirstItems);
+
+
+const groupByCodeSummary = (items) => {
+  if (!items || items.length === 0) return [];
+
+  // Step 1: Group items by code
+  const codeGroups = items.reduce((acc, item) => {
+    const code = item.code || "Unknown";
+    if (!acc[code]) acc[code] = [];
+    acc[code].push(item);
+    return acc;
+  }, {});
+
+  // Step 2: Map each group to desired summary
+  const summaryArray = Object.entries(codeGroups).map(([code, groupItems]) => {
+    // Take the first operation_name (assuming same for all in group)
+    const operation_name = groupItems[0]?.operation_name || "Unknown";
+
+    // Count of items
+    const occurrence = groupItems.length;
+
+    // Sum the numerators of goodvsexp
+    const numeratorSum = groupItems.reduce((sum, item) => {
+      const [numerator] = (item.goodvsexp || "0/0").split("/").map(Number);
+      return sum + (isNaN(numerator) ? 0 : numerator);
+    }, 0);
+
+    return {
+      code,
+      operation_name,
+      occurrence,
+      goodvsexp_numerator: numeratorSum
+    };
+  });
+
+  return summaryArray;
+};
+
+// Usage:
+const codeWiseSummary = groupByCodeSummary(firstItems);
+
+console.log("✅ Code-wise summary:", codeWiseSummary);
 
 
 
@@ -274,6 +377,7 @@ const Component = () => {
         formatDuration={formatDuration}
         from={from}
         to={to}
+        highestcomponent={codeWiseSummary}
       />
 
 
@@ -336,14 +440,15 @@ const Component = () => {
                       code: item.code,
                       from,
                       to,
-                      selectedDevice
+                      selectedDevice, 
+                      codeWiseSummary
                     }
                   })
                 }
               >
                 {/* Component Name and Parts count */}
                 <Typography variant="subtitle1" fontWeight="bold">
-                  {item.name} (0 parts)
+                  {item.name} 
                 </Typography>
 
                 {/* Machines list */}
