@@ -31,13 +31,27 @@ const Cycletime = () => {
   const [shifts, setShifts] = useState([]);
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
+  const [component, setComponent] = useState([]);
+  const [selectedComponent, setSelectedComponent] = useState("all");
+
+
+
   const navigate = useNavigate();
 
   const location = useLocation();
-  const { from, to , selectedDevice} = location.state || {
-    from: dayjs().subtract(6, "day").startOf("day").valueOf(),
-    to: dayjs().endOf("day").valueOf()
-  };
+  const storedStart = localStorage.getItem("analyticsStartDate");
+  const from = storedStart
+    ? Number(storedStart)
+    : dayjs().subtract(6, "day").startOf("day").valueOf();
+
+  // Get end date from localStorage or default to today
+  const storedEnd = localStorage.getItem("analyticsEndDate");
+  const to = storedEnd
+    ? Number(storedEnd)
+    : dayjs().endOf("day").valueOf();
+
+  // Get selected device from location state (optional)
+  const selectedDevice = location.state?.selectedDevice || null;
 
   console.log('From', from, 'to', to, 'Selected Device', selectedDevice)
 
@@ -60,7 +74,7 @@ const Cycletime = () => {
       const devicesList = result.data || [];
       setDevices(devicesList);
       const nameIdMap = devicesList.reduce((acc, device) => {
-        acc[device.name] = device.id.id;
+        acc[device.id.id] = device.name;
         return acc;
       }, {});
       setDeviceNameIdJson(nameIdMap);
@@ -70,166 +84,47 @@ const Cycletime = () => {
   };
 
   useEffect(() => {
-    if (customerId && newToken) {
-      fetchShifts();
-      fetchDevices();
-    }
-  }, [customerId, newToken]);
+    fetchShifts();
+    fetchDevices();
+    fetchComponent();
+    console.log('fetching devices ---------------------')
+  }, []);
 
 
-  const [cycleTimeSlower, setCycleTimeSlower] = useState([]);
-const [cycleTimeFaster, setCycleTimeFaster] = useState([]);
-const [cycleTimeBaselineSlower, setCycleTimeBaselineSlower] = useState([]);
-const [cycleTimeBaselineFaster, setCycleTimeBaselineFaster] = useState([]);
-
-// Helper function to parse telemetry data
-const parseTelemetryValues = (data, key) => {
-  const values = data?.[key] || [];
-  return values
-    .map(point => {
-      try {
-        const parsed = typeof point.value === "string" ? JSON.parse(point.value) : point.value;
-        // Ensure parsed is an object
-        return parsed && typeof parsed === "object" ? { ts: point.ts, ...parsed } : null;
-      } catch {
-        return null;
-      }
-    })
-    .filter(v => v !== null);
-};
-
-// 1️⃣ cycletime_slower
-useEffect(() => {
-  const fetchCycleTimeSlower = async () => {
-    if (!from || !to) return;
-
+  const fetchComponent = async () => {
     try {
-      const data = await telemetrykeydata(customerId, "CUSTOMER", "cycletime_slower", from, to);
-      const parsedValues = parseTelemetryValues(data, "cycletime_slower");
-      console.log("Final cycletime_slower values:", parsedValues);
-      setCycleTimeSlower(parsedValues);
-    } catch (error) {
-      console.error("Error fetching cycletime_slower:", error);
-      setCycleTimeSlower([]);
+      const result = await customerbasedshift(customerId, "component");
+      setComponent(result[0]?.value || []);
+    } catch (err) {
+      console.error("Failed to fetch Component", err);
     }
   };
 
-  fetchCycleTimeSlower();
-}, [customerId, from, to]);
 
-// 2️⃣ cycletime_faster
-useEffect(() => {
-  const fetchCycleTimeFaster = async () => {
-    if (!from || !to) return;
+  console.log("Customer Component", component);
 
-    try {
-      const data = await telemetrykeydata(
-        customerId,
-        "CUSTOMER",
-        "cycletime_faster",
-        from,
-        to
-      );
+  const componentNames = component.map(c => c.component_name);
 
-      if (!data) {
-        console.warn("No data received for cycletime_faster");
-        setCycleTimeFaster([]);
-        return;
-      }
+  console.log(componentNames);
 
-      const parsedValues = parseTelemetryValues(data, "cycletime_faster");
-      console.log("Final cycletime_faster values:", parsedValues);
 
-      setCycleTimeFaster(parsedValues);
-    } catch (error) {
-      console.error("Error fetching cycletime_faster:", error);
-      setCycleTimeFaster([]);
-    }
+
+  // Helper function to parse telemetry data
+  const parseTelemetryValues = (data, key) => {
+    const values = data?.[key] || [];
+    return values
+      .map(point => {
+        try {
+          const parsed = typeof point.value === "string" ? JSON.parse(point.value) : point.value;
+          // Ensure parsed is an object
+          return parsed && typeof parsed === "object" ? { ts: point.ts, ...parsed } : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(v => v !== null);
   };
 
-  fetchCycleTimeFaster();
-}, [customerId, from, to]);
-
-
-// 3️⃣ cycletime_Baseline_slower
-useEffect(() => {
-  let isMounted = true; // ✅ Prevent state updates if component unmounts
-
-  const fetchCycleTimeBaselineSlower = async () => {
-    if (!from || !to) return;
-
-    try {
-      const data = await telemetrykeydata(
-        customerId,
-        "CUSTOMER",
-        "cycletime_Baseline_slower",
-        from,
-        to
-      );
-
-      if (!data) {
-        console.warn("No data received for cycletime_Baseline_slower");
-        if (isMounted) setCycleTimeBaselineSlower([]);
-        return;
-      }
-
-      const parsedValues = parseTelemetryValues(
-        data,
-        "cycletime_Baseline_slower"
-      );
-      console.log("Final cycletime_Baseline_slower values:", parsedValues);
-
-      if (isMounted) setCycleTimeBaselineSlower(parsedValues);
-    } catch (error) {
-      console.error("Error fetching cycletime_Baseline_slower:", error);
-      if (isMounted) setCycleTimeBaselineSlower([]);
-    }
-  };
-
-  fetchCycleTimeBaselineSlower();
-
-  return () => {
-    isMounted = false; // ✅ Cleanup on unmount
-  };
-}, [customerId, from, to]);
-
-
-// 4️⃣ cycletime_Baseline_faster
-// 4️⃣ cycletime_Baseline_faster
-useEffect(() => {
-  const fetchCycleTimeBaselineFaster = async () => {
-    if (!from || !to) return;
-
-    try {
-      const data = await telemetrykeydata(
-        customerId,
-        "CUSTOMER",
-        "cycletime_Baseline_faster",
-        from,
-        to
-      );
-
-      if (!data) {
-        console.warn("No data received for cycletime_Baseline_faster");
-        setCycleTimeBaselineFaster([]);
-        return;
-      }
-
-      const parsedValues = parseTelemetryValues(
-        data,
-        "cycletime_Baseline_faster"
-      );
-      console.log("Final cycletime_Baseline_faster values:", parsedValues);
-
-      setCycleTimeBaselineFaster(parsedValues);
-    } catch (error) {
-      console.error("Error fetching cycletime_Baseline_faster:", error);
-      setCycleTimeBaselineFaster([]);
-    }
-  };
-
-  fetchCycleTimeBaselineFaster();
-}, [customerId, from, to]);
 
 
 
@@ -240,441 +135,569 @@ useEffect(() => {
     return [h > 0 ? `${h}h` : "", m > 0 ? `${m}m` : "", s > 0 ? `${s}s` : ""].filter(Boolean).join(" ");
   }
 
+
+  const [firstOperationsItem, setFirstOperationsItem] = useState([]);
+
+  useEffect(() => {
+    const fetchOperationsData = async () => {
+      if (!from || !to || !selectedDevice) return;
+
+      try {
+        const deviceIds = Array.isArray(selectedDevice) ? selectedDevice : [selectedDevice];
+
+        const allDataArray = await Promise.all(
+          deviceIds.map(async (deviceId) => {
+            const data = await telemetrykeydata(
+              deviceId,
+              "DEVICE",
+              "operations",
+              from,
+              to
+            );
+            return parseTelemetryValues(data, "operations");
+          })
+        );
+        const combinedData = allDataArray.flat();
+        console.log("Total operations data :", combinedData);
+
+        const groupedData = combinedData.reduce((acc, item) => {
+          const key = `${item.start_time}_${item.end_time}_${item.code}_${item.name}`;
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(item);
+          return acc;
+        }, {});
+        console.log("Grouped operations data:", groupedData);
+
+        const firstItems = Object.values(groupedData).map(group => group[0]);
+        setFirstOperationsItem(firstItems);
+        console.log("First item from each group (stored in state):", firstItems);
+
+      } catch (error) {
+        console.error("Error fetching operations data:", error);
+        setFirstOperationsItem([]);
+      }
+    };
+
+    fetchOperationsData();
+  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+
+
+
+  let cycletimeslower = [];
+  let cycletimefaster = [];
+
+  firstOperationsItem.forEach(item => {
+    const expectedRun = item.expected_run ?? 0; // fallback to 0 if undefined
+    const totalRunDuration = item.total_duration?.total_run_duration ?? 0; // fallback to 0 if undefined
+
+    if (expectedRun > totalRunDuration) {
+      cycletimefaster.push(item);
+    } else {
+      cycletimeslower.push(item);
+    }
+  });
+
+  // Apply selectedComponent filter
+  if (selectedComponent !== "all") {
+    cycletimeslower = cycletimeslower.filter(item => item.operation_name === selectedComponent);
+    cycletimefaster = cycletimefaster.filter(item => item.operation_name === selectedComponent);
+  }
+
+  console.log("cycletimeslower:", cycletimeslower);
+  console.log("cycletimefaster:", cycletimefaster);
+
+
+  let cycletimeslowerbaseline = [];
+  let cycletimefasterbaseline = [];
+
+  firstOperationsItem.forEach(item => {
+    const totalRunDuration = item.total_duration?.total_run_duration ?? 0;
+    const cycleBaseline = item.cycletime_baseline ?? 0;
+
+    if (totalRunDuration > cycleBaseline) {
+      cycletimeslowerbaseline.push(item);
+    } else {
+      cycletimefasterbaseline.push(item);
+    }
+  });
+
+  // Apply selectedComponent filter
+  if (selectedComponent !== "all") {
+    cycletimeslowerbaseline = cycletimeslowerbaseline.filter(item => item.operation_name === selectedComponent);
+    cycletimefasterbaseline = cycletimefasterbaseline.filter(item => item.operation_name === selectedComponent);
+  }
+
+  console.log("cycletimeslowerbaseline:", cycletimeslowerbaseline);
+  console.log("cycletimefasterbaseline:", cycletimefasterbaseline);
+
+
+
+
   return (
-  <Box display="flex" height="100vh" pt={2}>
-    
-    {/* Sidebar */}
+    <Box display="flex" height="100vh" pt={2}>
+
+      {/* Sidebar */}
       <SidebarPanel
         partNumber={partNumber}
         setPartNumber={setPartNumber}
         reportType={reportType}
         setReportType={setReportType}
         formatDuration={formatDuration}
-        from = {from}
-        to = {to}
+        from={from}
+        to={to}
       />
 
 
-    {/* Right side content */}
-  <Box flex={1} p={3} overflow="auto">
-  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-    {/* Heading */}
-    <Typography variant="h5" fontWeight="bold">
-      Production Summary
-    </Typography>
+      {/* Right side content */}
+      <Box flex={1} p={3} overflow="auto">
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h5" fontWeight="bold">
+            Production Summary
+          </Typography>
 
-    {/* Back Button */}
-    <Button
-      variant="contained"
-      onClick={() => navigate('/componentanalysis')}
-      color="warning"
-      sx={{
-        backgroundColor: '#626262',
-        '&:hover': { backgroundColor: '#4d4d4d' }
-      }}
-    >
-      Back
-    </Button>
-  </Box>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Select
+              value={selectedComponent}
+              onChange={(e) => setSelectedComponent(e.target.value)}
+              displayEmpty
+              size="small"
+              sx={{ minWidth: 180 }}
+            >
+              <MenuItem value="all">
+                All Component
+              </MenuItem>
+              {componentNames.map((name, index) => (
+                <MenuItem key={index} value={name}>
+                  {name}
+                </MenuItem>
+              ))}
+            </Select>
 
-
-
-  {from && to && (
-    <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-      {new Date(from).toLocaleString()} → {new Date(to).toLocaleString()}
-    </Typography>
-  )}
-
-<Typography variant="h6" fontWeight="bold" gutterBottom mt={3}>
-  Analyzed { 
-    (cycleTimeSlower?.length || 0) + 
-    (cycleTimeFaster?.length || 0) + 
-    (cycleTimeBaselineSlower?.length || 0) + 
-    (cycleTimeBaselineFaster?.length || 0)
-  } Runs
-</Typography>
-
-  {/* ================= First Row: Expected ================= */}
-  <Grid container spacing={3}>
-    {/* Slower than Expected */}
-    <Grid item xs={12} md={6}>
-      <Card variant="outlined" sx={{ p: 2, height: "400px", overflow: "hidden" }}>
-        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-          Cycle Time Slower Than Expected
-        </Typography>
-
-        <Box
-          display="flex"
-          flexDirection="column"
-          gap={2}
-          sx={{ overflowY: "auto", maxHeight: "340px", pr: 1 }}
-        >
-          {cycleTimeSlower.length > 0 ? (
-            cycleTimeSlower.map((item, index) => {
-              const formatSeconds = (sec) => {
-                const h = Math.floor(sec / 3600);
-                const m = Math.floor((sec % 3600) / 60);
-                const s = sec % 60;
-                return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-              };
-
-              const actual = Number(item.actual_cycle);
-              const expected = Number(item.exp_cycle);
-              const diff = actual - expected; // slower → actual > expected
-
-              return (
-                <Card
-                  key={index}
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    
-                    display: "flex",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  {/* Left column */}
-                  <Box>
-                    <Typography fontSize="20px" fontWeight="bold" pt={0}>
-                      {item.component_name}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      color="textSecondary"
-                      display="block"
-                      mt={0}
-                    >
-                      {new Date(Number(item.start_time)).toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" mt={1} fontWeight="bold">
-                      {item.device_name}
-                    </Typography>
-                  </Box>
-
-                  {/* Right column */}
-                  <Box display="flex" flexDirection="column" alignItems="flex-end">
-                    <Box sx={{ height: "20px" }} />
-                    <Typography
-                      variant="caption"
-                      color="textSecondary"
-                      display="block"
-                      mt={1.1}
-                    >
-                      {new Date(Number(item.end_time)).toLocaleString()}
-                    </Typography>
-                    <Box display="flex" alignItems="center" gap={1} mt={1}>
-                      <Typography variant="h6">{formatSeconds(actual)}</Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "error.main", fontWeight: "bold", marginTop: "4px" }}
-                      >
-                       ↓ {formatSeconds(Math.abs(diff))}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Card>
-              );
-            })
-          ) : (
-            <Typography variant="body2" color="textSecondary">
-              No data available
-            </Typography>
-          )}
-        </Box>
-      </Card>
-    </Grid>
-
-    {/* Faster than Expected */}
-    <Grid item xs={12} md={6}>
-      <Card variant="outlined" sx={{ p: 2, height: "400px", overflow: "hidden" }}>
-        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-          Cycle Time Faster Than Expected
-        </Typography>
-
-        <Box
-          display="flex"
-          flexDirection="column"
-          gap={2}
-          sx={{
-            overflowY: "auto",
-            maxHeight: "340px",
-            pr: 1,
-            "&::-webkit-scrollbar": {
-              width: "6px",
-            },
-            "&::-webkit-scrollbar-thumb": {
-              backgroundColor: "#ccc",
-              borderRadius: "3px",
-            },
-          }}
-        >
-          {cycleTimeFaster.length > 0 ? (
-            cycleTimeFaster.map((item, index) => {
-              const formatSeconds = (sec) => {
-                const h = Math.floor(sec / 3600);
-                const m = Math.floor((sec % 3600) / 60);
-                const s = sec % 60;
-                return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-              };
-
-              const actual = Number(item.actual_cycle);
-              const expected = Number(item.exp_cycle);
-              const diff = actual - expected; // faster → diff negative
-
-              return (
-                <Card
-                  key={index}
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    display: "flex",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  {/* Left column */}
-                  <Box>
-                    <Typography fontSize="20px" fontWeight="bold">
-                      {item.component_name}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      color="textSecondary"
-                      display="block"
-                      mt={0}
-                    >
-                      {new Date(Number(item.start_time)).toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" mt={2} fontWeight="bold">
-                      {item.device_name}
-                    </Typography>
-                  </Box>
-
-                  {/* Right column */}
-                  <Box display="flex" flexDirection="column" alignItems="flex-end">
-                    <Box sx={{ height: "20px" }} />
-                    <Typography
-                      variant="caption"
-                      color="textSecondary"
-                      display="block"
-                      mt={1.1}
-                    >
-                      {new Date(Number(item.end_time)).toLocaleString()}
-                    </Typography>
-                    <Box display="flex" alignItems="center" gap={1} mt={1}>
-                      <Typography variant="h6">{formatSeconds(actual)}</Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "success.main", fontWeight: "bold", marginTop: "4px" }}
-                      >
-                         ↑ {formatSeconds(Math.abs(diff))}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Card>
-              );
-            })
-          ) : (
-            <Typography variant="body2" color="textSecondary">
-              No data available
-            </Typography>
-          )}
-        </Box>
-      </Card>
-    </Grid>
-  </Grid>
-
-  {/* ================= Second Row: Baseline ================= */}
-  <Grid container spacing={3} mt={1}>
-    {/* Slower than Baseline */}
-    <Grid item xs={12} md={6}>
-      <Card variant="outlined" sx={{ p: 2, height: "400px", overflow: "hidden" }}>
-        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-          Cycle Time Slower Than Baseline
-        </Typography>
-
-        <Box
-          display="flex"
-          flexDirection="column"
-          gap={2}
-          sx={{
-            overflowY: "auto",
-            maxHeight: "340px",
-            pr: 1,
-            "&::-webkit-scrollbar": {
-              width: "6px",
-            },
-            "&::-webkit-scrollbar-thumb": {
-              backgroundColor: "#ccc",
-              borderRadius: "3px",
-            },
-          }}
-        >
-          {cycleTimeBaselineSlower.length > 0 ? (
-            cycleTimeBaselineSlower.map((item, index) => {
-              const formatSeconds = (sec) => {
-                const h = Math.floor(sec / 3600);
-                const m = Math.floor((sec % 3600) / 60);
-                const s = sec % 60;
-                return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-              };
-
-              const actual = Number(item.actual_baseline);
-              const expected = Number(item.exp_baseline);
-              const diff = actual - expected; // slower → positive diff
-
-              return (
-                <Card
-                  key={index}
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    display: "flex",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  {/* Left column */}
-                  <Box>
-                    <Typography fontSize="20px" fontWeight="bold">
-                      {item.component_name}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      color="textSecondary"
-                      display="block"
-                      mt={0}
-                    >
-                      {new Date(Number(item.start_time)).toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" mt={2} fontWeight="bold">
-                      {item.device_name}
-                    </Typography>
-                  </Box>
-
-                  {/* Right column */}
-                  <Box display="flex" flexDirection="column" alignItems="flex-end">
-                    <Box sx={{ height: "20px" }} />
-                    <Typography
-                      variant="caption"
-                      color="textSecondary"
-                      display="block"
-                      mt={1.1}
-                    >
-                      {new Date(Number(item.end_time)).toLocaleString()}
-                    </Typography>
-                    <Box display="flex" alignItems="center" gap={1} mt={1}>
-                      <Typography variant="h6">{formatSeconds(actual)}</Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "error.main", fontWeight: "bold", marginTop: "4px" }}
-                      >
-                        ↓ {formatSeconds(Math.abs(diff))}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Card>
-              );
-            })
-          ) : (
-            <Typography variant="body2" color="textSecondary">
-              No data available
-            </Typography>
-          )}
-        </Box>
-      </Card>
-    </Grid>
-
-    {/* Faster than Baseline */}
-    <Grid item xs={12} md={6}>
-  <Card variant="outlined" sx={{ p: 2, height: "400px", overflow: "hidden" }}>
-    <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-      Cycle Time Faster Than Baseline
-    </Typography>
-
-    <Box
-      display="flex"
-      flexDirection="column"
-      gap={2}
-      sx={{ overflowY: "auto", maxHeight: "340px", pr: 1 }}
-    >
-      {cycleTimeBaselineFaster.length > 0 ? (
-        cycleTimeBaselineFaster.map((item, index) => {
-          const formatSeconds = (sec) => {
-            const h = Math.floor(sec / 3600);
-            const m = Math.floor((sec % 3600) / 60);
-            const s = sec % 60;
-            return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-          };
-
-          const actual = Number(item.actual_baseline);
-          const expected = Number(item.exp_baseline);
-          const diff = actual - expected; // faster → actual < expected → negative diff
-
-          return (
-            <Card
-              key={index}
-              variant="outlined"
+            <Button
+              variant="contained"
+              onClick={() => navigate('/componentanalysis')}
+              color="warning"
               sx={{
-                p: 2,
-                display: "flex",
-                justifyContent: "space-between",
+                backgroundColor: '#626262',
+                '&:hover': { backgroundColor: '#4d4d4d' }
               }}
             >
-              {/* Left column */}
-              <Box>
-                <Typography fontSize="20px" fontWeight="bold">
-                  {item.component_name}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  color="textSecondary"
-                  display="block"
-                  mt={0}
-                >
-                  {new Date(Number(item.start_time)).toLocaleString()}
-                </Typography>
-                <Typography variant="body2" mt={2} fontWeight="bold">
-                  {item.device_name}
-                </Typography>
-              </Box>
+              Back
+            </Button>
+          </Box>
+        </Box>
 
-              {/* Right column */}
-              <Box display="flex" flexDirection="column" alignItems="flex-end">
-                <Box sx={{ height: "20px" }} />
-                <Typography
-                  variant="caption"
-                  color="textSecondary"
-                  display="block"
-                  mt={1.1}
-                >
-                  {new Date(Number(item.end_time)).toLocaleString()}
-                </Typography>
-                <Box display="flex" alignItems="center" gap={1} mt={1}>
-                  <Typography variant="h6">{formatSeconds(actual)}</Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: "success.main", fontWeight: "bold", marginTop: "4px" }}
-                  >
-                    ↑ {formatSeconds(Math.abs(diff))}
+
+
+        {from && to && (
+          <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+            {new Date(from).toLocaleString()} → {new Date(to).toLocaleString()}
+          </Typography>
+        )}
+
+        <Typography variant="h6" fontWeight="bold" gutterBottom mt={3}>
+          Analyzed {
+            (cycletimeslower?.length || 0) +
+            (cycletimefaster?.length || 0) +
+            (cycletimeslowerbaseline?.length || 0) +
+            (cycletimefasterbaseline?.length || 0)
+          } Runs
+        </Typography>
+
+        {/* ================= First Row: Expected ================= */}
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}  >
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Cycle Time Slower Than Expected
+              </Typography>
+
+              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+                {cycletimeslower.length > 0 ? (
+                  cycletimeslower.map((item, index) => {
+                    const formatSeconds = (sec) => {
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = Math.floor(sec % 60);
+                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+                    };
+
+                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
+                    const expected = Number(item.expected_run);
+                    const diff = actual - expected; // faster → diff negative
+
+                    return (
+                      <Card
+                        key={index}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          mb: 2,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer"
+                        }}
+                        onClick={() =>
+                          navigate("/summary", {
+                            state: {
+                              selectedDevice: selectedDevice,
+                              previousScreen: location.pathname,
+                              componentName: item.operation_name,
+                              code: item.code || "N/A",
+                              deviceName: item.name,
+                              start_time: item.start_time,
+                              end_time: item.end_time
+                            }
+                          })
+                        }
+                      >
+                        {/* Left column */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.operation_name}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.start_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Typography variant="body2" fontWeight="bold">
+                            {item.name}
+                          </Typography>
+                        </Box>
+
+                        {/* Right column */}
+                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.code || 'N/A'}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.end_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Box display="flex" alignItems="center" justifyContent="flex-end">
+                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{formatSeconds(actual)}</p>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "error.main", fontWeight: "bold", ml: 1 }}
+                            >
+                              ↓ {formatSeconds(Math.abs(diff))}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No data available
                   </Typography>
-                </Box>
+                )}
               </Box>
             </Card>
-          );
-        })
-      ) : (
-        <Typography variant="body2" color="textSecondary">
-          No data available
-        </Typography>
-      )}
+          </Grid>
+
+          {/* Faster than Expected */}
+          <Grid item xs={12} md={6}>
+            <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Cycle Time Faster Than Expected
+              </Typography>
+
+              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+                {cycletimefaster.length > 0 ? (
+                  cycletimefaster.map((item, index) => {
+                    const formatSeconds = (sec) => {
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = Math.floor(sec % 60);
+                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+                    };
+
+                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
+                    const expected = Number(item.expected_run);
+                    const diff = actual - expected; // faster → diff negative
+
+                    return (
+                      <Card
+                        key={index}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          mb: 2,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer"
+                        }}
+                        onClick={() =>
+                          navigate("/summary", {
+                            state: {
+                              selectedDevice: selectedDevice,
+                              previousScreen: location.pathname,
+                              componentName: item.operation_name,
+                              code: item.code || "N/A",
+                              deviceName: item.name,
+                              start_time: item.start_time,
+                              end_time: item.end_time
+                            }
+                          })
+                        }
+                      >
+                        {/* Left column */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.operation_name}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.start_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Typography variant="body2" fontWeight="bold">
+                            {item.name}
+                          </Typography>
+                        </Box>
+
+                        {/* Right column */}
+                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.code || 'N/A'}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.end_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Box display="flex" alignItems="center" justifyContent="flex-end">
+                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{formatSeconds(actual)}</p>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "success.main", fontWeight: "bold", ml: 1 }}
+                            >
+                              ↑ {formatSeconds(Math.abs(diff))}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No data available
+                  </Typography>
+                )}
+              </Box>
+            </Card>
+          </Grid>
+
+        </Grid>
+
+        {/* ================= Second Row: Baseline ================= */}
+        <Grid container spacing={3} mt={1}>
+          {/* Slower than Baseline */}
+          <Grid item xs={12} md={6}>
+            <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Cycle Time Slower Than Baseline
+              </Typography>
+
+              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+                {cycletimeslowerbaseline.length > 0 ? (
+                  cycletimeslowerbaseline.map((item, index) => {
+                    const formatSeconds = (sec) => {
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = Math.floor(sec % 60);
+                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+                    };
+
+                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
+                    const expected = Number(item.cycletime_baseline);
+                    const diff = actual - expected;
+
+                    return (
+                      <Card
+                        key={index}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          mb: 2,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer"
+                        }}
+                        onClick={() =>
+                          navigate("/summary", {
+                            state: {
+                              selectedDevice: selectedDevice,
+                              previousScreen: location.pathname,
+                              componentName: item.operation_name,
+                              code: item.code || "N/A",
+                              deviceName: item.name,
+                              start_time: item.start_time,
+                              end_time: item.end_time
+                            }
+                          })
+                        }
+                      >
+                        {/* Left column */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.operation_name}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.start_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Typography variant="body2" fontWeight="bold">
+                            {item.name}
+                          </Typography>
+                        </Box>
+
+                        {/* Right column */}
+                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.code || 'N/A'}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.end_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Box display="flex" alignItems="center" justifyContent="flex-end">
+                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{formatSeconds(actual)}</p>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "error.main", fontWeight: "bold", ml: 1 }}
+                            >
+                              ↓ {formatSeconds(Math.abs(diff))}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No data available
+                  </Typography>
+                )}
+              </Box>
+            </Card>
+          </Grid>
+
+          {/* Faster than Baseline */}
+          <Grid item xs={12} md={6}>
+            <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Cycle Time Faster Than Baseline
+              </Typography>
+
+              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+                {cycletimefasterbaseline.length > 0 ? (
+                  cycletimefasterbaseline.map((item, index) => {
+                    const formatSeconds = (sec) => {
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = Math.floor(sec % 60);
+                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+                    };
+
+                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
+                    const expected = Number(item.cycletime_baseline);
+                    const diff = actual - expected; // faster → diff negative
+
+                    return (
+                      <Card
+                        key={index}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          mb: 2,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer"
+                        }}
+                        onClick={() =>
+                          navigate("/summary", {
+                            state: {
+                              selectedDevice: selectedDevice,
+                              previousScreen: location.pathname,
+                              componentName: item.operation_name,
+                              code: item.code || "N/A",
+                              deviceName: item.name,
+                              start_time: item.start_time,
+                              end_time: item.end_time
+                            }
+                          })
+                        }
+                      >
+                        {/* Left column */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.operation_name}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.start_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Typography variant="body2" fontWeight="bold">
+                            {item.name}
+                          </Typography>
+                        </Box>
+
+                        {/* Right column */}
+                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.code || 'N/A'}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.end_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Box display="flex" alignItems="center" justifyContent="flex-end">
+                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{formatSeconds(actual)}</p>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "success.main", fontWeight: "bold", ml: 1 }}
+                            >
+                              ↑ {formatSeconds(Math.abs(diff))}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No data available
+                  </Typography>
+                )}
+              </Box>
+            </Card>
+          </Grid>
+
+        </Grid>
+      </Box>
+
     </Box>
-  </Card>
-</Grid>
-
-  </Grid>
-</Box>
-
-  </Box> 
-);
+  );
 
 }
 export default Cycletime;

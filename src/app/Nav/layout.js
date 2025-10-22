@@ -25,6 +25,8 @@ const Layout = () => {
     location.pathname === '/cycletime' ||
     location.pathname === '/inprogress' ||
     location.pathname === '/component' ||
+    location.pathname === '/component1' ||
+    location.pathname === '/summary' ||
     location.pathname === '/analyticoee';
   return (
     <>

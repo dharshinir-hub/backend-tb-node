@@ -24,7 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
 
 
- const AnalyticOee = () => {
+const AnalyticOee = () => {
     const [partNumber, setPartNumber] = useState("");
     const [reportType, setReportType] = useState("Part Time vs Expected");
     const [machineGroup, setMachineGroup] = useState("CNC Group ");
@@ -34,10 +34,21 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
     const navigate = useNavigate();
 
     const location = useLocation();
-    const { from, to } = location.state || {
-        from: dayjs().subtract(6, "day").startOf("day").valueOf(),
-        to: dayjs().endOf("day").valueOf()
-    };
+
+
+  const storedStart = localStorage.getItem("analyticsStartDate");
+  const from = storedStart
+    ? Number(storedStart)
+    : dayjs().subtract(6, "day").startOf("day").valueOf();
+
+  // Get end date from localStorage or default to today
+  const storedEnd = localStorage.getItem("analyticsEndDate");
+  const to = storedEnd
+    ? Number(storedEnd)
+    : dayjs().endOf("day").valueOf();
+
+      const selectedDevice = location.state?.selectedDevice || null;
+
 
     const Id = localStorage.getItem("CustomerID");
     let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
@@ -74,7 +85,50 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
         }
     }, [customerId, newToken]);
 
-  
+
+    const [operationsData, setOperationsData] = useState([]);
+
+    useEffect(() => {
+        let isMounted = true; // ✅ Prevent state updates if component unmounts
+
+        const fetchOperationsData = async () => {
+            if (!from || !to) return;
+
+            try {
+                const data = await telemetrykeydata(
+                    customerId,
+                    "CUSTOMER",
+                    "operations",
+                    from,
+                    to
+                );
+
+                if (!data) {
+                    console.warn("No data received for operations");
+                    if (isMounted) setOperationsData([]);
+                    return;
+                }
+
+                const parsedValues = parseTelemetryValues(data, "operations");
+                console.log("Final operations values:", parsedValues);
+
+                if (isMounted) setOperationsData(parsedValues);
+            } catch (error) {
+                console.error("Error fetching operations data:", error);
+                if (isMounted) setOperationsData([]);
+            }
+        };
+
+        fetchOperationsData();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [customerId, from, to]);
+
+    console.log('operations key data', operationsData)
+
+
     const [oeeSlower, setOeeTimeSlower] = useState([]);
     const [oeeFaster, setOeeTimeFaster] = useState([]);
     const [oeeBaselineSlower, setOeeBaselineSlower] = useState([]);
@@ -228,6 +282,71 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
     }, [customerId, from, to]);
 
 
+    const [firstOperationsItem, setFirstOperationsItem] = useState([]);
+
+    useEffect(() => {
+        const fetchOperationsData = async () => {
+            if (!from || !to || !selectedDevice) return;
+
+            try {
+                const deviceIds = Array.isArray(selectedDevice) ? selectedDevice : [selectedDevice];
+
+                const allDataArray = await Promise.all(
+                    deviceIds.map(async (deviceId) => {
+                        const data = await telemetrykeydata(
+                            deviceId,
+                            "DEVICE",
+                            "operations",
+                            from,
+                            to
+                        );
+                        return parseTelemetryValues(data, "operations");
+                    })
+                );
+
+                const combinedData = allDataArray.flat();
+                console.log("Total operations data :", combinedData);
+
+                const groupedData = combinedData.reduce((acc, item) => {
+                    const key = `${item.start_time}_${item.end_time}_${item.code}_${item.code}`;
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(item);
+                    return acc;
+                }, {});
+                console.log("Grouped operations data:", groupedData);
+
+                const firstItems = Object.values(groupedData).map(group => group[0]);
+                setFirstOperationsItem(firstItems);
+                console.log("First item from each group (stored in state):", firstItems);
+
+            } catch (error) {
+                console.error("Error fetching operations data:", error);
+                setFirstOperationsItem([]);
+            }
+        };
+
+        fetchOperationsData();
+    }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+
+    // Assuming your array is called `dataArray`
+    const oeebaselineGreater = [];
+    const oeebaselineLower = [];
+
+    firstOperationsItem.forEach(item => {
+        const itemOEE = item.oee ?? 0; // fallback to 0 if undefined
+        const baselineOEE = item.baseline?.oee ?? 0; // fallback to 0 if undefined
+
+        if (itemOEE > baselineOEE) {
+            oeebaselineGreater.push(item);
+        } else {
+            oeebaselineLower.push(item);
+        }
+    });
+
+    console.log("OEE greater than baseline:", oeebaselineGreater);
+    console.log("OEE lower than or equal to baseline:", oeebaselineLower);
+
+
 
     function formatDuration(seconds) {
         const h = Math.floor(seconds / 3600);
@@ -235,6 +354,9 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
         const s = seconds % 60;
         return [h > 0 ? `${h}h` : "", m > 0 ? `${m}m` : "", s > 0 ? `${s}s` : ""].filter(Boolean).join(" ");
     }
+
+
+
 
     return (
         <Box display="flex" height="100vh" pt={2}>
@@ -262,7 +384,7 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
                     {/* Back Button */}
                     <Button
                         variant="contained"
-                        onClick={() => navigate('/analytics')}
+                        onClick={() => navigate('/componentanalysis')}
                         color="warning"
                         sx={{
                             backgroundColor: '#626262',
@@ -285,8 +407,8 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
                     Analyzed {
                         (oeeSlower?.length || 0) +
                         (oeeFaster?.length || 0) +
-                        (oeeBaselineSlower?.length || 0) +
-                        (oeeBaselineFaster?.length || 0)
+                        (oeebaselineLower?.length || 0) +
+                        (oeebaselineGreater?.length || 0)
                     } Runs
                 </Typography>
 
@@ -296,7 +418,7 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
                     <Grid item xs={12} md={6}>
                         <Card variant="outlined" sx={{ p: 2, height: "400px", overflow: "hidden" }}>
                             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                               Oee Slower Than Expected
+                                Oee Slower Than Expected
                             </Typography>
 
                             <Box
@@ -383,7 +505,7 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
                     <Grid item xs={12} md={6}>
                         <Card variant="outlined" sx={{ p: 2, height: "400px", overflow: "hidden" }}>
                             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                               Oee Faster Than Expected
+                                Oee Faster Than Expected
                             </Typography>
 
                             <Box
@@ -486,182 +608,189 @@ import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
                             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                                 Oee Slower Than Baseline
                             </Typography>
+              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+                {oeebaselineLower.length > 0 ? (
+                  oeebaselineLower.map((item, index) => {
+                    const formatSeconds = (sec) => {
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = Math.floor(sec % 60);
+                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+                    };
 
-                            <Box
-                                display="flex"
-                                flexDirection="column"
-                                gap={2}
-                                sx={{
-                                    overflowY: "auto",
-                                    maxHeight: "340px",
-                                    pr: 1,
-                                    "&::-webkit-scrollbar": {
-                                        width: "6px",
-                                    },
-                                    "&::-webkit-scrollbar-thumb": {
-                                        backgroundColor: "#ccc",
-                                        borderRadius: "3px",
-                                    },
-                                }}
+                    const actual = Number(item.oee);
+                    const expected = Number(item.baseline.oee);
+                    const diff = actual - expected;
+
+                    return (
+                      <Card
+                        key={index}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          mb: 2,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer"
+                        }}
+                        onClick={() =>
+                          navigate("/summary", {
+                            state: {
+                                 selectedDevice: selectedDevice,
+                                  previousScreen: location.pathname,
+                              componentName: item.operation_name,
+                              code: item.code || "N/A",
+                              deviceName: item.name,
+                              start_time: item.start_time,
+                              end_time: item.end_time
+                            }
+                          })
+                        }
+                      >
+                        {/* Left column */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.operation_name}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.start_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Typography variant="body2" fontWeight="bold">
+                            {item.name}
+                          </Typography>
+                        </Box>
+
+                        {/* Right column */}
+                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.code || 'N/A'}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.end_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Box display="flex" alignItems="center" justifyContent="flex-end">
+                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{actual}</p>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "success.main", fontWeight: "bold", ml: 1 }}
                             >
-                                {oeeBaselineSlower.length > 0 ? (
-                                    oeeBaselineSlower.map((item, index) => {
-                                        const formatSeconds = (sec) => {
-                                            const h = Math.floor(sec / 3600);
-                                            const m = Math.floor((sec % 3600) / 60);
-                                            const s = sec % 60;
-                                            return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-                                        };
+                              ↑ {diff}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No data available
+                  </Typography>
+                )}
+              </Box>
 
-                                        const actual = Number(item.actual_baseline);
-                                        const expected = Number(item.exp_baseline);
-                                        const diff = actual - expected; // slower → positive diff
-
-                                        return (
-                                            <Card
-                                                key={index}
-                                                variant="outlined"
-                                                sx={{
-                                                    p: 2,
-                                                    display: "flex",
-                                                    justifyContent: "space-between",
-                                                }}
-                                            >
-                                                {/* Left column */}
-                                                <Box>
-                                                    <Typography fontSize="20px" fontWeight="bold">
-                                                        {item.component_name}
-                                                    </Typography>
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="textSecondary"
-                                                        display="block"
-                                                        mt={0}
-                                                    >
-                                                        {new Date(Number(item.start_time)).toLocaleString()}
-                                                    </Typography>
-                                                    <Typography variant="body2" mt={2} fontWeight="bold">
-                                                        {item.device_name}
-                                                    </Typography>
-                                                </Box>
-
-                                                {/* Right column */}
-                                                <Box display="flex" flexDirection="column" alignItems="flex-end">
-                                                    <Box sx={{ height: "20px" }} />
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="textSecondary"
-                                                        display="block"
-                                                        mt={1.1}
-                                                    >
-                                                        {new Date(Number(item.end_time)).toLocaleString()}
-                                                    </Typography>
-                                                    <Box display="flex" alignItems="center" gap={1} mt={1}>
-                                                        <Typography variant="h6">{formatSeconds(actual)}</Typography>
-                                                        <Typography
-                                                            variant="caption"
-                                                            sx={{ color: "error.main", fontWeight: "bold", marginTop: "4px" }}
-                                                        >
-                                                            ↓ {formatSeconds(Math.abs(diff))}
-                                                        </Typography>
-                                                    </Box>
-                                                </Box>
-                                            </Card>
-                                        );
-                                    })
-                                ) : (
-                                    <Typography variant="body2" color="textSecondary">
-                                        No data available
-                                    </Typography>
-                                )}
-                            </Box>
                         </Card>
                     </Grid>
 
                     {/* Faster than Baseline */}
                     <Grid item xs={12} md={6}>
-                        <Card variant="outlined" sx={{ p: 2, height: "400px", overflow: "hidden" }}>
+                        <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}>
                             <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                                 Oee Faster Than Baseline
                             </Typography>
 
-                            <Box
-                                display="flex"
-                                flexDirection="column"
-                                gap={2}
-                                sx={{ overflowY: "auto", maxHeight: "340px", pr: 1 }}
+              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+                {oeebaselineGreater.length > 0 ? (
+                  oeebaselineGreater.map((item, index) => {
+                    const formatSeconds = (sec) => {
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = Math.floor(sec % 60);
+                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+                    };
+
+                    const actual = Number(item.oee);
+                    const expected = Number(item.baseline.oee);
+                    const diff = actual - expected;
+
+                    return (
+                      <Card
+                        key={index}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          mb: 2,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: "pointer"
+                        }}
+                        onClick={() =>
+                          navigate("/summary", {
+                            state: {
+                                 selectedDevice: selectedDevice,
+                                  previousScreen: location.pathname,
+                              componentName: item.operation_name,
+                              code: item.code || "N/A",
+                              deviceName: item.name,
+                              start_time: item.start_time,
+                              end_time: item.end_time
+                            }
+                          })
+                        }
+                      >
+                        {/* Left column */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.operation_name}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.start_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Typography variant="body2" fontWeight="bold">
+                            {item.name}
+                          </Typography>
+                        </Box>
+
+                        {/* Right column */}
+                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
+                          <Box>
+                            <Typography fontSize="16px" fontWeight="bold">
+                              {item.code || 'N/A'}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              {new Date(Number(item.end_time)).toLocaleString()}
+                            </Typography>
+                          </Box>
+
+                          <Box display="flex" alignItems="center" justifyContent="flex-end">
+                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{actual}</p>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "success.main", fontWeight: "bold", ml: 1 }}
                             >
-                                {oeeBaselineFaster.length > 0 ? (
-                                    oeeBaselineFaster.map((item, index) => {
-                                        const formatSeconds = (sec) => {
-                                            const h = Math.floor(sec / 3600);
-                                            const m = Math.floor((sec % 3600) / 60);
-                                            const s = sec % 60;
-                                            return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-                                        };
-
-                                        const actual = Number(item.actual_baseline);
-                                        const expected = Number(item.exp_baseline);
-                                        const diff = actual - expected; // faster → actual < expected → negative diff
-
-                                        return (
-                                            <Card
-                                                key={index}
-                                                variant="outlined"
-                                                sx={{
-                                                    p: 2,
-                                                    display: "flex",
-                                                    justifyContent: "space-between",
-                                                }}
-                                            >
-                                                {/* Left column */}
-                                                <Box>
-                                                    <Typography fontSize="20px" fontWeight="bold">
-                                                        {item.component_name}
-                                                    </Typography>
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="textSecondary"
-                                                        display="block"
-                                                        mt={0}
-                                                    >
-                                                        {new Date(Number(item.start_time)).toLocaleString()}
-                                                    </Typography>
-                                                    <Typography variant="body2" mt={2} fontWeight="bold">
-                                                        {item.device_name}
-                                                    </Typography>
-                                                </Box>
-
-                                                {/* Right column */}
-                                                <Box display="flex" flexDirection="column" alignItems="flex-end">
-                                                    <Box sx={{ height: "20px" }} />
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="textSecondary"
-                                                        display="block"
-                                                        mt={1.1}
-                                                    >
-                                                        {new Date(Number(item.end_time)).toLocaleString()}
-                                                    </Typography>
-                                                    <Box display="flex" alignItems="center" gap={1} mt={1}>
-                                                        <Typography variant="h6">{formatSeconds(actual)}</Typography>
-                                                        <Typography
-                                                            variant="caption"
-                                                            sx={{ color: "success.main", fontWeight: "bold", marginTop: "4px" }}
-                                                        >
-                                                            ↑ {formatSeconds(Math.abs(diff))}
-                                                        </Typography>
-                                                    </Box>
-                                                </Box>
-                                            </Card>
-                                        );
-                                    })
-                                ) : (
-                                    <Typography variant="body2" color="textSecondary">
-                                        No data available
-                                    </Typography>
-                                )}
-                            </Box>
+                              ↑ {diff}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No data available
+                  </Typography>
+                )}
+              </Box>
                         </Card>
                     </Grid>
 

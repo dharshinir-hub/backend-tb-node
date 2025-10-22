@@ -37,6 +37,9 @@ const Analytics = () => {
   const [startDate, setStartDate] = useState(dayjs().subtract(6, "day"));
   const [endDate, setEndDate] = useState(dayjs());
 
+
+
+
   const [from, setFrom] = useState(null);
   const [to, setTo] = useState(null);
 
@@ -44,6 +47,20 @@ const Analytics = () => {
   let customerId = decodeURIComponent(Id || "");
   customerId = customerId.replace(/^"|"$/g, "");
   const newToken = localStorage.getItem("newToken");
+
+
+  useEffect(() => {
+    if (from) {
+      localStorage.setItem("analyticsStartDate", from);
+    }
+  }, [from]);
+
+  useEffect(() => {
+    if (to) {
+      localStorage.setItem("analyticsEndDate", to);
+    }
+  }, [to]);
+
 
   console.log('From', from, 'to', to);
 
@@ -60,7 +77,6 @@ const Analytics = () => {
   console.log('Shifts', shifts)
 
   // Fetch devices
-  // After fetching devices
   const fetchDevices = async () => {
     try {
       const result = await customerbaseddevices(customerId, 100, 0);
@@ -105,6 +121,8 @@ const Analytics = () => {
     const firstShift = shifts[0];
     const lastShift = shifts[shifts.length - 1];
     const addDay = lastShift.end_time < lastShift.start_time;
+    console.log('First Shift Start Time', firstShift);
+    console.log('Last Shift End Time', lastShift);
 
     const newFrom = combineDateAndTime(startDate, firstShift.start_time);
     const newTo = combineDateAndTime(endDate, lastShift.end_time, addDay);
@@ -351,7 +369,7 @@ const Analytics = () => {
           } else if (r.title === "Completed Work Cycle Times") {
             navigate("/cycletime", { state: { from, to, selectedDevice } });
           } else if (r.title === "Completed Work OEE") {
-            navigate("/analyticoee", { state: { from, to } });
+            navigate("/analyticoee", { state: { from, to ,selectedDevice} });
           }
         }}
       >
