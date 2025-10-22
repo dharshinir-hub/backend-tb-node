@@ -803,7 +803,11 @@ const OperatorDetails = () => {
           label: `Shift${shift.shift_no}`,
         }));
         setShiftOptions(options);
-
+     const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
+    if (selectedShiftData) {
+      setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
+      setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+    }
         if (options.length > 0) {
           const defaultShift = options[0].value;
           setSelectedDate(dayjs()); // Set to current date
@@ -1116,10 +1120,35 @@ const OperatorDetails = () => {
     setOpenEditDialog2(false);
 
   }
+
+  const getEpochFromShift2 = (shiftNo, selectedDateObj, shifts) => {
+    if (!shiftNo || !selectedDateObj || !shifts || shifts.length === 0) {
+      return { fromEpoch: null, toEpoch: null };
+    }
+    const selectedShiftData = shifts.find(shift => String(shift.shift_no) === String(shiftNo));
+    if (!selectedShiftData) {
+      return { fromEpoch: null, toEpoch: null };
+    }
+    const dateStr = selectedDateObj.format("YYYY-MM-DD");
+    const startDateTime = dayjs(`${dateStr}T${selectedShiftData.start_time}`);
+    let endDateTime;
+    if (selectedShiftData.end_day !== selectedShiftData.start_day) {
+      const nextDay = selectedDateObj.add(1, "day").format("YYYY-MM-DD");
+      endDateTime = dayjs(`${nextDay}T${selectedShiftData.end_time}`);
+    } else {
+      endDateTime = dayjs(`${dateStr}T${selectedShiftData.end_time}`);
+    }
+    return {
+      fromEpoch: startDateTime.valueOf(),
+      toEpoch: endDateTime.valueOf(),
+    };
+  };
+
   const downtimereason = async () => {
     if (!selectedDeviceId || !selectedShift || !selectedDate) return;
 
-    const { fromEpoch, toEpoch } = getEpochFromShift1(selectedShift, selectedDate);
+        const { fromEpoch, toEpoch } = getEpochFromShift2(selectedShift, selectedDate, shifts);
+        console.log(fromEpoch, toEpoch, 'from and to time')
     if (!fromEpoch || !toEpoch) return;
 
     const fromTime = fromEpoch;
@@ -1137,7 +1166,7 @@ const OperatorDetails = () => {
               2: { state: "Idle", color: "#FFEB3B" },
               3: { state: "Run", color: "#4CAF50" },
               100: { state: "Disconnect", color: "#808080" },
-              4: { state: "Alarm", color: "#F44336" },
+              5: { state: "Alarm", color: "#F44336" },
             };
 
             let runTime = 0, idleTime = 0, disconnectTime = 0, alarmTime = 0;

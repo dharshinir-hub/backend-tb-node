@@ -363,13 +363,14 @@ function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
     return { fromEpoch: null, toEpoch: null };
   }
 
-  const baseDate = dayjs(selectedDate).subtract(1, 'day').format("YYYY-MM-DD");
+  const shiftValue = typeof selectedShift === "number" ? String(selectedShift) : selectedShift || "";
+  const baseDate = dayjs(selectedDate).subtract(1, "day").format("YYYY-MM-DD");
   const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
 
   let fromEpoch = null;
   let toEpoch = null;
 
-  const normalizedShift = selectedShift?.trim().toLowerCase() || "";
+  const normalizedShift = shiftValue.trim().toLowerCase();
 
   if (normalizedShift === "allshift" || normalizedShift === "all shift") {
     const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
@@ -385,7 +386,7 @@ function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
       }
     }
   } else {
-    const shiftData = shifts.find((s) => String(s.shift_no) === String(selectedShift));
+    const shiftData = shifts.find((s) => String(s.shift_no) === String(shiftValue));
     if (shiftData) {
       const shiftStart = shiftData.start_time;
       const shiftEnd = shiftData.end_time;

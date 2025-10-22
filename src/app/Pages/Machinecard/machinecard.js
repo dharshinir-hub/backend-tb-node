@@ -46,7 +46,7 @@ const MachineCard = () => {
           2: { state: "Idle", color: "#FFEB3B" },
           3: { state: "Run", color: "#4CAF50" },
           100: { state: "Disconnect", color: "#808080" },
-          4: { state: "Alarm", color: "#F44336" },
+          5: { state: "Alarm", color: "#F44336" },
         };
 
         let runTime = 0, idleTime = 0, disconnectTime = 0, alarmTime = 0;
