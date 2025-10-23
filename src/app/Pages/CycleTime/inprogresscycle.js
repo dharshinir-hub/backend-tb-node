@@ -13,6 +13,13 @@ import {
   FormControl,
   InputLabel,
   keyframes,
+  TableCell,
+  TableHead,
+  TableRow,
+  Table,
+  Paper,
+  TableContainer,
+  TableBody,
 } from "@mui/material";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import {
@@ -28,7 +35,7 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const Inprogress = () => {
-    const baseUrl = window._env_.SERVER_URL;
+  const baseUrl = window._env_.SERVER_URL;
 
   // UI / filter states
   const [partNumber, setPartNumber] = useState("");
@@ -50,6 +57,8 @@ const Inprogress = () => {
   const [machineDurations, setMachineDurations] = useState({});
   const [machineStatuses, setMachineStatuses] = useState({});
   const [machineStatusTimes, setMachineStatusTimes] = useState({});
+  const [partsData, setPartsData] = useState({});
+
 
   // selection / interactions
   const [filteredDevices, setFilteredDevices] = useState([]);
@@ -58,11 +67,13 @@ const Inprogress = () => {
   const [selectedMachineId, setSelectedMachineId] = useState(null); // id string
   const [clickedDevice, setClickedDevice] = useState(null);
   const [viewedMachine, setViewedMachine] = useState(null);
+  const [from, setFrom] = useState(null); // start epoch of current shift
+  const [to, setTo] = useState(null);
 
   // time ranges and epochs
   const navigate = useNavigate();
   const location = useLocation();
-  const { from: locFrom, to: locTo, selectedDevice: locSelectedDevice } =
+  const { selectedDevice: locSelectedDevice } =
     (location && location.state) || {};
 
   // initialize selectedDevices from route state if present and an array of ids
@@ -73,6 +84,8 @@ const Inprogress = () => {
   // start / end epoch state (computed from shifts)
   const [startEpoch, setStartEpoch] = useState(null);
   const [endEpoch, setEndEpoch] = useState(null);
+  const [currentShift, setCurrentShift] = useState(null);
+
 
   // Customer info
   const Id = localStorage.getItem("CustomerID");
@@ -86,44 +99,69 @@ const Inprogress = () => {
       const dataShifts = result?.[0]?.value ?? [];
       setShifts(dataShifts);
 
-      // compute epochs if we have shifts
-      if (Array.isArray(dataShifts) && dataShifts.length > 0) {
-        const first = dataShifts[0];
-        const last = dataShifts[dataShifts.length - 1];
-
-        // helper to convert "HH:mm:ss" to Date with optional addDay
-        const toEpoch = (timeStr, addDay = false) => {
-          if (!timeStr) return null;
-          const [h, m, s] = timeStr.split(":").map(Number);
-          const now = new Date();
-          const d = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-            h ?? 0,
-            m ?? 0,
-            s ?? 0
-          );
-          if (addDay) d.setDate(d.getDate() + 1);
-          return d.getTime();
-        };
-
-        const sEpoch = toEpoch(first.start_time);
-        // if last.end_time < last.start_time assume it ends next day
-        const addDayForEnd =
-          last.end_time && last.start_time && last.end_time < last.start_time;
-        const eEpoch = toEpoch(last.end_time, addDayForEnd);
-
-        setStartEpoch(sEpoch);
-        setEndEpoch(eEpoch);
-      } else {
+      if (!Array.isArray(dataShifts) || dataShifts.length === 0) {
         setStartEpoch(null);
         setEndEpoch(null);
+        setFrom(null);
+        setTo(null);
+        return;
+      }
+
+      const now = Date.now();
+
+      // Helper to convert "HH:mm:ss" to epoch with optional addDay
+      const toEpoch = (timeStr, addDay = false) => {
+        if (!timeStr) return null;
+        const [h, m, s] = timeStr.split(":").map(Number);
+        const d = new Date();
+        d.setHours(h ?? 0, m ?? 0, s ?? 0, 0);
+        if (addDay) d.setDate(d.getDate() + 1);
+        return d.getTime();
+      };
+
+      // --- Compute first and last shift epochs ---
+      const firstShift = dataShifts[0];
+      const lastShift = dataShifts[dataShifts.length - 1];
+
+      const sEpoch = toEpoch(firstShift.start_time);
+      const addDayForEnd =
+        lastShift.end_time && lastShift.start_time && lastShift.end_time < lastShift.start_time;
+      const eEpoch = toEpoch(lastShift.end_time, addDayForEnd);
+
+      setStartEpoch(sEpoch);
+      setEndEpoch(eEpoch);
+
+      // --- Find current shift ---
+      const currentShift = dataShifts.find((shift) => {
+        if (!shift.start_time || !shift.end_time) return false;
+
+        const startEpoch = toEpoch(shift.start_time);
+        const endEpoch = toEpoch(shift.end_time, shift.end_time < shift.start_time);
+
+        return now >= startEpoch && now <= endEpoch;
+      });
+
+      if (currentShift) {
+        setFrom(toEpoch(currentShift.start_time));
+        setTo(toEpoch(currentShift.end_time, currentShift.end_time < currentShift.start_time));
+      } else {
+        // Default to first shift if no active shift
+        setFrom(toEpoch(firstShift.start_time));
+        setTo(toEpoch(firstShift.end_time, firstShift.end_time < firstShift.start_time));
       }
     } catch (err) {
       console.error("Failed to fetch shifts", err);
+      setStartEpoch(null);
+      setEndEpoch(null);
+      setFrom(null);
+      setTo(null);
     }
   };
+
+
+
+  console.log('Current shift time', currentShift);
+  console.log('from', from, 'to', to);
 
   // Fetch devices and build maps
   const fetchDevices = async () => {
@@ -188,198 +226,168 @@ const Inprogress = () => {
 
   // Main telemetry fetch: pulls utilization, baseline, live component, durations, statuses for each selected device id
   useEffect(() => {
-    // if no selected devices or no from/to (if you use locFrom/locTo, handle them) then skip
-    if (!Array.isArray(selectedDevices) || selectedDevices.length === 0) {
-      // clear telemetry if no selection
-      setMachineUtilization({});
-      setUtilizationBaseline({});
-      setLiveComponent({});
-      setMachineDurations({});
-      setMachineStatuses({});
-      setMachineStatusTimes({});
-      return;
-    }
-
-    // Use locFrom/locTo if provided, otherwise default recent 7 days (or you can use startEpoch/endEpoch)
-    const from = locFrom ?? dayjs().subtract(6, "day").startOf("day").valueOf();
-    const to = locTo ?? dayjs().endOf("day").valueOf();
-
-    const allKeys = [
-      "hour_utilization",
-      "historicalbaseline",
-      "live_component",
-      "machine_status",
-      "machine_Status",
-      "total_duration",
-      "auto_duration",
-      "live_reason",
-    ];
-
-    let canceled = false;
+    let intervalId;
 
     const fetchAllMachineData = async () => {
+      if (!from || !to || locSelectedDevice.length === 0) return;
       const resultsUtilization = {};
       const resultsBaseline = {};
       const resultsLiveComponent = {};
       const resultsDurations = {};
       const resultsMachineStatuses = {};
       const resultsMachineStatusTimes = {};
+      const resultsPartData = {};
+
+
+      const allKeys = [
+        "hour_utilization",
+        "historicalbaseline",
+        "live_component",
+        "machine_status",
+        "machine_Status",
+        "total_duration",
+        "auto_duration",
+        "part_data"
+      ];
 
       await Promise.all(
-        selectedDevices.map(async (deviceId) => {
+        locSelectedDevice.map(async (machine) => {
           try {
-            // telemetrykeydata expects device id (string) and other params
-            const data = await telemetrykeydata(deviceId, "DEVICE", allKeys, from, to);
+            const data = await telemetrykeydata(machine, "DEVICE", allKeys, from, to);
 
-            /** ---------------- Hourly Utilization ---------------- **/
+            /** Hourly Utilization **/
             const utilValues = data?.hour_utilization || [];
-            if (utilValues.length > 0) {
-              // group by hour and pick latest point per hour
+            if (utilValues.length) {
               const hourlyGroups = {};
               utilValues.forEach((point) => {
                 const date = new Date(point.ts);
-                const hourKey = new Date(
-                  date.getFullYear(),
-                  date.getMonth(),
-                  date.getDate(),
-                  date.getHours(),
-                  0,
-                  0,
-                  0
-                ).toISOString();
-                hourlyGroups[hourKey] = hourlyGroups[hourKey] || [];
+                const hourKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), 0, 0, 0).toISOString();
+                if (!hourlyGroups[hourKey]) hourlyGroups[hourKey] = [];
                 hourlyGroups[hourKey].push(point);
               });
               const hourlyLatest = Object.entries(hourlyGroups).map(([hour, points]) => {
-                const latestPoint = points.reduce((latest, point) =>
-                  new Date(point.ts) > new Date(latest.ts) ? point : latest
-                );
-                const value = Number(latestPoint.value ?? 0) || 0;
-                return { hour, value, timestamp: latestPoint.ts };
+                const latestPoint = points.reduce((latest, point) => new Date(point.ts) > new Date(latest.ts) ? point : latest);
+                return { hour, value: Number(latestPoint.value) || 0, timestamp: latestPoint.ts };
               });
-              const avgUtil =
-                hourlyLatest.reduce((sum, o) => sum + o.value, 0) / (hourlyLatest.length || 1);
-              resultsUtilization[deviceId] = { utilization: parseFloat(avgUtil.toFixed(1)) };
+              const avgUtil = hourlyLatest.reduce((sum, o) => sum + o.value, 0) / hourlyLatest.length;
+              resultsUtilization[machine] = { utilization: parseInt(avgUtil) };
             } else {
-              resultsUtilization[deviceId] = { utilization: 0 };
+              resultsUtilization[machine] = { utilization: 0 };
             }
 
-            /** ---------------- Historical Baseline ---------------- **/
+            /** Historical Baseline **/
             const baselineValues = data?.historicalbaseline || [];
-            if (baselineValues.length > 0) {
-              const latestPoint = baselineValues.reduce((max, p) => (p.ts > max.ts ? p : max));
-              let utilizationBaselineVal = 0;
+            if (baselineValues.length) {
+              const latestPoint = baselineValues.reduce((max, p) => p.ts > max.ts ? p : max);
+              let utilizationBaseline = 0;
               if (latestPoint?.value) {
-                try {
-                  const parsed =
-                    typeof latestPoint.value === "string"
-                      ? JSON.parse(latestPoint.value)
-                      : latestPoint.value;
-                  utilizationBaselineVal = parseFloat(parsed?.utilization ?? 0);
-                } catch {
-                  utilizationBaselineVal = parseFloat(latestPoint.value ?? 0);
-                }
+                const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
+                utilizationBaseline = parseFloat(parsed?.utilization ?? 0);
               }
-              resultsBaseline[deviceId] = {
-                utilizationBaseline: parseFloat(utilizationBaselineVal.toFixed(1)),
-              };
+              resultsBaseline[machine] = { utilizationBaseline: parseFloat(utilizationBaseline.toFixed(1)) };
             } else {
-              resultsBaseline[deviceId] = { utilizationBaseline: 0 };
+              resultsBaseline[machine] = { utilizationBaseline: 0 };
             }
 
-            /** ---------------- Live Component ---------------- **/
+            /** Live Component **/
             const liveValues = data?.live_component || [];
-            if (liveValues.length > 0) {
-              const latestPoint = liveValues.reduce((max, p) => (p.ts > max.ts ? p : max));
+            if (liveValues.length) {
+              const latestPoint = liveValues.reduce((max, p) => p.ts > max.ts ? p : max);
               let componentName = null;
-              try {
-                const parsed =
-                  typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
-                componentName = parsed?.name ?? (parsed?.component ?? String(latestPoint.value));
-              } catch {
-                componentName = String(latestPoint.value);
+              if (latestPoint?.value) {
+                const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
+                componentName = parsed?.name ?? null;
               }
-              resultsLiveComponent[deviceId] = { componentName };
+              resultsLiveComponent[machine] = { componentName };
             } else {
-              resultsLiveComponent[deviceId] = { componentName: null };
+              resultsLiveComponent[machine] = { componentName: null };
             }
 
-            /** ---------------- Total / Auto Durations ---------------- **/
+            /** Total / Auto Durations **/
             const totalValues = data?.total_duration || [];
-            const totalObj =
-              totalValues[0] && typeof totalValues[0].value === "string"
-                ? JSON.parse(totalValues[0].value)
-                : totalValues[0]?.value ?? {};
-            const autoValues = data?.auto_duration || [];
-            const autoObj =
-              autoValues[0] && typeof autoValues[0].value === "string"
-                ? JSON.parse(autoValues[0].value)
-                : autoValues[0]?.value ?? {};
-
-            const run = Math.round((totalObj.total_run_duration || 0) + (autoObj.total_run_duration || 0));
-            const idle = Math.round((totalObj.total_idle_duration || 0) + (autoObj.total_idle_duration || 0));
-            const disconnect = Math.round(
-              (totalObj.total_disconnect_duration || 0) + (autoObj.total_disconnect_duration || 0)
-            );
-            const alarm = Math.round((totalObj.total_alarm_duration || 0) + (autoObj.total_alarm_duration || 0));
-            const setting = Math.round(
-              (totalObj.total_setting_duration || 0) + (autoObj.total_setting_duration || 0)
-            );
+            const totalObj = totalValues[0] ? (typeof totalValues[0].value === "string" ? JSON.parse(totalValues[0].value) : totalValues[0].value) : {};
+            const run = Math.round(totalObj.total_run_duration || 0);
+            const idle = Math.round(totalObj.total_idle_duration || 0);
+            const disconnect = Math.round(totalObj.total_disconnect_duration || 0);
+            const alarm = Math.round(totalObj.total_alarm_duration || 0);
+            const setting = Math.round(totalObj.total_setting_duration || 0);
             const total = run + idle + disconnect + alarm + setting;
-            resultsDurations[deviceId] = { run, idle, disconnect, alarm, setting, total };
 
-            /** ---------------- Machine_Status (latest display) ---------------- **/
+            resultsDurations[machine] = { run, idle, disconnect, alarm, setting, total };
+
+            /** Machine Statuses **/
             const statusValues = data?.machine_Status || [];
-            if (statusValues.length > 0) {
-              const latestPoint = statusValues.reduce((max, p) => (p.ts > max.ts ? p : max));
-              let status = typeof latestPoint.value === "string" ? latestPoint.value : String(latestPoint.value);
-              resultsMachineStatuses[deviceId] = { machineName: idToName[deviceId] ?? deviceId, status };
+            if (statusValues.length) {
+              const latestPoint = statusValues.reduce((max, p) => p.ts > max.ts ? p : max);
+              let status = typeof latestPoint.value === "striith ng" ? latestPoint.value : String(latestPoint.value);
+              resultsMachineStatuses[machine] = { machineName: machine.name, status };
             } else {
-              resultsMachineStatuses[deviceId] = {
-                machineName: idToName[deviceId] ?? deviceId,
-                status: "No Data",
-              };
+              resultsMachineStatuses[machine] = { machineName: machine.name, status: "No Data" };
             }
 
-            /** ---------------- machine_status (find last "3") ---------------- **/
+
+            /**  Part Data values **/
+            const partData = data?.part_data || [];
+
+            if (partData.length) {
+              // Extract only 'value' and parse it
+              const parsedValues = partData.map(item => {
+                try {
+                  return JSON.parse(item.value);
+                } catch (e) {
+                  console.warn("Failed to parse partData value:", item.value);
+                  return null; // fallback if parsing fails
+                }
+              });
+
+              resultsPartData[machine] = { partData: parsedValues };
+            } else {
+              resultsPartData[machine] = { partData: null };
+            }
+
+
+            /** Last '3' timestamp **/
             const status3Values = data?.machine_status || [];
-            const lastValue = [...status3Values].reverse().find((p) => String(p.value) === "3");
-            resultsMachineStatusTimes[deviceId] = { lastTs: lastValue?.ts ?? null };
+            const lastValue = [...status3Values].reverse().find(p => p.value === "3");
+            resultsMachineStatusTimes[machine] = { lastTs: lastValue?.ts ?? null };
+
           } catch (error) {
-            console.error("Error fetching data for", deviceId, error);
-            resultsUtilization[deviceId] = { utilization: 0 };
-            resultsBaseline[deviceId] = { utilizationBaseline: 0 };
-            resultsLiveComponent[deviceId] = { componentName: null };
-            resultsDurations[deviceId] = { run: 0, idle: 0, disconnect: 0, alarm: 0, setting: 0, total: 0 };
-            resultsMachineStatuses[deviceId] = { machineName: idToName[deviceId] ?? deviceId, status: "Error" };
-            resultsMachineStatusTimes[deviceId] = { lastTs: null };
+            console.error("Error fetching data for", machine.name, error);
+            resultsUtilization[machine] = { utilization: 0 };
+            resultsBaseline[machine] = { utilizationBaseline: 0 };
+            resultsLiveComponent[machine] = { componentName: null };
+            resultsDurations[machine] = { run: 0, idle: 0, disconnect: 0, alarm: 0, setting: 0, total: 0 };
+            resultsMachineStatuses[machine] = { machineName: machine.name, status: "Error" };
+            resultsMachineStatusTimes[machine] = { lastTs: null };
+            resultsPartData[machine] = { partData: null };
+
           }
         })
       );
 
-      if (!canceled) {
-        setMachineUtilization(resultsUtilization);
-        setUtilizationBaseline(resultsBaseline);
-        setLiveComponent(resultsLiveComponent);
-        setMachineDurations(resultsDurations);
-        setMachineStatuses(resultsMachineStatuses);
-        setMachineStatusTimes(resultsMachineStatusTimes);
+      setMachineUtilization(resultsUtilization);
+      setUtilizationBaseline(resultsBaseline);
+      setLiveComponent(resultsLiveComponent);
+      setMachineDurations(resultsDurations);
+      setMachineStatuses(resultsMachineStatuses);
+      setMachineStatusTimes(resultsMachineStatusTimes);
+      setPartsData(resultsPartData);
+      
+      console.log('Parts Data', partsData);
 
-        // debug
-        // console.log("Utilization", resultsUtilization);
-        // console.log("Baseline", resultsBaseline);
-        // console.log("LiveComponent", resultsLiveComponent);
-        // console.log("Durations", resultsDurations);
-      }
     };
 
+    // Call immediately
     fetchAllMachineData();
 
-    return () => {
-      canceled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDevices, locFrom, locTo, idToName]);
+    // Set interval to call every 10s
+    intervalId = setInterval(fetchAllMachineData, 10000);
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
+
+  }, [locSelectedDevice, from, to]);
+
 
   // CycleTimeFaster fetch (example usage) — using startEpoch/endEpoch states
   useEffect(() => {
@@ -495,11 +503,11 @@ const Inprogress = () => {
   }, [devices]);
 
   useEffect(() => {
-  if (devices.length > 0) {
-    setSelectedMachine(devices[0]);
-    setSelectedMachineId(devices[0].id.id);
-  }
-}, [devices]);
+    if (devices.length > 0) {
+      setSelectedMachine(devices[0]);
+      setSelectedMachineId(devices[0].id.id);
+    }
+  }, [devices]);
 
 
   return (
@@ -588,11 +596,11 @@ const Inprogress = () => {
               return (
                 <Card
                   key={deviceId}
-                   onClick={() => {
-    setViewedMachine(machine);
-    setSelectedMachineId(machine.id.id);
-    setSelectedMachine(machine); // this updates right panel
-  }}
+                  onClick={() => {
+                    setViewedMachine(machine);
+                    setSelectedMachineId(machine.id.id);
+                    setSelectedMachine(machine); // this updates right panel
+                  }}
                   sx={{
                     mb: 1.5,
                     borderRadius: 3,
@@ -602,16 +610,16 @@ const Inprogress = () => {
                     border: "1px solid #e0e0e0",
                     boxShadow: `4px 4px 8px rgba(0,0,0,0.08), -4px -4px 8px rgba(255,255,255,0.9)`,
                     borderLeft: `5px solid ${machineStatuses[deviceId]?.status === "Running"
-                        ? "#4caf50"
-                        : machineStatuses[deviceId]?.status === "Idle"
-                          ? "#f1a014ff"
-                          : machineStatuses[deviceId]?.status === "Alarm"
-                            ? "#f44336"
-                            : machineStatuses[deviceId]?.status === "Disconnect"
-                              ? "#9e9e9e"
-                              : machineStatuses[deviceId]?.status === "Setting"
-                                ? "#81c8f5ff"
-                                : "#f44336"
+                      ? "#4caf50"
+                      : machineStatuses[deviceId]?.status === "Idle"
+                        ? "#f1a014ff"
+                        : machineStatuses[deviceId]?.status === "Alarm"
+                          ? "#f44336"
+                          : machineStatuses[deviceId]?.status === "Disconnect"
+                            ? "#9e9e9e"
+                            : machineStatuses[deviceId]?.status === "Setting"
+                              ? "#81c8f5ff"
+                              : "#f44336"
                       }`,
                     ...(machineStatuses[deviceId]?.status === "Alarm" && {
                       animation: `${blinkRedBorder} 1.5s ease-in-out infinite`,
@@ -791,62 +799,109 @@ const Inprogress = () => {
       </div>
 
       {/* Right side content */}
-{/* Right side content */}
-<Box flex={1} p={3} overflow="auto">
-  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-    {/* Component Name + Machine Name */}
-    <Box>
-      <Typography variant="h5" fontWeight="bold">
-        {selectedMachine
-          ? `${liveComponent[selectedMachine.id?.id]?.componentName ?? "Component"} `//(${selectedMachine.code ?? "N/A"})
-          : "Component Details"}
-        <Typography
-          variant="subtitle2"
-          display="block"
-          fontWeight="bold"
-          sx={{ fontSize: "18px", mt: 0.5 }}
-        >
-          {selectedMachine?.name ?? "Device"}
-        </Typography>
+      <Box flex={1} p={3} overflow="auto">
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          {/* Component Name + Machine Name */}
+          <Box>
+            <Typography variant="h5" fontWeight="bold">
+              {selectedMachine
+                ? `${liveComponent[selectedMachine.id?.id]?.componentName ?? "Component"} `//(${selectedMachine.code ?? "N/A"})
+                : "Component Details"}
+              <Typography
+                variant="subtitle2"
+                display="block"
+                fontWeight="bold"
+                sx={{ fontSize: "18px", mt: 0.5 }}
+              >
+                {selectedMachine?.name ?? "Device"}
+              </Typography>
+            </Typography>
+          </Box>
+
+          {/* Back Button */}
+          <Button
+            variant="contained"
+            onClick={() => navigate("/componentanalysis")}
+            color="warning"
+            sx={{
+              backgroundColor: "#626262",
+              "&:hover": { backgroundColor: "#4d4d4d" },
+            }}
+          >
+            Back
+          </Button>
+        </Box>
+
+        {/* Time range + iframe */}
+        {from && to && (
+          <Box display="flex" alignItems="flex-start" gap={2} mb={2}>
+            <Typography variant="subtitle2" color="textSecondary">
+              {new Date(from).toLocaleString()} → {new Date(to).toLocaleString()}
+            </Typography>
+
+
+          </Box>
+        )}
+
+        <Box flex={1}>
+          <iframe
+            title="Main Dashboard"
+            width="100%"
+            height="180px"
+            src={`http://192.168.0.224:3000/yantra/d/f39bad0f-9771-4c10-a0c3-3c6935073647/summary-2?orgId=1&var-token=${newToken}&var-from=${from}&var-to=${to}&var-device_id=${selectedMachine?.id?.id ?? ""}&var-url=${baseUrl}&theme=light&kiosk`}
+            frameBorder="0"
+            style={{ borderRadius: "8px" }}
+          ></iframe>
+        </Box>
+
+        <Box>
+          <Typography variant="h5" fontWeight="bold">
+            Parts Produced
+          </Typography>
+
+
+           {selectedMachine ? (
+    partsData[selectedMachine.id?.id]?.partData?.length > 0 ? (
+      <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Part Number</TableCell>
+              <TableCell>Component</TableCell>
+              <TableCell>Machine Name</TableCell>
+              <TableCell>Actual Time</TableCell>
+              <TableCell>Reference Time</TableCell>
+              <TableCell>Run Duration</TableCell>
+              <TableCell>Idle Duration</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {partsData[selectedMachine.id?.id]?.partData.map((part, index) => (
+              <TableRow key={index}>
+                <TableCell>{part.partnumber}</TableCell>
+                <TableCell>{part.component}</TableCell>
+                <TableCell>{part.machinename}</TableCell>
+                <TableCell>{part.actualTime}</TableCell>
+                <TableCell>{part.referenceTime}</TableCell>
+                <TableCell>{part.run_duration.toFixed(2)}</TableCell>
+                <TableCell>{part.idle_duration.toFixed(2)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    ) : (
+      <Typography variant="body2" color="textSecondary">
+        No parts produced for this machine.
       </Typography>
-    </Box>
-
-    {/* Back Button */}
-    <Button
-      variant="contained"
-      onClick={() => navigate("/componentanalysis")}
-      color="warning"
-      sx={{
-        backgroundColor: "#626262",
-        "&:hover": { backgroundColor: "#4d4d4d" },
-      }}
-    >
-      Back
-    </Button>
-  </Box>
-
-  {/* Time range + iframe */}
-  {startEpoch && endEpoch && (
-    <Box display="flex" alignItems="flex-start" gap={2} mb={2}>
-      <Typography variant="subtitle2" color="textSecondary">
-        {new Date(startEpoch).toLocaleString()} → {new Date(endEpoch).toLocaleString()}
-      </Typography>
-
-      
-    </Box>
+    )
+  ) : (
+    <Typography variant="body2" color="textSecondary">
+      Select a machine to see parts produced.
+    </Typography>
   )}
-
-<Box flex={1}>
-        <iframe
-          title="Main Dashboard"
-          width="100%"
-          height="180px"
-          src={`http://192.168.0.224:3000/yantra/d/f39bad0f-9771-4c10-a0c3-3c6935073647/summary-2?orgId=1&var-token=${newToken}&var-from=${locFrom}&var-to=${locTo}&var-device_id=${selectedMachine?.id?.id ?? ""}&var-url=${baseUrl}&theme=light&kiosk`}
-          frameBorder="0"
-          style={{ borderRadius: "8px" }}
-        ></iframe>
+        </Box>
       </Box>
-</Box>
 
     </Box>
   );
