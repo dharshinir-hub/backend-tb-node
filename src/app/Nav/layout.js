@@ -23,7 +23,7 @@ const Layout = () => {
     location.pathname === '/deviceoee' ||
     location.pathname === '/machineutilization' ||
     location.pathname === '/cycletime' ||
-    location.pathname === '/inprogress' ||
+    location.pathname === '/inprogresscycle' ||
     location.pathname === '/component' ||
     location.pathname === '/component1' ||
     location.pathname === '/summary' ||

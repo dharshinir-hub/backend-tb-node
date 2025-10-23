@@ -267,13 +267,14 @@ useEffect(() => {
   // ✅ Flatten all machine data into one array (optional)
   const allFinalGroups = Object.values(groupedData).flat();
 
-  console.log("✅ Grouped by code + time per machine:", groupedData);
-  console.log("✅ Final group data (array format):", allFinalGroups);
+
 
   setGroupedOperations(groupedData);
   setFinalGroup(allFinalGroups); // ✅ now array-based
 }, [operationsData]);
 
+  console.log("✅ Grouped by code + time per machine:", groupedOperations);
+  console.log("✅ Final group data (array format):", finalGroup);
 
 const getFirstItemsFromGroups = (finalGroupArray) => {
   if (!finalGroupArray || finalGroupArray.length === 0) return [];

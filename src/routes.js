@@ -27,7 +27,7 @@ import { Box } from '@mui/material';
 import NewDeviceOee from './app/Pages/NewDeviceOee/newdeviceoee';
 import Cycletime from "./app/Pages/CycleTime/cycletime";
 import AnalyticOee from "./app/Pages/CycleTime/analyticoee";
-import Inprogress from "./app/Pages/CycleTime/inprogress";
+import Inprogress from "./app/Pages/CycleTime/inprogresscycle";
 import Component from "./app/Pages/CycleTime/component";
 import Component1 from "./app/Pages/CycleTime/component1";
 import Summary from "./app/Pages/CycleTime/summary";
@@ -70,7 +70,7 @@ const AppRoutes = () => (
       <Route path="component" element={<Component />} />
       <Route path="component1" element={<Component1 />} />
       <Route path="summary" element={<Summary />} />
-      <Route path="inprogress" element={<Inprogress />} />
+      <Route path="inprogresscycle" element={<Inprogress />} />
       <Route path="analyticoee" element={<AnalyticOee />} />
 
     </Route>

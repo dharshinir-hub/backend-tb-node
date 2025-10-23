@@ -370,6 +370,8 @@ const Analytics = () => {
             navigate("/cycletime", { state: { from, to, selectedDevice } });
           } else if (r.title === "Completed Work OEE") {
             navigate("/analyticoee", { state: { from, to ,selectedDevice} });
+          } else if (r.title === "In-Progress Cycle Times") {
+            navigate("/inprogresscycle", { state: { from, to ,selectedDevice} });
           }
         }}
       >
