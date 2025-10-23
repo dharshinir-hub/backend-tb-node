@@ -28,6 +28,8 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const Inprogress = () => {
+    const baseUrl = window._env_.SERVER_URL;
+
   // UI / filter states
   const [partNumber, setPartNumber] = useState("");
   const [reportType, setReportType] = useState("Part Time vs Expected");
@@ -812,7 +814,7 @@ const Inprogress = () => {
     {/* Back Button */}
     <Button
       variant="contained"
-      onClick={() => navigate("/analytics")}
+      onClick={() => navigate("/componentanalysis")}
       color="warning"
       sx={{
         backgroundColor: "#626262",
@@ -839,7 +841,7 @@ const Inprogress = () => {
           title="Main Dashboard"
           width="100%"
           height="180px"
-          src={`http://192.168.0.224:3000/yantra/d/f39bad0f-9771-4c10-a0c3-3c6935073647/summary-2?orgId=1&var-token=${newToken}&var-from=${locFrom}&var-to=${locTo}&var-device_id=${selectedMachine?.id?.id ?? ""}&theme=light&kiosk`}
+          src={`http://192.168.0.224:3000/yantra/d/f39bad0f-9771-4c10-a0c3-3c6935073647/summary-2?orgId=1&var-token=${newToken}&var-from=${locFrom}&var-to=${locTo}&var-device_id=${selectedMachine?.id?.id ?? ""}&var-url=${baseUrl}&theme=light&kiosk`}
           frameBorder="0"
           style={{ borderRadius: "8px" }}
         ></iframe>
