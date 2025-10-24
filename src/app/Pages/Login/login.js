@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { Card, CardContent, Button, InputAdornment, IconButton, TextField } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import './login.css';
@@ -11,6 +11,8 @@ import mail from '../../../assets/mail.png';
 import lock from '../../../assets/lock.png';
 import { getCustomerTitle, getOperatorDetails, Loginapi, startTokenAutoRefresh, Userapi, Userapi1 } from '../../Services/app/loginservice';
 import { decryptText } from '../../Shared/utils/cryptoUtils';
+import { ROLE_OPERATOR } from '../../Shared/constants/role';
+import { UserDetailsContext } from '../../Shared/context/UserDetailsContext';
 
 function LoginForm() {
   const { register, handleSubmit, formState: { errors }, trigger } = useForm();
@@ -20,77 +22,99 @@ function LoginForm() {
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev);
   };
+  const { updateUserDetails } = useContext(UserDetailsContext);
 
   const onSubmit = async (data) => {
     setLoginLoading(true);
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     try {
-     if(data.username === 'pmi_tv1@yantra24x7.com' && data.password === 'pmitv1'){
-           tenantLogin()
-           navigate("/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp");
-        }
-      else 
-      if (data.username.includes("@") && data.username.includes(".com")) {
-        const response = await Loginapi(data.username, data.password);
-        localStorage.setItem("email", data.username);
-        localStorage.setItem("token", response.token);
-        localStorage.setItem("refreshToken", response.refreshToken);
-        localStorage.setItem("newToken", response.token);
-        localStorage.setItem("role_name", response.Role);
-
-        if (Array.isArray(response.module) && response.module.length) {
-          localStorage.setItem("mod_name", response.module[0]);
-        }
-
-        toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
-
-        const userResponse = await Userapi();
-        localStorage.setItem("CustomerID", JSON.stringify(userResponse.customerId.id));
-        localStorage.setItem("authority", JSON.stringify(userResponse.authority));
-        localStorage.setItem("firstName", JSON.stringify(userResponse.firstName));
-        localStorage.setItem("lastName", JSON.stringify(userResponse.lastName));
-        const customerTitle = await getCustomerTitle(userResponse.customerId.id);
-        localStorage.setItem("customerTitle", customerTitle);
-        await tenantLogin();
-
-        const secondUserResponse = await Userapi1();
-        localStorage.setItem("CustomerID1", JSON.stringify(secondUserResponse.customerId.id));
-
-        navigate("/company");
-
-      } else {
-        await tenantLogin();
-        const operatorResponse = await getOperatorDetails(window._env_.CUSTOMER_ID);
-        const responseData = operatorResponse?.[0]?.value;
-        if (responseData && responseData.length > 0) {
-          const operator = responseData.find((res) => res.operatorid === data.username);
-          if (operator) {
-            const decryptedPassword = decryptText(operator.password || "");
-            if (decryptedPassword === data.password) { 
-              localStorage.setItem("role_name", 'OPERATOR');
-              toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
-              navigate("/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV");
-            } else {
-              toast.error("Login failed: Invalid username or password", {
-                position: "top-center",
-                autoClose: 1500,
-              });
-            }
-          } else {
-            toast.error("Login failed: Invalid username or password", {
-              position: "top-center",
-              autoClose: 1500,
-            });
-          }
-        } else {
-          toast.error("Login failed: Invalid username or password", {
-            position: "top-center",
-            autoClose: 1500,
-          });
-        }
-
+      if (data.username === 'pmi_tv1@yantra24x7.com' && data.password === 'pmitv1') {
+        tenantLogin()
+        navigate("/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp");
       }
+      else
+        if (data.username.includes("@") && data.username.includes(".com")) {
+          const response = await Loginapi(data.username, data.password);
+          localStorage.setItem("email", data.username);
+          localStorage.setItem("token", response.token);
+          localStorage.setItem("refreshToken", response.refreshToken);
+          localStorage.setItem("newToken", response.token);
+          localStorage.setItem("role_name", response.Role);
+
+          if (Array.isArray(response.module) && response.module.length) {
+            localStorage.setItem("mod_name", response.module[0]);
+          }
+
+          toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
+
+          const userResponse = await Userapi();
+          localStorage.setItem("CustomerID", JSON.stringify(userResponse.customerId.id));
+          localStorage.setItem("customerTenantID", JSON.stringify(userResponse.tenantId.id));
+          localStorage.setItem("authority", JSON.stringify(userResponse.authority));
+          localStorage.setItem("firstName", JSON.stringify(userResponse.firstName));
+          localStorage.setItem("lastName", JSON.stringify(userResponse.lastName));
+          try {
+            const description = userResponse?.additionalInfo?.description || "{}";
+            updateUserDetails(description);
+          } catch (err) {
+            console.error("Failed to store user description:", err);
+            localStorage.setItem("userDetails", "{}");
+          }
+          const customerTitle = await getCustomerTitle(userResponse.customerId.id);
+          localStorage.setItem("customerTitle", customerTitle);
+          await tenantLogin();
+
+          const secondUserResponse = await Userapi1();
+          localStorage.setItem("CustomerID1", JSON.stringify(secondUserResponse.customerId.id));
+
+          let role = "";
+          let pageList = [];
+
+          try {
+            const parsedDetails = userResponse?.additionalInfo?.description
+              ? JSON.parse(userResponse.additionalInfo.description)
+              : {};
+            role = parsedDetails.mode || "";
+            pageList = parsedDetails.pageList || [];
+          } catch (err) {
+            console.error("Failed to parse userDetails JSON:", err);
+          }
+handleNavigationAfterLogin(role, pageList);
+
+        } 
+        // else {
+        //   await tenantLogin();
+        //   const operatorResponse = await getOperatorDetails(window._env_.CUSTOMER_ID);
+        //   const responseData = operatorResponse?.[0]?.value;
+        //   if (responseData && responseData.length > 0) {
+        //     const operator = responseData.find((res) => res.operatorid === data.username);
+        //     if (operator) {
+        //       const decryptedPassword = decryptText(operator.password || "");
+        //       if (decryptedPassword === data.password) {
+        //         localStorage.setItem("role_name", 'OPERATOR');
+        //         toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
+        //         navigate("/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV");
+        //       } else {
+        //         toast.error("Login failed: Invalid username or password", {
+        //           position: "top-center",
+        //           autoClose: 1500,
+        //         });
+        //       }
+        //     } else {
+        //       toast.error("Login failed: Invalid username or password", {
+        //         position: "top-center",
+        //         autoClose: 1500,
+        //       });
+        //     }
+        //   } else {
+        //     toast.error("Login failed: Invalid username or password", {
+        //       position: "top-center",
+        //       autoClose: 1500,
+        //     });
+        //   }
+
+        // }
     } catch (error) {
       const errorMsg =
         error.response?.data?.message || error.message || "Something went wrong";
@@ -104,6 +128,33 @@ function LoginForm() {
       setLoginLoading(false);
     }
   };
+
+  const handleNavigationAfterLogin = (role, pageList) => {
+  if (role === ROLE_OPERATOR) {
+    navigate("/operator");
+  } else {
+    const menuOrder = [
+      "company",
+      "machinemm",
+      "deviceoee",
+      "operator-details",
+      "machines",
+      "shift-registration",
+      "operator-registration",
+      "user-registration",
+      "component-registration",
+      "reason-registration",
+    ];
+    const firstAccessiblePage = menuOrder.find((page) =>
+      pageList.includes(page)
+    );
+    if (firstAccessiblePage) {
+      navigate(`/${firstAccessiblePage}`);
+    } else {
+      navigate("/");
+    }
+  }
+};
 
   const tenantLogin = async () => {
     const secondUsername = window._env_.TENANT_GMAIL;

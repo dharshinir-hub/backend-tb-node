@@ -12,13 +12,14 @@ import Swal from 'sweetalert2'; // Ensure Swal is imported
 import { shiftadd } from '../../Services/app/masterservice'; // Ensure shiftadd is imported
 import ComponentEdit from '../Componentregistration/componentedit';
 import ComponentAdd from '../Componentregistration/componentadd'
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
+import { cleanCustomerId } from '../../Services/app/operatorservice';
 const ComponentRegistration = () => {
     // Separate state for Add and Edit dialogs
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editDialogData, setEditDialogData] = useState(null); // To store data for the edit dialog
     const [searchText, setSearchText] = useState('');
-    const [customerTitle, setCustomerTitle] = useState("");
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     // dialogOpenCount is used for background color in dialogs, tracks total open dialogs
@@ -36,10 +37,6 @@ const ComponentRegistration = () => {
         setIsAddDialogOpen(true);
         setDialogOpenCount(prevCount => prevCount + 1);
     };
-    useEffect(() => {
-        const customerTitle = localStorage.getItem('customerTitle');
-        setCustomerTitle(customerTitle);
-    }, []);
     const handleCloseAddDialog = (event, reason) => {
         if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
             return;
@@ -235,7 +232,7 @@ const ComponentRegistration = () => {
                                 <TableRow>
                                     <TableCell>Component Name</TableCell>
                                     <TableCell>Component Number</TableCell>
-                                    {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<TableCell>Operation Type</TableCell>)}
+                                    {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell>Operation Type</TableCell>)}
                                     {/* <TableCell>Route Card</TableCell> */}
                                     {/* <TableCell>Drawing Code</TableCell> */}
                                     {/* <TableCell>Mould Name</TableCell> */}
@@ -258,7 +255,7 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_number || '---'}
                                             </TableCell>
-                                            {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.operation_type || '---'}
                                             </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>

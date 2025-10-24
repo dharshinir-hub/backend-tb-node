@@ -20,6 +20,7 @@ import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 import Swal from 'sweetalert2';
 import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, DowntimeaddDelete1 } from '../../Services/app/masterservice';
 import { Autocomplete } from '@mui/material';
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 const OperatorDetails = () => {
   const params = new URLSearchParams(window.location.search);
@@ -73,13 +74,6 @@ const OperatorDetails = () => {
   const [supervisorsByDevice, setSupervisorByDevice] = useState([]);
   const [supervisorselected, setselectedsupervisor] = useState('');
   const [OpenEditDialog4, setOpenEditDialog4] = useState(false);
-  const [customerTitle, setCustomerTitle] = useState("");
-  
-
-  useEffect(() => {
-    const customerTitle = localStorage.getItem('customerTitle');
-    setCustomerTitle(customerTitle);
-  }, []);
   
   const getEpochFromShift = (shiftNo, selectedDateObj) => {
     if (!shiftNo || !selectedDateObj || shifts.length === 0) {
@@ -515,7 +509,7 @@ const OperatorDetails = () => {
 
       const reasons = allShifts.map(shift => ({
         value: shift.component_name,
-        label: customerTitle === 'ATECH' || customerTitle === 'HITECH'
+        label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
           ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
           : `${shift.component_number} - ${shift.component_name}`
       }));
@@ -735,7 +729,7 @@ const OperatorDetails = () => {
         const reasons = allShifts.map((shift) => {
           return {
             value: shift.component_name,
-            label: customerTitle === 'ATECH' || customerTitle === 'HITECH'
+            label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
               ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
               : `${shift.component_number} - ${shift.component_name}`
           };
@@ -1448,15 +1442,13 @@ const OperatorDetails = () => {
   }, []);
 
   useEffect(() => {
-    const customerTitle = localStorage.getItem('customerTitle');
     const commonOptions = [
       { value: 'Component', label: 'Component' },
       { value: 'Reason', label: 'Reason' },
       { value: 'Supervisor', label: 'Supervisor' },
     ];
-
     const fallbackOptions =
-      customerTitle === 'PMI GLOBAL'
+      cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
         ? commonOptions
         : [{ value: 'Operator', label: 'Operator' }, ...commonOptions];
 
@@ -1498,7 +1490,7 @@ const OperatorDetails = () => {
     if (Deviceid && token) {
       const fromEpoch = todayStart.valueOf();
       const toEpoch = todayEnd.valueOf();
-      const keys = customerTitle === 'PMI GLOBAL' ? 'live_component' : 'live_operator';
+      const keys = cleanCustomerId(customerId) === CUSTOMER_IDS.PMI ? 'live_component' : 'live_operator';
       const entitytype = 'DEVICE';
       const url = `${window._env_.GRAFANA_URL}d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${Deviceid}&var-entityType=${entitytype}&var-entityId=${Deviceid}&var-token=${token}&var-key=${keys}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
       setIframeUrl(url);

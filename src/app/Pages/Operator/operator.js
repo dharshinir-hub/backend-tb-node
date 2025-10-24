@@ -6,7 +6,7 @@ import { RxCross2 } from "react-icons/rx";
 import { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import Swal from 'sweetalert2';
-import { customerbaseddevices, customerbasedshift, Deviceattributeget, Downtimeadd1, getFirstMachineActive, getMachineLock, operatorTelemetry, telemetrykeydata } from '../../Services/app/operatorservice'
+import { customerbaseddevices, customerbasedshift, Deviceattributeget, Downtimeadd1, getCustomerUsers, getFirstMachineActive, getMachineLock, operatorTelemetry, telemetrykeydata } from '../../Services/app/operatorservice'
 import {
     FormControl,
     Select,
@@ -17,11 +17,12 @@ import {
     DialogActions,
     Button,
 } from "@mui/material";
-
+import { ROLE_OPERATOR } from '../../Shared/constants/role'
 import { getOperatorDetails, Loginapi, startTokenAutoRefresh } from '../../Services/app/loginservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
 import CircularProgress from '../../Shared/Pages/circularprogress/circularprogress';
 import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogress';
+import { useLocation } from 'react-router-dom';
 
 function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
@@ -45,6 +46,7 @@ function Operator() {
     const [epochRange, setEpochRange] = useState({ from: null, to: null });
     const [loading, setLoading] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
+    const location = useLocation();
     const [telemetry, setTelemetry] = useState({
         machineStatus: "Unknown",
         targetParts: 0,
@@ -58,7 +60,7 @@ function Operator() {
     const [pendingMachine, setPendingMachine] = useState("");
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
-
+ const customerId1 = localStorage.getItem('CustomerID');
     const fetchDevices = async () => {
         try {
             const customerId = window._env_.CUSTOMER_ID;
@@ -142,6 +144,61 @@ function Operator() {
         }
     };
 
+
+// const fetchOperators = async () => {
+//   try {
+//     let operatorList = [];
+
+//     if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
+//       const res = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
+//       const allData = res?.[0]?.value || [];
+//       operatorList = allData
+//         .filter(o => o?.mode?.toLowerCase() === 'operator')
+//         .map(op => ({ id: op.operatorid, name: op.operatorname }));
+//     } else {
+//       // 👤 From user list API
+//       const res = await getCustomerUsers(customerId1);
+//       const users = res.data || [];
+//       const parsedUsers = users.map(u => {
+//         let desc = "";
+//         try {
+//           desc = u.additionalInfo?.description
+//             ? JSON.parse(u.additionalInfo.description)
+//             : "";
+//         } catch {
+//           desc = u.additionalInfo?.description || "";
+//         }
+//         return { ...u, userDetails: desc };
+//       });
+
+//       operatorList = parsedUsers
+//         .filter(u => u.userDetails?.mode?.toLowerCase() === 'operator')
+//         .map(u => ({ id: u.userDetails?.userId, name: u.firstName }));
+//     }
+//     setOperators(operatorList);
+//   } catch (error) {
+//     console.error("Error fetching operators:", error);
+//     setOperators([]);
+//   }
+// };
+
+    const fetchOperators = async () => {
+        try {
+            let operatorList = [];
+            const res = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
+            const allData = res?.[0]?.value || [];
+            operatorList = allData
+                .filter(o => o?.mode?.toLowerCase() === 'operator')
+                .map(op => ({ id: op.operatorid, name: op.operatorname }));
+            setOperators(operatorList);
+        } catch (error) {
+            console.error("Error fetching operators:", error);
+            setOperators([]);
+        }
+    };
+
+
+
     const fetchTelemetry = async (deviceId) => {
         try {
             const response = await customerbasedshift(
@@ -151,13 +208,7 @@ function Operator() {
             const shifts = response[0]?.value || [];
             const currentActiveShift = await getCurrentShift(shifts, dayjs());
             const { shiftStart, now } = getShiftEpoch(currentActiveShift?.start_time);
-            const operatorResponse = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
-            const operatorData = operatorResponse?.[0]?.value || [];
-            const mappedOperators = operatorData.map((op) => ({
-                id: op.operatorid,
-                name: op.operatorname,
-            }));
-            setOperators(mappedOperators);
+            await fetchOperators();
             const keysConfig = [
                 { key: "machine_status", isJson: false },
                 { key: "targetparts", isJson: false },
@@ -843,6 +894,9 @@ function Operator() {
     };
 
     useEffect(() => {
+        if (location.pathname !== "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
+            return;
+        }
         const init = async () => {
             try {
                 const secondUsername = window._env_.TENANT_GMAIL;
@@ -855,21 +909,12 @@ function Operator() {
                 localStorage.setItem("role_name1", secondResponse.Role);
                 startTokenAutoRefresh();
                 await fetchDevices();
-                // const operatorResponse = await getOperatorDetails(
-                //     window._env_.CUSTOMER_ID
-                // );
-                // const responseData = operatorResponse?.[0]?.value || [];
-                // const mappedOperators = responseData.map((op) => ({
-                //     id: op.operatorid,
-                //     name: op.operatorname,
-                // }));
-                // setOperators(mappedOperators);
             } catch (err) {
                 console.error("Init failed", err);
             }
         };
         init();
-    }, []);
+    }, [location.pathname]);
 
     useEffect(() => {
         const interval = setInterval(() => {

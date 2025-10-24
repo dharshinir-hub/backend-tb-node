@@ -1,0 +1,23 @@
+import Company from '../../Pages/Company/company'
+import GrafanaEmbed from '../../Pages/MachinesMM/machinemm';
+import NewDeviceOee from '../../Pages/NewDeviceOee/newdeviceoee';
+import OperatorDetails from '../../Pages/Operatordetails/operatordeatil';
+import MachineList from '../../Pages/Machines/machine';
+import ShiftRegistration from '../../Pages/Shiftregistration/shiftreg';
+import OperatorRegistration from '../../Pages/Operatorregistration/operatorreg';
+import UserRegistration from '../../Pages/Userregistration/userreg';
+import ComponentRegistration from '../../Pages/Componentregistration/componentreg';
+import ReasonRegistration from '../../Pages/Reasonregistration/reasonreg';
+
+export const COMPONENT_REGISTRY = {
+  "shift-registration": ShiftRegistration,
+  "component-registration": ComponentRegistration,
+  "operator-registration": OperatorRegistration,
+  "user-registration": UserRegistration,
+  "reason-registration": ReasonRegistration,
+  "machines": MachineList,
+  "company": Company,
+  "operator-details": OperatorDetails,
+  "machinemm": GrafanaEmbed,
+  "deviceoee": NewDeviceOee,
+};

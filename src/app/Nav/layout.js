@@ -21,6 +21,7 @@ const Layout = () => {
                       location.pathname === '/report' ||
                       location.pathname === '/analytics' ||
                       location.pathname === '/deviceoee' ||
+                      location.pathname === '/user-registration' ||
                       location.pathname === '/machineutilization';
   return (
     <>

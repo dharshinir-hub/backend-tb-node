@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useContext } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Button, Navbar } from 'react-bootstrap';
 import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
@@ -22,6 +22,7 @@ import { IoSettingsOutline } from "react-icons/io5";
 import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
 import { stopTokenAutoRefresh } from '../Services/app/loginservice';
+import { UserDetailsContext } from '../Shared/context/UserDetailsContext';
 
 
 
@@ -40,6 +41,15 @@ export default function PersistentDrawerLeft({ children }) {
   const isMobile = useMobileWidth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const { userDetails } = useContext(UserDetailsContext);
+  const [pageList, setPageList] = useState(userDetails.pageList || []);
+
+  useEffect(() => {
+    const parsed = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
+    setPageList(parsed.pageList || []);
+  }, [userDetails]);
+
 
   let user = null;
   try {
@@ -66,65 +76,98 @@ export default function PersistentDrawerLeft({ children }) {
     }
   };
 
-  const menuItem = useMemo(() => [
-    ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
+  // const menuItem = useMemo(() => [
+  //   ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
+  //   {
+  //     name: "Dashboard",
+  //     icon: <BiSolidDashboard />,
+  //     children: [
+  //       { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
+  //       { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
+  //       { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
+  //     ]
+  //   },
+  //   // {
+  //   //   name: "Analytics",
+  //   //   icon: <BiBarChart />,
+  //   //   children: [
+  //   //     { path: "/analytics", name: "Analytics 1", icon: <BiBarChart /> },
+  //   //   ]
+  //   // },
+  //   // { path: "/report", name: "Reports", icon: <MdAssessment /> },
+  //   {
+  //     name: "Operation",
+  //     icon: <MdPrecisionManufacturing />,
+  //     children: [
+  //       { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
+  //     ]
+  //   },
+  //   // {
+  //   //   name: "Analytics",
+  //   //   icon: <BiChip />,
+  //   //   children: [
+  //   //     { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
+  //   //     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
+  //   //   ]
+  //   // },
+  //   {
+  //     name: "Master",
+  //     icon: <MdList />,
+  //     children: [
+  //       { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
+  //       { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
+  //       { path: "/operator-registration", name: "Operator", icon: <MdAccountCircle /> },
+  //       { path: "/user-registration", name: "User", icon: <MdAccountCircle /> },
+  //       { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
+  //       { path: "/reason-registration", name: "Reason", icon: <MdList /> },
+  //     ]
+  //   },
+  // ], [user]);
 
-    // 1️⃣ Dashboard / Overview Group
-    {
-      name: "Dashboard",
-      icon: <BiSolidDashboard />,
-      children: [
-        { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
-        { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
-        { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
-
-
-      ]
-    },
-
-
-    // {
-    //   name: "Analytics",
-    //   icon: <BiBarChart />,
-    //   children: [
-    //     { path: "/analytics", name: "Analytics 1", icon: <BiBarChart /> },
-    //   ]
-    // },
-
-    // { path: "/report", name: "Reports", icon: <MdAssessment /> },
-
-    {
-      name: "Operation",
-      icon: <MdPrecisionManufacturing />,
-      children: [
-        { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
-      ]
-    },
-
-    // {
-    //   name: "Analytics",
-    //   icon: <BiChip />,
-    //   children: [
-    //     { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
-    //     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
-    //   ]
-    // },
-
-    {
-      name: "Master",
-      icon: <MdList />,
-      children: [
-        { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
-        { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
-        { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
-        { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
-        { path: "/reason-registration", name: "Reason", icon: <MdList /> },
-      ]
-    },
-
-  ], [user]);
-
-
+  const menuItem = useMemo(() => {
+    const baseItems = [
+      ...(user === "TENANT_ADMIN"
+        ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }]
+        : []),
+      {
+        name: "Dashboard",
+        icon: <BiSolidDashboard />,
+        children: [
+          { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
+          { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
+          { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
+        ],
+      },
+      {
+        name: "Operation",
+        icon: <MdPrecisionManufacturing />,
+        children: [{ path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> }],
+      },
+      {
+        name: "Master",
+        icon: <MdList />,
+        children: [
+          { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
+          { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
+          { path: "/operator-registration", name: "Operator", icon: <MdAccountCircle /> },
+          { path: "/user-registration", name: "User", icon: <MdAccountCircle /> },
+          { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
+          { path: "/reason-registration", name: "Reason", icon: <MdList /> },
+        ],
+      },
+    ];
+    return baseItems
+      .map((item) => {
+        if (item.children) {
+          const allowedChildren = item.children.filter((child) =>
+            pageList.includes(child.path.replace("/", ""))
+          );
+          return allowedChildren.length > 0 ? { ...item, children: allowedChildren } : null;
+        }
+        return pageList.includes(item.path.replace("/", "")) ? item : null;
+      })
+      .filter(Boolean);
+  }, [user, pageList]);
 
 
   useEffect(() => {

@@ -146,3 +146,72 @@ export const Deviceattributeget = async (customerId, key) => {
     throw error;
   }
 };
+
+
+export const createNewUser = async (payload) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/user?sendActivationMail=false`;
+    const response = await axiosInstance1.post(url, payload);
+    return response.data;
+  } catch (error) {
+    console.error('Error while creating new user:', error);
+    throw error;
+  }
+};
+
+export const getUserActivationLink = async (customerId) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const cleanedCustomerId = cleanCustomerId(customerId);
+    const url = `${baseUrl}/api/user/${cleanedCustomerId}/activationLinkInfo`;
+    const response = await axiosInstance1.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Error while getting activation link:', error);
+    throw error;
+  }
+};
+
+export const createPasswordForUser = async (payload) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/noauth/activate?sendActivationMail=true`;
+    const response = await axiosInstance1.post(url, payload);
+    return response.data;
+  } catch (error) {
+    console.error('Error while creating password for new user:', error);
+    throw error;
+  }
+};
+
+export const getCustomerUsers = async (customerId, page = 0, pageSize = 1000000) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const cleanedCustomerId = cleanCustomerId(customerId);
+    const url = `${baseUrl}/api/customer/${cleanedCustomerId}/users`;
+    const params = {
+      pageSize,
+      page,
+      sortProperty: 'createdTime',
+      sortOrder: 'DESC',
+    };
+    const response = await axiosInstance1.get(url, { params });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching customer users:", error);
+    throw error;
+  }
+};
+
+export const deleteUserById = async (userId) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/user/${userId}`;
+    const response = await axiosInstance1.delete(url);
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting user with ID ${userId}:`, error);
+    throw error;
+  }
+};
