@@ -152,7 +152,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
         password: encryptedPassword
       };
       existingShifts.push(currentShiftData);
-      await shiftadd({ alloperator: existingShifts, lastUpdateTs: Date.now() }, customerId, 'SERVER_SCOPE');
+      // await shiftadd({ alloperator: existingShifts, lastUpdateTs: Date.now() }, customerId, 'SERVER_SCOPE');
       Swal.fire("User created successfully!");
     } catch (error) {
       console.error('Error in operator creation flow:', error);

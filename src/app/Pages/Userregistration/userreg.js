@@ -90,7 +90,7 @@ const UserRegistration = () => {
                         lastUpdateTs: Date.now()
                     };
                     const scope = 'SERVER_SCOPE';
-                    await shiftadd(formData, customerId, scope);
+                    // await shiftadd(formData, customerId, scope);
                     Swal.fire('Deleted!', 'User has been deleted successfully.', 'success');
                     getUsersList();
                 } catch (error) {
