@@ -29,6 +29,15 @@ import UserRegistration from './app/Pages/Userregistration/userreg';
 import { COMPONENT_REGISTRY } from './app/Shared/constants/ComponentRegistry';
 import ProtectedRoute from './app/Shared/gaurds/ProtectedRoute';
 import { UserDetailsContext } from './app/Shared/context/UserDetailsContext';
+import Cycletime from "./app/Pages/CycleTime/cycletime";
+import AnalyticOee from "./app/Pages/CycleTime/analyticoee";
+import Inprogress from "./app/Pages/CycleTime/inprogresscycle";
+import Component from "./app/Pages/CycleTime/component";
+import Component1 from "./app/Pages/CycleTime/component1";
+import Summary from "./app/Pages/CycleTime/summary";
+
+
+
 
 // Import other components for your routes
 
@@ -70,7 +79,19 @@ const AppRoutes = () => {
             />
           );
         })}
+
+        {pageList.includes("production-analysis") && (
+          <>
+            <Route path="/cycletime" element={<Cycletime />} />
+            <Route path="/production-summary" element={<Component />} />
+            <Route path="/production-runs" element={<Component1 />} />
+            <Route path="/summary" element={<Summary />} />
+            <Route path="/inprogresscycle" element={<Inprogress />} />
+            <Route path="/analyticoee" element={<AnalyticOee />} />
+          </>
+        )}
       </Route>
+
       {/* <Route path="/" element={<Layout />}>
       <Route path="andon-dashboard" element={<Andondashboard />} />
       <Route path="/shift" element={<Shift />} />
@@ -97,5 +118,17 @@ const AppRoutes = () => {
     </Routes>
   )
 }
+//       <Route path="/production-analysis" element={<Analytics />} />
+//       <Route path="/cycletime" element={<Cycletime />} />
+//       <Route path="/production-summary" element={<Component />} />
+//       <Route path="/production-runs" element={<Component1 />} />
+//       <Route path="/summary" element={<Summary />} />
+//       <Route path="/inprogresscycle" element={<Inprogress />} />
+//       <Route path="/analyticoee" element={<AnalyticOee />} />
+
+//     </Route>
+//   </Routes>
+// );
 
 export default AppRoutes;
+

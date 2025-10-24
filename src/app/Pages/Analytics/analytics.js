@@ -1,80 +1,102 @@
+// analytics.js
 import React, { useEffect, useState } from "react";
 import {
   Box,
   Typography,
-  TextField,
-  IconButton,
-  InputAdornment,
   MenuItem,
   Select,
-  Button,
   Card,
   CardContent,
   Grid,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
-import ClearIcon from "@mui/icons-material/Clear";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import {
-  cleanCustomerId,
-  telemetrylatestdata,
+  telemetrykeydata,
   customerbaseddevices,
-  customerbasedshift,
-  telemetrykeydata
-} from '../../Services/app/companyservice';
+  customerbasedshift
+} from "../../Services/app/companyservice";
 import dayjs from "dayjs";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { useNavigate } from "react-router-dom";
+import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
 
-
-export default function ProductionAnalysis() {
+const Analytics = () => {
   const [partNumber, setPartNumber] = useState("");
   const [reportType, setReportType] = useState("Part Time vs Expected");
-  const [selectedReport, setSelectedReport] = useState("");
-  const [machineGroup, setMachineGroup] = useState("CNC Group "); // default selected
   const [shifts, setShifts] = useState([]);
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
-    
-// Last 7 days in epoch milliseconds
-const from = dayjs().subtract(6, "day").startOf("day").valueOf();
-const to = dayjs().endOf("day").valueOf();
+  const [selectedDevice, setSelectedDevice] = useState("all");
 
-console.log("From:", from); // e.g. 1755369000000
-console.log("To:", to);     // e.g. 1755993599999
 
-const Id = localStorage.getItem("CustomerID");  // e.g. %22d276e510-3238-11f0-829a-733b0192d6b3%22
-let customerId = decodeURIComponent(Id);        // → "d276e510-3238-11f0-829a-733b0192d6b3"
-customerId = customerId.replace(/^"|"$/g, ""); 
+  console.log('Selected Device Id', selectedDevice)
 
+  const [startDate, setStartDate] = useState(dayjs().subtract(6, "day"));
+  const [endDate, setEndDate] = useState(dayjs());
+
+
+
+
+  const [from, setFrom] = useState(null);
+  const [to, setTo] = useState(null);
+
+  const Id = localStorage.getItem("CustomerID");
+  let customerId = decodeURIComponent(Id || "");
+  customerId = customerId.replace(/^"|"$/g, "");
   const newToken = localStorage.getItem("newToken");
 
+
+  useEffect(() => {
+    if (from) {
+      localStorage.setItem("analyticsStartDate", from);
+    }
+  }, [from]);
+
+  useEffect(() => {
+    if (to) {
+      localStorage.setItem("analyticsEndDate", to);
+    }
+  }, [to]);
+
+
+  console.log('From', from, 'to', to);
+
+  // Fetch shifts
   const fetchShifts = async () => {
     try {
       const result = await customerbasedshift(customerId, "allShift");
       const shiftList = result[0]?.value || [];
       setShifts(shiftList);
-      console.log("Fetched Shifts:", shiftList);
     } catch (err) {
       console.error("Failed to fetch shifts", err);
     }
   };
+  console.log('Shifts', shifts)
 
+  // Fetch devices
   const fetchDevices = async () => {
     try {
       const result = await customerbaseddevices(customerId, 100, 0);
       const devicesList = result.data || [];
       setDevices(devicesList);
 
-      // Create name → id map
       const nameIdMap = devicesList.reduce((acc, device) => {
         acc[device.name] = device.id.id;
         return acc;
       }, {});
-
       setDeviceNameIdJson(nameIdMap);
-      console.log("Device Name → ID Map:", nameIdMap);
+
+      // ✅ Set default to "all" → all device IDs
+      const allDeviceIds = devicesList.map((d) => d.id.id);
+      setSelectedDevice(allDeviceIds);
     } catch (err) {
       console.error("Failed to fetch devices", err);
     }
   };
+
 
   useEffect(() => {
     if (customerId && newToken) {
@@ -83,147 +105,124 @@ customerId = customerId.replace(/^"|"$/g, "");
     }
   }, [customerId, newToken]);
 
-
-
-
-const [partTimeVsExp, setPartTimeVsExp] = useState({});
-
-useEffect(() => {
-  const fetchPartTimeVsExp = async () => {
-    if (!from || !to) return;
-
-    try {
-      const data = await telemetrykeydata(
-        customerId,          // 👈 use your customerId
-        "CUSTOMER",          // ✅ get from CUSTOMER
-        "parttimevsexp",
-        from,
-        to
-      );
-
-      const values = data?.parttimevsexp || [];
-      if (!Array.isArray(values) || values.length === 0) {
-        console.log("❌ No parttimevsexp data found");
-        setPartTimeVsExp([]);
-        return;
-      }
-
-      const validValues = values
-        .map((point) => {
-          try {
-            const parsed =
-              typeof point.value === "string"
-                ? JSON.parse(point.value)
-                : point.value;
-
-            return {
-              ts: point.ts,
-              ...parsed, // keep all fields from JSON
-            };
-          } catch (err) {
-            console.error("⚠️ Error parsing parttimevsexp", err);
-            return null;
-          }
-        })
-        .filter((v) => v && v.start_time && v.end_time); // ✅ only keep entries with both
-
-      console.log("✅ Valid PartTimeVsExp Data:", validValues);
-      setPartTimeVsExp(validValues);
-
-    } catch (error) {
-      console.error("❌ Error fetching parttimevsexp:", error);
-      setPartTimeVsExp([]);
-    }
+  // Helper: combine a date + HH:mm:ss time → epoch
+  const combineDateAndTime = (dateObj, timeStr, addDay = false) => {
+    if (!dateObj || !timeStr) return null;
+    const [h, m, s] = timeStr.split(":").map(Number);
+    const combined = new Date(dateObj.year(), dateObj.month(), dateObj.date(), h, m, s);
+    if (addDay) combined.setDate(combined.getDate() + 1);
+    return combined.getTime();
   };
 
-  fetchPartTimeVsExp();
-}, [customerId, from, to]);
-
-
-  const [oeeVsBaseline, setOeeVsBaseline] = useState([]);
-
-//oee vs baseline
-
-  // ✅ Fetch OeeVsBaseline
+  // Update from/to whenever startDate, endDate, or shifts change
   useEffect(() => {
-    const fetchOeeVsBaseline = async () => {
-      if (!from || !to) return;
+    if (shifts.length === 0) return;
 
+    const firstShift = shifts[0];
+    const lastShift = shifts[shifts.length - 1];
+    const addDay = lastShift.end_time < lastShift.start_time;
+    console.log('First Shift Start Time', firstShift);
+    console.log('Last Shift End Time', lastShift);
+
+    const newFrom = combineDateAndTime(startDate, firstShift.start_time);
+    const newTo = combineDateAndTime(endDate, lastShift.end_time, addDay);
+
+    setFrom(newFrom);
+    setTo(newTo);
+  }, [startDate, endDate, shifts]);
+
+
+  //   useEffect(() => {
+  //   if (devices.length > 0) {
+  //     const allDeviceIds = devices.map((d) => d.id.id);
+  //     setSelectedDevice(allDeviceIds);
+  //   }
+  // }, [devices]);
+
+  // Fetch latest operations
+  const [latestOperations, setLatestOperations] = useState({});
+
+  useEffect(() => {
+    const fetchAllOperations = async () => {
+      if (!from || !to || devices.length === 0) return;
       try {
-        const data = await telemetrykeydata(
-          customerId,
-          "CUSTOMER",
-          "oeevsbaseline",
-          from,
-          to
-        );
+        const allResults = [];
 
-        const values = data?.oeevsbaseline || [];
-        if (!Array.isArray(values) || values.length === 0) {
-          console.log("❌ No oeevsbaseline data found");
-          setOeeVsBaseline([]);
-          return;
+        for (const device of devices) {
+          const data = await telemetrykeydata(
+            device.id.id,
+            "DEVICE",
+            "operations",
+            from,
+            to
+          );
+
+          const values = data?.operations || [];
+
+          const validValues = values
+            .map((point) => {
+              try {
+                const parsed =
+                  typeof point.value === "string"
+                    ? JSON.parse(point.value)
+                    : point.value;
+                return { ts: Number(point.ts), ...parsed };
+              } catch {
+                return null;
+              }
+            })
+            .filter((v) => v && v.operation_name && v.ts);
+
+          allResults.push(...validValues);
         }
 
-        const validValues = values
-          .map((point) => {
-            try {
-              const parsed =
-                typeof point.value === "string"
-                  ? JSON.parse(point.value)
-                  : point.value;
+        const grouped = allResults.reduce((acc, item) => {
+          const key = item.operation_name;
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(item);
+          return acc;
+        }, {});
 
-              return {
-                ts: point.ts,
-                ...parsed, // 👈 keep component_name, oee, oeebaseline, etc.
-              };
-            } catch (err) {
-              console.error("⚠️ Error parsing oeevsbaseline", err);
-              return null;
-            }
-          })
-          .filter((v) => v && v.start_time && v.end_time);
+        const latestByOperation = Object.keys(grouped).map((opName) =>
+          grouped[opName].reduce((a, b) => (a.ts > b.ts ? a : b))
+        );
 
-        console.log("✅ Valid OeeVsBaseline Data:", validValues);
-        setOeeVsBaseline(validValues);
-      } catch (error) {
-        console.error("❌ Error fetching oeevsbaseline:", error);
-        setOeeVsBaseline([]);
+        const resultObj = latestByOperation.reduce((acc, item) => {
+          acc[item.operation_name] = item;
+          return acc;
+        }, {});
+
+        setLatestOperations(resultObj);
+      } catch (err) {
+        console.error("Error fetching operations:", err);
+        setLatestOperations({});
       }
     };
 
-    fetchOeeVsBaseline();
-  }, [customerId, from, to]);
-
-
-
-
-
-  const machineGroups = [
-    "CNC Group "
-   
-  ];
+    fetchAllOperations();
+  }, [devices, from, to]);
 
   const reports = [
     {
-      title: "Completed work Cycle Times",
+      title: "Component",
+      description: "Completed Component List.",
+    },
+    {
+      title: "Completed Work Cycle Times",
       description:
         "Report comparing completed work cycle times to ERP standards and baseline.",
     },
     {
-      title: "Completed work OEE",
-      description:
-        "A report showing OEE performance of completed work compared with baseline.",
+      title: "Completed Work OEE",
+      description: "A report showing OEE performance of completed work compared with baseline.",
     },
     {
-      title: "In-Progress cycle Time",
-      description:
-        "A report showing work that is currently in progress.",
+      title: "In-Progress Cycle Times",
+      description: "A report showing work that is currently in progress.",
     },
     {
-      title: "In-progress OEE",
-      description:
-        "A report showing work that is currently in progress.",
+      title: "In-Progress OEE",
+      description: "A report showing work that is currently in progress.",
     },
     {
       title: "Part Operation History",
@@ -232,275 +231,190 @@ useEffect(() => {
     },
   ];
 
+  function formatDuration(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return [h > 0 ? `${h}h` : "", m > 0 ? `${m}m` : "", s > 0 ? `${s}s` : ""]
+      .filter(Boolean)
+      .join(" ");
+  }
 
-function formatDuration(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedReportIndex, setSelectedReportIndex] = useState(null);
+  const handleOpenPopover = (event, index) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedReportIndex(index);
+  };
+  const handleClosePopover = () => setAnchorEl(null);
+  const navigate = useNavigate();
 
-  return [
-    h > 0 ? `${h}h` : "",
-    m > 0 ? `${m}m` : "",
-    s > 0 ? `${s}s` : "",
-  ]
-    .filter(Boolean) // remove empty values
-    .join(" ");
-}
+  const handleMachineChange = (event) => {
+    const value = event.target.value;
+    if (value === "all") {
+      // select all device IDs
+      setSelectedDevice(devices.map((m) => m.id.id));
+    } else {
+      setSelectedDevice(value);
+    }
+  };
 
- return (
-    <Box display="flex" height="100vh" paddingTop="20px">
-      {/* Sidebar */}
-      <Box
-        width="280px"
-        bgcolor="#f2f9ff"
-        borderRight="1px solid #e0e0e0"
-        p={2}
-        display="flex"
-        flexDirection="column"
-        overflow="auto"
-      >
-        {/* Part Number */}
-        <Box display="flex" alignItems="center" mb={2}>
-          <TextField
-            value={partNumber}
-            onChange={(e) => setPartNumber(e.target.value)}
-            size="small"
-            fullWidth
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  {partNumber && (
-                    <IconButton onClick={() => setPartNumber("")}>
-                      <ClearIcon />
-                    </IconButton>
-                  )}
-                  <IconButton>
-                    <FilterListIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Box>
 
-        {/* Dropdown */}
-        <Select
-          size="small"
-          value={reportType}
-          onChange={(e) => setReportType(e.target.value)}
-          fullWidth
+
+  return (
+    <Box display="flex" height="100vh" pt={2}>
+      <SidebarPanel
+        partNumber={partNumber}
+        setPartNumber={setPartNumber}
+        reportType={reportType}
+        setReportType={setReportType}
+        formatDuration={formatDuration}
+        from={from}
+        to={to}
+      />
+
+      <Box flex={1} p={3} bgcolor="#fff" overflow="auto">
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          flexWrap="wrap"
+          gap={2}
+          mb={2}
         >
-          <MenuItem value="Part Time vs Expected">Part Time vs Expected</MenuItem>
-          <MenuItem value="OEE Vs Baseline">OEE Vs Baseline</MenuItem>
-        </Select>
-
-        {/* Summary */}
-        <Box mt={4}>
-          <Typography variant="h6" fontWeight="bold">
-            Summary
+          <Typography variant="h5" fontWeight="bold">
+            Production Analysis
           </Typography>
-          <Typography variant="body2" color="textSecondary">
-            Completed runs listed by latest
-          </Typography>
-        </Box>
 
-        {/* ✅ Charts Below Summary */}
-        <Box mt={3}>
-          {reportType === "Part Time vs Expected" ? (
-            <Grid container spacing={2}>
-              {(Array.isArray(partTimeVsExp) ? partTimeVsExp : []).map((item, index) => {
-                const start = new Date(item.start_time);
-                const end = new Date(item.end_time);
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <Box display="flex" flexWrap="wrap" alignItems="center" gap={2} sx={{ justifyContent: { xs: "flex-start", sm: "flex-end" }, flex: "1 1 auto" }}>
+              <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 160 }, background: "#fff" }} variant="outlined">
+                <InputLabel id="machines-label">Machines</InputLabel>
+                <Select
+                  labelId="machines-label"
+                  value={selectedDevice.length === devices.length ? "all" : selectedDevice}
+                  onChange={handleMachineChange}
+                  label="Machines"
+                >
+                  <MenuItem value="all">All Machines</MenuItem>
+                  {devices.map((d) => (
+                    <MenuItem key={d.id.id} value={d.id.id}>
+                      {d.name}
+                    </MenuItem>
+                  ))}
+                </Select>
 
-                // Run Duration
-                const runSeconds = item.run_duration
-                  ? Math.floor(item.run_duration)
-                  : Math.floor((item.end_time - item.start_time) / 1000);
-                const runDuration = formatDuration(runSeconds);
+              </FormControl>
 
-                // Expected Duration
-                const expSeconds = Math.floor(item.exp_duration || 0);
-                const expDuration = formatDuration(expSeconds);
+              {/* Start Date */}
+              <DatePicker
+                label="Start Date"
+                value={startDate}
+                onChange={(nv) => nv && setStartDate(nv)}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    sx: {
+                      '& input': { fontSize: '0.9rem', padding: '4px 8px' },
+                      '& .MuiInputBase-root': { height: '40px', width: { xs: '140px', sm: '150px' } },
+                      '& .MuiSvgIcon-root': { fontSize: '1.2rem' },
+                    },
+                  },
+                }}
+              />
 
-                // Diff = expected - run
-                const diffSeconds = expSeconds - runSeconds;
-                const diffFormatted = formatDuration(Math.abs(diffSeconds));
-
-                return (
-                  <Grid item xs={12} key={index}>
-                    <Card
-                      variant="outlined"
-                      sx={{
-                        p: 1,
-                        paddingLeft: 2,
-                        bgcolor: "#fff",
-                        "&:hover": { bgcolor: "#f9f9f9" },
-                      }}
-                    >
-                      <Typography variant="subtitle1" fontWeight="bold" fontStyle="Sans" fontSize='20px'>
-                        {item.component_name}
-                      </Typography>
-
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mt={1} color="black" >
-                        <Typography variant="body2"  >
-                          {start.toLocaleString()}
-                        </Typography>
-                        <Typography variant="body2" >
-                          {end.toLocaleString()}
-                        </Typography>
-                      </Box>
-
-                      <Box display="flex" alignItems="center" mt={1}>
-                        <Typography variant="body1" fontWeight="bold" mr={1} fontSize='24px'>
-                          {runDuration}
-                        </Typography>
-                        <Typography
-                          variant="body2 " fontSize='16px'
-                          color={diffSeconds > 0 ? "success.main" : "error.main"}
-                        >
-                          {diffSeconds > 0 ? `+${diffFormatted}` : `-${diffFormatted}`}
-                        </Typography>
-                      </Box>
-
-                      {/* Machine Name bottom-right */}
-                      <Box display="flex" justifyContent="flex-end" mt={1}>
-                        <Box
-                          px={2}
-                          py={0.5}
-                          borderRadius="12px"
-                          bgcolor="#f0f0f0"
-                          display="inline-block"
-                        >
-                          <Typography variant="caption" fontWeight="bold">
-                            {item.device_name}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Card>
-                  </Grid>
-                );
-              })}
-            </Grid>
-          ) : reportType === "OEE Vs Baseline" ? (
-            <Grid container spacing={2}>
-              {(Array.isArray(oeeVsBaseline) ? oeeVsBaseline : []).map((item, index) => {
-                const oee = Number(item.oee || 0).toFixed(1);
-                const baseline = Number(item.oeebaseline || 0).toFixed(1);
-                      const start = Number(item.start_time || 0).toFixed(1);
-                      const end = Number(item.end_time || 0).toFixed(1);
-
-
-
-                // Diff = OEE - Baseline
-                const diff = oee - baseline;
-
-                return (
-                  <Grid item xs={12} key={index}>
-                    <Card
-                      variant="outlined"
-                      sx={{
-                        p: 2,
-                        bgcolor: "#fff",
-                        "&:hover": { bgcolor: "#f9f9f9" },
-                      }}
-                    >
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        {item.component_name}
-                      </Typography>
-
-                      
-
-                      <Box display="flex" justifyContent="space-between" mt={1}>
-                        <Typography variant="body2" color="textSecondary">
-                          OEE: <b>{oee}%</b>
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Baseline: <b>{baseline}%</b>
-                        </Typography>
-                      </Box>
-
-                      <Box display="flex" alignItems="center" mt={1}>
-                        <Typography
-                          variant="body2"
-                          color={diff >= 0 ? "success.main" : "error.main"}
-                          fontWeight="bold"
-                        >
-                          {diff >= 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`}
-                        </Typography>
-                      </Box>
-
-                      {/* Machine Name bottom-right */}
-                      <Box display="flex" justifyContent="flex-end" mt={1}>
-                        <Box
-                          px={2}
-                          py={0.5}
-                          borderRadius="12px"
-                          bgcolor="#f0f0f0"
-                          display="inline-block"
-                        >
-                          <Typography variant="caption" fontWeight="bold">
-                            {item.device_name}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Card>
-                  </Grid>
-                );
-              })}
-            </Grid>
-          ) : (
-            <Box textAlign="center">
-              <Typography variant="body2" color="textSecondary">
-                Choose a report or explore production runs
-              </Typography>
+              {/* End Date */}
+              <DatePicker
+                label="End Date"
+                value={endDate}
+                onChange={(nv) => nv && setEndDate(nv)}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    sx: {
+                      '& input': { fontSize: '0.9rem', padding: '4px 8px' },
+                      '& .MuiInputBase-root': { height: '40px', width: { xs: '140px', sm: '150px' } },
+                      '& .MuiSvgIcon-root': { fontSize: '1.2rem' },
+                    },
+                  },
+                }}
+              />
             </Box>
-          )}
+          </LocalizationProvider>
         </Box>
-      </Box>
-
-      {/* Main Content */}
-      <Box flex={1} p={3} overflow="auto" background="white">
-        <Typography variant="h6" fontWeight="bold" mb={2} >
-          Production Analysis
-        </Typography>
-
-        {/* Dropdown for Machine Groups */}
-        <Select
-          size="small"
-          value={machineGroup}
-          onChange={(e) => setMachineGroup(e.target.value)}
-        >
-          {machineGroups.map((group, index) => (
-            <MenuItem key={index} value={group}>
-              {group}
-            </MenuItem>
-          ))}
-        </Select>
 
         {/* Reports Grid */}
-        <Grid container spacing={2} mt={2}>
-          {reports.map((report, index) => (
-            <Grid item xs={12} sm={6} md={4} key={index}>
-              <Card
-                variant="outlined"
-                sx={{
-                  cursor: "pointer",
-                  "&:hover": { bgcolor: "#f9f9f9" },
-                }}
-              >
-                <CardContent>
-                  <Typography variant="subtitle1" fontWeight="bold">
-                    {report.title}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    {report.description}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        <Grid container spacing={2} mt={2} alignItems="stretch">
+  {reports.map((r, i) => (
+    <Grid item xs={12} sm={6} md={4} key={i}>
+      <Card
+        variant="outlined"
+        sx={{
+          cursor: "pointer",
+        "&:hover": {
+            bgcolor: "#f8f5f5ff",
+            transform: "scale(1.03)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.1)", 
+          },
+          height: "130px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          border: "1px solid rgba(197, 193, 193, 1)"
+        
+        }}
+        onClick={() => {
+          if (r.title === "Component") {
+            navigate("/production-summary", { state: { from, to, selectedDevice } });
+          } else if (r.title === "Completed Work Cycle Times") {
+            navigate("/cycletime", { state: { from, to, selectedDevice } });
+          } else if (r.title === "Completed Work OEE") {
+            navigate("/analyticoee", { state: { from, to ,selectedDevice} });
+          } else if (r.title === "In-Progress Cycle Times") {
+            navigate("/inprogresscycle", { state: { from, to ,selectedDevice} });
+          }
+        }}
+      >
+        <CardContent
+          sx={{
+            flexGrow: 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <Typography
+            variant="subtitle1"
+            fontWeight="bold"
+            sx={{ "&:hover": { color: "primary.main" } }}
+          >
+            {r.title}
+          </Typography>
+
+          <Typography
+            variant="body2"
+            color="textSecondary"
+            sx={{
+              mt: 0.5,
+              textAlign: "left",
+              flexGrow: 1,
+              display: "-webkit-box",
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {r.description}
+          </Typography>
+        </CardContent>
+      </Card>
+    </Grid>
+  ))}
+</Grid>
+
       </Box>
     </Box>
   );
 }
+
+export default Analytics;

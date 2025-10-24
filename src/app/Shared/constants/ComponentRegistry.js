@@ -8,6 +8,7 @@ import OperatorRegistration from '../../Pages/Operatorregistration/operatorreg';
 import UserRegistration from '../../Pages/Userregistration/userreg';
 import ComponentRegistration from '../../Pages/Componentregistration/componentreg';
 import ReasonRegistration from '../../Pages/Reasonregistration/reasonreg';
+import Analytics from '../../Pages/Analytics/analytics';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -20,4 +21,5 @@ export const COMPONENT_REGISTRY = {
   "operator-details": OperatorDetails,
   "machinemm": GrafanaEmbed,
   "deviceoee": NewDeviceOee,
+  "production-analysis": Analytics
 };

@@ -1247,14 +1247,12 @@ const OperatorDetails = () => {
                 }
               }
 
-              // Handle case where recording never ended (no 3 found)
               if (recording) {
                 const now = Date.now();
                 segment.end = Math.min(toTime, now);
                 const startTime = new Date(segment.start);
                 const endTime = new Date(segment.end);
                 const duration = Math.floor((endTime - startTime) / 1000);
-
                 result.push({
                   start: segment.start,
                   end: segment.end,
@@ -1263,6 +1261,7 @@ const OperatorDetails = () => {
                   status: 'IDLE'
                 });
               }
+
 
               return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: 'NO_DATA' }];
             };
