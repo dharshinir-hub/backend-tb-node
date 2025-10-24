@@ -393,7 +393,7 @@ console.log("✅ Code-wise summary:", codeWiseSummary);
           {/* Back Button */}
           <Button
             variant="contained"
-            onClick={() => navigate('/componentanalysis')}
+            onClick={() => navigate('/production-analysis')}
             color="warning"
             sx={{
               backgroundColor: '#626262',
@@ -433,7 +433,7 @@ console.log("✅ Code-wise summary:", codeWiseSummary);
                   '&:hover': { transform: 'scale(1.03)', transition: '0.2s' } // optional hover effect
                 }}
                 onClick={() =>
-                  navigate('/component1', {
+                  navigate('/production-runs', {
                     state: {
                       selectedDevice: selectedDevice,
                       previousScreen: location.pathname,

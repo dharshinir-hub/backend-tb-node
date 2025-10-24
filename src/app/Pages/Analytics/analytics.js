@@ -365,7 +365,7 @@ const Analytics = () => {
         }}
         onClick={() => {
           if (r.title === "Component") {
-            navigate("/component", { state: { from, to, selectedDevice } });
+            navigate("/production-summary", { state: { from, to, selectedDevice } });
           } else if (r.title === "Completed Work Cycle Times") {
             navigate("/cycletime", { state: { from, to, selectedDevice } });
           } else if (r.title === "Completed Work OEE") {

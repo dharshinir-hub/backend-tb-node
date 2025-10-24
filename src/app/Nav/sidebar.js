@@ -4,12 +4,15 @@ import { Button, Navbar } from 'react-bootstrap';
 import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import {
   BiSolidDashboard, BiTimeFive, BiChip, BiBarChartAlt2,
-  BiBarChart
+  BiBarChart,BiPulse ,BiSolidExtension 
 } from "react-icons/bi";
+import { FiActivity } from 'react-icons/fi';
 import {
   MdPowerSettingsNew, MdInsertInvitation, MdMarkunreadMailbox, MdAccountCircle,
   MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment, MdTrendingUp,
 } from "react-icons/md";
+import { AiTwotoneProfile  } from "react-icons/ai";
+import { FaCogs } from 'react-icons/fa';
 import { Tooltip } from '@mui/material';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import logo from '../../assets/yantraimage.png';
@@ -22,6 +25,7 @@ import { IoSettingsOutline } from "react-icons/io5";
 import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
 import { stopTokenAutoRefresh } from '../Services/app/loginservice';
+import { TbChecklist , TbLayoutGrid } from "react-icons/tb";
 
 
 
@@ -88,13 +92,14 @@ export default function PersistentDrawerLeft({ children }) {
       name: "Analytics",
       icon: <BiBarChart />,
       children: [
-        { path: "/analytics", name: "Analytics 1", icon: <BiBarChart /> },
+        { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
+         { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
       ]
     },
 
 
 
-    { path: "/componentanalysis", name: "Component Analysis", icon: <BiBarChart /> },
+   
 
 
 
@@ -102,7 +107,7 @@ export default function PersistentDrawerLeft({ children }) {
 
     {
       name: "Operation",
-      icon: <MdPrecisionManufacturing />,
+      icon: <AiTwotoneProfile   />,
       children: [
         { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
       ]
@@ -125,7 +130,7 @@ export default function PersistentDrawerLeft({ children }) {
         { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
         { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
         { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
-        { path: "/reason-registration", name: "Reason", icon: <MdList /> },
+        { path: "/reason-registration", name: "Reason", icon: <TbChecklist /> },
       ]
     },
 
@@ -289,7 +294,7 @@ export default function PersistentDrawerLeft({ children }) {
 
       <main
         className="main-content"
-        style={{ paddingLeft: isOpen ? '210px' : '85px', transition: 'padding-left 0.3s ease' }}
+        style={{ paddingLeft: isOpen ? '210px' : '70px', transition: 'padding-left 0.3s ease' }}
       >
         <Outlet />
       </main>

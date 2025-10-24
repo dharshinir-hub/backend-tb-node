@@ -19,13 +19,13 @@ const Layout = () => {
     location.pathname === '/allocation' ||
     location.pathname === '/machinemm' ||
     location.pathname === '/report' ||
-    location.pathname === '/componentanalysis' ||
+    location.pathname === '/production-analysis' ||
     location.pathname === '/deviceoee' ||
     location.pathname === '/machineutilization' ||
     location.pathname === '/cycletime' ||
     location.pathname === '/inprogresscycle' ||
-    location.pathname === '/component' ||
-    location.pathname === '/component1' ||
+    location.pathname === '/production-summary' ||
+    location.pathname === '/production-runs' ||
     location.pathname === '/summary' ||
     location.pathname === '/analyticoee';
   return (

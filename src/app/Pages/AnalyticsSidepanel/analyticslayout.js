@@ -226,12 +226,12 @@ console.log(top5HighComponent);
             fontWeight: 600,
             color: "#111",
             marginBottom: "2px",
-            paddingTop: '0'
+            paddingTop: '2px'
           }}
         >
-          Summary
+         Top 5 Performed Components
         </div>
-        <div style={{ fontSize: "13px", color: "#666" }}>
+        <div style={{ fontSize: "13px", color: "#666" , paddingTop: '2px'}}>
           Completed runs listed by highest
         </div>
       </div>

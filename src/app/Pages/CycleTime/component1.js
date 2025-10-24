@@ -295,7 +295,7 @@ const Component1 = () => {
           {/* Back Button */}
           <Button
             variant="contained"
-            onClick={() => navigate("/component", {
+            onClick={() => navigate("/production-summary", {
               state: { selectedDevice, componentName, code }
             })}
             color="warning"

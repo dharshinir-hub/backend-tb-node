@@ -821,7 +821,7 @@ const Inprogress = () => {
           {/* Back Button */}
           <Button
             variant="contained"
-            onClick={() => navigate("/componentanalysis")}
+            onClick={() => navigate("/production-analysis")}
             color="warning"
             sx={{
               backgroundColor: "#626262",

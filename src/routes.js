@@ -65,16 +65,17 @@ const AppRoutes = () => (
           <NewDeviceOee />
         </Box>
       } />
-      <Route path="/componentanalysis" element={<Analytics />} />
-      <Route path="cycletime" element={<Cycletime />} />
-      <Route path="component" element={<Component />} />
-      <Route path="component1" element={<Component1 />} />
-      <Route path="summary" element={<Summary />} />
-      <Route path="inprogresscycle" element={<Inprogress />} />
-      <Route path="analyticoee" element={<AnalyticOee />} />
+      <Route path="/production-analysis" element={<Analytics />} />
+      <Route path="/cycletime" element={<Cycletime />} />
+      <Route path="/production-summary" element={<Component />} />
+      <Route path="/production-runs" element={<Component1 />} />
+      <Route path="/summary" element={<Summary />} />
+      <Route path="/inprogresscycle" element={<Inprogress />} />
+      <Route path="/analyticoee" element={<AnalyticOee />} />
 
     </Route>
   </Routes>
 );
 
 export default AppRoutes;
+
