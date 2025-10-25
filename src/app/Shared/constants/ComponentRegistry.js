@@ -9,6 +9,7 @@ import UserRegistration from '../../Pages/Userregistration/userreg';
 import ComponentRegistration from '../../Pages/Componentregistration/componentreg';
 import ReasonRegistration from '../../Pages/Reasonregistration/reasonreg';
 import Analytics from '../../Pages/Analytics/analytics';
+import NewAnalytics from '../../Pages/New-Analytics/new-analytics';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -21,5 +22,6 @@ export const COMPONENT_REGISTRY = {
   "operator-details": OperatorDetails,
   "machinemm": GrafanaEmbed,
   "deviceoee": NewDeviceOee,
-  "production-analysis": Analytics
+  "production-analysis": Analytics,
+  "analytics": NewAnalytics
 };

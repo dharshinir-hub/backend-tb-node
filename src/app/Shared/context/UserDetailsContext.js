@@ -3,7 +3,6 @@ import React, { createContext, useState } from 'react';
 export const UserDetailsContext = createContext();
 
 export const UserDetailsProvider = ({ children }) => {
-    debugger
   const [userDetails, setUserDetails] = useState(
     JSON.parse(localStorage.getItem('userDetails')) || {}
   );

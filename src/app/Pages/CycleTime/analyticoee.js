@@ -164,7 +164,6 @@ const AnalyticOee = () => {
     const oeebaselineLower = [];
 
     firstOperationsItem.forEach(item => {
-        debugger
         const itemOEE = item?.oee ?? 0; // fallback to 0 if undefined
         const baselineOEE = item.baseline?.oee ?? 0; // fallback to 0 if undefined
 
