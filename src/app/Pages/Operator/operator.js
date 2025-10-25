@@ -60,7 +60,8 @@ function Operator() {
     const [pendingMachine, setPendingMachine] = useState("");
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
- const customerId1 = localStorage.getItem('CustomerID');
+    const customerId1 = localStorage.getItem('CustomerID');
+    
     const fetchDevices = async () => {
         try {
             const customerId = window._env_.CUSTOMER_ID;
@@ -72,9 +73,12 @@ function Operator() {
                 return acc;
             }, {});
             setDeviceNameIdJson(nameIdMap);
-            if (devicesList.length > 0) {
+            const machineInfo = JSON.parse(localStorage.getItem("machineInfo"));
+            if (machineInfo?.machine_name && machineInfo?.machine_id) {
+                setSelectedMachine(machineInfo.machine_name);
+            } else if (devicesList.length > 0) {
                 const savedMachine = localStorage.getItem("selectedMachine");
-                if (savedMachine && devicesList.some(d => d.name === savedMachine)) {
+                if (savedMachine && devicesList.some((d) => d.name === savedMachine)) {
                     setSelectedMachine(savedMachine);
                 } else {
                     const defaultMachine = devicesList[0].name;
@@ -145,42 +149,42 @@ function Operator() {
     };
 
 
-// const fetchOperators = async () => {
-//   try {
-//     let operatorList = [];
+    // const fetchOperators = async () => {
+    //   try {
+    //     let operatorList = [];
 
-//     if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
-//       const res = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
-//       const allData = res?.[0]?.value || [];
-//       operatorList = allData
-//         .filter(o => o?.mode?.toLowerCase() === 'operator')
-//         .map(op => ({ id: op.operatorid, name: op.operatorname }));
-//     } else {
-//       // 👤 From user list API
-//       const res = await getCustomerUsers(customerId1);
-//       const users = res.data || [];
-//       const parsedUsers = users.map(u => {
-//         let desc = "";
-//         try {
-//           desc = u.additionalInfo?.description
-//             ? JSON.parse(u.additionalInfo.description)
-//             : "";
-//         } catch {
-//           desc = u.additionalInfo?.description || "";
-//         }
-//         return { ...u, userDetails: desc };
-//       });
+    //     if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
+    //       const res = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
+    //       const allData = res?.[0]?.value || [];
+    //       operatorList = allData
+    //         .filter(o => o?.mode?.toLowerCase() === 'operator')
+    //         .map(op => ({ id: op.operatorid, name: op.operatorname }));
+    //     } else {
+    //       // 👤 From user list API
+    //       const res = await getCustomerUsers(customerId1);
+    //       const users = res.data || [];
+    //       const parsedUsers = users.map(u => {
+    //         let desc = "";
+    //         try {
+    //           desc = u.additionalInfo?.description
+    //             ? JSON.parse(u.additionalInfo.description)
+    //             : "";
+    //         } catch {
+    //           desc = u.additionalInfo?.description || "";
+    //         }
+    //         return { ...u, userDetails: desc };
+    //       });
 
-//       operatorList = parsedUsers
-//         .filter(u => u.userDetails?.mode?.toLowerCase() === 'operator')
-//         .map(u => ({ id: u.userDetails?.userId, name: u.firstName }));
-//     }
-//     setOperators(operatorList);
-//   } catch (error) {
-//     console.error("Error fetching operators:", error);
-//     setOperators([]);
-//   }
-// };
+    //       operatorList = parsedUsers
+    //         .filter(u => u.userDetails?.mode?.toLowerCase() === 'operator')
+    //         .map(u => ({ id: u.userDetails?.userId, name: u.firstName }));
+    //     }
+    //     setOperators(operatorList);
+    //   } catch (error) {
+    //     console.error("Error fetching operators:", error);
+    //     setOperators([]);
+    //   }
+    // };
 
     const fetchOperators = async () => {
         try {
@@ -1114,34 +1118,50 @@ function Operator() {
             <div className="header-2" style={{ background: telemetry.machineColor }}>
                 <div className="machine-name">
                     <p>Machine:</p>
-                    <FormControl
-                        size="small"
-                        variant="standard"
-                        sx={{
-                            minWidth: 120,
-                            marginLeft: "0.5rem",
-                            "& .MuiInputBase-root": { color: "white" },
-                            "& .MuiSvgIcon-root": { color: "white" },
-                            "& .MuiInput-underline:before": { borderBottom: "1px solid white" },
-                            "& .MuiInput-underline:hover:before": {
-                                borderBottom: "2px solid white",
-                            },
-                        }}
-                    >
-                        <Select
-                            value={selectedMachine}
-                            onChange={(e) => {
-                                setPendingMachine(e.target.value);
-                                setConfirmType("machine");
-                            }}
-                        >
-                            {machines.map((machine) => (
-                                <MenuItem key={machine} value={machine}>
-                                    {machine}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                    {(() => {
+                        const machineInfo = JSON.parse(localStorage.getItem("machineInfo"));
+                        if (machineInfo?.machine_name && machineInfo?.machine_id) {
+                            // Show only the stored machine
+                            return (
+                                <div style={{ color: "white", marginLeft: "0.5rem" }}>
+                                    {machineInfo.machine_name}
+                                </div>
+                            );
+                        } else {
+                            // Show dropdown
+                            return (
+                                <FormControl
+                                    size="small"
+                                    variant="standard"
+                                    sx={{
+                                        minWidth: 120,
+                                        marginLeft: "0.5rem",
+                                        "& .MuiInputBase-root": { color: "white" },
+                                        "& .MuiSvgIcon-root": { color: "white" },
+                                        "& .MuiInput-underline:before": { borderBottom: "1px solid white" },
+                                        "& .MuiInput-underline:hover:before": {
+                                            borderBottom: "2px solid white",
+                                        },
+                                    }}
+                                >
+                                    <Select
+                                        value={selectedMachine}
+                                        onChange={(e) => {
+                                            setPendingMachine(e.target.value);
+                                            setConfirmType("machine");
+                                        }}
+                                    >
+                                        {machines.map((machine) => (
+                                            <MenuItem key={machine} value={machine}>
+                                                {machine}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            );
+                        }
+                    })()}
+
                 </div>
                 <div className="header-2-right">
                     <div className="machine-name">
