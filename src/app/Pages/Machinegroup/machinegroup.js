@@ -194,7 +194,7 @@ const MachineGroup = () => {
         dialogOpenCount={dialogOpenCount}
         datasource={machineGroups}
         customerId={customerId}
-        setDatasource={setDatasource}
+        setDatasource={setMachineGroups}
       />
 
       {isEditDialogOpen && editDialogData && (
@@ -206,7 +206,7 @@ const MachineGroup = () => {
           dialogOpenCount={dialogOpenCount}
           datasource={machineGroups}
           customerId={customerId}
-          setDatasource={setDatasource}
+          setDatasource={setMachineGroups}
         />
       )}
     </div>
