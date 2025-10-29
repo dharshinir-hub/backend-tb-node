@@ -8,7 +8,15 @@ import {
   MenuItem,
   Select,
   Card,
-  Grid
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  CircularProgress,
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -52,7 +60,7 @@ const Component1 = () => {
   const selectedDevice = location.state?.selectedDevice || null;
 
 
-  console.log('From', from, 'to', to, 'Selected Device', selectedDevice, 'Component', componentName, 'Code', code)
+  console.log('From', from, 'to', to, 'Selected Device', selectedDevice, 'Component', componentName, 'Code', code, 'codeWiseSummary',codeWiseSummary )
 
   const Id = localStorage.getItem("CustomerID");
   let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
@@ -66,6 +74,7 @@ const Component1 = () => {
       console.error("Failed to fetch shifts", err);
     }
   };
+  console.log('Shifts', shifts);
 
   const fetchDevices = async () => {
     try {
@@ -143,7 +152,6 @@ const Component1 = () => {
           return acc;
         }, {});
 
-        console.log("Mapped live component values:", allDataObject);
         setLiveComponent(allDataObject);
       } catch (error) {
         console.error("Error fetching live_component:", error);
@@ -250,6 +258,89 @@ const Component1 = () => {
   const filteredComponentData = getSelectedComponentData(componentName, liveComponent);
   console.log("Filtered Component Data:", filteredComponentData);
 
+  const removeFutureTsValues = (filteredComponentData) => {
+  const now = Date.now(); // current timestamp in ms
+
+  const validData = Object.entries(filteredComponentData).reduce((acc, [deviceName, records]) => {
+    // Filter out future timestamps
+    const pastRecords = records.filter(item => item.ts <= now);
+    if (pastRecords.length > 0) {
+      acc[deviceName] = pastRecords;
+    }
+    return acc;
+  }, {});
+
+  return validData;
+};
+
+// Usage:
+const filteredComponentData1 = removeFutureTsValues(filteredComponentData);
+
+console.log("Filtered Component Data (No Future TS):", filteredComponentData1);
+
+function addShiftToData(filteredComponentData1, shifts) {
+  const updated = {};
+
+  Object.entries(filteredComponentData1).forEach(([machineName, records]) => {
+    if (!Array.isArray(records)) return;
+
+    const processed = records.map((item) => {
+      const itemStart = Number(item.start_time);
+      const itemEnd = Number(item.end_time);
+      const itemDate = new Date(itemStart);
+      const baseDate = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate());
+
+      let matchedShift = shifts.find((shift) => {
+        const [startH, startM, startS] = shift.start_time.split(":").map(Number);
+        const [endH, endM, endS] = shift.end_time.split(":").map(Number);
+
+        // Try current day
+        const shiftStart = new Date(baseDate);
+        shiftStart.setHours(startH, startM, startS, 0);
+
+        let shiftEnd = new Date(baseDate);
+        shiftEnd.setHours(endH, endM, endS, 0);
+
+        // Handle overnight shift
+        if (shiftEnd <= shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+
+        if (
+          (itemStart >= shiftStart.getTime() && itemStart < shiftEnd.getTime()) ||
+          (itemEnd > shiftStart.getTime() && itemEnd <= shiftEnd.getTime())
+        ) {
+          return true;
+        }
+
+        // 🔹 Try previous day (to catch after-midnight part of overnight shift)
+        const prevShiftStart = new Date(shiftStart);
+        prevShiftStart.setDate(prevShiftStart.getDate() - 1);
+        const prevShiftEnd = new Date(shiftEnd);
+        prevShiftEnd.setDate(prevShiftEnd.getDate() - 1);
+
+        return (
+          (itemStart >= prevShiftStart.getTime() && itemStart < prevShiftEnd.getTime()) ||
+          (itemEnd > prevShiftStart.getTime() && itemEnd <= prevShiftEnd.getTime())
+        );
+      });
+
+      return {
+        ...item,
+        shift_no: matchedShift ? matchedShift.shift_no : "Unknown"
+      };
+    });
+
+    processed.sort((a, b) => b.start_time - a.start_time);
+    updated[machineName] = processed;
+  });
+
+  return updated;
+}
+
+// ✅ Example usage
+const updatedfilteredData = addShiftToData(filteredComponentData1, shifts);
+console.log("✅ Shift added filteredData:", updatedfilteredData);
+
+
   const handleBoxClick = (item, deviceName) => {
     navigate("/summary", {
       state: {
@@ -260,11 +351,46 @@ const Component1 = () => {
         end_time: item.end_time,
         deviceName: deviceName,
         code: item.code,
-        highcode:codeWiseSummary
+        codeWiseSummary:codeWiseSummary
 
       },
     });
   };
+
+
+ const formatSmartDuration = (durationSeconds) => {
+    const hours = Math.floor(durationSeconds / 3600);
+    const minutes = Math.floor((durationSeconds % 3600) / 60);
+    const seconds = Math.floor(durationSeconds % 60);
+    const parts = [];
+    if (hours > 0) parts.push(`${hours} hours`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (seconds > 0) parts.push(`${seconds}s`);
+    return parts.join(" ") || "0s";
+  };
+
+  const formatEpochTime = (epoch) => {
+    if (!epoch) return "N/A";
+    return new Date(epoch).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const formatDate = (epoch) => {
+    if (!epoch) return "N/A";
+    const date = new Date(epoch);
+    return date.toLocaleDateString("en-GB"); // e.g. 25/10/2025
+  };
+
+  // 🔹 Group records by date
+  const groupByDate = (records) => {
+    const grouped = {};
+    records.forEach((item) => {
+      const dateKey = formatDate(item.start_time);
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(item);
+    });
+    return grouped;
+  };
+
 
 
 
@@ -296,7 +422,7 @@ const Component1 = () => {
           <Button
             variant="contained"
             onClick={() => navigate("/production-summary", {
-              state: { selectedDevice, componentName, code }
+              state: { selectedDevice, componentName, code, codeWiseSummary }
             })}
             color="warning"
             sx={{
@@ -325,120 +451,118 @@ const Component1 = () => {
 
 
         {/* Component Boxes in 2 columns */}
-        <Grid container spacing={2} mt={2}>
-          {Object.entries(filteredComponentData).map(([deviceName, records]) =>
-            records.map((item, index) => {
-              // Calculate duration in hh:mm:ss
-              const durationSeconds = (item.end_time - item.start_time) / 1000;
-              function formatSmartDuration(durationSeconds) {
-                const hours = Math.floor(durationSeconds / 3600);
-                const minutes = Math.floor((durationSeconds % 3600) / 60);
-                const seconds = Math.floor(durationSeconds % 60);
+<Grid container spacing={2} mt={2}>
+  {Object.keys(updatedfilteredData).length === 0 ? (
+    <Grid
+      item
+      xs={12}
+      display="flex"
+      flexDirection="column"
+      justifyContent="center"
+      alignItems="center"
+      minHeight="200px"
+    >
+      <CircularProgress size={24} />
+      <Typography mt={1}>Loading data...</Typography>
+    </Grid>
+  ) : (
+    Object.entries(updatedfilteredData).map(([deviceName, records]) => {
+      const groupedData = groupByDate(records);
 
-                const parts = [];
-                if (hours > 0) parts.push(`${hours}h`);
-                if (minutes > 0) parts.push(`${minutes}m`);
-                if (seconds > 0) parts.push(`${seconds}s`);
-
-                return parts.join(' ') || '0s'; // fallback if duration is 0
-              }
-              const formatHMS = (timeStr) => {
-                if (!timeStr) return "N/A";
-                const [h, m, s] = timeStr.split(":").map(Number);
-                const parts = [];
-                if (h) parts.push(`${h}h`);
-                if (m) parts.push(`${m}m`);
-                if (s) parts.push(`${s}s`);
-                return parts.join(" ");
-              };
-
-
-              return (
-                <Grid item xs={12} sm={6} key={`${deviceName}-${index}`}>
-                  <Tooltip
-                    title={
-                      <Box>
-                        <Typography variant="body2"><strong>Cycle Time:</strong> {formatHMS(item.cycle_time)}</Typography>
-                        <Typography variant="body2"><strong>Handling Time:</strong> {formatHMS(item.handling_time)}</Typography>
-                        <Typography variant="body2"><strong>Setup Time:</strong> {formatHMS(item.setup_time)}</Typography>
-                      </Box>
-                    }
-                    placement="bottom"
-                    arrow
-                    followCursor
-                    PopperProps={{
-                      modifiers: [
-                        {
-                          name: 'offset',
-                          options: { offset: [10, 10] },
-                        },
-                      ],
-                    }}
-                    slotProps={{
-                      tooltip: {
-                        sx: {
-                          backgroundColor: '#cfd7d3ff',
-                          color: '#0f172a',
-                          fontSize: '13px',
-                          borderRadius: '8px',
-                          boxShadow: 3,
-                          p: 2,
-                        },
-                      },
-
-                      arrow: {
-                        sx: {
-                          color: '#1e293b',
-                        },
-                      },
+      return (
+        <Grid item xs={12} key={deviceName}>
+          <TableContainer
+            component={Paper}
+            sx={{
+              mb: 3,
+              borderRadius: 2,
+              overflow: "hidden",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+            }}
+          >
+            <Table size="medium" sx={{ "& td, & th": { padding: "12px 16px" } }}>
+              {/* Machine Header */}
+              <TableHead>
+                <TableRow sx={{ backgroundColor: "#1e3a8a" }}>
+                  <TableCell
+                    colSpan={5}
+                    sx={{
+                      color: "white",
+                      fontWeight: "bold",
+                      fontSize: "1rem",
+                      py: 1.5,
+                      border: "1px solid #ccc",
                     }}
                   >
+                    Machine: {deviceName}
+                  </TableCell>
+                </TableRow>
 
+                {/* Column Headers */}
+                <TableRow sx={{ backgroundColor: "#e2e8f0" }}>
+                  <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", border: "1px solid #ccc" }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", border: "1px solid #ccc" }}>Shift</TableCell>
+                  <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", border: "1px solid #ccc" }}>Start Time</TableCell>
+                  <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", border: "1px solid #ccc" }}>End Time</TableCell>
+                  <TableCell sx={{ fontWeight: "bold", fontSize: "0.95rem", border: "1px solid #ccc" }}>Duration</TableCell>
+                </TableRow>
+              </TableHead>
 
+              <TableBody>
+                {Object.entries(groupedData).map(([date, dateRecords]) => {
+                  return dateRecords.map((item, index) => {
+                    const durationSeconds = (item.end_time - item.start_time) / 1000;
 
-                    <Box
-                      p={2}
-                      sx={{
-                        border: '1px solid #ccc',
-                        borderRadius: 2,
-                        boxShadow: 1,
-                        backgroundColor: '#fff',
-                        cursor: 'pointer',
-                        transition: 'transform 0.2s',
-                        '&:hover': { transform: 'scale(1.03)' },
-
-                      }}
-                      onClick={() => handleBoxClick(item, deviceName)}
-                    >
-                      {/* Machine Name */}
-                      <Typography variant="subtitle2" fontWeight="bold" mb={1} fontSize="1.1rem">
-                        {item.machine_name || deviceName}
-                      </Typography>
-
-                      {/* Start & End Time */}
-                      <Box display="flex" justifyContent="space-between" mb={0.5}>
-                        <Typography variant="body2" color="textSecondary" fontSize="0.85rem">
-                          {formatEpoch(item.start_time)}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary" fontSize="0.85rem">
-                          {formatEpoch(item.end_time)}
-                        </Typography>
-                      </Box>
-
-                      {/* Duration */}
-                      <Box display="flex" justifyContent="end" mb={0.5}>
-                        <Typography variant="body2" color="black" fontSize="1.5rem">
+                    return (
+                      <TableRow
+                        key={`${date}-${index}`}
+                        hover
+                        sx={{
+                          height: "55px",
+                          cursor: "pointer", // 🔹 row clickable
+                          "&:hover": { backgroundColor: "#f8fafc" },
+                        }}
+                        onClick={() => handleBoxClick(item, deviceName)} // 🔹 added here
+                      >
+                        {index === 0 ? (
+                          <TableCell
+                            rowSpan={dateRecords.length}
+                            sx={{
+                              fontWeight: "bold",
+                              verticalAlign: "middle",
+                              fontSize: "0.95rem",
+                              border: "1px solid #ccc",
+                            }}
+                          >
+                            {date}
+                          </TableCell>
+                        ) : null}
+                          <TableCell sx={{ fontSize: "0.95rem", border: "1px solid #ccc" }}>
+                          Shift {item.shift_no}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: "0.95rem", border: "1px solid #ccc" }}>
+                          {formatEpochTime(item.start_time)}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: "0.95rem", border: "1px solid #ccc" }}>
+                          {formatEpochTime(item.end_time)}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: "0.95rem", border: "1px solid #ccc" }}>
                           {formatSmartDuration(durationSeconds)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Tooltip>
-                </Grid>
-
-              );
-            })
-          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </Grid>
+      );
+    })
+  )}
+</Grid>
+
+
 
 
 

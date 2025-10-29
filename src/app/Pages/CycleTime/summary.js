@@ -44,9 +44,9 @@ const Summary = () => {
     from: dayjs().subtract(6, "day").startOf("day").valueOf(),
     to: dayjs().endOf("day").valueOf()
   };
-  const { previousScreen, componentName, deviceName, start_time, end_time, code, selectedDevice, highcode } = location.state
+  const { previousScreen, componentName, deviceName, start_time, end_time, code, selectedDevice, codeWiseSummary } = location.state
 
-  console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code)
+  console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code, 'Codewisesummary',codeWiseSummary)
 
   const Id = localStorage.getItem("CustomerID");
   let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
@@ -269,7 +269,7 @@ const Summary = () => {
         formatDuration={formatDuration}
         from={from}
         to={to}
-        highestcomponent={highcode}
+        highestcomponent={codeWiseSummary}
 
       />
 
@@ -293,7 +293,7 @@ const Summary = () => {
           <Button
             variant="contained"
             onClick={() => navigate(previousScreen, {
-              state: { selectedDevice, componentName, code }
+              state: { selectedDevice, componentName, code ,codeWiseSummary}
             })}
             color="warning"
             sx={{

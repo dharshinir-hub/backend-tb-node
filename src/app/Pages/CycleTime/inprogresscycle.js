@@ -34,6 +34,37 @@ import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { useLocation, useNavigate } from "react-router-dom";
 
+const MetricRow = ({ label, value }) => (
+  <Box
+    sx={{
+      display: "flex",
+      justifyContent: "space-between",
+      py: 0.8,
+      borderBottom: "1px solid rgba(0,0,0,0.05)",
+      "&:last-child": { borderBottom: "none" },
+    }}
+  >
+    <Typography
+      variant="body2"
+      sx={{
+        color: "#334155",
+        fontWeight: 500,
+      }}
+    >
+      {label}
+    </Typography>
+    <Typography
+      variant="body2"
+      sx={{
+        color: "#111827",
+        fontWeight: 600,
+      }}
+    >
+      {value}
+    </Typography>
+  </Box>
+);
+
 const Inprogress = () => {
   const baseUrl = window._env_.SERVER_URL;
 
@@ -860,46 +891,173 @@ const Inprogress = () => {
           </Typography>
 
 
-           {selectedMachine ? (
-    partsData[selectedMachine.id?.id]?.partData?.length > 0 ? (
-      <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
-        <Table stickyHeader size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Part Number</TableCell>
-              <TableCell>Component</TableCell>
-              <TableCell>Machine Name</TableCell>
-              <TableCell>Actual Time</TableCell>
-              <TableCell>Reference Time</TableCell>
-              <TableCell>Run Duration</TableCell>
-              <TableCell>Idle Duration</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {partsData[selectedMachine.id?.id]?.partData.map((part, index) => (
-              <TableRow key={index}>
-                <TableCell>{part.partnumber}</TableCell>
-                <TableCell>{part.component}</TableCell>
-                <TableCell>{part.machinename}</TableCell>
-                <TableCell>{part.actualTime}</TableCell>
-                <TableCell>{part.referenceTime}</TableCell>
-                <TableCell>{part.run_duration.toFixed(2)}</TableCell>
-                <TableCell>{part.idle_duration.toFixed(2)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    ) : (
-      <Typography variant="body2" color="textSecondary">
-        No parts produced for this machine.
-      </Typography>
-    )
+{selectedMachine ? (
+  partsData[selectedMachine.id?.id]?.partData?.length > 0 ? (
+    <Box
+      sx={{
+        maxHeight: 500,
+        overflowY: "auto",
+        p: 4,
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+        gap: 4,
+        backgroundColor: "transparent",
+      }}
+    >
+      {partsData[selectedMachine.id?.id]?.partData.map((part, index) => {
+        const isEfficient = part.actualTime <= part.referenceTime;
+
+        return (
+          <Paper
+            key={index}
+            elevation={0}
+            sx={{
+              position: "relative",
+              p: 3,
+              pl: 4.5, // space for accent border
+              borderRadius: "24px",
+              background: "linear-gradient(135deg, #ffffff 0%, #f5f7fa 100%)",
+              boxShadow:
+                "rgba(0,0,0,0.08) 4px 4px 10px, rgba(255,255,255,0.9) -4px -4px 10px",
+              border: "1px solid rgba(0,0,0,0.04)",
+              backdropFilter: "blur(8px)",
+              overflow: "hidden", // ✅ ensures left glow follows border radius
+              transition:
+                "transform 0.4s ease, box-shadow 0.4s ease, border 0.3s ease",
+              "&:hover": {
+                transform: "translateY(-8px)",
+                boxShadow:
+                  "rgba(0,0,0,0.15) 8px 8px 20px, rgba(255,255,255,0.9) -8px -8px 20px",
+                border: `1px solid ${
+                  isEfficient ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"
+                }`,
+              },
+            }}
+          >
+            {/* 🔹 Full-Height Left Accent Line with Matching Radius */}
+            <Box
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                height: "100%",
+                width: "6px",
+                borderRadius: "24px 0 0 24px", // ✅ matches parent radius
+                background: isEfficient
+                  ? "linear-gradient(180deg, #34d399, #059669)"
+                  : "linear-gradient(180deg, #f87171, #b91c1c)",
+                boxShadow: `0 0 20px ${
+                  isEfficient
+                    ? "rgba(52,211,153,0.5)"
+                    : "rgba(248,113,113,0.4)"
+                }`,
+                transition: "all 0.4s ease",
+              }}
+            />
+
+            {/* Header */}
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={2}
+              mt={1}
+            >
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 700,
+                  color: "#111827",
+                  letterSpacing: 0.3,
+                }}
+              >
+                {part.partnumber || "Unknown Part"}
+              </Typography>
+
+              <Chip
+                label={isEfficient ? "Efficient" : "Lagging"}
+                size="small"
+                sx={{
+                  fontWeight: 600,
+                  color: isEfficient ? "#065f46" : "#991b1b",
+                  backgroundColor: isEfficient
+                    ? "rgba(16,185,129,0.15)"
+                    : "rgba(239,68,68,0.15)",
+                  borderRadius: "8px",
+                  backdropFilter: "blur(4px)",
+                  px: 1.5,
+                  boxShadow:
+                    "inset 2px 2px 5px rgba(255,255,255,0.5), inset -2px -2px 5px rgba(0,0,0,0.05)",
+                }}
+              />
+            </Box>
+
+            {/* Meta Info */}
+            <Typography
+              variant="body2"
+              sx={{
+                color: "#374151",
+                mb: 0.5,
+                fontSize: "0.9rem",
+              }}
+            >
+              <strong style={{ color: "#111827" }}>Component:</strong>{" "}
+              {part.component}
+            </Typography>
+
+            <Typography
+              variant="body2"
+              sx={{
+                color: "#374151",
+                mb: 2,
+                fontSize: "0.9rem",
+              }}
+            >
+              <strong style={{ color: "#111827" }}>Machine:</strong>{" "}
+              {part.machinename}
+            </Typography>
+
+            {/* Metrics */}
+            <Box
+              sx={{
+                background: "linear-gradient(145deg, #ffffff, #f3f4f6)",
+                borderRadius: 3,
+                p: 2,
+                border: "1px solid rgba(0,0,0,0.05)",
+                boxShadow:
+                  "inset 4px 4px 10px rgba(0,0,0,0.05), inset -4px -4px 10px rgba(255,255,255,0.9)",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  boxShadow:
+                    "inset 6px 6px 12px rgba(0,0,0,0.06), inset -6px -6px 12px rgba(255,255,255,1)",
+                },
+              }}
+            >
+              <MetricRow label="Actual Time" value={formatTime(part.actualTime)} />
+              <MetricRow label="Reference Time" value={formatTime(part.referenceTime)} />
+              <MetricRow label="Run Duration" value={formatTime(part.run_duration)} />
+              <MetricRow label="Idle Duration" value={formatTime(part.idle_duration)} />
+            </Box>
+          </Paper>
+        );
+      })}
+    </Box>
   ) : (
     <Typography variant="body2" color="textSecondary">
-      Select a machine to see parts produced.
+      No parts produced for this machine.
     </Typography>
-  )}
+  )
+) : (
+  <Typography variant="body2" color="textSecondary">
+    Select a machine to see parts produced.
+  </Typography>
+)}
+
+
+
+
+
+
         </Box>
       </Box>
 
