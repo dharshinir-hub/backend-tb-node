@@ -25,6 +25,7 @@ import Oee from './app/Pages/Oee/oee';
 import NewAnalytics from './app/Pages/New-Analytics/new-analytics';
 import { Box } from '@mui/material';
 import NewDeviceOee from './app/Pages/NewDeviceOee/newdeviceoee';
+import MachineGroup from './app/Pages/Machinegroup/machinegroup';
 
 // Import other components for your routes
 
@@ -43,6 +44,7 @@ const AppRoutes = () => (
       <Route path="/operator-registration" element={<OperatorRegistration />} />
       <Route path="/reason-registration" element={<ReasonRegistration />} />
       <Route path="/machines" element={<MachineList />} />
+      <Route path="/machines-group" element={<MachineGroup />} />
       <Route path="/company" element={<Company />} />
       <Route path="/CurrentShift" element={<CurrentShift />} />
       <Route path="/analytics" element={<NewAnalytics />} />

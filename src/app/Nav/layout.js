@@ -5,7 +5,7 @@ import Sidebar from './sidebar'; // Ensure correct import path
 const Layout = () => {
   const location = useLocation();
   const showSidebar = location.pathname === '/andon-dashboard' ||
-                      location.pathname ===   '/shift' ||
+                      location.pathname === '/shift' ||
                       location.pathname === '/machine-card' ||
                       location.pathname === '/shift-registration'||
                       location.pathname === '/component-registration'||
@@ -21,7 +21,8 @@ const Layout = () => {
                       location.pathname === '/report' ||
                       location.pathname === '/analytics' ||
                       location.pathname === '/deviceoee' ||
-                      location.pathname === '/machineutilization';
+                      location.pathname === '/machineutilization' ||
+                      location.pathname === '/machines-group'
   return (
     <>
       {showSidebar && <Sidebar />} {/* Conditionally render the Sidebar */}
