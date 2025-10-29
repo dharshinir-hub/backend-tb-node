@@ -137,7 +137,7 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
         lastUpdateTs: Date.now()
       };
 
-      console.log('Submitted shift data:', JSON.stringify(formData));
+      console.log('Submitted operator data:', JSON.stringify(formData));
       console.log('customerId', customerId);
 
       const scope = 'SERVER_SCOPE';
@@ -152,8 +152,8 @@ export default function OperatorEdit({ open, handleClose, handleAdd, dialogOpenC
       handleClose();
       reset(defaultShiftForm);
     } catch (error) {
-      console.error('Error submitting shift data:', error);
-      Swal.fire('Error submitting shift data: ' + error.message);
+      console.error('Error submitting operator data:', error);
+      Swal.fire('Error submitting operator data: ' + error.message);
       handleClose();
       reset(defaultShiftForm);
     }
