@@ -11,7 +11,7 @@ import { getOperatorDetails, Loginapi, startTokenAutoRefresh } from '../../Servi
 import { customerbasedshift, customerbaseddevices, telemetrykeydata } from '../../Services/app/operatorservice';
 import { FaRegClock, FaRegCalendarAlt } from "react-icons/fa";
 import FiscalWeek from '../../Shared/Pages/fiscalweek/fiscalweek';
-import { FormControlLabel, Switch } from '@mui/material';
+import { FormControl, FormControlLabel, InputLabel, MenuItem, Select, Switch } from '@mui/material';
 
 
 
@@ -33,6 +33,37 @@ const Oee = () => {
   const baseUrl = window._env_.SERVER_URL;
   const GRAFANA_URL = window._env_.GRAFANA_URL;
   const customerId = localStorage.getItem('CustomerID');
+  const [machineGroups, setMachineGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(localStorage.getItem("selectedGroup") || "");
+
+  const filteredDevices =
+    !selectedGroup || selectedGroup === "All"
+      ? devices
+      : devices.filter((d) =>
+        machineGroups
+          .find((g) => g.name === selectedGroup)
+          ?.machines.includes(d.name)
+      );
+
+  const fetchMachineGroups = async () => {
+    try {
+      const key = 'machinegroups';
+      const data = await customerbasedshift(customerId || customerId1, key);
+      const allMachineGroups = data[0]?.value || [];
+      setMachineGroups(allMachineGroups);
+      console.log("✅ Machine Groups:", allMachineGroups);
+    } catch (error) {
+      console.error("Error fetching machine groups:", error);
+      setMachineGroups([]);
+    }
+  };
+
+  useEffect(() => {
+    const storedGroup = localStorage.getItem("selectedGroup");
+    if (storedGroup) {
+      setSelectedGroup(storedGroup);
+    }
+  }, []);
 
   // ✅ Watch token changes in localStorage
   useEffect(() => {
@@ -80,45 +111,45 @@ const Oee = () => {
       }
     };
     init();
-const storedToken1 = localStorage.getItem("token1");
-console.log(" token1 from localStorage:", storedToken1);
-setNewToken(storedToken1);
+    const storedToken1 = localStorage.getItem("token1");
+    console.log(" token1 from localStorage:", storedToken1);
+    setNewToken(storedToken1);
   }, [location.pathname]);
 
- const convertShiftToEpoch = (date, start, end) => {
-  let startTime = dayjs(`${date.format("YYYY-MM-DD")} ${start}`);
-  let endTime = dayjs(`${date.format("YYYY-MM-DD")} ${end}`);
+  const convertShiftToEpoch = (date, start, end) => {
+    let startTime = dayjs(`${date.format("YYYY-MM-DD")} ${start}`);
+    let endTime = dayjs(`${date.format("YYYY-MM-DD")} ${end}`);
 
-  if (endTime.isBefore(startTime)) {
-    endTime = endTime.add(1, "day"); // overnight shift
-  }
-
-  return { from: startTime.valueOf(), to: endTime.valueOf() };
-};
-
-const getCurrentShift = (shiftList) => {
-  const now = dayjs();
-
-  for (const s of shiftList) {
-    // ✅ Check today
-    let { from, to } = convertShiftToEpoch(now, s.start_time, s.end_time);
-    if (now.valueOf() >= from && now.valueOf() < to) {
-      return { ...s, from, to };
+    if (endTime.isBefore(startTime)) {
+      endTime = endTime.add(1, "day"); // overnight shift
     }
 
-    // ✅ Also check yesterday (for overnight shifts)
-    let { from: fromY, to: toY } = convertShiftToEpoch(
-      now.subtract(1, "day"),
-      s.start_time,
-      s.end_time
-    );
-    if (now.valueOf() >= fromY && now.valueOf() < toY) {
-      return { ...s, from: fromY, to: toY };
-    }
-  }
+    return { from: startTime.valueOf(), to: endTime.valueOf() };
+  };
 
-  return null;
-};
+  const getCurrentShift = (shiftList) => {
+    const now = dayjs();
+
+    for (const s of shiftList) {
+      // ✅ Check today
+      let { from, to } = convertShiftToEpoch(now, s.start_time, s.end_time);
+      if (now.valueOf() >= from && now.valueOf() < to) {
+        return { ...s, from, to };
+      }
+
+      // ✅ Also check yesterday (for overnight shifts)
+      let { from: fromY, to: toY } = convertShiftToEpoch(
+        now.subtract(1, "day"),
+        s.start_time,
+        s.end_time
+      );
+      if (now.valueOf() >= fromY && now.valueOf() < toY) {
+        return { ...s, from: fromY, to: toY };
+      }
+    }
+
+    return null;
+  };
 
   // Fetch shifts
   const fetchShifts = async () => {
@@ -153,9 +184,7 @@ const getCurrentShift = (shiftList) => {
   const updateShift = () => {
     if (!shifts || shifts.length === 0) return;
     const active = getCurrentShift(shifts);
-   
     setCurrentShift(active);
-    
   };
 
   useEffect(() => {
@@ -210,6 +239,7 @@ const getCurrentShift = (shiftList) => {
   useEffect(() => {
     if (customerId || customerId1) {
       fetchDevices();
+      fetchMachineGroups();
     }
   }, [customerId, customerId1]);
 
@@ -219,89 +249,108 @@ const getCurrentShift = (shiftList) => {
   let LAST_WEEK_TO_EPOCH;
 
 
-  function setLastMondayToSaturdayEpoch() {
+  function setLastWeekEpoch(shifts) {
     const now = new Date();
     const dayOfWeek = now.getDay();
-    const lastMonday = new Date(now);
-    const diffToMonday = (dayOfWeek + 6) % 7 + 7;
-    lastMonday.setDate(now.getDate() - diffToMonday);
-    lastMonday.setHours(0, 0, 0, 0);
-
-
-    const lastSaturday = new Date(lastMonday);
-    lastSaturday.setDate(lastMonday.getDate() + 5);
-    lastSaturday.setHours(23, 59, 59, 999);
-
-  LAST_WEEK_FROM_EPOCH = lastMonday.getTime();
-    LAST_WEEK_TO_EPOCH = lastSaturday.getTime();
+    let lastWeekStart, lastWeekEnd;
+    if (shifts && shifts.length >= 1) {
+      const firstShift = shifts[0];
+      const lastShift = shifts[shifts.length - 1];
+      lastWeekStart = new Date(now);
+      const diffToMonday = ((dayOfWeek + 6) % 7) + 7;
+      lastWeekStart.setDate(now.getDate() - diffToMonday);
+      const [startH, startM, startS] = firstShift.start_time.split(":").map(Number);
+      lastWeekStart.setHours(startH, startM, startS, 0);
+      lastWeekEnd = new Date(lastWeekStart);
+      lastWeekEnd.setDate(lastWeekStart.getDate() + 7);
+      const [endH, endM, endS] = lastShift.end_time.split(":").map(Number);
+      lastWeekEnd.setHours(endH, endM, endS, 0);
+    } else {
+      lastWeekStart = new Date(now);
+      const diffToMonday = ((dayOfWeek + 6) % 7) + 7;
+      lastWeekStart.setDate(now.getDate() - diffToMonday);
+      lastWeekStart.setHours(0, 0, 0, 0);
+      lastWeekEnd = new Date(lastWeekStart);
+      lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+      lastWeekEnd.setHours(23, 59, 59, 999);
+    }
+    LAST_WEEK_FROM_EPOCH = lastWeekStart.getTime();
+    LAST_WEEK_TO_EPOCH = lastWeekEnd.getTime();
   }
-
-  setLastMondayToSaturdayEpoch();
-
- console.log("From:", LAST_WEEK_FROM_EPOCH);
+  setLastWeekEpoch(shifts);
+  console.log("From:", LAST_WEEK_FROM_EPOCH);
   console.log("To:", LAST_WEEK_TO_EPOCH);
-
 
   let THIS_WEEK_FROM_EPOCH;
   let THIS_WEEK_TO_EPOCH;
 
- function setThisWeekMondayToSaturdayEpoch() {
+  function setThisWeekEpoch(shifts) {
     const now = new Date();
     const dayOfWeek = now.getDay();
-    const thisMonday = new Date(now);
-    const diffToMonday = (dayOfWeek + 6) % 7;
-    thisMonday.setDate(now.getDate() - diffToMonday);
-    thisMonday.setHours(0, 0, 0, 0);
-    const thisSaturday = new Date(thisMonday);
-    thisSaturday.setDate(thisMonday.getDate() + 5);
-    thisSaturday.setHours(23, 59, 59, 999);
+    let weekStart, weekEnd;
+    if (shifts && shifts.length >= 1) {
+      const firstShift = shifts[0];
+      const lastShift = shifts[shifts.length - 1];
+      weekStart = new Date(now);
+      const diffToMonday = ((dayOfWeek + 6) % 7);
+      weekStart.setDate(now.getDate() - diffToMonday);
+      const [startH, startM, startS] = firstShift.start_time.split(":").map(Number);
+      weekStart.setHours(startH, startM, startS, 0);
+      weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 7);
+      const [endH, endM, endS] = lastShift.end_time.split(":").map(Number);
+      weekEnd.setHours(endH, endM, endS, 0);
+    } else {
+      weekStart = new Date(now);
+      const diffToMonday = ((dayOfWeek + 6) % 7);
+      weekStart.setDate(now.getDate() - diffToMonday);
+      weekStart.setHours(0, 0, 0, 0);
+      weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+    }
 
+    THIS_WEEK_FROM_EPOCH = weekStart.getTime();
+    THIS_WEEK_TO_EPOCH = weekEnd.getTime();
 
-THIS_WEEK_FROM_EPOCH = thisMonday.getTime();
-    THIS_WEEK_TO_EPOCH = thisSaturday.getTime();
+    console.log("This week From:", new Date(THIS_WEEK_FROM_EPOCH));
+    console.log("This week To:", new Date(THIS_WEEK_TO_EPOCH));
   }
 
-
-setThisWeekMondayToSaturdayEpoch();
-
+  setThisWeekEpoch(shifts);
 
   console.log("This week To:", THIS_WEEK_TO_EPOCH);
 
+  let monfrom = null;
+  let monto = null;
 
+  if (!shifts || shifts.length === 0) {
+    console.error("Shifts array is empty or undefined!");
+  } else {
+    const lastShiftEnd = shifts[shifts.length - 1].end_time;
 
+    function parseTime(timeStr) {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return { hours, minutes };
+    }
 
+    // Calculate tomorrow's last shift end (to include today fully)
+    const end = new Date();
+    end.setDate(end.getDate() + 1); // move to tomorrow
+    const endTime = parseTime(lastShiftEnd);
+    end.setHours(endTime.hours, endTime.minutes, 0, 0);
 
+    // Calculate 30 days before that
+    const start = new Date(end);
+    start.setDate(start.getDate() - 30);
 
-let monfrom = null;
-let monto = null;
+    monfrom = start.getTime();
+    monto = end.getTime();
 
-if (!shifts || shifts.length === 0) {
-  console.error("Shifts array is empty or undefined!");
-} else {
-  const lastShiftEnd = shifts[shifts.length - 1].end_time;
-
-  function parseTime(timeStr) {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    return { hours, minutes };
+    console.log("Last shift end time:", lastShiftEnd);
+    console.log("Last 30 days From:", monfrom, "->", start);
+    console.log("Last 30 days To:", monto, "->", end);
   }
-
-  // Calculate tomorrow's last shift end (to include today fully)
-  const end = new Date();
-  end.setDate(end.getDate() + 1); // move to tomorrow
-  const endTime = parseTime(lastShiftEnd);
-  end.setHours(endTime.hours, endTime.minutes, 0, 0);
-
-  // Calculate 30 days before that
-  const start = new Date(end);
-  start.setDate(start.getDate() - 30);
-
-  monfrom = start.getTime();
-  monto = end.getTime();
-
-  console.log("Last shift end time:", lastShiftEnd);
-  console.log("Last 30 days From:", monfrom, "->", start);
-  console.log("Last 30 days To:", monto, "->", end);
-}
 
   const [oeeData, setOEEData] = useState({});
 
@@ -480,23 +529,36 @@ if (!shifts || shifts.length === 0) {
   );
   console.log(deviceWiseData);
 
-  let lastWeekShiftWiseOEE = {};
+  const lastWeekShiftWiseOEE = {};
 
- for (const machineId in shiftWiseOEEByDate) {
-  const machineData = shiftWiseOEEByDate[machineId];
-  lastWeekShiftWiseOEE[machineId] = {};
-  for (const dateStr in machineData) {
-    const dateEpoch = new Date(dateStr).getTime();
-    if (dateEpoch >= LAST_WEEK_FROM_EPOCH && dateEpoch <= LAST_WEEK_TO_EPOCH) {
+  for (const machineId in shiftWiseOEEByDate) {
+    const machineData = shiftWiseOEEByDate[machineId];
+    lastWeekShiftWiseOEE[machineId] = {};
+    for (const dateStr in machineData) {
       const shiftData = machineData[dateStr];
-      const allZero = Object.values(shiftData).every(v => Number(v) === 0);
-      if (!allZero) {
-        lastWeekShiftWiseOEE[machineId][dateStr] = shiftData;
-      }
+      const baseDate = new Date(dateStr);
+      shifts.forEach((shift) => {
+        const [shHour, shMin, shSec] = shift.start_time.split(':').map(Number);
+        const [enHour, enMin, enSec] = shift.end_time.split(':').map(Number);
+        let shiftStart = new Date(baseDate);
+        shiftStart.setHours(shHour, shMin, shSec, 0);
+        let shiftEnd = new Date(baseDate);
+        shiftEnd.setHours(enHour, enMin, enSec, 0);
+        if (shiftEnd <= shiftStart) {
+          shiftEnd.setDate(shiftEnd.getDate() + 1);
+        }
+        if (
+          shiftEnd.getTime() > LAST_WEEK_FROM_EPOCH &&
+          shiftStart.getTime() < LAST_WEEK_TO_EPOCH
+        ) {
+          const allZero = Object.values(shiftData).every(v => Number(v) === 0);
+          if (!allZero) {
+            lastWeekShiftWiseOEE[machineId][dateStr] = shiftData;
+          }
+        }
+      });
     }
   }
-}
-
   console.log('Last week shift wise oee', lastWeekShiftWiseOEE);
 
 
@@ -588,10 +650,10 @@ if (!shifts || shifts.length === 0) {
 
   const [scrollDelay, setScrollDelay] = useState(15000);
 
-useEffect(() => {
-  const customerTitle = localStorage.getItem('customerTitle') || 'PMI GLOBAL';
-  setCustomerTitle(customerTitle);
-}, []);
+  useEffect(() => {
+    const customerTitle = localStorage.getItem('customerTitle') || 'PMI GLOBAL';
+    setCustomerTitle(customerTitle);
+  }, []);
 
   useEffect(() => {
     const fetchDelay = async () => {
@@ -648,48 +710,46 @@ useEffect(() => {
 
   return (
 
-    <div style={{ paddingBottom: '0.5rem', position: 'relative' }}>
+    <div style={{ paddingBottom: "0.5rem", position: "relative" }}>
       <div
         style={{
           position: "sticky",
           top: 0,
           zIndex: 100,
-          background: "#EDEDED",
-          padding: "0.8rem 2rem",
-          borderBottom: "1px solid #d1d1d1",
+          background: "rgba(250,250,250,0.85)",
+          backdropFilter: "blur(10px)",
+          padding: "0.7rem 2rem",
+          borderBottom: "1px solid rgba(0,0,0,0.05)",
           display: "flex",
-          justifyContent: "space-between",
           alignItems: "center",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
+          justifyContent: "space-between",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
         }}
       >
-        {/* Left Section */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
           <div
             style={{
-              fontSize: "15px",
+              fontSize: "14px",
               fontWeight: 600,
-              color: "#111",
-              letterSpacing: "0.3px",
+              color: "#222",
+              letterSpacing: "0.2px",
             }}
           >
-            Date:{" "}
-            <span>{date}</span>
+            Date: <span>{dayjs().format("MMM D, YYYY")}</span>
           </div>
 
           {currentShift && (
             <div
               style={{
-                fontSize: "14px",
+                fontSize: "13px",
                 fontWeight: 600,
-                padding: "5px 14px",
+                padding: "4px 12px",
                 borderRadius: "8px",
                 background: "#fff",
                 borderLeft: "4px solid #FFA500",
-                color: "#222",
-                boxShadow: "0 2px 5px rgba(0,0,0,0.08)",
+                color: "#333",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
                 display: "inline-block",
-                transition: "transform 0.2s ease",
               }}
             >
               Shift {currentShift.shift_no}:{" "}
@@ -698,44 +758,107 @@ useEffect(() => {
           )}
         </div>
 
-        {/* Center Section */}
         <div
           style={{
-            fontSize: "22px",
-            fontWeight: "800",
-            color: "#111",
-            letterSpacing: "1px",
-            textTransform: "uppercase",
-            textShadow: "0 1px 1px rgba(0,0,0,0.05)",
-          }}
-        >
-          {customerTitle}
-        </div>
-
-        {/* Right Section */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
-            gap: "0.5rem",
+            textAlign: "center",
           }}
         >
           <div
             style={{
-              fontSize: "14px",
+              fontSize: "20px",
+              fontWeight: "800",
+              color: "#111",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+              textShadow: "0 1px 1px rgba(0,0,0,0.05)",
+            }}
+          >
+            {customerTitle}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+          }}
+        >
+          <FormControl
+            variant="outlined"
+            size="small"
+            sx={{
+              minWidth: 160,
+              background: "#fff",
+              borderRadius: "10px",
+              boxShadow: "0 3px 6px rgba(0,0,0,0.05)",
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "10px",
+                "& fieldset": {
+                  borderColor: "rgba(0,0,0,0.1)",
+                },
+                "&:hover fieldset": {
+                  borderColor: "#FFA500",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: "#FFA500",
+                  borderWidth: "1.5px",
+                },
+              },
+            }}
+          >
+            <InputLabel
+              sx={{
+                fontWeight: 600,
+                color: "#666",
+                "&.Mui-focused": { color: "#FFA500" },
+              }}
+            >
+              Group
+            </InputLabel>
+            <Select
+              value={selectedGroup || "All"}
+              label="Group"
+              onChange={(e) => {
+                const group = e.target.value;
+                setSelectedGroup(group);
+                localStorage.setItem("selectedGroup", group);
+              }}
+              sx={{
+                fontWeight: 600,
+                color: "#222",
+              }}
+              renderValue={(selected) => selected || "All"}
+            >
+              <MenuItem value="All">
+                <em>All</em>
+              </MenuItem>
+              {machineGroups.map((g) => (
+                <MenuItem key={g.id} value={g.name}>
+                  {g.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <div
+            style={{
+              fontSize: "13px",
               fontWeight: 600,
-              padding: "5px 14px",
+              padding: "4px 12px",
               borderRadius: "8px",
               background: "#fff",
               borderLeft: "4px solid #FFA500",
               color: "#222",
-              boxShadow: "0 2px 5px rgba(0,0,0,0.08)",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
               display: "inline-block",
-              transition: "transform 0.2s ease",
             }}
           >
-            <FiscalWeek fiscalYearStartMonth={1} onWeekChange={setFiscalWeekNumber} />
+
+            <FiscalWeek
+              fiscalYearStartMonth={1}
+              onWeekChange={setFiscalWeekNumber}
+            />
           </div>
 
           <FormControlLabel
@@ -744,11 +867,8 @@ useEffect(() => {
                 checked={autoScroll}
                 onChange={(e) => setAutoScroll(e.target.checked)}
                 sx={{
-                  "& .MuiSwitch-switchBase": {
-                    "&.Mui-checked": { color: "#fff" },
-                  },
                   "& .MuiSwitch-track": {
-                    backgroundColor: "#bbb",
+                    backgroundColor: "#ccc",
                     borderRadius: 20,
                   },
                   "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
@@ -756,7 +876,7 @@ useEffect(() => {
                   },
                   "& .MuiSwitch-thumb": {
                     backgroundColor: "#fff",
-                    border: "1px solid #666",
+                    border: "1px solid #888",
                   },
                 }}
               />
@@ -764,14 +884,15 @@ useEffect(() => {
             label="Auto Scroll"
             slotProps={{
               typography: {
-                sx: { fontSize: "14px", fontWeight: 600, color: "#111" },
+                sx: { fontSize: "13px", fontWeight: 600, color: "#111" },
               },
             }}
           />
         </div>
       </div>
 
-      <div ref={contentRef}
+      <div
+        ref={contentRef}
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
@@ -783,7 +904,7 @@ useEffect(() => {
           paddingBottom: "20px",
         }}
       >
-        {devices.length === 0 ? (
+        {filteredDevices.length === 0 ? (
           <div
             style={{
               textAlign: "center",
@@ -804,9 +925,9 @@ useEffect(() => {
               marginTop: "20px",
               gridAutoRows: "445px",
             }}
-            className='device-card'
+            className="device-card"
           >
-            {devices.map((device, index) => {
+            {filteredDevices.map((device, index) => {
               const url = buildGrafanaUrl(device, avgData);
               return (
                 <div

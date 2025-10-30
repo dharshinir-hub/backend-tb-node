@@ -36,9 +36,6 @@ import Component from "./app/Pages/CycleTime/component";
 import Component1 from "./app/Pages/CycleTime/component1";
 import Summary from "./app/Pages/CycleTime/summary";
 
-
-
-
 // Import other components for your routes
 
 const AppRoutes = () => {
@@ -102,6 +99,7 @@ const AppRoutes = () => {
       <Route path="/user-registration" element={<UserRegistration />} />
       <Route path="/reason-registration" element={<ReasonRegistration />} />
       <Route path="/machines" element={<MachineList />} />
+      <Route path="/machines-group" element={<MachineGroup />} />
       <Route path="/company" element={<Company />} />
       <Route path="/CurrentShift" element={<CurrentShift />} />
       <Route path="/analytics" element={<NewAnalytics />} />

@@ -7,6 +7,7 @@ export const PAGE_LIST = [
     { label: "Component Analytics", value: "production-analysis" },
     { label: "Operator Details", value: "operator-details" },
     { label: "Machines", value: "machines" },
+    { label: "Machine Group", value: "machines-group" },
     { label: "Shift Registration", value: "shift-registration" },
     // { label: "Operator Registration", value: "operator-registration" },
     { label: "User Registration", value: "user-registration" },

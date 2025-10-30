@@ -145,8 +145,8 @@ export default function OperatorAdd({ open, handleClose, handleAdd, dialogOpenCo
     } catch (error) {
       handleClose();
       reset(defaultShiftForm);
-      console.error('Error submitting shift data:', error);
-      Swal.fire('Error submitting shift data: ' + error.message);
+      console.error('Error submitting operator data:', error);
+      Swal.fire('Error submitting operator data: ' + error.message);
     }
   };
 

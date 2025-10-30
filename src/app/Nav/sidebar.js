@@ -160,6 +160,7 @@ export default function PersistentDrawerLeft({ children }) {
         icon: <MdList />,
         children: [
           { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
+          { path: "/machines-group", name: "Machine Group", icon: <FaCogs /> },
           { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
           { path: "/operator-registration", name: "Operator", icon: <MdAccountCircle /> },
           { path: "/user-registration", name: "User", icon: <MdAccountCircle /> },
@@ -337,7 +338,14 @@ export default function PersistentDrawerLeft({ children }) {
 
       <main
         className="main-content"
-        style={{ paddingLeft: isOpen ? '210px' : '70px', transition: 'padding-left 0.3s ease' }}
+        style={{
+          paddingLeft: isOpen
+            ? masterOpen
+              ? '240px'
+              : '210px'
+            : '85px',
+          transition: 'padding-left 0.3s ease'
+        }}
       >
         <Outlet />
       </main>

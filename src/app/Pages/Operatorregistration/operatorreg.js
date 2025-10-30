@@ -110,12 +110,12 @@ const OperatorRegistration = () => {
                     if (response.msg) {
                         Swal.fire('Deleted!', response.msg, 'success');
                     } else {
-                        Swal.fire('Deleted!', 'Your shift has been deleted successfully.', 'success');
+                        Swal.fire('Deleted!', 'Operator has been deleted successfully.', 'success');
                     }
                     getShifts(); // Refresh the data in the table after deletion
                 } catch (error) {
-                    console.error('Error deleting shift:', error);
-                    Swal.fire('Error!', 'Failed to delete the shift: ' + error.message, 'error');
+                    console.error('Error deleting operator:', error);
+                    Swal.fire('Error!', 'Failed to delete the operator: ' + error.message, 'error');
                 }
             } else {
                 // User clicked "No" or outside the popup

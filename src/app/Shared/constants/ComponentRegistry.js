@@ -10,6 +10,7 @@ import ComponentRegistration from '../../Pages/Componentregistration/componentre
 import ReasonRegistration from '../../Pages/Reasonregistration/reasonreg';
 import Analytics from '../../Pages/Analytics/analytics';
 import NewAnalytics from '../../Pages/New-Analytics/new-analytics';
+import MachineGroup from '../../Pages/Machinegroup/machinegroup';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -23,5 +24,6 @@ export const COMPONENT_REGISTRY = {
   "machinemm": GrafanaEmbed,
   "deviceoee": NewDeviceOee,
   "production-analysis": Analytics,
-  "analytics": NewAnalytics
+  "analytics": NewAnalytics,
+  "machines-group": MachineGroup
 };
