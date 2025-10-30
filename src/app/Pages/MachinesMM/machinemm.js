@@ -330,13 +330,16 @@ export default function MachineDashboard() {
             /** ---------------- Live Component ---------------- **/
             const liveValues = data?.live_component || [];
             if (liveValues.length) {
-              const latestPoint = liveValues.reduce((max, p) => p.ts > max.ts ? p : max);
-              let componentName = null;
-              if (latestPoint?.value) {
-                const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
-                componentName = parsed?.name ?? null;
-              }
-              resultsLiveComponent[machine.id.id] = { componentName };
+              const now = Date.now();
+              const comps = liveValues.map(p => {
+                const val = typeof p.value === "string" ? JSON.parse(p.value) : p.value;
+                return { ...val, ts: p.ts, start: val.start_time || p.ts, end: val.end_time || p.ts };
+              });
+              let current =
+                comps.find(c => now >= c.start && now <= c.end) ||
+                comps.filter(c => c.end < now).sort((a, b) => b.end - a.end)[0] ||
+                comps.sort((a, b) => a.start - b.start)[0];
+              resultsLiveComponent[machine.id.id] = { componentName: current?.name ?? null };
             } else {
               resultsLiveComponent[machine.id.id] = { componentName: null };
             }
