@@ -308,7 +308,7 @@ export default function MachineDashboard() {
                 return { hour, value: Number(latestPoint.value) || 0, timestamp: latestPoint.ts };
               });
               const avgUtil = hourlyLatest.reduce((sum, o) => sum + o.value, 0) / hourlyLatest.length;
-              resultsUtilization[machine.id.id] = { utilization: parseInt(avgUtil) };
+              resultsUtilization[machine.id.id] = { utilization: Math.round(avgUtil) };
             } else {
               resultsUtilization[machine.id.id] = { utilization: 0 };
             }
