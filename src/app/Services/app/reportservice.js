@@ -62,3 +62,16 @@ export const getOeeReport = async (machine, shiftNo, fromTime, toTime, page = 0,
     throw error;
   }
 };
+
+export const getIdleReasonReport = async (machine, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/report/idle_report/${machine}/${shiftNo}/${fromTime}/${toTime}/${page + 1}/${limit}`;
+    const response = await axiosInstance.get(url);
+    console.log('Idle Report response', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error during idle report data:', error);
+    throw error;
+  }
+};

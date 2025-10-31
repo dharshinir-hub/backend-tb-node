@@ -11,13 +11,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableRow, TablePagination, ListItemText, Checkbox, Card,
   CardContent,
   CardActions,
-  Tooltip
+  Tooltip,
+  Typography
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
-import { getGeneralReport, getOeeReport, getPartReport, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
+import { getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
 import classNames from 'classnames';
 
 export default function MachineReport() {
@@ -33,12 +34,13 @@ export default function MachineReport() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
+  const [idleReasonWithPercentage, setIdleReasonWithPercentage] = useState([]);
   const REPORT_HEADERS = {
     general: [
       "S.no", "Date", "Machine", "Shift", "Operator Name", "Component Number",
       "Component Name", "Target", "Actual Parts Produced", "Reject", "Rework",
       "Efficiency(%)", "Utilization(%)", "Run Time", "Idle/Stop Time",
-      "Machine OFF Time", "Duration"
+      "Alarm Time", "Duration"
     ],
     oee: ["S.no", "Date", "Shift", "Machine Name", "Availability(%)", "Performance(%)", "Quality(%)", "OEE(%)"],
     // idle: ["S.no", "Date", "Shift", "Machine Name", "Operator Name", "Mode", "Reason", "Duration"],
@@ -46,6 +48,10 @@ export default function MachineReport() {
       "S.no", "Date", "Shift", "Machine Name", "Component Name", "Operator Name",
       "Actual Parts", "Start Time", "End Time", "Run Time", "Idle/Stop Time",
       "Machine OFF Time", "Duration"
+    ],
+    idle_reason: [
+      "S.no", "Date", "Shift", "Machine Name",
+      "Mode","Category", "Reason", "Duration"
     ]
   };
 
@@ -54,6 +60,17 @@ export default function MachineReport() {
 
   const formatTimeWithFallback = (value, fallback = "0:00:00") =>
     value === null || value === undefined ? fallback : formatTime(value);
+
+const formatDowntimeType = (value, fallback = "---") => {
+  if (!value) return fallback;
+  if (value.includes("_")) {
+    return value
+      .toLowerCase()
+      .replace(/_/g, " ")
+      .replace(/^\w/, c => c.toUpperCase());
+  }
+  return value; 
+};
 
   const columns = {
     general: [
@@ -66,7 +83,7 @@ export default function MachineReport() {
           ? (row.operator_name.length > 2 ? row.operator_name.slice(0, 2).join(' | ') + ' ...' : row.operator_name.join(' | '))
           : formatWithFallback(row.operator_name)
       },
-       {
+      {
         key: "component_id", formatter: row => Array.isArray(row.component_id)
           ? (row.component_id.length > 2 ? row.component_id.slice(0, 2).join(' | ') + ' ...' : row.component_id.join(' | '))
           : formatWithFallback(row.component_id)
@@ -84,8 +101,9 @@ export default function MachineReport() {
       { key: "run", formatter: row => formatWithFallback(row.run) },
       { key: "run_time", formatter: row => formatTimeWithFallback(row.run_time) },
       { key: "idle_time", formatter: row => formatTimeWithFallback(row.idle_time) },
-      { key: "discon_time", formatter: row => formatTimeWithFallback(row.discon_time) },
-      { key: "total_time", formatter: row => formatTimeWithFallback(row.run_time + row.idle_time + row.discon_time) },
+      // { key: "discon_time", formatter: row => formatTimeWithFallback(row.discon_time) },
+      { key: "alarm_time", formatter: row => formatTimeWithFallback(row.alarm_time) },
+      { key: "total_time", formatter: row => formatTimeWithFallback(row.run_time + row.idle_time + row.alarm_time) },
     ],
     oee: [
       { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
@@ -111,6 +129,16 @@ export default function MachineReport() {
       { key: "idle_time", formatter: row => formatTimeWithFallback(row.idle_time) },
       { key: "stop_time", formatter: row => formatTimeWithFallback(row.stop_time) },
       { key: "duration", formatter: row => formatTimeWithFallback(row.duration) },
+    ],
+    idle_reason: [
+      { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
+      { key: "date", formatter: row => formatWithFallback(formatDate(row.date)) },
+      { key: "shift_num", formatter: row => formatWithFallback(row.shift_num) },
+      { key: "device_name", formatter: row => formatWithFallback(row.device_name) },
+      { key: "mode", formatter: row => formatWithFallback(row.json_v.mode) },
+      { key: "category", formatter: row => formatDowntimeType(row.json_v.category) },
+      { key: "idle_reason_name", formatter: row => formatWithFallback(row.json_v.name) },
+      { key: "duration", formatter: row => formatTimeWithFallback(row.json_v.idle_duration) },
     ]
   };
 
@@ -173,6 +201,12 @@ export default function MachineReport() {
           machinesParam.join(","), shiftsParam,
           dateStr, dateEnd, pageNum, limit
         );
+      } else if (tab === "idle_reason") {
+        response = await getIdleReasonReport(
+          machinesParam.join(","), shiftsParam,
+          dateStr, dateEnd, pageNum, limit
+        );
+        setIdleReasonWithPercentage(response.idleReasonWithPercentage || [])
       }
       setReportData(response.data || response);
       setTotalCount(response.total || 0);
@@ -329,6 +363,7 @@ export default function MachineReport() {
         <Tab label="General Report" value="general" />
         <Tab label="OEE Report" value="oee" />
         {/* <Tab label="Idle Reason Report" value="idle" /> */}
+        <Tab label="Idle Reason Report" value="idle_reason" />
         <Tab label="Part Wise Report" value="part" />
       </Tabs>
 
@@ -466,6 +501,216 @@ export default function MachineReport() {
       )} */}
       </Box>
 
+      {selectedTab === 'idle_reason' && idleReasonWithPercentage.length > 0 && (
+        <Box
+          sx={{
+            mt: 3,
+            mb: 3,
+            p: 2.5,
+            borderRadius: 3,
+            background: "linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)",
+            border: "1px solid rgba(226, 232, 240, 0.7)",
+            boxShadow:
+              "0 4px 20px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.5)",
+            backdropFilter: "blur(6px)",
+            transition: "all 0.3s ease",
+            "&:hover": {
+              boxShadow:
+                "0 6px 24px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6)",
+            },
+          }}
+        >
+          {/* Header */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 2,
+              borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
+              pb: 1,
+            }}
+          >
+            <Typography
+              sx={{
+                fontWeight: 700,
+                fontSize: "1rem",
+                color: "#1a202c",
+                letterSpacing: "0.3px",
+              }}
+            >
+              🕒 Idle Reason Summary
+            </Typography>
+
+            <Typography
+              sx={{
+                fontWeight: 600,
+                fontSize: "0.85rem",
+                color: "#2d3748",
+                background: "linear-gradient(90deg, #f7fafc, #edf2f7)",
+                px: 1.5,
+                py: 0.5,
+                borderRadius: "8px",
+                boxShadow: "inset 0 1px 3px rgba(0,0,0,0.05)",
+              }}
+            >
+              Total:{" "}
+              <Box
+                component="span"
+                sx={{
+                  fontWeight: 700,
+                  color: "#2b6cb0",
+                }}
+              >
+                {formatTime(
+                  idleReasonWithPercentage.reduce(
+                    (sum, r) => sum + (r.total_idle_duration || 0),
+                    0
+                  )
+                )}
+              </Box>
+            </Typography>
+          </Box>
+
+          {/* Inline Mini Progress Cards */}
+          <Box
+            sx={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 1.8,
+            }}
+          >
+            {idleReasonWithPercentage.map((item, index) => {
+              const COLORS = [
+                "#3182ce",
+                "#38a169",
+                "#d69e2e",
+                "#805ad5",
+                "#e53e3e",
+                "#00a5cf",
+                "#d53f8c",
+                "#0d9b6c",
+                "#dd6b20",
+                "#5a67d8",
+              ];
+              const pct = parseFloat(item.percentage) || 0;
+              const color = COLORS[index % COLORS.length];
+
+              return (
+                <Box
+                  key={index}
+                  sx={{
+                    flex: "1 1 220px",
+                    minWidth: "220px",
+                    maxWidth: "280px",
+                    borderRadius: 2,
+                    background: "rgba(255,255,255,0.8)",
+                    border: "1px solid rgba(226,232,240,0.6)",
+                    boxShadow:
+                      "0 2px 8px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.3)",
+                    p: 1.5,
+                    transition: "all 0.25s ease",
+                    "&:hover": {
+                      transform: "translateY(-2px)",
+                      boxShadow:
+                        "0 4px 14px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.4)",
+                    },
+                  }}
+                >
+                  {/* Title & Percentage */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 0.8,
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontWeight: 500,
+                        fontSize: "0.8rem",
+                        color: "#2d3748",
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={item.name}
+                    >
+                      {item.name}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "0.75rem",
+                        color: color,
+                        minWidth: "35px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {pct}%
+                    </Typography>
+                  </Box>
+
+                  {/* Progress Bar with Shimmer */}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box
+                      sx={{
+                        flex: 1,
+                        height: 5,
+                        borderRadius: 2,
+                        background:
+                          "linear-gradient(90deg, #edf2f7, #e2e8f0 40%, #edf2f7)",
+                        overflow: "hidden",
+                        position: "relative",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: `${pct}%`,
+                          height: "100%",
+                          background: `linear-gradient(90deg, ${color}, ${color}CC)`,
+                          borderRadius: 2,
+                          position: "relative",
+                          "&::after": {
+                            content: '""',
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "100%",
+                            height: "100%",
+                            background:
+                              "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
+                            animation: "shine 2.5s infinite",
+                          },
+                          "@keyframes shine": {
+                            "0%": { transform: "translateX(-100%)" },
+                            "100%": { transform: "translateX(100%)" },
+                          },
+                        }}
+                      />
+                    </Box>
+
+                    <Typography
+                      sx={{
+                        fontWeight: 500,
+                        fontSize: "0.7rem",
+                        color: "#718096",
+                        minWidth: "42px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {formatTime(item.total_idle_duration)}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      )}
+
       {/* Report Table */}
       {
         <Card className="card_sec" sx={{ overflow: "auto", padding: 0 }}>
@@ -482,13 +727,14 @@ export default function MachineReport() {
                           fontSize: '14px !important',
                           color: "#fff !important",
                           backgroundColor:
-                            header === "Run Time"
-                              ? "#207A24 !important"
-                              : header === "Idle/Stop Time"
-                                ? "#FFA500 !important"
-                                : header === "Machine OFF Time"
-                                  ? "#434343 !important"
-                                  : "#999999 !important",
+                            header === "Alarm Time" ? "red !important" :
+                              header === "Run Time"
+                                ? "#207A24 !important"
+                                : header === "Idle/Stop Time"
+                                  ? "#FFA500 !important"
+                                  : header === "Machine OFF Time"
+                                    ? "#434343 !important"
+                                    : "#999999 !important",
                         }}
                       >
                         {header}
