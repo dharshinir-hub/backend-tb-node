@@ -682,9 +682,20 @@ function Operator() {
                 if (locked && !isLockedRef.current) {
                     console.log("[refreshData] detected lock -> opening Swal");
                     isLockedRef.current = true;
-                    const lastIdleOrAlarm = machineStatusArray.find(item =>
-                        ["0", "1", "2", "5"].includes(String(item.value))
-                    );
+                    let lastIdleOrAlarm = null;
+                    for (let i = 0; i < machineStatusArray.length - 1; i++) {
+                        const current = machineStatusArray[i];
+                        const next = machineStatusArray[i + 1];
+                        if (String(next.value) === "3" && ["0", "1", "2", "5"].includes(String(current.value))) {
+                            lastIdleOrAlarm = current;
+                            break;
+                        }
+                    }
+                    if (!lastIdleOrAlarm) {
+                        lastIdleOrAlarm = machineStatusArray.find(item =>
+                            ["0", "1", "2", "5"].includes(String(item.value))
+                        );
+                    }
                     const idleStart = lastIdleOrAlarm
                         ? lastIdleOrAlarm.ts
                         : dayjs().valueOf();
