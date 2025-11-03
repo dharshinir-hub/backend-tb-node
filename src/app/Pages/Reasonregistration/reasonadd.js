@@ -40,8 +40,8 @@ export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCoun
 
   useEffect(() => {
     const fallbackOptions = [
-      { value: 'planned_downtime', label: 'Planned Downtime' },
-      { value: 'unplanned_downtime', label: 'Unplanned Downtime' },
+      { value: 'Planned downtime', label: 'Planned Downtime' },
+      { value: 'Unplanned downtime', label: 'Unplanned Downtime' },
     ];
     setShiftCategory(fallbackOptions);
     const fallbackOptions1 = [
