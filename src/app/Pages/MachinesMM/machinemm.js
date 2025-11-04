@@ -278,7 +278,7 @@ export default function MachineDashboard() {
           : String(selectedShift ?? "");
       const currentShiftNo = getCurrentShift(shifts);
       const allKeys = [
-        "hour_utilization",
+        "utilization",
         "historicalbaseline",
         "live_component",
         "machine_status",
@@ -293,25 +293,49 @@ export default function MachineDashboard() {
           try {
             const data = await telemetrykeydata(machine.id.id, "DEVICE", allKeys, from, to);
 
-            /** ---------------- Hourly Utilization ---------------- **/
-            const utilValues = data?.hour_utilization || [];
-            if (utilValues.length) {
-              const hourlyGroups = {};
-              utilValues.forEach((point) => {
-                const date = new Date(point.ts);
-                const hourKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), 0, 0, 0).toISOString();
-                if (!hourlyGroups[hourKey]) hourlyGroups[hourKey] = [];
-                hourlyGroups[hourKey].push(point);
-              });
-              const hourlyLatest = Object.entries(hourlyGroups).map(([hour, points]) => {
-                const latestPoint = points.reduce((latest, point) => new Date(point.ts) > new Date(latest.ts) ? point : latest);
-                return { hour, value: Number(latestPoint.value) || 0, timestamp: latestPoint.ts };
-              });
-              const avgUtil = hourlyLatest.reduce((sum, o) => sum + o.value, 0) / hourlyLatest.length;
-              resultsUtilization[machine.id.id] = { utilization: Math.round(avgUtil) };
-            } else {
+            /** ---------------- Hour Utilization ---------------- **/
+
+            //  const utilValues = data?.hour_utilization || [];
+            // if (utilValues.length) {
+            //   const hourlyGroups = {};
+            //   utilValues.forEach((point) => {
+            //     const date = new Date(point.ts);
+            //     const hourKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), 0, 0, 0).toISOString();
+            //     if (!hourlyGroups[hourKey]) hourlyGroups[hourKey] = [];
+            //     hourlyGroups[hourKey].push(point);
+            //   });
+            //   const hourlyLatest = Object.entries(hourlyGroups).map(([hour, points]) => {
+            //     const latestPoint = points.reduce((latest, point) => new Date(point.ts) > new Date(latest.ts) ? point : latest);
+            //     return { hour, value: Number(latestPoint.value) || 0, timestamp: latestPoint.ts };
+            //   });
+            //   const avgUtil = hourlyLatest.reduce((sum, o) => sum + o.value, 0) / hourlyLatest.length;
+            //   resultsUtilization[machine.id.id] = { utilization: Math.round(avgUtil) };
+            // } else {
+            //   resultsUtilization[machine.id.id] = { utilization: 0 };
+            // }
+
+            /** ---------------- Shift Utilization ---------------- **/
+            const values = data?.utilization || [];
+            if (!Array.isArray(values) || values.length === 0) {
+              resultsUtilization[machine.id.id] = { utilization: 0 };
+              return;
+            }
+            try {
+              const latestPoint = values.reduce((latest, point) =>
+                new Date(point.ts) > new Date(latest.ts) ? point : latest
+              );
+              console.log(`Latest utilization point for ${machine.name}:`, latestPoint);
+              let utilizationValue = Number(latestPoint.value);
+              if (!isNaN(utilizationValue)) {
+                utilizationValue = parseFloat(utilizationValue.toFixed(1));
+              } else {
+                utilizationValue = 0;
+              }
+              resultsUtilization[machine.id.id] = { utilization: utilizationValue };
+            } catch (error) {
               resultsUtilization[machine.id.id] = { utilization: 0 };
             }
+
 
             /** ---------------- Historical Baseline ---------------- **/
             const baselineValues = data?.historicalbaseline || [];
