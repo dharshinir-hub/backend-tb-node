@@ -261,7 +261,7 @@ const Analytics = () => {
     };
 
     fetchOperationsData();
-  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+  }, [selectedDevice, from, to, devices, shifts, ]);
 
 
   console.log('Operations Data', operationsData);
@@ -512,6 +512,8 @@ const Analytics = () => {
                     navigate("/analyticoee", { state: { from, to, selectedDevice, codeWiseSummary } });
                   } else if (r.title === "In-Progress Cycle Times") {
                     navigate("/inprogresscycle", { state: { from, to, selectedDevice, codeWiseSummary } });
+                  } else if (r.title === "In-Progress OEE") {
+                    navigate("/inprogressoee", { state: { from, to, selectedDevice, codeWiseSummary } });
                   }
                 }}
               >

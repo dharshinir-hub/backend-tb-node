@@ -13,6 +13,7 @@ import {
 import ClearIcon from "@mui/icons-material/Clear";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import Tooltip from "@mui/material/Tooltip";
+import './summary.css';
 
 import {
   customerbaseddevices,
@@ -33,8 +34,11 @@ const Summary = () => {
   const [shifts, setShifts] = useState([]);
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
-  const [selectedDashboard, setSelectedDashboard] = useState("summary");
-
+  const [selectedDashboard, setSelectedDashboard] = useState("parts_goal");
+  const [totalRunTime, setTotalRunTime] = useState("00:00:00");
+  const [totalIdleTime, setTotalIdleTime] = useState("00:00:00");
+  const [totalDisconnectTime, setTotalDisconnectTime] = useState("00:00:00");
+  const [totalAlarmTime, setTotalAlarmTime] = useState("00:00:00");
 
 
   const navigate = useNavigate();
@@ -46,7 +50,7 @@ const Summary = () => {
   };
   const { previousScreen, componentName, deviceName, start_time, end_time, code, selectedDevice, codeWiseSummary } = location.state
 
-  console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code, 'Codewisesummary',codeWiseSummary)
+  console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code, 'Codewisesummary', codeWiseSummary)
 
   const Id = localStorage.getItem("CustomerID");
   let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
@@ -115,15 +119,16 @@ const Summary = () => {
 
 
   const summarySubDashboards = [
-    {
-      label: "OEE",
-      value: "oee",
-      url: `http://192.168.0.224:3000/yantra/d/eda91bdc-b024-47f8-8852-cb6eff0627ed/summary-1?orgId=1&var-from=${start_time}&var-to=${end_time}&var-device_id=${deviceId}&var-device_name=${deviceName}&var-token=${newToken}&var-customer_id=${customerId}&var-url=${baseUrl}&theme=light&kiosk`,
-    },
+  
     {
       label: "Parts Goal",
       value: "parts_goal",
       url: `http://192.168.0.224:3000/yantra/d/e8e6a886-399f-4a69-b905-71fc96cedd9a/parts-goal-dashboard?orgId=1&var-from=${start_time}&var-to=${end_time}&var-device_id=${deviceId}&var-device_name=${deviceName}&var-token=${newToken}&var-url=${baseUrl}&theme=light&kiosk`,
+    },
+      {
+      label: "OEE",
+      value: "oee",
+      url: `http://192.168.0.224:3000/yantra/d/eda91bdc-b024-47f8-8852-cb6eff0627ed/summary-1?orgId=1&var-from=${start_time}&var-to=${end_time}&var-device_id=${deviceId}&var-device_name=${deviceName}&var-token=${newToken}&var-customer_id=${customerId}&var-url=${baseUrl}&theme=light&kiosk`,
     },
   ];
 
@@ -144,7 +149,7 @@ const Summary = () => {
   // Determine iframe URL dynamically
   const getIframeUrl = () => {
     const findUrl = (list, key) => list.find((d) => d.value === key)?.url;
-    if (["oee", "parts_goal"].includes(selectedDashboard))
+    if (["parts_goal", "oee"].includes(selectedDashboard))
       return findUrl(summarySubDashboards, selectedDashboard);
     if (["statistics", "part_cycles"].includes(selectedDashboard))
       return findUrl(cyclesSubDashboards, selectedDashboard);
@@ -255,6 +260,80 @@ const Summary = () => {
   }
 
 
+  useEffect(() => {
+    if (!deviceId || !start_time || !end_time) return;
+
+    const fetchMachineStatus = async () => {
+      try {
+        const machineStatusResponse = await telemetrykeydata(deviceId, 'DEVICE', 'machine_status', start_time, end_time);
+        const machineData = machineStatusResponse?.machine_status || [];
+
+        const statusMapping = {
+          0: { state: "Idle", color: "#FFEB3B" },
+          1: { state: "Idle", color: "#FFEB3B" },
+          2: { state: "Idle", color: "#FFEB3B" },
+          3: { state: "Run", color: "#4CAF50" },
+          100: { state: "Disconnect", color: "#808080" },
+          5: { state: "Alarm", color: "#F44336" },
+        };
+
+        let runTime = 0, idleTime = 0, disconnectTime = 0, alarmTime = 0;
+
+        const sortedData = [...machineData].sort((a, b) => Number(a.ts) - Number(b.ts));
+        let previousTs = Number(start_time);
+        let previousStatus = sortedData.length > 0 ? sortedData[0].value : null;
+
+        for (let i = 0; i <= sortedData.length; i++) {
+          const currentTs = i < sortedData.length ? Number(sortedData[i].ts) : Number(end_time);
+          const currentStatus = i < sortedData.length ? sortedData[i].value : previousStatus;
+
+          const duration = Math.max(0, currentTs - previousTs);
+          const state = statusMapping[previousStatus]?.state;
+
+          if (duration > 0 && state) {
+            switch (state) {
+              case "Run":
+                runTime += duration;
+                break;
+              case "Idle":
+                idleTime += duration;
+                break;
+              case "Disconnect":
+                disconnectTime += duration;
+                break;
+              case "Alarm":
+                alarmTime += duration;
+                break;
+              default:
+                break;
+            }
+          }
+
+          previousTs = currentTs;
+          previousStatus = currentStatus;
+        }
+
+        const msToTime = (ms) => {
+          const absMs = Math.abs(ms);
+          const hours = Math.floor(absMs / 3600000);
+          const minutes = Math.floor((absMs % 3600000) / 60000);
+          const seconds = Math.floor((absMs % 60000) / 1000);
+          return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+            .toString()
+            .padStart(2, "0")}`;
+        };
+
+        setTotalRunTime(msToTime(runTime));
+        setTotalIdleTime(msToTime(idleTime));
+        setTotalDisconnectTime(msToTime(disconnectTime));
+        setTotalAlarmTime(msToTime(alarmTime));
+      } catch (error) {
+        console.error("Error fetching machine status:", error);
+      }
+    };
+
+    fetchMachineStatus();
+  }, [deviceId, start_time, end_time]);
 
 
 
@@ -293,7 +372,7 @@ const Summary = () => {
           <Button
             variant="contained"
             onClick={() => navigate(previousScreen, {
-              state: { selectedDevice, componentName, code ,codeWiseSummary}
+              state: { selectedDevice, componentName, code, codeWiseSummary }
             })}
             color="warning"
             sx={{
@@ -311,6 +390,39 @@ const Summary = () => {
             {formatEpoch(Number(start_time))} → {formatEpoch(Number(end_time))}
           </Typography>
         )}
+
+        {/* ===== METRICS SECTION (no images) ===== */}
+        <div className="metrics-container">
+          <div className="metric-box">
+            <div className="metric-content">
+              <span className="metric-value">{totalRunTime}</span>
+              <div className="metric-label">Total Run</div>
+            </div>
+          </div>
+
+          <div className="metric-box">
+            <div className="metric-content">
+              <span className="metric-value">{totalIdleTime}</span>
+              <div className="metric-label">Total Idle</div>
+            </div>
+          </div>
+
+          <div className="metric-box">
+            <div className="metric-content">
+              <span className="metric-value">{totalDisconnectTime}</span>
+              <div className="metric-label">Total Disconnect</div>
+            </div>
+          </div>
+
+          <div className="metric-box">
+            <div className="metric-content">
+              <span className="metric-value">{totalAlarmTime}</span>
+              <div className="metric-label">Total Alarm</div>
+            </div>
+          </div>
+        </div>
+
+
 
         {/* Top summary preview iframe */}
         <Box mt={2} mb={2}>
@@ -343,7 +455,7 @@ const Summary = () => {
                   paddingBottom: "6px",
                   fontWeight:
                     (dash.value === "summary" &&
-                      ["summary", "oee", "parts_goal"].includes(
+                      ["summary", "parts_goal", "oee"].includes(
                         selectedDashboard
                       )) ||
                       (dash.value === "cycles" &&
@@ -355,7 +467,7 @@ const Summary = () => {
                       : "normal",
                   borderBottom:
                     (dash.value === "summary" &&
-                      ["summary", "oee", "parts_goal"].includes(
+                      ["summary", "parts_goal", "oee"].includes(
                         selectedDashboard
                       )) ||
                       (dash.value === "cycles" &&
@@ -367,7 +479,7 @@ const Summary = () => {
                       : "3px solid transparent",
                   color:
                     (dash.value === "summary" &&
-                      ["summary", "oee", "parts_goal"].includes(
+                      ["summary", "parts_goal", "oee"].includes(
                         selectedDashboard
                       )) ||
                       (dash.value === "cycles" &&
@@ -380,7 +492,7 @@ const Summary = () => {
                   "&:hover": { color: "#1976d2" },
                 }}
                 onClick={() => {
-                  if (dash.value === "summary") setSelectedDashboard("oee");
+                  if (dash.value === "summary") setSelectedDashboard("parts_goal");
                   else if (dash.value === "cycles")
                     setSelectedDashboard("statistics");
                   else setSelectedDashboard(dash.value);
@@ -393,7 +505,7 @@ const Summary = () => {
         </Box>
 
         {/* Sub Tabs Area */}
-        {["summary", "oee", "parts_goal"].includes(selectedDashboard) && (
+        {["summary", "parts_goal", "oee"].includes(selectedDashboard) && (
           <Box display="flex" gap={3} mt={2} ml={2} mb={2}>
             {summarySubDashboards.map((sub) => (
               <Box

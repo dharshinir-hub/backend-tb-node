@@ -145,7 +145,7 @@ const Component = () => {
 
 
     fetchCycleTimeFaster();
-  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+  }, [selectedDevice, from, to, devices, shifts, ]);
 
   console.log('Component List', liveComponent);
 
@@ -222,7 +222,7 @@ const Component = () => {
     };
 
     fetchOperationsData();
-  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+  }, [selectedDevice, from, to, devices, shifts]);
 
 
   console.log('Operations Data', operationsData);
@@ -474,22 +474,41 @@ console.log('Updated Unique component data',updatedComponentMachineArray);
     }
   >
     {/* ✅ Top-right corner parts label */}
-    <Typography
-      variant="body2"
-      sx={{
-        position: "absolute",
-        top: 20,
-        right: 12,
-        fontWeight: "bold",
-        background: "#e6eff2ff",
-        px: 1,
-        py: 0.2,
-        borderRadius: 1,
-        color: "#093d71ff",
-      }}
-    >
-      Parts: {item.parts}
-    </Typography>
+  <Typography
+  variant="body2"
+  sx={{
+    position: "absolute",
+    top: 20,
+    right: 12,
+    fontWeight: "bold",
+    background: "#e6eff2ff",
+    px: 1,
+    py: 0.2,
+    borderRadius: 1,
+    color: "#093d71ff",
+    cursor: "pointer",
+    "&:hover": { background: "#d0e1e8ff" },
+  }}
+  onClick={(e) => {
+    e.stopPropagation(); 
+    navigate("/partwise-cycletime", {
+      state: {
+         previousScreen: location.pathname,
+        componentName: item.name,
+        code: item.code,
+        start_time:from,
+        end_time: to,
+        to,
+        deviceName: item.machines.join(","), 
+        selectedDevice: item.machineIds, 
+        codeWiseSummary
+      },
+    });
+  }}
+>
+  Parts: {item.parts}
+</Typography>
+
 
     <Typography variant="subtitle1" fontWeight="bold">
       {item.name} ({item.code})

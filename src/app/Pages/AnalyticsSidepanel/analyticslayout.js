@@ -43,6 +43,7 @@ export function SidebarPanel({
     )
     .sort((a, b) => b.occurrence - a.occurrence)
     .slice(0, 5);
+    console.log('Top 5 filtered list',filteredHighComponent)
 
   const Id = localStorage.getItem("CustomerID");
   let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");

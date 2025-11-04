@@ -197,7 +197,7 @@ useEffect(() => {
   };
 
   fetchOperationsData();
-}, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+}, [selectedDevice, from, to, devices, shifts]);
 
 
 
@@ -385,7 +385,7 @@ useEffect(() => {
             return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
           };
 
-          const actual = Number(item.total_duration?.total_run_duration ?? 0);
+          const actual = Number(item.total_duration?.actualruntime ?? 0);
           const expected = Math.max(0, Number(item.expected_run));
           const diff = actual - expected;
 
@@ -588,7 +588,7 @@ useEffect(() => {
                       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
                     };
 
-                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
+                    const actual = Number(item.total_duration?.actualruntime ?? 0);
                     const expected = Math.max(0, Number(item.expected_run));
                     const diff = actual - expected;
 
@@ -806,7 +806,7 @@ useEffect(() => {
                       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
                     };
 
-                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
+                    const actual = Number(item.total_duration?.actualruntime ?? 0);
                     const expected = Math.max(0, Number(item.cycletime_baseline));
                     const diff = actual - expected;
 
@@ -1020,7 +1020,7 @@ useEffect(() => {
       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
     };
 
-    const actual = Number(item.total_duration?.total_run_duration ?? 0);
+    const actual = Number(item.total_duration?.actualruntime ?? 0);
     const expected = Math.max(0, Number(item.cycletime_baseline));
     const diff = actual - expected;
 

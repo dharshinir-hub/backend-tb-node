@@ -161,7 +161,7 @@ const Component1 = () => {
 
 
     fetchCycleTimeFaster();
-  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+  }, [selectedDevice, from, to, devices, shifts]);
 
   console.log('Component List', liveComponent);
 
@@ -340,6 +340,11 @@ function addShiftToData(filteredComponentData1, shifts) {
 const updatedfilteredData = addShiftToData(filteredComponentData1, shifts);
 console.log("✅ Shift added filteredData:", updatedfilteredData);
 
+  const totalRuns = Object.values(updatedfilteredData || {}).reduce(
+  (sum, arr) => sum + (arr?.length || 0),
+  0
+);
+
 
   const handleBoxClick = (item, deviceName) => {
     navigate("/summary", {
@@ -394,6 +399,9 @@ console.log("✅ Shift added filteredData:", updatedfilteredData);
 
 
 
+
+
+
   return (
     <Box display="flex" height="100vh" pt={2}>
 
@@ -442,11 +450,10 @@ console.log("✅ Shift added filteredData:", updatedfilteredData);
           </Typography>
         )}
 
-        <Typography variant="h6" fontWeight="bold" gutterBottom mt={3}>
-          Analyzed {
-            Object.values(filteredComponentData).reduce((total, arr) => total + arr.length, 0)
-          } Runs
-        </Typography>
+<Typography variant="h6" fontWeight="bold" gutterBottom mt={3}>
+  Analyzed {totalRuns} Runs
+</Typography>
+
 
 
 

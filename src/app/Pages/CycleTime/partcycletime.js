@@ -12,7 +12,7 @@ import {
     TableRow,
     Paper,
 } from "@mui/material";
-
+import "./partcycletime.css";
 import {
     customerbaseddevices,
     customerbasedshift,
@@ -53,11 +53,10 @@ const PartCycleTime = () => {
         end_time,
         code,
         selectedDevice,
-        highcode,
         codeWiseSummary
     } = location.state || {};
 
-    console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code, 'codeWiseSummary',codeWiseSummary)
+    console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code, 'codeWiseSummary', codeWiseSummary,'selectedDevice',selectedDevice)
 
     const Id = localStorage.getItem("CustomerID");
     let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
@@ -91,9 +90,22 @@ const PartCycleTime = () => {
         fetchDevices();
     }, []);
 
-    const deviceId = Object.keys(deviceNameIdJson).find(
-        (key) => deviceNameIdJson[key] === deviceName
-    );
+const deviceNames = deviceName
+  ? deviceName.split(",").map((n) => n.trim()) // ✅ convert to array and trim
+  : [];
+
+const deviceId = deviceNames
+  .map(
+    (name) =>
+      Object.keys(deviceNameIdJson).find(
+        (key) => deviceNameIdJson[key] === name
+      ) || ""
+  )
+  .filter(Boolean)
+  .join(", ");
+
+
+    console.log('device Name Id',deviceId)
 
     const parseTelemetryValues = (data, key) => {
         const values = data?.[key] || [];
@@ -111,6 +123,9 @@ const PartCycleTime = () => {
             })
             .filter((v) => v !== null);
     };
+    
+    const [liveReasonData, setLiveReasonData] = useState({});
+
 
     useEffect(() => {
         const fetchPartData = async () => {
@@ -149,7 +164,7 @@ const PartCycleTime = () => {
         };
 
         fetchPartData();
-    }, [deviceId, start_time, end_time, deviceNameIdJson]);
+    }, [deviceId, start_time, end_time]);
 
     // Extract unique part numbers across all devices
     const uniquePartNumbers = useMemo(() => {
@@ -202,6 +217,8 @@ const PartCycleTime = () => {
     }
 
     function formatEpoch(epoch) {
+        if (epoch == null || isNaN(epoch)) return "-"; // guard
+
         if (epoch.toString().length === 10) epoch *= 1000;
         const date = new Date(epoch);
         const pad = (n) => n.toString().padStart(2, "0");
@@ -214,15 +231,23 @@ const PartCycleTime = () => {
         return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${strHours}:${minutes}:${seconds} ${ampm}`;
     }
 
+
     const secondsToHhMmSs = (totalSeconds) => {
-        if (!totalSeconds) return "00:00:00";
+        if (!totalSeconds) return "00:00";
+
         const seconds = Math.floor(totalSeconds);
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         const s = Math.floor(seconds % 60);
         const pad = (num) => String(num).padStart(2, "0");
-        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+
+        if (h > 0) {
+            return `${pad(h)}:${pad(m)}:${pad(s)}`;
+        } else {
+            return `${pad(m)}:${pad(s)}`;
+        }
     };
+
 
     // Border color for outer box
     const getOuterBorderColor = () => {
@@ -232,6 +257,16 @@ const PartCycleTime = () => {
         if (!part) return "#e0e0e0";
         return Number(part.referenceTime) > Number(part.actualTime) ? "green" : "red";
     };
+const referenceTimes = Object.fromEntries(
+  Object.entries(partData || {}).map(([machine, runs]) => [
+    machine,
+    runs?.[1]?.referenceTime || "00:00:00"
+  ])
+);
+
+
+    console.log(referenceTimes);
+
 
     return (
         <Box display="flex" height="100vh" pt={2}>
@@ -262,19 +297,36 @@ const PartCycleTime = () => {
                             {deviceName || code ? `${deviceName}` : "Device"}
                         </Typography>
                     </Typography>
+                    <Box display="flex" alignItems="center" gap={2}>
 
-                    {/* Back Button */}
-                    <Button
-                        variant="contained"
-                        onClick={() => navigate(previousScreen, { state: { selectedDevice, componentName, code ,codeWiseSummary} })}
-                        color="warning"
-                        sx={{
-                            backgroundColor: "#626262",
-                            "&:hover": { backgroundColor: "#4d4d4d" },
-                        }}
-                    >
-                        Back
-                    </Button>
+                        {/* Cycle Time Display Box */}
+                        <div className="cycletime-box">
+                            {Object.entries(referenceTimes || {}).map(([machine, ref]) => (
+                                <span key={machine}>
+                                    Cycle Time: {secondsToHhMmSs(ref)}
+                                </span>
+                            ))}
+                        </div>
+
+
+
+                        {/* Back Button */}
+                        <Button
+                            variant="contained"
+                            onClick={() =>
+                                navigate(previousScreen, {
+                                    state: { selectedDevice, componentName, code, codeWiseSummary },
+                                })
+                            }
+                            color="warning"
+                            sx={{
+                                backgroundColor: "#626262",
+                                "&:hover": { backgroundColor: "#4d4d4d" },
+                            }}
+                        >
+                            Back
+                        </Button>
+                    </Box>
                 </Box>
 
                 {/* Time Range */}
@@ -287,65 +339,101 @@ const PartCycleTime = () => {
                 {/* --- NEW SECTION: Part Number Buttons --- */}
                 <Box
                     p={3}
-                    mb={4}
-                    mt={4}
+                    mb={1}
+                    mt={1}
                     sx={{
-                        border: `1px solid #aaa7a7ff`,
+                        // border: `1px solid #aaa7a7ff`,
                         borderRadius: "12px",
-                        backgroundColor: "#ffffff",
+                        // backgroundColor: "#ffffff",
                         minHeight: "200px",
                     }}
                 >
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: "15px" }}>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "15px",
+                            maxHeight: "196px",
+                            overflowY: "auto",
+                            paddingRight: "6px",
+                        }}
+                    >
                         {uniquePartNumbers.length > 0 ? (
                             uniquePartNumbers.map((partNo) => {
                                 const allParts = Object.values(partData).flat();
                                 const part = allParts.find((p) => p.partnumber === partNo);
+
+                                // 🟢 Medium green / 🟥 Medium red
                                 const borderColor =
                                     part && Number(part.referenceTime) > Number(part.actualTime)
-                                        ? "green"
-                                        : "red";
+                                        ? "#4CAF50"
+                                        : "#F44336";
 
                                 const isSelected = selectedPartNumber === partNo;
 
+                                // 🩵 Light tint for selected background
+                                const tintedBg =
+                                    borderColor === "#4CAF50"
+                                        ? "rgba(76, 175, 80, 0.15)"
+                                        : "rgba(244, 67, 54, 0.15)";
+
                                 return (
-                                    <Button
+                                    <Box
                                         key={partNo}
-                                        variant={isSelected ? "contained" : "outlined"}
-                                        onClick={() => setSelectedPartNumber(partNo)}
                                         sx={{
-                                            textTransform: "none",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            alignItems: "flex-start",
-                                            padding: "12px 16px",
-                                            minWidth: "140px",
-                                            border: `2px solid ${borderColor}`,
-                                            borderRadius: "12px",
-                                            backgroundColor: isSelected
-                                                ? borderColor === "green"
-                                                    ? "rgba(0, 128, 0, 0.1)"
-                                                    : "rgba(255, 0, 0, 0.1)" // light red shade
-                                                : "#fcfcfcff",
-                                            "&:hover": {
-                                                backgroundColor: isSelected
-                                                    ? borderColor === "green"
-                                                        ? "rgba(0, 128, 0, 0.15)"
-                                                        : "rgba(255, 0, 0, 0.15)"
-                                                    : "rgba(0,0,0,0.04)",
-                                            },
+                                            background:
+                                                "linear-gradient(to bottom, rgba(210,210,210,0.4), transparent)",
+                                            p: "4px",
+                                            borderRadius: "16px",
+                                            flex: "0 0 auto",
                                         }}
                                     >
-                                        <Typography variant="subtitle1" fontWeight="bold" color='#000'>
-                                            Part {partNo}
-                                        </Typography>
-                                        <Typography variant="body2" color="textSecondary">
-                                            Cycle Time: {formatDuration(part?.referenceTime || 0)}
-                                        </Typography>
-                                        <Typography variant="body2" color="textSecondary">
-                                            Run Time: {formatDuration(part?.actualTime || 0)}
-                                        </Typography>
-                                    </Button>
+                                        <Button
+                                            onClick={() => setSelectedPartNumber(partNo)}
+                                            sx={{
+                                                p: "4px",
+                                                borderRadius: "12px",
+                                                background:
+                                                    "linear-gradient(to bottom, #ffffff, rgba(230,230,230,0.4))",
+                                                boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                                                transition: "all 0.15s ease-in-out",
+                                                textTransform: "none",
+                                                "&:active": {
+                                                    boxShadow: "0 0 1px rgba(0,0,0,0.5)",
+                                                    transform: "scale(0.995)",
+                                                },
+                                            }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    background: isSelected
+                                                        ? tintedBg
+                                                        : "linear-gradient(to bottom, rgba(230,230,230,0.4), rgba(255,255,255,0.8))",
+                                                    borderLeft: `6px solid ${borderColor}`, // 🔹 colored left border
+                                                    borderRadius: "8px",
+                                                    px: 2,
+                                                    py: 1,
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    alignItems: "flex-start",
+                                                    gap: "4px",
+                                                    minWidth: "150px",
+                                                }}
+                                            >
+                                                <Typography
+                                                    variant="subtitle1"
+                                                    fontWeight="bold"
+                                                    sx={{ color: "#000" }}
+                                                >
+                                                    Part {partNo}
+                                                </Typography>
+
+                                                <Typography variant="body2" color="textSecondary">
+                                                    Run Time: {formatDuration(part?.actualTime || 0)}
+                                                </Typography>
+                                            </Box>
+                                        </Button>
+                                    </Box>
                                 );
                             })
                         ) : (
@@ -356,82 +444,138 @@ const PartCycleTime = () => {
                     </Box>
                 </Box>
 
+
+
                 {/* --- DETAILED LOG TABLE (UNCHANGED) --- */}
                 <Box
                     p={1}
                     sx={{
-                        border: "1px solid #e0e0e0",
+                        border: "1px solid #bab5b5ff",
                         borderRadius: "8px",
                         maxHeight: "60vh",
                         overflow: "auto",
+                        backgroundColor: "#ffffff"
                     }}
                 >
                     <Typography variant="h6" gutterBottom fontWeight="bold" sx={{ p: 1 }}>
                         Detailed Log for Part: {selectedPartNumber || "N/A"}
                     </Typography>
 
-                    <Box mt={2} mb={2}>
-                        <iframe
-                            title="Main Dashboard"
-                            width="100%"
-                            height="180px"
-                            src={`http://192.168.0.224:3000/yantra/d/f39bad0f-9771-4c10-a0c3-3c6935073647/summary-2?orgId=1&var-from=${start_time}&var-to=${end_time}&var-device_id=${deviceId}&var-device_name=${deviceName}&var-token=${newToken}&var-url=${baseUrl}&theme=light&kiosk`}
-                            frameBorder="0"
-                        ></iframe>
-                    </Box>
+                    {selectedPartNumber && (
+                        <Box mt={2} mb={2}>
+                            {(() => {
+                                // 🔹 Find the selected part in your data array
+                                const selectedPart = getSelectedPartData.find(
+                                    (p) =>
+                                        p.partnumber === selectedPartNumber ||
+                                        p.name === selectedPartNumber
+                                );
 
-                    {selectedPartNumber && getSelectedPartData.length > 0 ? (
-                        <TableContainer component={Paper} sx={{ boxShadow: "none", border: "none" }}>
-                            <Table stickyHeader size="small" aria-label="part cycle time details">
-                                <TableHead>
-                                    <TableRow sx={{ backgroundColor: "#e3f2fd" }}>
-                                        <TableCell sx={{ fontWeight: "bold", minWidth: 100 }}>Device</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold", minWidth: 150 }}>Timestamp</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: "bold", minWidth: 100 }}>
-                                            Active Time
-                                        </TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: "bold", minWidth: 80 }}>
-                                            Idle
-                                        </TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: "bold", minWidth: 100 }}>
-                                            Cycle Time
-                                        </TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: "bold", minWidth: 100 }}>
-                                            Part Time
-                                        </TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {getSelectedPartData.map((part, index) => (
-                                        <TableRow
-                                            key={index}
-                                            sx={{
-                                                "&:last-child td, &:last-child th": { border: 0 },
-                                                backgroundColor: index % 2 === 0 ? "#fafafa" : "#ffffff",
-                                            }}
-                                        >
-                                            <TableCell component="th" scope="row">
-                                                {part.deviceName}
-                                            </TableCell>
-                                            <TableCell>{formatEpoch(part.ts)}</TableCell>
-                                            <TableCell align="right">{secondsToHhMmSs(part.actualTime)}</TableCell>
-                                            <TableCell align="right">{secondsToHhMmSs(Math.round(part.idle_duration))}</TableCell>
-                                            <TableCell align="right">{secondsToHhMmSs(part.referenceTime)}</TableCell>
-                                            <TableCell align="right" sx={{ color: "#00796b", fontWeight: "bold" }}>
-                                                {secondsToHhMmSs(Math.round(part.run_duration))}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    ) : (
-                        selectedPartNumber && (
-                            <Typography variant="body2" color="textSecondary" sx={{ p: 1 }}>
-                                No data entries found for Part **{selectedPartNumber}** in this time range.
-                            </Typography>
-                        )
+                                if (!selectedPart) {
+                                    return (
+                                        <Typography variant="body2" color="textSecondary" sx={{ p: 1 }}>
+                                            No time range found for Part {selectedPartNumber}.
+                                        </Typography>
+                                    );
+                                }
+
+                                const partStart = selectedPart.start_time || start_time;
+                                const partEnd = selectedPart.end_time || end_time;
+
+
+                                return (
+                                    <iframe
+                                        title="Main Dashboard"
+                                        width="100%"
+                                        height="180px"
+                                        src={`http://192.168.0.224:3000/yantra/d/f39bad0f-9771-4c10-a0c3-3c6935073647/summary-2?orgId=1&var-from=${partStart}&var-to=${partEnd}&var-device_id=${deviceId}&var-device_name=${deviceName}&var-token=${newToken}&var-url=${baseUrl}&theme=light&kiosk`}
+                                        frameBorder="0"
+                                    ></iframe>
+                                );
+                            })()}
+                        </Box>
                     )}
+
+{selectedPartNumber && getSelectedPartData.length > 0 ? (
+  <>
+    {/* ================= Table Section ================= */}
+    <TableContainer component={Paper} sx={{ boxShadow: "none", border: "none" }}>
+      <Table stickyHeader size="small" aria-label="part cycle time details">
+        <TableHead>
+          <TableRow sx={{ backgroundColor: "#e3f2fd" }}>
+            <TableCell sx={{ fontWeight: "bold", minWidth: 100 }}>Device</TableCell>
+            <TableCell sx={{ fontWeight: "bold", minWidth: 150 }}>Start Time</TableCell>
+            <TableCell sx={{ fontWeight: "bold", minWidth: 150 }}>End Time</TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold", minWidth: 100 }}>Cycle Time</TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold", minWidth: 80 }}>Part Time</TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold", minWidth: 100 }}>Active Time</TableCell>
+            <TableCell align="right" sx={{ fontWeight: "bold", minWidth: 100 }}>Idle Time</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {getSelectedPartData.map((part, index) => (
+            <TableRow
+              key={index}
+              sx={{
+                "&:last-child td, &:last-child th": { border: 0 },
+                backgroundColor: index % 2 === 0 ? "#fafafa" : "#ffffff",
+              }}
+            >
+              <TableCell component="th" scope="row">{part.deviceName}</TableCell>
+              <TableCell>{formatEpoch(Number(part.start_time))}</TableCell>
+              <TableCell>{formatEpoch(Number(part.end_time))}</TableCell>
+              <TableCell align="right">{secondsToHhMmSs(part.referenceTime)}</TableCell>
+              <TableCell align="right" sx={{ color: "#00796b", fontWeight: "bold" }}>
+                {secondsToHhMmSs(Math.round(part.actualTime))}
+              </TableCell>
+              <TableCell align="right">{secondsToHhMmSs(part.run_duration)}</TableCell>
+              <TableCell align="right">
+                {secondsToHhMmSs(Math.round(part.idle_duration))}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+
+    {/* ================= Iframe Section Below ================= */}
+    <Box mt={3}>
+      {(() => {
+        const selectedPart = getSelectedPartData.find(
+          (p) =>
+            p.partnumber === selectedPartNumber ||
+            p.name === selectedPartNumber
+        );
+        if (!selectedPart) return null;
+
+        const partStart = selectedPart.start_time;
+        const partEnd = selectedPart.end_time;
+
+        return (
+          <iframe
+            title="Part Cycle Time Downtime"
+            width="100%"
+            height="400px"
+            src={`http://192.168.0.224:3000/yantra/d/eda07cde-4f19-4606-bab7-bf4ca1718237/part-cyclet-time-downtime?orgId=1&var-token=${newToken}&var-device_name=${deviceName}&var-from=${partStart}&var-to=${partEnd}&var-device_id=${deviceId}&var-url=${baseUrl}&theme=light&kiosk`}
+            frameBorder="0"
+            style={{
+              border: "1px solid #ccc",
+              borderRadius: "8px",
+              backgroundColor: "#fff",
+            }}
+          ></iframe>
+        );
+      })()}
+    </Box>
+  </>
+) : (
+  selectedPartNumber && (
+    <Typography variant="body2" color="textSecondary" sx={{ p: 1 }}>
+      No data entries found for Part **{selectedPartNumber}** in this time range.
+    </Typography>
+  )
+)}
+
                 </Box>
             </Box>
         </Box>

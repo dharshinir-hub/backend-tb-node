@@ -28,6 +28,7 @@ const Layout = () => {
     location.pathname === '/production-runs' ||
     location.pathname === '/summary' ||
     location.pathname === '/analyticoee' ||
+    location.pathname === '/inprogressoee' ||
     location.pathname === '/partwise-cycletime';
 
   return (

@@ -32,6 +32,7 @@ import Component from "./app/Pages/CycleTime/component";
 import Component1 from "./app/Pages/CycleTime/component1";
 import Summary from "./app/Pages/CycleTime/summary";
 import PartCycleTime from './app/Pages/CycleTime/partcycletime';
+import InprogressOee from './app/Pages/CycleTime/inprogressoee';
 
 
 
@@ -75,6 +76,7 @@ const AppRoutes = () => (
       <Route path="/inprogresscycle" element={<Inprogress />} />
       <Route path="/analyticoee" element={<AnalyticOee />} />
       <Route path="/partwise-cycletime" element={<PartCycleTime />} />
+      <Route path="/inprogressoee" element={<InprogressOee />} />
 
 
     </Route>

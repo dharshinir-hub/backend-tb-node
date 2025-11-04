@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Box,
     Typography,
@@ -12,7 +12,6 @@ import {
     TableRow,
     Paper,
 } from "@mui/material";
-
 import {
     customerbaseddevices,
     customerbasedshift,
@@ -21,25 +20,19 @@ import {
 import dayjs from "dayjs";
 import { useLocation, useNavigate } from "react-router-dom";
 import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
+import "./inprogressoee.css";
 
-const PartCycleTime = () => {
-    const [partNumber, setPartNumber] = useState("");
-    const [reportType, setReportType] = useState("Part Time vs Expected");
-    const [machineGroup, setMachineGroup] = useState("CNC Group ");
+const InprogressOee = () => {
     const [shifts, setShifts] = useState([]);
     const [devices, setDevices] = useState([]);
     const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
-    const [selectedDashboard, setSelectedDashboard] = useState("summary");
-
-    const [partData, setPartData] = useState({}); // object keyed by deviceName
-    const [selectedPartNumber, setSelectedPartNumber] = useState(null);
+    const [oeeData, setOeeData] = useState({});
+    const [from, setFrom] = useState(null);
+    const [to, setTo] = useState(null);
+    const [selectedMachine, setSelectedMachine] = useState(null);
 
     const navigate = useNavigate();
     const location = useLocation();
-    const { from, to } = location.state || {
-        from: dayjs().subtract(6, "day").startOf("day").valueOf(),
-        to: dayjs().endOf("day").valueOf(),
-    };
 
     const baseUrl = window._env_.SERVER_URL;
     const newToken = localStorage.getItem("newToken");
@@ -48,27 +41,61 @@ const PartCycleTime = () => {
         previousScreen,
         componentName,
         deviceName,
-        start_time,
-        end_time,
         code,
         selectedDevice,
         highcode,
     } = location.state || {};
 
-    console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code)
+    console.log("From", from, "to", to, "Component", componentName, "deviceName", deviceName, "code", code, "selectedDevice", selectedDevice);
 
     const Id = localStorage.getItem("CustomerID");
-    let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
+    const customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
 
+    // -------------------------------
+    // Fetch Shifts and determine active shift time
+    // -------------------------------
     const fetchShifts = async () => {
         try {
             const result = await customerbasedshift(customerId, "allShift");
-            setShifts(result[0]?.value || []);
+            const dataShifts = result?.[0]?.value ?? [];
+            setShifts(dataShifts);
+
+            if (!Array.isArray(dataShifts) || dataShifts.length === 0) return;
+
+            const now = Date.now();
+
+            const toEpoch = (timeStr, addDay = false) => {
+                if (!timeStr) return null;
+                const [h, m, s] = timeStr.split(":").map(Number);
+                const d = new Date();
+                d.setHours(h ?? 0, m ?? 0, s ?? 0, 0);
+                if (addDay) d.setDate(d.getDate() + 1);
+                return d.getTime();
+            };
+
+            const currentShift = dataShifts.find((shift) => {
+                if (!shift.start_time || !shift.end_time) return false;
+                const startEpoch = toEpoch(shift.start_time);
+                const endEpoch = toEpoch(shift.end_time, shift.end_time < shift.start_time);
+                return now >= startEpoch && now <= endEpoch;
+            });
+
+            if (currentShift) {
+                setFrom(toEpoch(currentShift.start_time));
+                setTo(toEpoch(currentShift.end_time, currentShift.end_time < currentShift.start_time));
+            } else {
+                const firstShift = dataShifts[0];
+                setFrom(toEpoch(firstShift.start_time));
+                setTo(toEpoch(firstShift.end_time, firstShift.end_time < firstShift.start_time));
+            }
         } catch (err) {
             console.error("Failed to fetch shifts", err);
         }
     };
 
+    // -------------------------------
+    // Fetch Devices
+    // -------------------------------
     const fetchDevices = async () => {
         try {
             const result = await customerbaseddevices(customerId, 100, 0);
@@ -89,203 +116,224 @@ const PartCycleTime = () => {
         fetchDevices();
     }, []);
 
-    const deviceId = Object.keys(deviceNameIdJson).find(
-        (key) => deviceNameIdJson[key] === deviceName
-    );
-
-    const parseTelemetryValues = (data, key) => {
-        const values = data?.[key] || [];
-        return values
-            .map((point) => {
-                try {
-                    const parsed =
-                        typeof point.value === "string" ? JSON.parse(point.value) : point.value;
-                    return parsed && typeof parsed === "object"
-                        ? { ts: point.ts, ...parsed }
-                        : null;
-                } catch {
-                    return null;
-                }
-            })
-            .filter((v) => v !== null);
-    };
 
     useEffect(() => {
-        const fetchPartData = async () => {
-            if (!start_time || !end_time || !deviceId) return;
+        if (!from || !to || !selectedDevice) return;
 
+        const fetchAllData = async () => {
             try {
-                const deviceIds = Array.isArray(deviceId) ? deviceId : [deviceId];
+                const deviceIds = Array.isArray(selectedDevice)
+                    ? selectedDevice
+                    : [selectedDevice];
 
                 const allDataArray = await Promise.all(
                     deviceIds.map(async (deviceId) => {
-                        const deviceName = deviceNameIdJson[deviceId] || "Unknown Device";
+                        const deviceName =
+                            deviceNameIdJson?.[deviceId] ||
+                            deviceNameIdJson?.[deviceId.toUpperCase()] ||
+                            deviceNameIdJson?.[deviceId.toLowerCase()] ||
+                            deviceId;
 
-                        const data = await telemetrykeydata(
+                        const response = await telemetrykeydata(
                             deviceId,
                             "DEVICE",
-                            "part_data",
-                            start_time,
-                            end_time
+                            ["oee", "historicalbaseline", "machine_Status", "operations"],
+                            from,
+                            to
                         );
 
-                        const parsedData = parseTelemetryValues(data, "part_data");
-                        return { deviceName, parsedData };
+                        const latestOee =
+                            Array.isArray(response?.oee) && response.oee.length > 0
+                                ? parseInt(response.oee[0].value) || 0
+                                : 0;
+
+                        let baselineData = {};
+                        if (
+                            Array.isArray(response?.historicalbaseline) &&
+                            response.historicalbaseline.length > 0
+                        ) {
+                            try {
+                                baselineData = JSON.parse(
+                                    response.historicalbaseline[0].value || "{}"
+                                );
+                            } catch {
+                                baselineData =
+                                    response.historicalbaseline[0].value || {};
+                            }
+                        }
+
+                        const machineStatus =
+                            Array.isArray(response?.machine_Status) &&
+                                response.machine_Status.length > 0
+                                ? response.machine_Status[0].value
+                                : "Unknown";
+
+                        let operationsData = {};
+                        if (
+                            Array.isArray(response?.operations) &&
+                            response.operations.length > 0
+                        ) {
+                            try {
+                                operationsData = JSON.parse(
+                                    response.operations[0].value || "{}"
+                                );
+                            } catch {
+                                operationsData = response.operations[0].value || {};
+                            }
+                        }
+
+                        return {
+                            deviceId,
+                            deviceName,
+                            oee: latestOee,
+                            historicalbaseline: baselineData,
+                            machine_Status: machineStatus,
+                            operations: operationsData,
+                        };
                     })
                 );
 
-                const allDataObject = allDataArray.reduce((acc, curr) => {
-                    acc[curr.deviceName] = curr.parsedData;
-                    return acc;
-                }, {});
+                const machineWiseData = {};
+                allDataArray.forEach((d) => {
+                    machineWiseData[d.deviceName] = {
+                        deviceId: d.deviceId,
+                        deviceName: d.deviceName,
+                        oee: d.oee,
+                        historicalbaseline: d.historicalbaseline,
+                        machine_Status: d.machine_Status,
+                        operations: d.operations,
+                    };
+                });
 
-                setPartData(allDataObject);
+                setOeeData(machineWiseData);
+                console.table(allDataArray);
             } catch (error) {
-                console.error("Error fetching part_data:", error);
-                setPartData({});
+                console.error("❌ Error fetching telemetry data:", error);
+                setOeeData({});
             }
         };
 
-        fetchPartData();
-    }, [deviceId, start_time, end_time, deviceNameIdJson]);
+        // 🔹 Initial fetch
+        fetchAllData();
 
-    // Extract unique part numbers across all devices
-    const uniquePartNumbers = useMemo(() => {
-        const parts = new Set();
-        Object.values(partData).forEach((deviceParts) => {
-            deviceParts.forEach((part) => {
-                if (part.partnumber) parts.add(part.partnumber);
+        // 🔁 Repeat every 10 seconds
+        const interval = setInterval(fetchAllData, 10000);
+
+        // 🧹 Cleanup on unmount or when dependencies change
+        return () => clearInterval(interval);
+    }, [from, to, selectedDevice]);
+
+
+    console.log('Oee Data', oeeData);
+
+
+    useEffect(() => {
+        const entries = Object.entries(oeeData || {});
+        if (entries.length > 0 && !selectedMachine) {
+            const [_, firstMachineData] = entries[0];
+            setSelectedMachine({
+                id: firstMachineData.deviceId,
+                name: firstMachineData.deviceName,
             });
-        });
-
-        const sortedParts = Array.from(parts).sort((a, b) => {
-            const numA = Number(a);
-            const numB = Number(b);
-            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-            return a.localeCompare(b);
-        });
-
-        if (sortedParts.length > 0 && selectedPartNumber === null) {
-            setSelectedPartNumber(sortedParts[0]);
         }
+    }, [oeeData, selectedMachine]);
 
-        return sortedParts;
-    }, [partData, selectedPartNumber]);
+    console.log("Selected Machine", selectedMachine);
 
-    console.log('Part Data', partData);
-
-    // Data for selected part number
-    const getSelectedPartData = useMemo(() => {
-        if (!selectedPartNumber) return [];
-
-        const allFilteredData = [];
-        Object.keys(partData).forEach((deviceName) => {
-            const deviceParts = partData[deviceName] || [];
-            const partsForSelectedNumber = deviceParts
-                .filter((part) => part.partnumber === selectedPartNumber)
-                .map((part) => ({ ...part, deviceName }));
-            allFilteredData.push(...partsForSelectedNumber);
-        });
-
-        return allFilteredData.sort((a, b) => Number(a.ts) - Number(b.ts));
-    }, [partData, selectedPartNumber]);
-
-    function formatDuration(seconds) {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = seconds % 60;
-        return [h > 0 ? `${h}h` : "", m > 0 ? `${m}m` : "", s > 0 ? `${s}s` : ""]
-            .filter(Boolean)
-            .join(" ");
-    }
-
-    function formatEpoch(epoch) {
-        if (epoch.toString().length === 10) epoch *= 1000;
-        const date = new Date(epoch);
-        const pad = (n) => n.toString().padStart(2, "0");
-        let hours = date.getHours();
-        const minutes = date.getMinutes().toString().padStart(2, "0");
-        const seconds = date.getSeconds().toString().padStart(2, "0");
-        const ampm = hours >= 12 ? "PM" : "AM";
-        hours = hours % 12 || 12;
-        const strHours = hours.toString().padStart(2, "0");
-        return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${strHours}:${minutes}:${seconds} ${ampm}`;
-    }
-
-    const secondsToHhMmSs = (totalSeconds) => {
-        if (!totalSeconds) return "00:00:00";
-        const seconds = Math.floor(totalSeconds);
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = Math.floor(seconds % 60);
-        const pad = (num) => String(num).padStart(2, "0");
-        return `${pad(h)}:${pad(m)}:${pad(s)}`;
-    };
-
-    // Border color for outer box
-    const getOuterBorderColor = () => {
-        if (!selectedPartNumber) return "#e0e0e0";
-        const allParts = Object.values(partData).flat();
-        const part = allParts.find((p) => p.partnumber === selectedPartNumber);
-        if (!part) return "#e0e0e0";
-        return Number(part.referenceTime) > Number(part.actualTime) ? "green" : "red";
-    };
 
     return (
-        <Box display="flex" height="100vh" pt={2}>
-            {/* Sidebar */}
-            <SidebarPanel
-                partNumber={partNumber}
-                setPartNumber={setPartNumber}
-                reportType={reportType}
-                setReportType={setReportType}
-                formatDuration={formatDuration}
-                from={from}
-                to={to}
-                highestcomponent={highcode}
-            />
+        <div>
+            <div className="header-container">
+                <div className="heading">Inprogress OEE</div>
 
-            {/* Right side content */}
-            <Box flex={1} p={3} overflow="auto">
-                {/* Header */}
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="h5" fontWeight="bold">
-                        {componentName || code ? `${componentName} (${code})` : "Component Details"}
-                        <Typography
-                            variant="subtitle2"
-                            display="block"
-                            fontWeight="bold"
-                            sx={{ fontSize: "18px" }}
+                <Button
+                    variant="contained"
+                    onClick={() => navigate("/production-analysis")}
+                    color="warning"
+                    sx={{
+                        backgroundColor: "#626262",
+                        "&:hover": { backgroundColor: "#4d4d4d" },
+                    }}
+                >
+                    Back
+                </Button>
+            </div>
+
+            <div className="oee-dashboard">
+                {Object.entries(oeeData).map(([machineID, data], index) => {
+                    const { deviceName, oee, machine_Status, operations, deviceId } = data;
+
+                    let tileClass = "";
+                    switch ((machine_Status || "").toLowerCase()) {
+                        case "running":
+                            tileClass = "tile-running";
+                            break;
+                        case "idle":
+                            tileClass = "tile-idle";
+                            break;
+                        case "alarm":
+                            tileClass = "tile-alarm";
+                            break;
+                        case "disconnect":
+                            tileClass = "tile-disconnect";
+                            break;
+                        default:
+                            tileClass = "tile-running";
+                            break;
+                    }
+
+                    const isSelected = selectedMachine?.id === deviceId;
+                    const cycleText = machine_Status === "Running" ? "IN - CYCLE" : machine_Status || "";
+
+                    return (
+                        <div
+                            key={machineID || index}
+                            className={`oee-tile ${tileClass} ${isSelected ? "selected-tile" : ""}`}
+                            onClick={() =>
+                                setSelectedMachine({ id: deviceId, name: deviceName })
+                            }
+                            style={{ cursor: "pointer" }}
                         >
-                            {deviceName || code ? `${deviceName}` : "Device"}
-                        </Typography>
-                    </Typography>
+                            <div className="machine-name">{deviceName || 'Machine'}</div>
+                            <div className="status-text">{machine_Status || "Unknown"}</div>
+                            <div className="oee-value">{oee ?? 0}%</div>
+                            <div className="cycle-status">{cycleText}</div>
+                            {operations?.part && (
+                                <div className="program-number">Program: {operations.part}</div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
 
-                    {/* Back Button */}
-                    <Button
-                        variant="contained"
-                        onClick={() => navigate(previousScreen, { state: { selectedDevice, componentName, code } })}
-                        color="warning"
-                        sx={{
-                            backgroundColor: "#626262",
-                            "&:hover": { backgroundColor: "#4d4d4d" },
-                        }}
-                    >
-                        Back
-                    </Button>
-                </Box>
+            {selectedMachine && oeeData && (
+                <div>
+                    <div className="iframe-header">
+                        <div className="iframe-title">
+                            Hour Wise OEE Details - {selectedMachine.name}
+                        </div>
+                        <div className="operation-name">
+                            Component: {oeeData[selectedMachine.name]?.operations?.operation_name || "N/A"}
+                        </div>
+                    </div>
 
-                {/* Time Range */}
-                {start_time && end_time && (
-                    <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                        {formatEpoch(Number(start_time))} → {formatEpoch(Number(end_time))}
-                    </Typography>
-                )}
+                    <iframe
+                        title="Inprogress OEE Dashboard"
+                        width="100%"
+                        height="600"
+                        src={`http://192.168.0.224:3000/yantra/d/e370a560-3c93-47af-add1-21af2ad33ee1/inprogressoee-dashboard?orgId=1&var-token=${newToken}&var-from=${from}&var-to=${to}&var-url=${baseUrl}&var-device_id=${selectedMachine.id}&var-device_name=${encodeURIComponent(
+                            selectedMachine.name
+                        )}&theme=light&kiosk`}
+                        frameBorder="0"
+                        style={{ borderRadius: "8px" }}
+                    ></iframe>
+                </div>
+            )}
 
 
-            </Box>
-        </Box>
+
+        </div>
     );
 };
 
-export default PartCycleTime;
+export default InprogressOee;
