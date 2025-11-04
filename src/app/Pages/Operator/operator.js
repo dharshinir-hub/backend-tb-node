@@ -149,6 +149,7 @@ function Operator() {
                 "allShift"
             );
             const shifts = response[0]?.value || [];
+            setShifts(shifts);
             const currentActiveShift = await getCurrentShift(shifts, dayjs());
             const { shiftStart, now } = getShiftEpoch(currentActiveShift?.start_time);
             const operatorResponse = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
@@ -380,6 +381,7 @@ function Operator() {
                     "allShift"
                 );
                 const shifts = response[0]?.value || [];
+                setShifts(shifts);
                 const currentActiveShift = await getCurrentShift(shifts, dayjs());
                 if (!currentActiveShift) return;
 
@@ -511,6 +513,47 @@ function Operator() {
         }
     }, []);
 
+
+    function parseShifts(allShifts) {
+        return allShifts.map(shift => {
+            const today = dayjs();
+            const startDayOffset = shift.start_day - 1;
+            const endDayOffset = shift.end_day - 1;
+            let startTs = dayjs(today)
+                .startOf("day")
+                .add(startDayOffset, "day")
+                .hour(Number(shift.start_time.split(":")[0]))
+                .minute(Number(shift.start_time.split(":")[1]))
+                .second(Number(shift.start_time.split(":")[2]));
+            let endTs = dayjs(today)
+                .startOf("day")
+                .add(endDayOffset, "day")
+                .hour(Number(shift.end_time.split(":")[0]))
+                .minute(Number(shift.end_time.split(":")[1]))
+                .second(Number(shift.end_time.split(":")[2]));
+            if (endTs.isBefore(startTs)) {
+                endTs = endTs.add(1, "day");
+            }
+            return {
+                shift_no: shift.shift_no,
+                startTs: startTs.valueOf(),
+                endTs: endTs.valueOf(),
+            };
+        });
+    }
+
+    const splitIdleByShifts = (idleStart, idleEnd, shifts) => {
+        const segments = [];
+        shifts.forEach(shift => {
+            const overlapStart = Math.max(idleStart, shift.startTs);
+            const overlapEnd = Math.min(idleEnd, shift.endTs);
+            if (overlapStart < overlapEnd) {
+                segments.push({ start: overlapStart, end: overlapEnd, shift_no: shift.shift_no });
+            }
+        });
+        return segments;
+    };
+
     useEffect(() => {
         if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
         const deviceId = deviceNameIdJson[selectedMachine];
@@ -639,9 +682,20 @@ function Operator() {
                 if (locked && !isLockedRef.current) {
                     console.log("[refreshData] detected lock -> opening Swal");
                     isLockedRef.current = true;
-                    const lastIdleOrAlarm = machineStatusArray.find(item =>
-                        ["0", "1", "2", "5"].includes(String(item.value))
-                    );
+                    let lastIdleOrAlarm = null;
+                    for (let i = 0; i < machineStatusArray.length - 1; i++) {
+                        const current = machineStatusArray[i];
+                        const next = machineStatusArray[i + 1];
+                        if (String(next.value) === "3" && ["0", "1", "2", "5"].includes(String(current.value))) {
+                            lastIdleOrAlarm = current;
+                            break;
+                        }
+                    }
+                    if (!lastIdleOrAlarm) {
+                        lastIdleOrAlarm = machineStatusArray.find(item =>
+                            ["0", "1", "2", "5"].includes(String(item.value))
+                        );
+                    }
                     const idleStart = lastIdleOrAlarm
                         ? lastIdleOrAlarm.ts
                         : dayjs().valueOf();
@@ -696,31 +750,59 @@ function Operator() {
                         const duration = Math.floor(
                             (idleEndTime - lockedIdleStartRef.current) / 1000
                         );
-                        console.log(
-                            "[LOCKED_IDLE END] closing at",
+                        const parsedShifts = parseShifts(shifts);
+                        const segments = splitIdleByShifts(
+                            lockedIdleStartRef.current,
                             idleEndTime,
-                            "duration(s):",
-                            duration
+                            parsedShifts
                         );
-                        const payload = {
-                            ts: idleEndTime,
-                            values: {
-                                live_reason: {
-                                    name: activeReasonRef.current.reason,
-                                    code: activeReasonRef.current.code || "",
-                                    mode: activeReasonRef.current.mode || "",
-                                    category: activeReasonRef.current.category || "",
-                                    idle_start: lockedIdleStartRef.current,
-                                    idle_end: idleEndTime,
-                                    idle_duration: duration,
+                        for (const seg of segments) {
+                            const payload = {
+                                ts: seg.start,
+                                values: {
+                                    live_reason: {
+                                        name: activeReasonRef.current.reason,
+                                        code: activeReasonRef.current.code || "",
+                                        mode: activeReasonRef.current.mode || "",
+                                        category: activeReasonRef.current.category || "",
+                                        idle_start: seg.start,
+                                        idle_end: seg.end,
+                                        idle_duration: Math.floor((seg.end - seg.start) / 1000),
+                                    },
                                 },
-                            },
-                        };
-                        try {
-                            await operatorTelemetry("DEVICE", deviceId, payload);
-                        } catch (err) {
-                            console.error("Error submitting locked idle end:", err);
+                            };
+                            try {
+                                await operatorTelemetry("DEVICE", deviceId, payload);
+                            } catch (err) {
+                                console.error("Error submitting locked idle end:", err);
+                            }
                         }
+
+                        // console.log(
+                        //     "[LOCKED_IDLE END] closing at",
+                        //     idleEndTime,
+                        //     "duration(s):",
+                        //     duration
+                        // );
+                        // const payload = {
+                        //     ts: idleEndTime,
+                        //     values: {
+                        //         live_reason: {
+                        //             name: activeReasonRef.current.reason,
+                        //             code: activeReasonRef.current.code || "",
+                        //             mode: activeReasonRef.current.mode || "",
+                        //             category: activeReasonRef.current.category || "",
+                        //             idle_start: lockedIdleStartRef.current,
+                        //             idle_end: idleEndTime,
+                        //             idle_duration: duration,
+                        //         },
+                        //     },
+                        // };
+                        // try {
+                        //     await operatorTelemetry("DEVICE", deviceId, payload);
+                        // } catch (err) {
+                        //     console.error("Error submitting locked idle end:", err);
+                        // }
 
                         lockedIdleStartRef.current = null;
                         activeReasonRef.current = null;

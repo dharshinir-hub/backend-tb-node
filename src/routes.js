@@ -33,10 +33,7 @@ import Component1 from "./app/Pages/CycleTime/component1";
 import Summary from "./app/Pages/CycleTime/summary";
 import PartCycleTime from './app/Pages/CycleTime/partcycletime';
 import InprogressOee from './app/Pages/CycleTime/inprogressoee';
-
-
-
-
+import MachineGroup from './app/Pages/Machinegroup/machinegroup';
 
 // Import other components for your routes
 
@@ -55,6 +52,7 @@ const AppRoutes = () => (
       <Route path="/operator-registration" element={<OperatorRegistration />} />
       <Route path="/reason-registration" element={<ReasonRegistration />} />
       <Route path="/machines" element={<MachineList />} />
+      <Route path="/machines-group" element={<MachineGroup />} />
       <Route path="/company" element={<Company />} />
       <Route path="/CurrentShift" element={<CurrentShift />} />
       <Route path="/analytics" element={<NewAnalytics />} />

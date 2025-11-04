@@ -308,7 +308,7 @@ export default function MachineDashboard() {
                 return { hour, value: Number(latestPoint.value) || 0, timestamp: latestPoint.ts };
               });
               const avgUtil = hourlyLatest.reduce((sum, o) => sum + o.value, 0) / hourlyLatest.length;
-              resultsUtilization[machine.id.id] = { utilization: parseInt(avgUtil) };
+              resultsUtilization[machine.id.id] = { utilization: Math.round(avgUtil) };
             } else {
               resultsUtilization[machine.id.id] = { utilization: 0 };
             }
@@ -330,13 +330,16 @@ export default function MachineDashboard() {
             /** ---------------- Live Component ---------------- **/
             const liveValues = data?.live_component || [];
             if (liveValues.length) {
-              const latestPoint = liveValues.reduce((max, p) => p.ts > max.ts ? p : max);
-              let componentName = null;
-              if (latestPoint?.value) {
-                const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
-                componentName = parsed?.name ?? null;
-              }
-              resultsLiveComponent[machine.id.id] = { componentName };
+              const now = Date.now();
+              const comps = liveValues.map(p => {
+                const val = typeof p.value === "string" ? JSON.parse(p.value) : p.value;
+                return { ...val, ts: p.ts, start: val.start_time || p.ts, end: val.end_time || p.ts };
+              });
+              let current =
+                comps.find(c => now >= c.start && now <= c.end) ||
+                comps.filter(c => c.end < now).sort((a, b) => b.end - a.end)[0] ||
+                comps.sort((a, b) => a.start - b.start)[0];
+              resultsLiveComponent[machine.id.id] = { componentName: current?.name ?? null };
             } else {
               resultsLiveComponent[machine.id.id] = { componentName: null };
             }
@@ -1168,7 +1171,7 @@ export default function MachineDashboard() {
 
 
 
-  const machineStatusOptions = ["Running", "Idle", "Disconnect", "Alarm"];
+  const machineStatusOptions = ["Running", "Idle", "Disconnected", "Alarm"];
 
   // Toggle machine selection
   const toggleMachineSelection = (name) => {
@@ -1422,7 +1425,7 @@ export default function MachineDashboard() {
                         ? "#f1a014ff"
                         : machineStatuses[machine.id.id]?.status === "Alarm"
                           ? "#f44336"
-                          : machineStatuses[machine.id.id]?.status === "Disconnect"
+                          : machineStatuses[machine.id.id]?.status === "Disconnected"
                             ? "#9e9e9e"
                             : machineStatuses[machine.id.id]?.status === "Setting"
                               ? "#81c8f5ff"
@@ -1455,7 +1458,7 @@ export default function MachineDashboard() {
                                 ? "linear-gradient(135deg, #fbc02d, #f57f17)"
                                 : machineStatuses[machine.id.id]?.status === "Alarm"
                                   ? "linear-gradient(135deg, #e53935, #b71c1c)"
-                                  : machineStatuses[machine.id.id]?.status === "Disconnect"
+                                  : machineStatuses[machine.id.id]?.status === "Disconnected"
                                     ? "#616161"
                                     : machineStatuses[machine.id.id]?.status === "Setting"
                                       ? "linear-gradient(135deg, #29b6f6, #0288d1)"
@@ -1479,7 +1482,7 @@ export default function MachineDashboard() {
                                 ? "#4caf50"
                                 : machineStatuses[machine.id.id]?.status === "Idle"
                                   ? "#f1a014"
-                                  : machineStatuses[machine.id.id]?.status === "Disconnect"
+                                  : machineStatuses[machine.id.id]?.status === "Disconnected"
                                     ? "#9e9e9e"
                                     : machineStatuses[machine.id.id]?.status === "Alarm"
                                       ? "#f44336"
@@ -1493,7 +1496,7 @@ export default function MachineDashboard() {
                             ? `Run: ${formatTime(run)}`
                             : machineStatuses[machine.id.id]?.status === "Idle"
                               ? `Idle: ${formatTime(idle)}`
-                              : machineStatuses[machine.id.id]?.status === "Disconnect"
+                              : machineStatuses[machine.id.id]?.status === "Disconnected"
                                 ? `Disconnect: ${formatTime(disconnect)}`
                                 : machineStatuses[machine.id.id]?.status === "Alarm"
                                   ? `Alarm: ${formatTime(alarm)}`
@@ -1862,7 +1865,7 @@ export default function MachineDashboard() {
           <Collapse in={openStatus}>
             {/* Status Checkboxes */}
             <List>
-              {["Running", "Idle", "Disconnect", "Alarm"].map((status) => (
+              {["Running", "Idle", "Disconnected", "Alarm"].map((status) => (
                 <ListItem
                   key={status}
                   dense

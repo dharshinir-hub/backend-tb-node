@@ -29,8 +29,8 @@ const Layout = () => {
     location.pathname === '/summary' ||
     location.pathname === '/analyticoee' ||
     location.pathname === '/inprogressoee' ||
-    location.pathname === '/partwise-cycletime';
-
+    location.pathname === '/partwise-cycletime' ||
+    location.pathname === '/machines-group'
   return (
     <>
       {showSidebar && <Sidebar />} {/* Conditionally render the Sidebar */}
