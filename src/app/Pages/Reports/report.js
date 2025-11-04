@@ -18,15 +18,17 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
-import { getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
+import { getEfficiencyReport, getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
 import classNames from 'classnames';
 
 export default function MachineReport() {
   const [selectedTab, setSelectedTab] = useState("general");
   // const [selectedModule, setSelectedModule] = useState("SURIN");
   const [selectedMachines, setSelectedMachines] = useState([]);
+  const [selectedMachine, setSelectedMachine] = useState([]);
   const [selectedShift, setSelectedShift] = useState([]);
   const [startDate, setStartDate] = useState(dayjs());
+  const [efficiencyDate, setEfficiencyDate] = useState(dayjs());
   const [endDate, setEndDate] = useState(dayjs());
   const [reportData, setReportData] = useState([]);
   const [shifts, setShifts] = useState([]);
@@ -35,6 +37,7 @@ export default function MachineReport() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [idleReasonWithPercentage, setIdleReasonWithPercentage] = useState([]);
+  const [averageEfficiency, setAverageEfficiency] = useState(null);
   const REPORT_HEADERS = {
     general: [
       "S.no", "Date", "Machine", "Shift", "Operator Name", "Component Number",
@@ -52,6 +55,9 @@ export default function MachineReport() {
     idle_reason: [
       "S.no", "Date", "Shift", "Machine Name",
       "Mode","Category", "Reason", "Duration"
+    ],
+    efficiency: [
+      "S.no", "Component Number", "Component Name", "Total Parts", "Target Parts", "Efficiency(%)","Run Time" , "Idle/Stop Time","Duration"
     ]
   };
 
@@ -139,7 +145,25 @@ const formatDowntimeType = (value, fallback = "---") => {
       { key: "category", formatter: row => formatDowntimeType(row.json_v.category) },
       { key: "idle_reason_name", formatter: row => formatWithFallback(row.json_v.name) },
       { key: "duration", formatter: row => formatTimeWithFallback(row.json_v.idle_duration) },
-    ]
+    ],
+    efficiency: [
+      { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
+      { key: "route_card_id", formatter: row => formatWithFallback(row.route_card_id) },
+      { key: "route_card", formatter: row => formatWithFallback(row.route_card) },
+      { key: "total_parts", formatter: row => formatWithFallback(row.total_parts) },
+      {
+        key: "target",
+        formatter: row => {
+          const val = Number(row.target);
+          return formatWithFallback(
+            !isNaN(val) ? Math.trunc(val) : val
+          );
+        }
+      }, { key: "efficiency_percentage", formatter: row => formatWithFallback(row.efficiency_percentage) },
+      { key: "run_time", formatter: row => formatTimeWithFallback(row.run_time) },
+      { key: "idle_time", formatter: row => formatTimeWithFallback(row.idle_time) },
+      { key: "duration", formatter: row => formatTimeWithFallback(row.durtation) },
+    ],
   };
 
   const [reportTableHeaders, setReportTableHeaders] = useState(REPORT_HEADERS['general']);
@@ -165,6 +189,7 @@ const formatDowntimeType = (value, fallback = "---") => {
         setMachines(machinesList);
         const selectedMachinesList = machinesList.map(m => m.name);
         if (machinesList.length > 0) setSelectedMachines([selectedMachinesList[0]]);
+        if (machinesList.length > 0) setSelectedMachine([selectedMachinesList[0]]);
         if (selectedMachinesList.length > 0 && selectedShifts.length > 0) {
           await fetchReport(0, rowsPerPage, "general", selectedMachinesList, selectedShifts);
         }
@@ -185,13 +210,21 @@ const formatDowntimeType = (value, fallback = "---") => {
     try {
       const dateStr = startDate.format("YYYY-MM-DD");
       const dateEnd = endDate.format("YYYY-MM-DD");
+      const efficiencyDateVal = efficiencyDate.format("YYYY-MM-DD");
       let response;
       if (tab === "part") {
         response = await getPartReport(
           machinesParam.join(","), shiftsParam,
           dateStr, dateEnd, pageNum, limit
         );
-      } else if (tab === "general") {
+      }  else if (tab === "efficiency") {
+        response = await getEfficiencyReport(
+          selectedMachine.join(","), selectedShift[0],
+          efficiencyDateVal, efficiencyDateVal, pageNum, limit
+        );
+        setAverageEfficiency(response.average_efficiency || null)
+      }
+      else if (tab === "general") {
         response = await getGeneralReport(
           machinesParam.join(","), shiftsParam,
           dateStr, dateEnd, pageNum, limit
@@ -267,7 +300,11 @@ const formatDowntimeType = (value, fallback = "---") => {
     } else {
       finalValue = value;
     }
-    setSelectedMachines(finalValue);
+    if (selectedTab === 'efficiency') {
+      setSelectedMachine(finalValue);
+    } else {
+      setSelectedMachines(finalValue);
+    }
     setErrorMsg((prev) => ({
       ...prev,
       machines: finalValue.length === 0,
@@ -365,6 +402,7 @@ const formatDowntimeType = (value, fallback = "---") => {
         {/* <Tab label="Idle Reason Report" value="idle" /> */}
         <Tab label="Idle Reason Report" value="idle_reason" />
         <Tab label="Part Wise Report" value="part" />
+        <Tab label="Efficiency Report" value="efficiency" />
       </Tabs>
 
       {/* Filters */}
@@ -379,105 +417,168 @@ const formatDowntimeType = (value, fallback = "---") => {
             <MenuItem value="MODULE2">MODULE 2</MenuItem>
           </Select>
         </FormControl> */}
-        <FormControl error={errorMsg.machines} size="small" sx={{ background: "#fff", width: 200 }}>
-          <InputLabel sx={{ background: '#fff' }}>Machine * </InputLabel>
-          <Select
-            multiple
-            value={selectedMachines}
-            onChange={handleMachineChange}
-            renderValue={(selected) => selected.join(", ")}
-          >
-            <MenuItem value="all">
-              <Checkbox sx={{
-                '&.Mui-checked': {
-                  color: "#f47803ff",
-                }
-              }}
-                checked={selectedMachines.length === machines.length}
-              />
-              <ListItemText primary="All" />
-            </MenuItem>
-            {machines.map((machine) => (
-              <MenuItem key={machine.id} value={machine.name}>
-                <Checkbox checked={selectedMachines.includes(machine.name)} sx={{
-                  '&.Mui-checked': {
-                    color: "#f47803ff",
-                  }
-                }} />
-                <ListItemText primary={machine.name} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+     <FormControl
+  error={errorMsg.machines}
+  size="small"
+  sx={{ background: "#fff", width: 200 }}
+>
+  <InputLabel sx={{ background: "#fff" }}>Machine *</InputLabel>
+  {selectedTab === "efficiency" ? (
+    <Select
+      value={selectedMachine || ""}
+      onChange={(e) => setSelectedMachine([e.target.value])}
+      label="Machine"
+    >
+      {machines.map((machine) => (
+        <MenuItem key={machine.id} value={machine.name}>
+          {machine.name}
+        </MenuItem>
+      ))}
+    </Select>
+  ) : (
+    <Select
+      multiple
+      value={selectedMachines}
+      onChange={handleMachineChange}
+      renderValue={(selected) => selected.join(", ")}
+    >
+      <MenuItem value="all">
+        <Checkbox
+          sx={{
+            "&.Mui-checked": {
+              color: "#f47803ff",
+            },
+          }}
+          checked={selectedMachines.length === machines.length}
+        />
+        <ListItemText primary="All" />
+      </MenuItem>
 
-        <FormControl error={errorMsg.shifts} size="small" sx={{ background: "#fff", width: 160 }}>
-          <InputLabel sx={{ background: '#fff' }}>Shift *</InputLabel>
-          <Select
-            multiple
-            value={selectedShift}
-            onChange={handleShiftChange}
-            renderValue={(selected) =>
-              selected.join(", ")
-            }
-          >
-            <MenuItem value="all">
-              <Checkbox sx={{
-                '&.Mui-checked': {
-                  color: "#f47803ff",
-                }
-              }}
-                checked={selectedShift.length === shifts.length}
-              />
-              <ListItemText primary="All" />
-            </MenuItem>
-            {shifts.map((shift) => (
-              <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
-                <Checkbox sx={{
-                  '&.Mui-checked': {
-                    color: "#f47803ff",
-                  },
-                }} checked={selectedShift.includes(String(shift.shift_no))} />
-                <ListItemText primary={`${shift.shift_no}`} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <DatePicker
-            label="Start Date *"
-            value={startDate}
-            required={true}
-            onChange={(newValue) => handleStartDateChange(newValue)}
-            format="DD-MM-YYYY"
-            disableFuture={true}
-            slotProps={{
-              textField: {
-                size: "small",
-                style: { background: "#fff", minWidth: 160 },
-                error: errorMsg.startDate || errorMsg.dateRange,
+      {machines.map((machine) => (
+        <MenuItem key={machine.id} value={machine.name}>
+          <Checkbox
+            checked={selectedMachines.includes(machine.name)}
+            sx={{
+              "&.Mui-checked": {
+                color: "#f47803ff",
               },
             }}
           />
-        </LocalizationProvider>
+          <ListItemText primary={machine.name} />
+        </MenuItem>
+      ))}
+    </Select>
+  )}
+</FormControl>
 
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <DatePicker
-            label="End Date *"
-            required={true}
-            value={endDate}
-            onChange={(newValue) => handleEndDateChange(newValue)}
-            format="DD-MM-YYYY"
-            disableFuture={true}
-            slotProps={{
-              textField: {
-                size: "small",
-                style: { background: "#fff", minWidth: 160 },
-                error: errorMsg.endDate || errorMsg.dateRange,
-              },
+        <FormControl
+  error={errorMsg.shifts}
+  size="small"
+  sx={{ background: "#fff", width: 160 }}
+>
+  <InputLabel sx={{ background: "#fff" }}>Shift *</InputLabel>
+  {selectedTab === "efficiency" ? (
+    <Select
+      value={selectedShift[0] || ""}
+      onChange={(e) => setSelectedShift([e.target.value])}
+      label="Shift"
+    >
+      {shifts.map((shift) => (
+        <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
+          {shift.shift_no}
+        </MenuItem>
+      ))}
+    </Select>
+  ) : (
+    <Select
+      multiple
+      value={selectedShift}
+      onChange={handleShiftChange}
+      renderValue={(selected) => selected.join(", ")}
+      label="Shift"
+    >
+      <MenuItem value="all">
+        <Checkbox
+          sx={{
+            "&.Mui-checked": { color: "#f47803ff" },
+          }}
+          checked={selectedShift.length === shifts.length}
+        />
+        <ListItemText primary="All" />
+      </MenuItem>
+      {shifts.map((shift) => (
+        <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
+          <Checkbox
+            sx={{
+              "&.Mui-checked": { color: "#f47803ff" },
             }}
+            checked={selectedShift.includes(String(shift.shift_no))}
           />
-        </LocalizationProvider>
+          <ListItemText primary={`${shift.shift_no}`} />
+        </MenuItem>
+      ))}
+    </Select>
+  )}
+</FormControl>
+
+  {selectedTab === 'efficiency' ? (
+  <LocalizationProvider dateAdapter={AdapterDayjs}>
+    <DatePicker
+      label="Date *"
+      value={efficiencyDate}
+      onChange={(newValue) => {
+        setEfficiencyDate(newValue);
+      }}
+      format="DD-MM-YYYY"
+      disableFuture
+      slotProps={{
+        textField: {
+          size: "small",
+          style: { background: "#fff", minWidth: 160 },
+          error: !efficiencyDate,
+        },
+      }}
+    />
+  </LocalizationProvider>
+) : (
+  <>
+    {/* Start Date */}
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <DatePicker
+        label="Start Date *"
+        value={startDate}
+        onChange={handleStartDateChange}
+        format="DD-MM-YYYY"
+        disableFuture
+        slotProps={{
+          textField: {
+            size: "small",
+            style: { background: "#fff", minWidth: 160 },
+            error: errorMsg.startDate || errorMsg.dateRange,
+          },
+        }}
+      />
+    </LocalizationProvider>
+
+    {/* End Date */}
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <DatePicker
+        label="End Date *"
+        value={endDate}
+        onChange={handleEndDateChange}
+        format="DD-MM-YYYY"
+        disableFuture
+        slotProps={{
+          textField: {
+            size: "small",
+            style: { background: "#fff", minWidth: 160 },
+            error: errorMsg.endDate || errorMsg.dateRange,
+          },
+        }}
+      />
+    </LocalizationProvider>
+  </>
+)}
 
         <Button
           variant="contained"
@@ -710,6 +811,42 @@ const formatDowntimeType = (value, fallback = "---") => {
           </Box>
         </Box>
       )}
+
+      {selectedTab === 'efficiency' && averageEfficiency && (
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <Typography
+            sx={{
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              color: "#2d3748",
+              background: "linear-gradient(90deg, #f7fafc, #edf2f7)",
+              px: 1.5,
+              py: 0.5,
+              borderRadius: "8px",
+              boxShadow: "inset 0 1px 3px rgba(0,0,0,0.05)",
+              display: "inline-block",
+            }}
+          >
+            Avg Efficiency:{" "}
+            <Box
+              component="span"
+              sx={{
+                fontWeight: 700,
+                color: "#2b6cb0",
+              }}
+            >
+              {averageEfficiency}%
+            </Box>
+          </Typography>
+        </Box>
+
+      )}
+
 
       {/* Report Table */}
       {
