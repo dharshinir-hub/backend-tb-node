@@ -203,11 +203,22 @@ export default function NewAnalytics() {
                     </Select>
                 </FormControl>
             </div>
-            <div style={{ flexGrow: 1 }}>
+            <div style={{ flexGrow: 1, position: "relative" }}>
                 <iframe
                     src={grafanaUrl}
                     style={{ width: "100%", height: "100%", border: "0" }}
                     title="Grafana Right"
+                />
+                <div //0ee
+                    style={{
+                        position: 'absolute',
+                        top: 2,
+                        right: 14,
+                        width: 80,
+                        height: "100%",
+                        backgroundColor: 'transparent',
+                        zIndex: 10
+                    }}
                 />
             </div>
         </Box>

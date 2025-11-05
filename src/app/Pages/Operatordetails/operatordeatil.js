@@ -74,13 +74,13 @@ const OperatorDetails = () => {
   const [supervisorselected, setselectedsupervisor] = useState('');
   const [OpenEditDialog4, setOpenEditDialog4] = useState(false);
   const [customerTitle, setCustomerTitle] = useState("");
-  
+
 
   useEffect(() => {
     const customerTitle = localStorage.getItem('customerTitle');
     setCustomerTitle(customerTitle);
   }, []);
-  
+
   const getEpochFromShift = (shiftNo, selectedDateObj) => {
     if (!shiftNo || !selectedDateObj || shifts.length === 0) {
       return { fromEpoch: null, toEpoch: null };
@@ -471,7 +471,7 @@ const OperatorDetails = () => {
           .filter(shift => shift.mode === "Operator")  // <-- filter added
           .map(shift => ({
             value: shift.operatorname,
-            label:`${shift.operatorid} - ${shift.operatorname}`
+            label: `${shift.operatorid} - ${shift.operatorname}`
           }));
 
         setoperators(operatorNames);
@@ -803,11 +803,11 @@ const OperatorDetails = () => {
           label: `Shift${shift.shift_no}`,
         }));
         setShiftOptions(options);
-     const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
-    if (selectedShiftData) {
-      setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
-      setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
-    }
+        const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
+        if (selectedShiftData) {
+          setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
+          setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+        }
         if (options.length > 0) {
           const defaultShift = options[0].value;
           setSelectedDate(dayjs()); // Set to current date
@@ -1147,8 +1147,8 @@ const OperatorDetails = () => {
   const downtimereason = async () => {
     if (!selectedDeviceId || !selectedShift || !selectedDate) return;
 
-        const { fromEpoch, toEpoch } = getEpochFromShift2(selectedShift, selectedDate, shifts);
-        console.log(fromEpoch, toEpoch, 'from and to time')
+    const { fromEpoch, toEpoch } = getEpochFromShift2(selectedShift, selectedDate, shifts);
+    console.log(fromEpoch, toEpoch, 'from and to time')
     if (!fromEpoch || !toEpoch) return;
 
     const fromTime = fromEpoch;
@@ -1399,7 +1399,7 @@ const OperatorDetails = () => {
             .filter(shift => shift.mode === "Operator")  // <-- filter added
             .map(shift => ({
               value: shift.operatorname,
-              label:`${shift.operatorid} - ${shift.operatorname}`
+              label: `${shift.operatorid} - ${shift.operatorname}`
             }));
 
           setoperators(operatorNames);
@@ -1879,195 +1879,195 @@ const OperatorDetails = () => {
     }
   };
 
-const handleSaveThreshold1 = async () => {
-  if (
-    !startTime || !endTime ||
-    !isTimeInShift(startTime, selectedShiftData) ||
-    !isTimeInShift(endTime, selectedShiftData)
-  ) {
-    setOpenEditDialog(false);
-    setOpenEditDialog1(false);
-    setOpenEditDialog4(false);
-    Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
-    return;
-  }
-  try {
-    if (!selectedDeviceId || !selectedShift || !selectedDate || !componentselected) {
-      Swal.fire('Error', 'Please fill all required fields.', 'error');
+  const handleSaveThreshold1 = async () => {
+    if (
+      !startTime || !endTime ||
+      !isTimeInShift(startTime, selectedShiftData) ||
+      !isTimeInShift(endTime, selectedShiftData)
+    ) {
+      setOpenEditDialog(false);
+      setOpenEditDialog1(false);
+      setOpenEditDialog4(false);
+      Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
       return;
     }
-    let fromEpoch, toEpoch;
-    if (startTime && endTime && selectedDate) {
-      const start = dayjs(selectedDate)
-        .set('hour', startTime.hour())
-        .set('minute', startTime.minute())
-        .set('second', startTime.second())
-        .set('millisecond', 0);
-      let end;
-      if (endTime.isBefore(startTime)) {
-        end = dayjs(selectedDate)
-          .add(1, 'day')
-          .set('hour', endTime.hour())
-          .set('minute', endTime.minute())
-          .set('second', endTime.second())
+    try {
+      if (!selectedDeviceId || !selectedShift || !selectedDate || !componentselected) {
+        Swal.fire('Error', 'Please fill all required fields.', 'error');
+        return;
+      }
+      let fromEpoch, toEpoch;
+      if (startTime && endTime && selectedDate) {
+        const start = dayjs(selectedDate)
+          .set('hour', startTime.hour())
+          .set('minute', startTime.minute())
+          .set('second', startTime.second())
           .set('millisecond', 0);
+        let end;
+        if (endTime.isBefore(startTime)) {
+          end = dayjs(selectedDate)
+            .add(1, 'day')
+            .set('hour', endTime.hour())
+            .set('minute', endTime.minute())
+            .set('second', endTime.second())
+            .set('millisecond', 0);
+        } else {
+          end = dayjs(selectedDate)
+            .set('hour', endTime.hour())
+            .set('minute', endTime.minute())
+            .set('second', endTime.second())
+            .set('millisecond', 0);
+        }
+        fromEpoch = start.valueOf();
+        toEpoch = end.valueOf();
       } else {
-        end = dayjs(selectedDate)
-          .set('hour', endTime.hour())
-          .set('minute', endTime.minute())
-          .set('second', endTime.second())
-          .set('millisecond', 0);
+        const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
+        fromEpoch = shiftEpoch.fromEpoch;
+        toEpoch = shiftEpoch.toEpoch;
       }
-      fromEpoch = start.valueOf();
-      toEpoch = end.valueOf();
-    } else {
+      if (!fromEpoch || !toEpoch) return;
       const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-      fromEpoch = shiftEpoch.fromEpoch;
-      toEpoch = shiftEpoch.toEpoch;
-    }
-    if (!fromEpoch || !toEpoch) return;
-    const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-    let fromtime = shiftEpoch.fromEpoch;
-    let totime = shiftEpoch.toEpoch;
-    let durations = Math.floor((toEpoch - fromEpoch) / 1000);
-    const response = await telemetrykeydata(
-      selectedDeviceId,
-      'DEVICE',
-      'live_component',
-      fromtime,
-      totime
-    );
-    const existingEntries = response?.live_component || [];
-    const overlapping = [];
-    for (const item of existingEntries) {
-      if (!item?.value) continue;
-      let parsed;
-      try {
-        parsed = JSON.parse(item.value);
-      } catch {
-        continue;
-      }
-      const existingStart = parsed.start_time || item.ts;
-      const existingEnd =
-        parsed.end_time ||
-        (existingStart + (parsed.duration || 0) * 1000);
-      const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
-      if (isOverlapping) {
-        overlapping.push({ item, parsed, existingStart, existingEnd });
-      }
-    }
-    if (overlapping.length > 0) {
-      for (const overlap of overlapping) {
-        const { parsed, existingStart, existingEnd } = overlap;
-        if (fromEpoch > existingStart && toEpoch < existingEnd) {
-          const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
-          const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
-          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-          const leftKey = {
-            ts: existingStart,
-            values: {
-              live_component: {
-                ...parsed,
-                start_time: existingStart,
-                end_time: fromEpoch,
-                duration: leftDuration,
-              },
-            },
-          };
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
-          const rightKey = {
-            ts: toEpoch,
-            values: {
-              live_component: {
-                ...parsed,
-                start_time: toEpoch,
-                end_time: existingEnd,
-                duration: rightDuration,
-              },
-            },
-          };
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
+      let fromtime = shiftEpoch.fromEpoch;
+      let totime = shiftEpoch.toEpoch;
+      let durations = Math.floor((toEpoch - fromEpoch) / 1000);
+      const response = await telemetrykeydata(
+        selectedDeviceId,
+        'DEVICE',
+        'live_component',
+        fromtime,
+        totime
+      );
+      const existingEntries = response?.live_component || [];
+      const overlapping = [];
+      for (const item of existingEntries) {
+        if (!item?.value) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(item.value);
+        } catch {
+          continue;
         }
-        else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
-          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-          const newStart = toEpoch;
-          const newDuration = Math.floor((existingEnd - newStart) / 1000);
-          const updatedKey = {
-            ts: newStart,
-            values: {
-              live_component: {
-                ...parsed,
-                start_time: newStart,
-                end_time: existingEnd,
-                duration: newDuration,
-              },
-            },
-          };
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-        }
-        else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
-          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-          const newEnd = fromEpoch;
-          const newDuration = Math.floor((newEnd - existingStart) / 1000);
-          const updatedKey = {
-            ts: existingStart,
-            values: {
-              live_component: {
-                ...parsed,
-                start_time: existingStart,
-                end_time: newEnd,
-                duration: newDuration,
-              },
-            },
-          };
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-        }
-        else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
-          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+        const existingStart = parsed.start_time || item.ts;
+        const existingEnd =
+          parsed.end_time ||
+          (existingStart + (parsed.duration || 0) * 1000);
+        const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
+        if (isOverlapping) {
+          overlapping.push({ item, parsed, existingStart, existingEnd });
         }
       }
-    }
-    const operator = componentslist.find(op => op.component_name === componentselected);
-    const component_number = operator?.component_number || null;
-    const cycle_time = operator?.cycle_time || null;
-    const handling_time = operator?.handling_time || null;
-    const setupTime = operator?.setupTime || null;
-    const factorvalue = operator?.factorval || null;
-    const factors = operator?.factor || null;
-    const now = Date.now();
-    const key = {
-      ts: fromEpoch > now ? fromEpoch : now,
-      values: {
-        live_component: {
-          name: componentselected,
-          code: component_number,
-          start_time: fromEpoch,
-          end_time: toEpoch,
-          duration: durations,
-          cycle_time: cycle_time,
-          handling_time: handling_time,
-          setup_time: setupTime,
-          factorval: factorvalue,
-          factor: factors,
+      if (overlapping.length > 0) {
+        for (const overlap of overlapping) {
+          const { parsed, existingStart, existingEnd } = overlap;
+          if (fromEpoch > existingStart && toEpoch < existingEnd) {
+            const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
+            const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+            const leftKey = {
+              ts: existingStart,
+              values: {
+                live_component: {
+                  ...parsed,
+                  start_time: existingStart,
+                  end_time: fromEpoch,
+                  duration: leftDuration,
+                },
+              },
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
+            const rightKey = {
+              ts: toEpoch,
+              values: {
+                live_component: {
+                  ...parsed,
+                  start_time: toEpoch,
+                  end_time: existingEnd,
+                  duration: rightDuration,
+                },
+              },
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
+          }
+          else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+            const newStart = toEpoch;
+            const newDuration = Math.floor((existingEnd - newStart) / 1000);
+            const updatedKey = {
+              ts: newStart,
+              values: {
+                live_component: {
+                  ...parsed,
+                  start_time: newStart,
+                  end_time: existingEnd,
+                  duration: newDuration,
+                },
+              },
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+          }
+          else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+            const newEnd = fromEpoch;
+            const newDuration = Math.floor((newEnd - existingStart) / 1000);
+            const updatedKey = {
+              ts: existingStart,
+              values: {
+                live_component: {
+                  ...parsed,
+                  start_time: existingStart,
+                  end_time: newEnd,
+                  duration: newDuration,
+                },
+              },
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+          }
+          else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+          }
+        }
+      }
+      const operator = componentslist.find(op => op.component_name === componentselected);
+      const component_number = operator?.component_number || null;
+      const cycle_time = operator?.cycle_time || null;
+      const handling_time = operator?.handling_time || null;
+      const setupTime = operator?.setupTime || null;
+      const factorvalue = operator?.factorval || null;
+      const factors = operator?.factor || null;
+      const now = Date.now();
+      const key = {
+        ts: fromEpoch > now ? fromEpoch : now,
+        values: {
+          live_component: {
+            name: componentselected,
+            code: component_number,
+            start_time: fromEpoch,
+            end_time: toEpoch,
+            duration: durations,
+            cycle_time: cycle_time,
+            handling_time: handling_time,
+            setup_time: setupTime,
+            factorval: factorvalue,
+            factor: factors,
+          },
         },
-      },
-    };
-    await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-    setDeviceThresholds(prev => ({
-      ...prev,
-      [selectedDeviceId.id || selectedDeviceId]: operatorselected,
-    }));
-    Swal.fire('Success', 'Component assigned successfully.', 'success');
-    setTimeout(() => {
-      handleSubmit();
-    }, 2000);
-  } catch (err) {
-    console.error('Update error:', err);
-    Swal.fire('Error', 'Failed to assign Component.', 'error');
-  } finally {
-    setOpenEditDialog1(false);
-  }
-};
+      };
+      await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+      setDeviceThresholds(prev => ({
+        ...prev,
+        [selectedDeviceId.id || selectedDeviceId]: operatorselected,
+      }));
+      Swal.fire('Success', 'Component assigned successfully.', 'success');
+      setTimeout(() => {
+        handleSubmit();
+      }, 2000);
+    } catch (err) {
+      console.error('Update error:', err);
+      Swal.fire('Error', 'Failed to assign Component.', 'error');
+    } finally {
+      setOpenEditDialog1(false);
+    }
+  };
 
   const handleSaveThreshold2 = async () => {
     if (
@@ -2329,6 +2329,18 @@ const handleSaveThreshold1 = async () => {
               width="100%"
               frameBorder="0"
               style={{ pointerEvents: iframeInteractive ? 'auto' : 'none' }}
+            />
+
+            <div //0ee
+              style={{
+                position: 'absolute',
+                top: 2,
+                right: 14,
+                width: 80,
+                height: 40,
+                backgroundColor: 'transparent',
+                zIndex: 10
+              }}
             />
           </div>
         )}

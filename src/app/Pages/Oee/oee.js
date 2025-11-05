@@ -971,6 +971,41 @@ useEffect(() => {
                     }}
                     title={`OEE-${device.name}`}
                   />
+                  <div  //header
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 14,
+                      width: "100%",
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10
+                    }}
+                  />
+                  <div //oee %
+                    style={{
+                      position: 'absolute',
+                      top: 60,
+                      left: "13%",
+                      width: 86,
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10
+
+                    }}
+                  />
+                  <div  //operator detail
+                    style={{
+                      position: 'absolute',
+                      top: 210,
+                      left: "13%",
+                      width: 86,
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10
+
+                    }}
+                  />
                 </div>
               );
             })}

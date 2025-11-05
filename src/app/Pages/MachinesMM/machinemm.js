@@ -1830,11 +1830,24 @@ export default function MachineDashboard() {
         </div>
 
         {/* Iframe */}
-        <iframe
-          src={iframeSrc}
-          title="Grafana Dashboard"
-          style={{ width: "100%", height: "100%", border: "none", flexGrow: 1 }}
-        />
+        <div style={{ position: "relative", flex: 1 }}>
+          <iframe
+            src={iframeSrc}
+            title="Grafana Dashboard"
+            style={{ width: "100%", height: "100%", border: "none", flexGrow: 1 }}
+          />
+          <div //0ee
+            style={{
+              position: 'absolute',
+              top: 2,
+              right: 14,
+              width: 80,
+              height: "100%",
+              backgroundColor: 'transparent',
+              zIndex: 10
+            }}
+          />
+        </div>
       </div>
 
       {/* Filter Popover */}
