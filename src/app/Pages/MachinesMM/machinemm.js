@@ -321,22 +321,22 @@ export default function MachineDashboard() {
             const values = data?.utilization || [];
             if (!Array.isArray(values) || values.length === 0) {
               resultsUtilization[machine.id.id] = { utilization: 0 };
-              return;
-            }
-            try {
-              const latestPoint = values.reduce((latest, point) =>
-                new Date(point.ts) > new Date(latest.ts) ? point : latest
-              );
-              console.log(`Latest utilization point for ${machine.name}:`, latestPoint);
-              let utilizationValue = Number(latestPoint.value);
-              if (!isNaN(utilizationValue)) {
-                utilizationValue = parseFloat(utilizationValue);
-              } else {
-                utilizationValue = 0;
+            } else {
+              try {
+                const latestPoint = values.reduce((latest, point) =>
+                  new Date(point.ts) > new Date(latest.ts) ? point : latest
+                );
+                console.log(`Latest utilization point for ${machine.name}:`, latestPoint);
+                let utilizationValue = Number(latestPoint.value);
+                if (!isNaN(utilizationValue)) {
+                  utilizationValue = parseFloat(utilizationValue);
+                } else {
+                  utilizationValue = 0;
+                }
+                resultsUtilization[machine.id.id] = { utilization: utilizationValue };
+              } catch (error) {
+                resultsUtilization[machine.id.id] = { utilization: 0 };
               }
-              resultsUtilization[machine.id.id] = { utilization: utilizationValue };
-            } catch (error) {
-              resultsUtilization[machine.id.id] = { utilization: 0 };
             }
 
 
