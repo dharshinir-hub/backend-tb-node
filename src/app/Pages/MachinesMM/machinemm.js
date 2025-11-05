@@ -259,8 +259,11 @@ export default function MachineDashboard() {
   const [filteredDevices, setFilteredDevices] = useState([]);
   const [liveReason, setLiveReason] = useState({});
   const [lockStatus, setLockStatus] = useState({});
-
+  const hasStartedRef = useRef(false);
+  const intervalRef2 = useRef(null);
   useEffect(() => {
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
     const fetchAllMachineData = async () => {
       if (!from || !to || filteredDevices.length === 0) return;
       const resultsUtilization = {};
@@ -472,7 +475,12 @@ export default function MachineDashboard() {
     };
 
     fetchAllMachineData();
-  }, [filteredDevices, from, to, selectedShift]);
+    intervalRef2.current = setInterval(fetchAllMachineData, 5000);
+    return () => {
+      clearInterval(intervalRef2.current);
+      hasStartedRef.current = false;
+    };
+  }, [JSON.stringify(filteredDevices), from, to, selectedShift]);
 
 
 
