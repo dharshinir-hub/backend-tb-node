@@ -330,7 +330,7 @@ export default function MachineDashboard() {
               console.log(`Latest utilization point for ${machine.name}:`, latestPoint);
               let utilizationValue = Number(latestPoint.value);
               if (!isNaN(utilizationValue)) {
-                utilizationValue = parseFloat(utilizationValue.toFixed(1));
+                utilizationValue = parseFloat(utilizationValue);
               } else {
                 utilizationValue = 0;
               }
