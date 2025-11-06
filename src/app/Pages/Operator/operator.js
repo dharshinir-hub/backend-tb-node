@@ -548,9 +548,30 @@ function Operator() {
             const overlapStart = Math.max(idleStart, shift.startTs);
             const overlapEnd = Math.min(idleEnd, shift.endTs);
             if (overlapStart < overlapEnd) {
-                segments.push({ start: overlapStart, end: overlapEnd, shift_no: shift.shift_no });
+                segments.push({
+                    start: overlapStart,
+                    end: overlapEnd,
+                    shift_no: shift.shift_no
+                });
             }
         });
+        const firstShift = shifts[0];
+        const lastShift = shifts[shifts.length - 1];
+        if (idleStart < firstShift.startTs && idleEnd > firstShift.startTs) {
+            segments.unshift({
+                start: idleStart,
+                end: Math.min(idleEnd, firstShift.startTs),
+                shift_no: lastShift.shift_no
+            });
+        }
+        if (idleStart < lastShift.endTs && idleEnd > lastShift.endTs) {
+            const nextShift = shifts[0];
+            segments.push({
+                start: Math.max(idleStart, lastShift.endTs),
+                end: idleEnd,
+                shift_no: nextShift.shift_no
+            });
+        }
         return segments;
     };
 
