@@ -603,9 +603,30 @@ function Operator() {
             const overlapStart = Math.max(idleStart, shift.startTs);
             const overlapEnd = Math.min(idleEnd, shift.endTs);
             if (overlapStart < overlapEnd) {
-                segments.push({ start: overlapStart, end: overlapEnd, shift_no: shift.shift_no });
+                segments.push({
+                    start: overlapStart,
+                    end: overlapEnd,
+                    shift_no: shift.shift_no
+                });
             }
         });
+        const firstShift = shifts[0];
+        const lastShift = shifts[shifts.length - 1];
+        if (idleStart < firstShift.startTs && idleEnd > firstShift.startTs) {
+            segments.unshift({
+                start: idleStart,
+                end: Math.min(idleEnd, firstShift.startTs),
+                shift_no: lastShift.shift_no
+            });
+        }
+        if (idleStart < lastShift.endTs && idleEnd > lastShift.endTs) {
+            const nextShift = shifts[0];
+            segments.push({
+                start: Math.max(idleStart, lastShift.endTs),
+                end: idleEnd,
+                shift_no: nextShift.shift_no
+            });
+        }
         return segments;
     };
 
@@ -737,9 +758,20 @@ function Operator() {
                 if (locked && !isLockedRef.current) {
                     console.log("[refreshData] detected lock -> opening Swal");
                     isLockedRef.current = true;
-                    const lastIdleOrAlarm = machineStatusArray.find(item =>
-                        ["0", "1", "2", "5"].includes(String(item.value))
-                    );
+                    let lastIdleOrAlarm = null;
+                    for (let i = 0; i < machineStatusArray.length - 1; i++) {
+                        const current = machineStatusArray[i];
+                        const next = machineStatusArray[i + 1];
+                        if (String(next.value) === "3" && ["0", "1", "2", "5"].includes(String(current.value))) {
+                            lastIdleOrAlarm = current;
+                            break;
+                        }
+                    }
+                    if (!lastIdleOrAlarm) {
+                        lastIdleOrAlarm = machineStatusArray.find(item =>
+                            ["0", "1", "2", "5"].includes(String(item.value))
+                        );
+                    }
                     const idleStart = lastIdleOrAlarm
                         ? lastIdleOrAlarm.ts
                         : dayjs().valueOf();

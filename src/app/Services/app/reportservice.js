@@ -75,3 +75,16 @@ export const getIdleReasonReport = async (machine, shiftNo, fromTime, toTime, pa
     throw error;
   }
 };
+
+export const getEfficiencyReport = async (machine, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/report/efficiency_report/${machine}/${shiftNo}/${fromTime}/${toTime}/${page + 1}/${limit}`;
+    const response = await axiosInstance.get(url);
+    console.log('Efficiency Report response', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error during efficiency report data:', error);
+    throw error;
+  }
+};
