@@ -1,4 +1,3 @@
-
 import {
   Box,
   Typography,
@@ -9,61 +8,51 @@ import {
   Select,
   Card,
   CardContent,
-  Grid,
+  Grid,CircularProgress
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import React, { useEffect, useState } from "react";
 import {
   telemetrykeydata,
   customerbaseddevices,
-  customerbasedshift
+  customerbasedshift,
 } from "../../Services/app/companyservice";
 import { IoMdSearch } from "react-icons/io";
 
-
 export function SidebarPanel({
-  partNumber,
-  setPartNumber,
   reportType,
   setReportType,
   formatDuration,
   from,
   to,
-  highestcomponent
+  highestcomponent,
+  loading
 }) {
+  const [searchTerm, setSearchTerm] = useState("");
 
+  const highComponent = highestcomponent || [];
 
-  const highComponent = highestcomponent;
-const filteredHighComponent = (highComponent || [])
-  .filter(
-    (item) =>
-      item.operation_name.toLowerCase() !== "no operations" &&
-      item.code.toLowerCase() !== "unknown"
-  )
-  .slice()
-  .sort((a, b) => b.occurrence - a.occurrence);
-const top5HighComponent = (filteredHighComponent || [])
-  .filter(
-    (item) =>
-      item.operation_name.toLowerCase() !== "no operations" &&
-      item.code.toLowerCase() !== "unknown"
-  )
-  .sort((a, b) => b.occurrence - a.occurrence)
-  .slice(0, 5);
-
-// Now top5HighComponent contains the top 5 items
-console.log(top5HighComponent);
-
-  console.log('Sidebar high component list', top5HighComponent);
-
+  // 🔹 Filter valid + search + sort
+  const filteredHighComponent = highComponent
+    .filter(
+      (item) =>
+        item.operation_name?.toLowerCase() !== "no operations" &&
+        item.code?.toLowerCase() !== "unknown" &&
+        (item.operation_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.code?.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+    .sort((a, b) => b.occurrence - a.occurrence)
+    .slice(0, 5);
+    console.log('Top 5 filtered list',filteredHighComponent)
 
   const Id = localStorage.getItem("CustomerID");
-  let customerId = decodeURIComponent(Id || "");
-  customerId = customerId.replace(/^"|"$/g, "");
+  let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
   const newToken = localStorage.getItem("newToken");
 
   const [oeeVsBaseline, setOeeVsBaseline] = useState([]);
+  const [partTimeVsExp, setPartTimeVsExp] = useState([]);
+
+  // 🔹 Fetch OEE vs Baseline
   useEffect(() => {
     const fetchOeeVsBaseline = async () => {
       if (!from || !to) return;
@@ -97,9 +86,7 @@ console.log(top5HighComponent);
     fetchOeeVsBaseline();
   }, [customerId, from, to]);
 
-
-
-  const [partTimeVsExp, setPartTimeVsExp] = useState([]);
+  // 🔹 Fetch Part Time vs Expected
   useEffect(() => {
     const fetchPartTimeVsExp = async () => {
       if (!from || !to) return;
@@ -133,9 +120,6 @@ console.log(top5HighComponent);
     fetchPartTimeVsExp();
   }, [customerId, from, to]);
 
-
-
-
   return (
     <div
       style={{
@@ -149,7 +133,7 @@ console.log(top5HighComponent);
         height: "100vh",
         boxShadow: "2px 0 6px rgba(0,0,0,0.05)",
         position: "relative",
-        paddingTop: "30px"
+        paddingTop: "30px",
       }}
     >
       {/* 🔍 Search Bar */}
@@ -157,9 +141,9 @@ console.log(top5HighComponent);
         <div style={{ position: "relative", width: "100%" }}>
           <input
             type="text"
-            value={partNumber}
-            onChange={(e) => setPartNumber(e.target.value)}
-            placeholder="Search Part"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search Component..."
             style={{
               width: "100%",
               padding: "8px 35px 8px 12px",
@@ -169,9 +153,10 @@ console.log(top5HighComponent);
               outline: "none",
             }}
           />
-          {partNumber && (
+
+          {searchTerm && (
             <span
-              onClick={() => setPartNumber("")}
+              onClick={() => setSearchTerm("")}
               style={{
                 position: "absolute",
                 right: "32px",
@@ -182,8 +167,10 @@ console.log(top5HighComponent);
                 color: "#888",
               }}
             >
+              <ClearIcon fontSize="small" />
             </span>
           )}
+
           <span
             style={{
               position: "absolute",
@@ -195,28 +182,10 @@ console.log(top5HighComponent);
               color: "#666",
             }}
           >
-            <IoMdSearch style={{ fontSize: "20px", color: "#908f8fff", marginRight: "8px" }} />
-
+            <IoMdSearch style={{ fontSize: "20px", color: "#908f8fff" }} />
           </span>
         </div>
       </div>
-
-      {/* 📊 Report Type Selector */}
-      <select
-        value={reportType}
-        onChange={(e) => setReportType(e.target.value)}
-        style={{
-          padding: "8px 10px",
-          borderRadius: "6px",
-          border: "1px solid #ccc",
-          background: "#fff",
-          fontSize: "14px",
-          fontWeight: 500,
-        }}
-      >
-        <option value="Part Time vs Expected">Part Time vs Expected</option>
-        <option value="OEE Vs Baseline">OEE Vs Baseline</option>
-      </select>
 
       {/* 📘 Summary Section */}
       <div style={{ marginTop: "1rem" }}>
@@ -226,18 +195,17 @@ console.log(top5HighComponent);
             fontWeight: 600,
             color: "#111",
             marginBottom: "2px",
-            paddingTop: '2px'
+            paddingTop: "2px",
           }}
         >
-         Top 5 Performed Components
+          Top 5 Performed Components
         </div>
-        <div style={{ fontSize: "13px", color: "#666" , paddingTop: '2px'}}>
+        <div style={{ fontSize: "13px", color: "#666", paddingTop: "2px" }}>
           Completed runs listed by highest
         </div>
       </div>
 
-      {/* 🧩 Report Cards */}
-
+      {/* 🧩 Component List */}
 <div
   style={{
     marginTop: "1.2rem",
@@ -245,14 +213,23 @@ console.log(top5HighComponent);
     gap: "12px",
   }}
 >
-  {(top5HighComponent || []).map((item, index) => {
-    return (
+  {loading ? (
+    // 🔹 Loader Section
+    <div style={{ textAlign: "center", marginTop: "1rem" }}>
+      <CircularProgress />
+      <Typography sx={{ mt: 2 }}>
+        Loading...
+      </Typography>
+    </div>
+  ) : filteredHighComponent.length > 0 ? (
+    // 🔹 Data Section
+    filteredHighComponent.map((item, index) => (
       <div
         key={index}
         style={{
           background: "#fff",
           borderRadius: "10px",
-          border: "2px solid #e5e0e0ff",
+          border: "2px solid #d7d4d4ff",
           padding: "10px 12px",
           boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
           display: "flex",
@@ -267,7 +244,6 @@ console.log(top5HighComponent);
           (e.currentTarget.style.transform = "scale(1)")
         }
       >
-        {/* Operation Name */}
         <div
           style={{
             fontSize: "16px",
@@ -278,7 +254,6 @@ console.log(top5HighComponent);
           {item.operation_name}
         </div>
 
-        {/* Code and Occurrence */}
         <div
           style={{
             display: "flex",
@@ -291,7 +266,6 @@ console.log(top5HighComponent);
           <span>Occurrence: {item.occurrence}</span>
         </div>
 
-        {/* Good vs Expected */}
         <div
           style={{
             marginTop: "4px",
@@ -303,212 +277,15 @@ console.log(top5HighComponent);
           Parts : {item.goodvsexp_numerator}
         </div>
       </div>
-    );
-  })}
+    ))
+  ) : (
+    // 🔹 No Data
+    <div style={{ fontSize: "13px", color: "#777", textAlign: "center" }}>
+      No components found
+    </div>
+  )}
 </div>
 
-
-      {/* <div
-        style={{
-          marginTop: "1.2rem",
-          display: "grid",
-          gap: "12px",
-        }}
-      >
-        {reportType === "Part Time vs Expected"
-          ? (partTimeVsExp || []).map((item, index) => {
-            const start = new Date(item.start_time);
-            const end = new Date(item.end_time);
-            const runSeconds = item.run_duration
-              ? Math.floor(item.run_duration)
-              : Math.floor((item.end_time - item.start_time) / 1000);
-            const runDuration = formatDuration(runSeconds);
-            const expSeconds = Math.floor(item.exp_duration || 0);
-            const diffSeconds = expSeconds - runSeconds;
-            const diffFormatted = formatDuration(Math.abs(diffSeconds));
-
-            return (
-              <div
-                key={index}
-                style={{
-                  background: "#fff",
-                  borderRadius: "10px",
-                  border: "2px solid #e5e0e0ff",
-                  padding: "10px 12px",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px",
-                  transition: "transform 0.2s ease",
-                }}
-              // onMouseEnter={(e) =>
-              //   (e.currentTarget.style.transform = "scale(1.02)")
-              // }
-              // onMouseLeave={(e) =>
-              //   (e.currentTarget.style.transform = "scale(1)")
-              // }
-              >
-                <div
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    color: "#222",
-                  }}
-                >
-                  {item.component_name}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "12px",
-                    color: "#3a3838ff",
-                  }}
-                >
-                  <span>{start.toLocaleString()}</span>
-                  <span>{end.toLocaleString()}</span>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    marginTop: "4px",
-                    gap: "6px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "20px",
-                      fontWeight: 600,
-                      color: "#111",
-                    }}
-                  >
-                    {runDuration}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color:
-                        diffSeconds > 0 ? "#008000" : "#e53935",
-                    }}
-                  >
-                    {diffSeconds > 0
-                      ? `+${diffFormatted}`
-                      : `-${diffFormatted}`}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    marginTop: "4px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      background: "#f3f3f3",
-                      borderRadius: "6px",
-                      padding: "3px 8px",
-                      color: "#333",
-                    }}
-                  >
-                    {item.device_name}
-                  </span>
-                </div>
-              </div>
-            );
-          })
-          : (oeeVsBaseline || []).map((item, index) => {
-            const oee = Number(item.oee || 0).toFixed(1);
-            const baseline = Number(item.oeebaseline || 0).toFixed(1);
-            const diff = oee - baseline;
-
-            return (
-              <div
-                key={index}
-                style={{
-                  background: "#fff",
-                  borderRadius: "10px",
-                  padding: "10px 12px",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px",
-                  transition: "transform 0.2s ease",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.transform = "scale(1.02)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.transform = "scale(1)")
-                }
-              >
-                <div
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    color: "#222",
-                  }}
-                >
-                  {item.component_name}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "12px",
-                    color: "#666",
-                  }}
-                >
-                  <span>OEE: <b>{oee}%</b></span>
-                  <span>Baseline: <b>{baseline}%</b></span>
-                </div>
-
-                <div
-                  style={{
-                    marginTop: "4px",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: diff >= 0 ? "#008000" : "#e53935",
-                  }}
-                >
-                  {diff >= 0
-                    ? `+${diff.toFixed(1)}%`
-                    : `${diff.toFixed(1)}%`}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    marginTop: "4px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      background: "#f3f3f3",
-                      borderRadius: "6px",
-                      padding: "3px 8px",
-                      color: "#333",
-                    }}
-                  >
-                    {item.device_name}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-      </div> */}
     </div>
   );
-
 }

@@ -8,7 +8,7 @@ import {
   MenuItem,
   Select,
   Card,
-  Grid
+  Grid,CircularProgress
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -33,8 +33,9 @@ const Cycletime = () => {
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
   const [component, setComponent] = useState([]);
   const [selectedComponent, setSelectedComponent] = useState("all");
+  const [loadingTimeoutReached, setLoadingTimeoutReached] = useState(false);
 
-
+  const [loader, setLoader] = useState(false);
 
   const navigate = useNavigate();
 
@@ -51,9 +52,9 @@ const Cycletime = () => {
     : dayjs().endOf("day").valueOf();
 
   // Get selected device from location state (optional)
-  const selectedDevice = location.state?.selectedDevice || null;
+  const {selectedDevice,codeWiseSummary} = location.state || null;
 
-  console.log('From', from, 'to', to, 'Selected Device', selectedDevice)
+  console.log('From', from, 'to', to, 'Selected Device', selectedDevice,'codeWiseSummary',codeWiseSummary)
 
   const Id = localStorage.getItem("CustomerID");
   let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
@@ -138,48 +139,65 @@ const Cycletime = () => {
 
   const [firstOperationsItem, setFirstOperationsItem] = useState([]);
 
-  useEffect(() => {
-    const fetchOperationsData = async () => {
-      if (!from || !to || !selectedDevice) return;
+const [loading, setLoading] = useState(false);
+const [loadingStage, setLoadingStage] = useState("");
 
-      try {
-        const deviceIds = Array.isArray(selectedDevice) ? selectedDevice : [selectedDevice];
+useEffect(() => {
+  const fetchOperationsData = async () => {
+    if (!from || !to || !selectedDevice) return;
 
-        const allDataArray = await Promise.all(
-          deviceIds.map(async (deviceId) => {
-            const data = await telemetrykeydata(
-              deviceId,
-              "DEVICE",
-              "operations",
-              from,
-              to
-            );
-            return parseTelemetryValues(data, "operations");
-          })
-        );
-        const combinedData = allDataArray.flat();
-        console.log("Total operations data :", combinedData);
+    try {
+      setLoading(true);
+      setLoadingStage("Fetching data from all devices...");
 
-        const groupedData = combinedData.reduce((acc, item) => {
-          const key = `${item.start_time}_${item.end_time}_${item.code}_${item.name}`;
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(item);
-          return acc;
-        }, {});
-        console.log("Grouped operations data:", groupedData);
+      const deviceIds = Array.isArray(selectedDevice)
+        ? selectedDevice
+        : [selectedDevice];
 
-        const firstItems = Object.values(groupedData).map(group => group[0]);
-        setFirstOperationsItem(firstItems);
-        console.log("First item from each group (stored in state):", firstItems);
+      // 1️⃣ Fetch all devices in parallel
+      const allDataArray = await Promise.all(
+        deviceIds.map(async (deviceId) => {
+          const data = await telemetrykeydata(
+            deviceId,
+            "DEVICE",
+            "operations",
+            from,
+            to
+          );
+          return parseTelemetryValues(data, "operations");
+        })
+      );
 
-      } catch (error) {
-        console.error("Error fetching operations data:", error);
-        setFirstOperationsItem([]);
-      }
-    };
+      // 2️⃣ Combine all results
+      setLoadingStage("Processing data...");
+      const combinedData = allDataArray.flat();
+      console.log("Total operations data :", combinedData);
 
-    fetchOperationsData();
-  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+      // 3️⃣ Process / group data
+      const groupedData = combinedData.reduce((acc, item) => {
+        const key = `${item.start_time}_${item.end_time}_${item.code}_${item.name}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+      }, {});
+      console.log("Grouped operations data:", groupedData);
+
+      const firstItems = Object.values(groupedData).map(group => group[0]);
+      console.log("First item from each group (stored in state):", firstItems);
+
+      setFirstOperationsItem(firstItems);
+
+    } catch (error) {
+      console.error("Error fetching operations data:", error);
+      setFirstOperationsItem([]);
+    } finally {
+      setLoading(false);
+      setLoadingStage("");
+    }
+  };
+
+  fetchOperationsData();
+}, [selectedDevice, from, to, devices, shifts]);
 
 
 
@@ -187,8 +205,8 @@ const Cycletime = () => {
   let cycletimefaster = [];
 
   firstOperationsItem.forEach(item => {
-    const expectedRun = item.expected_run ?? 0; // fallback to 0 if undefined
-    const totalRunDuration = item.total_duration?.total_run_duration ?? 0; // fallback to 0 if undefined
+    const expectedRun = item.expected_run ?? 0;
+    const totalRunDuration = item.total_duration?.total_run_duration ?? 0;
 
     if (expectedRun > totalRunDuration) {
       cycletimefaster.push(item);
@@ -202,6 +220,10 @@ const Cycletime = () => {
     cycletimeslower = cycletimeslower.filter(item => item.operation_name === selectedComponent);
     cycletimefaster = cycletimefaster.filter(item => item.operation_name === selectedComponent);
   }
+
+  // Remove "No operations"
+  cycletimeslower = cycletimeslower.filter(item => item.operation_name !== "No Operations");
+  cycletimefaster = cycletimefaster.filter(item => item.operation_name !== "No Operations");
 
   console.log("cycletimeslower:", cycletimeslower);
   console.log("cycletimefaster:", cycletimefaster);
@@ -227,8 +249,13 @@ const Cycletime = () => {
     cycletimefasterbaseline = cycletimefasterbaseline.filter(item => item.operation_name === selectedComponent);
   }
 
+  // Remove "No operations"
+  cycletimeslowerbaseline = cycletimeslowerbaseline.filter(item => item.operation_name !== "No Operations");
+  cycletimefasterbaseline = cycletimefasterbaseline.filter(item => item.operation_name !== "No Operations");
+
   console.log("cycletimeslowerbaseline:", cycletimeslowerbaseline);
   console.log("cycletimefasterbaseline:", cycletimefasterbaseline);
+
 
 
 
@@ -245,12 +272,13 @@ const Cycletime = () => {
         formatDuration={formatDuration}
         from={from}
         to={to}
+        highestcomponent={codeWiseSummary}
       />
 
 
       {/* Right side content */}
       <Box flex={1} p={3} overflow="auto">
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
           <Typography variant="h5" fontWeight="bold">
             Production Summary
           </Typography>
@@ -290,12 +318,12 @@ const Cycletime = () => {
 
 
         {from && to && (
-          <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+          <Typography variant="subtitle2" color="textSecondary" gutterBottom >
             {new Date(from).toLocaleString()} → {new Date(to).toLocaleString()}
           </Typography>
         )}
 
-        <Typography variant="h6" fontWeight="bold" gutterBottom mt={3}>
+        <Typography variant="h6" fontWeight="bold" gutterBottom mt={1} mb={2} fontSize="16px">
           Analyzed {
             (cycletimeslower?.length || 0) +
             (cycletimefaster?.length || 0) +
@@ -304,112 +332,254 @@ const Cycletime = () => {
           } Runs
         </Typography>
 
+
         {/* ================= First Row: Expected ================= */}
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}  >
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Cycle Time Slower Than Expected
-              </Typography>
+          {/* Slower Than Expected */}
+<Grid item xs={12} md={6}>
+  {/* 🔹 Header Above Box */}
+  <Typography
+    fontWeight="bold"
+    sx={{
+      mb: 1.5,
+      textAlign: "left",
+      color: "#080808ff",
+      fontSize: "20px",
+    }}
+  >
+    Cycle Time Slower Than Expected
+  </Typography>
 
-              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
-                {cycletimeslower.length > 0 ? (
-                  cycletimeslower.map((item, index) => {
-                    const formatSeconds = (sec) => {
-                      const h = Math.floor(sec / 3600);
-                      const m = Math.floor((sec % 3600) / 60);
-                      const s = Math.floor(sec % 60);
-                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-                    };
+  <Card
+    variant="outlined"
+    sx={{
+      p: 2,
+      height: "400px",
+      display: "flex",
+      flexDirection: "column",
+      borderRadius: 3,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+      backgroundColor: "#fff",
+    }}
+  >
+    <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+        {loading ? (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            <CircularProgress />
+            <Typography sx={{ mt: 2 }}>Loading slower cycle time data...</Typography>
+          </Box>):
+      cycletimeslower.length > 0 ? (
+        cycletimeslower.map((item, index) => {
+          const formatSeconds = (sec) => {
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = Math.floor(sec % 60);
+            return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+          };
 
-                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
-                    const expected = Number(item.expected_run);
-                    const diff = actual - expected; // faster → diff negative
+          const actual = Number(item.total_duration?.actualruntime ?? 0);
+          const expected = Math.max(0, Number(item.expected_run));
+          const diff = actual - expected;
 
-                    return (
-                      <Card
-                        key={index}
-                        variant="outlined"
-                        sx={{
-                          p: 2,
-                          mb: 2,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          cursor: "pointer"
-                        }}
-                        onClick={() =>
-                          navigate("/summary", {
-                            state: {
-                              selectedDevice: selectedDevice,
-                              previousScreen: location.pathname,
-                              componentName: item.operation_name,
-                              code: item.code || "N/A",
-                              deviceName: item.name,
-                              start_time: item.start_time,
-                              end_time: item.end_time
-                            }
-                          })
-                        }
-                      >
-                        {/* Left column */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
-                          <Box>
-                            <Typography fontSize="16px" fontWeight="bold">
-                              {item.operation_name}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary" display="block">
-                              {new Date(Number(item.start_time)).toLocaleString()}
-                            </Typography>
-                          </Box>
+          return (
+            <Card
+              key={index}
+              variant="outlined"
+              sx={{
+                p: 2,
+                mb: 2,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                cursor: "pointer",
+                borderRadius: 2,
+                backgroundColor: "#fafafa",
+                transition: "0.3s",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                "&:hover": { boxShadow: "0 4px 10px rgba(0,0,0,0.15)" },
+              }}
+              onClick={() =>
+                navigate("/partwise-cycletime", {
+                  state: {
+                    selectedDevice: selectedDevice,
+                    previousScreen: location.pathname,
+                    componentName: item.operation_name,
+                    code: item.code || "N/A",
+                    deviceName: item.name,
+                    start_time: item.start_time,
+                    end_time: item.end_time,
+                    codeWiseSummary,
+                  },
+                })
+              }
+            >
+              <Grid
+                item
+                xs={12}
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                {/* 🔹 Left column */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 1,
+                    justifyContent: "flex-start",
+                  }}
+                >
+                  <Box>
+                    <Typography fontSize="16px" fontWeight="bold" color="#333">
+                      {item.operation_name}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="textSecondary"
+                      display="block"
+                    >
+                      {new Date(Number(item.start_time)).toLocaleString()}
+                    </Typography>
+                  </Box>
 
-                          <Typography variant="body2" fontWeight="bold">
-                            {item.name}
-                          </Typography>
-                        </Box>
-
-                        {/* Right column */}
-                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
-                          <Box>
-                            <Typography fontSize="16px" fontWeight="bold">
-                              {item.code || 'N/A'}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary" display="block">
-                              {new Date(Number(item.end_time)).toLocaleString()}
-                            </Typography>
-                          </Box>
-
-                          <Box display="flex" alignItems="center" justifyContent="flex-end">
-                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{formatSeconds(actual)}</p>
-                            <Typography
-                              variant="caption"
-                              sx={{ color: "error.main", fontWeight: "bold", ml: 1 }}
-                            >
-                              ↓ {formatSeconds(Math.abs(diff))}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </Card>
-                    );
-                  })
-                ) : (
-                  <Typography variant="body2" color="textSecondary">
-                    No data available
+                  <Typography variant="body2" fontWeight="bold" color="#555">
+                    {item.name}
                   </Typography>
-                )}
-              </Box>
+                </Box>
+
+                {/* 🔹 Right column */}
+                <Box
+                  textAlign="right"
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: 1,
+                  }}
+                >
+                  <Box>
+                    <Typography fontSize="16px" fontWeight="bold" color="#333">
+                      {item.code || "N/A"}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="textSecondary"
+                      display="block"
+                    >
+                      {new Date(Number(item.end_time)).toLocaleString()}
+                    </Typography>
+                  </Box>
+
+                  <Box
+                    display="flex"
+                    flexDirection="column"
+                    alignItems="flex-end"
+                    justifyContent="flex-end"
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: "0.8rem",
+                        fontWeight: "500",
+                        color: "#000",
+                      }}
+                    >
+                      Expected Cycle Time: {formatSeconds(expected)}
+                    </Typography>
+                  </Box>
+
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="flex-end"
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: "1.1rem",
+                        fontWeight: "bold",
+                        color: "error.main",
+                      }}
+                    >
+                      {formatSeconds(actual)}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "error.main",
+                        fontWeight: "bold",
+                        ml: 1,
+                      }}
+                    >
+                      ↑ {formatSeconds(Math.abs(diff))}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
             </Card>
-          </Grid>
+          );
+        })
+      ) : (
+        <Typography variant="body2" color="textSecondary">
+          No data available
+        </Typography>
+      )}
+    </Box>
+  </Card>
+</Grid>
 
-          {/* Faster than Expected */}
+
+
+          {/* Faster Than Expected */}
           <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Cycle Time Faster Than Expected
-              </Typography>
+            {/* 🔹 Header Above Box */}
+            <Typography
+              variant="h6"
+              fontWeight="bold"
+              sx={{
+                mb: 1.5,
+                textAlign: "left",
+                color: "#060000ff",
+                fontSize: "20px"
+              }}
+            >
+              Cycle Time Faster Than Expected
+            </Typography>
 
-              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
-                {cycletimefaster.length > 0 ? (
+            <Card
+              variant="outlined"
+              sx={{
+                p: 2,
+                height: "400px",
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 3,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                backgroundColor: "#fff",
+              }}
+            >
+              <Box sx={{ flex: 1, overflowY: "auto", pr: 1, }}>
+                       {loading ? (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            <CircularProgress />
+            <Typography sx={{ mt: 2 }}>Loading faster cycle time data...</Typography>
+          </Box>):
+                cycletimefaster.length > 0 ? (
                   cycletimefaster.map((item, index) => {
                     const formatSeconds = (sec) => {
                       const h = Math.floor(sec / 3600);
@@ -418,108 +588,8 @@ const Cycletime = () => {
                       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
                     };
 
-                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
-                    const expected = Number(item.expected_run);
-                    const diff = actual - expected; // faster → diff negative
-
-                    return (
-                      <Card
-                        key={index}
-                        variant="outlined"
-                        sx={{
-                          p: 2,
-                          mb: 2,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          cursor: "pointer"
-                        }}
-                        onClick={() =>
-                          navigate("/summary", {
-                            state: {
-                              selectedDevice: selectedDevice,
-                              previousScreen: location.pathname,
-                              componentName: item.operation_name,
-                              code: item.code || "N/A",
-                              deviceName: item.name,
-                              start_time: item.start_time,
-                              end_time: item.end_time
-                            }
-                          })
-                        }
-                      >
-                        {/* Left column */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
-                          <Box>
-                            <Typography fontSize="16px" fontWeight="bold">
-                              {item.operation_name}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary" display="block">
-                              {new Date(Number(item.start_time)).toLocaleString()}
-                            </Typography>
-                          </Box>
-
-                          <Typography variant="body2" fontWeight="bold">
-                            {item.name}
-                          </Typography>
-                        </Box>
-
-                        {/* Right column */}
-                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
-                          <Box>
-                            <Typography fontSize="16px" fontWeight="bold">
-                              {item.code || 'N/A'}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary" display="block">
-                              {new Date(Number(item.end_time)).toLocaleString()}
-                            </Typography>
-                          </Box>
-
-                          <Box display="flex" alignItems="center" justifyContent="flex-end">
-                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{formatSeconds(actual)}</p>
-                            <Typography
-                              variant="caption"
-                              sx={{ color: "success.main", fontWeight: "bold", ml: 1 }}
-                            >
-                              ↑ {formatSeconds(Math.abs(diff))}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </Card>
-                    );
-                  })
-                ) : (
-                  <Typography variant="body2" color="textSecondary">
-                    No data available
-                  </Typography>
-                )}
-              </Box>
-            </Card>
-          </Grid>
-
-        </Grid>
-
-        {/* ================= Second Row: Baseline ================= */}
-        <Grid container spacing={3} mt={1}>
-          {/* Slower than Baseline */}
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Cycle Time Slower Than Baseline
-              </Typography>
-
-              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
-                {cycletimeslowerbaseline.length > 0 ? (
-                  cycletimeslowerbaseline.map((item, index) => {
-                    const formatSeconds = (sec) => {
-                      const h = Math.floor(sec / 3600);
-                      const m = Math.floor((sec % 3600) / 60);
-                      const s = Math.floor(sec % 60);
-                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-                    };
-
-                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
-                    const expected = Number(item.cycletime_baseline);
+                    const actual = Number(item.total_duration?.actualruntime ?? 0);
+                    const expected = Math.max(0, Number(item.expected_run));
                     const diff = actual - expected;
 
                     return (
@@ -532,10 +602,16 @@ const Cycletime = () => {
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
-                          cursor: "pointer"
+                          cursor: "pointer",
+                          borderRadius: 2,
+                          backgroundColor: "#fafafa",
+                          transition: "0.3s",
+                          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                          "&:hover": { boxShadow: "0 4px 10px rgba(0,0,0,0.15)",  },
+                          
                         }}
                         onClick={() =>
-                          navigate("/summary", {
+                          navigate("/partwise-cycletime", {
                             state: {
                               selectedDevice: selectedDevice,
                               previousScreen: location.pathname,
@@ -543,48 +619,334 @@ const Cycletime = () => {
                               code: item.code || "N/A",
                               deviceName: item.name,
                               start_time: item.start_time,
-                              end_time: item.end_time
-                            }
+                              end_time: item.end_time,
+                              codeWiseSummary
+                            },
                           })
                         }
                       >
-                        {/* Left column */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
-                          <Box>
-                            <Typography fontSize="16px" fontWeight="bold">
-                              {item.operation_name}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary" display="block">
-                              {new Date(Number(item.start_time)).toLocaleString()}
+                        <Grid item xs={12} sx={{ display: "flex", justifyContent: "space-between" }}>
+                          {/* Left column */}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 1,
+                              justifyContent: "flex-start",
+                            }}
+                          >
+                            <Box>
+                              <Typography fontSize="16px" fontWeight="bold" color="#333">
+                                {item.operation_name}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary" display="block">
+                                {new Date(Number(item.start_time)).toLocaleString()}
+                              </Typography>
+                            </Box>
+
+                            <Typography variant="body2" fontWeight="bold" color="#555">
+                              {item.name}
                             </Typography>
                           </Box>
 
-                          <Typography variant="body2" fontWeight="bold">
-                            {item.name}
-                          </Typography>
-                        </Box>
+                          {/* Right column */}
+                          <Box
+                            textAlign="right"
+                            sx={{
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "space-between",
+                              gap: 1,
+                            }}
+                          >
+                            <Box>
+                              <Typography fontSize="16px" fontWeight="bold" color="#333">
+                                {item.code || "N/A"}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="textSecondary"
+                                display="block"
+                              >
+                                {new Date(Number(item.end_time)).toLocaleString()}
+                              </Typography>
+                            </Box>
 
-                        {/* Right column */}
-                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
-                          <Box>
-                            <Typography fontSize="16px" fontWeight="bold">
-                              {item.code || 'N/A'}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary" display="block">
-                              {new Date(Number(item.end_time)).toLocaleString()}
-                            </Typography>
-                          </Box>
-
-                          <Box display="flex" alignItems="center" justifyContent="flex-end">
-                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{formatSeconds(actual)}</p>
-                            <Typography
-                              variant="caption"
-                              sx={{ color: "error.main", fontWeight: "bold", ml: 1 }}
+                            <Box
+                              display="flex"
+                              flexDirection="column"
+                              alignItems="flex-end"
+                              justifyContent="flex-end"
                             >
-                              ↓ {formatSeconds(Math.abs(diff))}
+                              <Typography
+                                sx={{
+                                  fontSize: "0.8rem",
+                                  fontWeight: "500",
+                                  color: "#000",
+                                }}
+                              >
+                                Expected Cycle Time: {formatSeconds(expected)}
+                              </Typography>
+
+                              <Typography
+                                sx={{
+                                  fontSize: "1.2rem",
+                                  fontWeight: "500",
+                                  color: "#000",
+                                  lineHeight: 1,
+                                }}
+                              >
+
+                              </Typography>
+                            </Box>
+
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="flex-end"
+                            >
+                              <Typography
+                                sx={{
+                                  fontSize: "1.1rem",
+                                  fontWeight: "bold",
+                                  color: "green",
+                                }}
+                              >
+                                {formatSeconds(actual)}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: "green",
+                                  fontWeight: "bold",
+                                  ml: 1,
+                                }}
+                              >
+
+                                ↓ {formatSeconds(Math.abs(diff))}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Grid>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No data available
+                  </Typography>
+                )}
+              </Box>
+            </Card>
+          </Grid>
+        </Grid>
+
+
+
+        {/* ================= Second Row: Baseline ================= */}
+        <Grid container spacing={3} mt={1}>
+          {/* Slower than Baseline */}
+          <Grid item xs={12} md={6}>
+            {/* 🔹 Header Above Box */}
+            <Typography
+              fontWeight="bold"
+              sx={{
+                mb: 1.5,
+                textAlign: "left",
+                color: "#080808ff",
+                fontSize: "20px",
+              }}
+            >
+              Cycle Time Slower Than Baseline
+            </Typography>
+
+            <Card
+              variant="outlined"
+              sx={{
+                p: 2,
+                height: "400px",
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 3,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                backgroundColor: "#fff",
+              }}
+            >
+              <Box
+                sx={{
+                  flex: 1,
+                  overflowY: "auto",
+                  pr: 1,
+                  "&::-webkit-scrollbar": { width: "6px" },
+                  "&::-webkit-scrollbar-thumb": {
+                    backgroundColor: "#ccc",
+                    borderRadius: "3px",
+                  },
+                }}
+              >
+                  {loading ? (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            <CircularProgress />
+            <Typography sx={{ mt: 2 }}>Loading slower than baseline data...</Typography>
+          </Box>):
+                cycletimeslowerbaseline.length > 0 ? (
+                  cycletimeslowerbaseline.map((item, index) => {
+                    const formatSeconds = (sec) => {
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = Math.floor(sec % 60);
+                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+                    };
+
+                    const actual = Number(item.total_duration?.actualruntime ?? 0);
+                    const expected = Math.max(0, Number(item.cycletime_baseline));
+                    const diff = actual - expected;
+
+                    return (
+                      <Card
+                        key={index}
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          mb: 2,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          borderRadius: 2,
+                          backgroundColor: "#fafafa",
+                          transition: "0.3s",
+                          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                          cursor: "pointer",
+                          "&:hover": {
+                            boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+                            backgroundColor: "#fff",
+                          },
+                        }}
+                        onClick={() =>
+                          navigate("/partwise-cycletime", {
+                            state: {
+                              selectedDevice: selectedDevice,
+                              previousScreen: location.pathname,
+                              componentName: item.operation_name,
+                              code: item.code || "N/A",
+                              deviceName: item.name,
+                              start_time: item.start_time,
+                              end_time: item.end_time,
+                              codeWiseSummary
+                            },
+                          })
+                        }
+                      >
+                        <Grid item xs={12} sx={{ display: "flex", justifyContent: "space-between" }}>
+                          {/* Left column */}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 1,
+                              justifyContent: "flex-start",
+                            }}
+                          >
+                            <Box>
+                              <Typography fontSize="16px" fontWeight="bold" color="#333">
+                                {item.operation_name}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary" display="block">
+                                {new Date(Number(item.start_time)).toLocaleString()}
+                              </Typography>
+                            </Box>
+
+                            <Typography variant="body2" fontWeight="bold" color="#555">
+                              {item.name}
                             </Typography>
                           </Box>
-                        </Box>
+
+                          {/* Right column */}
+                          <Box
+                            textAlign="right"
+                            sx={{
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "space-between",
+                              gap: 1,
+                            }}
+                          >
+                            <Box>
+                              <Typography fontSize="16px" fontWeight="bold" color="#333">
+                                {item.code || "N/A"}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="textSecondary"
+                                display="block"
+                              >
+                                {new Date(Number(item.end_time)).toLocaleString()}
+                              </Typography>
+                            </Box>
+
+                            <Box
+                              display="flex"
+                              flexDirection="column"
+                              alignItems="flex-end"
+                              justifyContent="flex-end"
+                            >
+                              <Typography
+                                sx={{
+                                  fontSize: "0.8rem",
+                                  fontWeight: "500",
+                                  color: "#000",
+                                }}
+                              >
+                                Expected Cycle Time: {formatSeconds(expected)}
+                              </Typography>
+
+                              <Typography
+                                sx={{
+                                  fontSize: "1.2rem",
+                                  fontWeight: "500",
+                                  color: "#000",
+                                  lineHeight: 1,
+                                }}
+                              >
+                              </Typography>
+                            </Box>
+
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="flex-end"
+                            >
+                              <Typography
+                                sx={{
+                                  fontSize: "1.1rem",
+                                  fontWeight: "bold",
+                                  color: "error.main",
+                                }}
+                              >
+                                {formatSeconds(actual)}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: "error.main",
+                                  fontWeight: "bold",
+                                  ml: 1,
+                                }}
+                              >
+
+                                ↑ {formatSeconds(Math.abs(diff))}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Grid>
                       </Card>
                     );
                   })
@@ -598,102 +960,232 @@ const Cycletime = () => {
           </Grid>
 
           {/* Faster than Baseline */}
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ p: 2, height: "400px", display: "flex", flexDirection: "column" }}>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Cycle Time Faster Than Baseline
+<Grid item xs={12} md={6}>
+  <Typography
+    fontWeight="bold"
+    sx={{
+      mb: 1.5,
+      textAlign: "left",
+      color: "#060000ff",
+      fontSize: "20px",
+    }}
+  >
+    Cycle Time Faster Than Baseline
+  </Typography>
+
+  <Card
+    variant="outlined"
+    sx={{
+      p: 2,
+      height: "400px",
+      display: "flex",
+      flexDirection: "column",
+      borderRadius: 3,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+      backgroundColor: "#fff",
+    }}
+  >
+    <Box
+      sx={{
+        flex: 1,
+        overflowY: "auto",
+        pr: 1,
+        "&::-webkit-scrollbar": { width: "6px" },
+        "&::-webkit-scrollbar-thumb": {
+          backgroundColor: "#ccc",
+          borderRadius: "3px",
+        },
+      }}
+    >
+      {/* Conditional render */}
+        {loading ? (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            <CircularProgress />
+            <Typography sx={{ mt: 2 }}>Loading faster than baseline data...</Typography>
+          </Box>):
+    cycletimefasterbaseline && cycletimefasterbaseline.length > 0 ? (
+  cycletimefasterbaseline.map((item, index) => {
+    const formatSeconds = (sec) => {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
+    };
+
+    const actual = Number(item.total_duration?.actualruntime ?? 0);
+    const expected = Math.max(0, Number(item.cycletime_baseline));
+    const diff = actual - expected;
+
+    return (
+      <Card
+        key={index}
+        variant="outlined"
+        sx={{
+          p: 2,
+          mb: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderRadius: 2,
+          backgroundColor: "#fafafa",
+          transition: "0.3s",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+          cursor: "pointer",
+          "&:hover": {
+            boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+            backgroundColor: "#fff",
+          },
+        }}
+        onClick={() =>
+          navigate("/partwise-cycletime", {
+            state: {
+              selectedDevice,
+              previousScreen: location.pathname,
+              componentName: item.operation_name,
+              code: item.code || "N/A",
+              deviceName: item.name,
+              start_time: item.start_time,
+              end_time: item.end_time,
+              codeWiseSummary,
+            },
+          })
+        }
+      >
+        <Grid
+          item
+          xs={12}
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          {/* Left column */}
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 1,
+              justifyContent: "flex-start",
+            }}
+          >
+            <Box>
+              <Typography fontSize="16px" fontWeight="bold" color="#333">
+                {item.operation_name}
               </Typography>
+              <Typography
+                variant="caption"
+                color="textSecondary"
+                display="block"
+              >
+                {new Date(Number(item.start_time)).toLocaleString()}
+              </Typography>
+            </Box>
 
-              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
-                {cycletimefasterbaseline.length > 0 ? (
-                  cycletimefasterbaseline.map((item, index) => {
-                    const formatSeconds = (sec) => {
-                      const h = Math.floor(sec / 3600);
-                      const m = Math.floor((sec % 3600) / 60);
-                      const s = Math.floor(sec % 60);
-                      return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
-                    };
+            <Typography variant="body2" fontWeight="bold" color="#555">
+              {item.name}
+            </Typography>
+          </Box>
 
-                    const actual = Number(item.total_duration?.total_run_duration ?? 0);
-                    const expected = Number(item.cycletime_baseline);
-                    const diff = actual - expected; // faster → diff negative
+          {/* Right column */}
+          <Box
+            textAlign="right"
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              gap: 1,
+            }}
+          >
+            <Box>
+              <Typography fontSize="16px" fontWeight="bold" color="#333">
+                {item.code || "N/A"}
+              </Typography>
+              <Typography
+                variant="caption"
+                color="textSecondary"
+                display="block"
+              >
+                {new Date(Number(item.end_time)).toLocaleString()}
+              </Typography>
+            </Box>
 
-                    return (
-                      <Card
-                        key={index}
-                        variant="outlined"
-                        sx={{
-                          p: 2,
-                          mb: 2,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          cursor: "pointer"
-                        }}
-                        onClick={() =>
-                          navigate("/summary", {
-                            state: {
-                              selectedDevice: selectedDevice,
-                              previousScreen: location.pathname,
-                              componentName: item.operation_name,
-                              code: item.code || "N/A",
-                              deviceName: item.name,
-                              start_time: item.start_time,
-                              end_time: item.end_time
-                            }
-                          })
-                        }
-                      >
-                        {/* Left column */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'column', gap: 1 }} >
-                          <Box>
-                            <Typography fontSize="16px" fontWeight="bold">
-                              {item.operation_name}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary" display="block">
-                              {new Date(Number(item.start_time)).toLocaleString()}
-                            </Typography>
-                          </Box>
+            <Box
+              display="flex"
+              flexDirection="column"
+              alignItems="flex-end"
+              justifyContent="flex-end"
+            >
+              <Typography
+                sx={{
+                  fontSize: "0.8rem",
+                  fontWeight: "500",
+                  color: "#000",
+                }}
+              >
+                Expected Cycle Time: {formatSeconds(expected)}
+              </Typography>
+            </Box>
 
-                          <Typography variant="body2" fontWeight="bold">
-                            {item.name}
-                          </Typography>
-                        </Box>
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="flex-end"
+            >
+              <Typography
+                sx={{
+                  fontSize: "1.1rem",
+                  fontWeight: "bold",
+                  color: "green",
+                }}
+              >
+                {formatSeconds(actual)}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "success.main",
+                  fontWeight: "bold",
+                  ml: 1,
+                }}
+              >
+                ↓ {formatSeconds(Math.abs(diff))}
+              </Typography>
+            </Box>
+          </Box>
+        </Grid>
+      </Card>
+    );
+  })
+) : (
+  <Box
+    sx={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      height: "300px",
+    }}
+  >
+    <Typography variant="h6" color="textSecondary">
+      No Data Available
+    </Typography>
+  </Box>
+)}
 
-                        {/* Right column */}
-                        <Box textAlign="right" sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 1 }}>
-                          <Box>
-                            <Typography fontSize="16px" fontWeight="bold">
-                              {item.code || 'N/A'}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary" display="block">
-                              {new Date(Number(item.end_time)).toLocaleString()}
-                            </Typography>
-                          </Box>
+    </Box>
+  </Card>
+</Grid>
 
-                          <Box display="flex" alignItems="center" justifyContent="flex-end">
-                            <p style={{ fontSize: '1rem', fontWeight: 'bold' }}>{formatSeconds(actual)}</p>
-                            <Typography
-                              variant="caption"
-                              sx={{ color: "success.main", fontWeight: "bold", ml: 1 }}
-                            >
-                              ↑ {formatSeconds(Math.abs(diff))}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </Card>
-                    );
-                  })
-                ) : (
-                  <Typography variant="body2" color="textSecondary">
-                    No data available
-                  </Typography>
-                )}
-              </Box>
-            </Card>
-          </Grid>
 
         </Grid>
+
       </Box>
 
     </Box>

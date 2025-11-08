@@ -1,0 +1,134 @@
+.heading {
+    padding: 20px 20px;
+    font-size: 1.6rem;
+    font-weight: bold;
+    text-align: left;
+    color: #222;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.header-container {
+  display: flex;
+  justify-content: space-between; 
+  align-items: center;            
+  padding: 20px 20px;            
+}
+
+
+
+
+.oee-dashboard {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    padding: 25px;
+    background-color: #f4f5f7;
+    justify-content: flex-start;
+}
+
+.oee-tile {
+    width: 200px;
+    height: 150px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease-in-out;
+    font-family: "Segoe UI", sans-serif;
+    padding: 8px;
+}
+
+.oee-tile:hover {
+    transform: scale(1.03);
+}
+
+.tile-running {
+    background-color: #009e2f;
+}
+
+.tile-idle {
+    background-color: #efa330;
+    color: #ffffff;
+}
+
+.tile-alarm {
+    background-color: #ff5722;
+}
+
+.tile-disconnect {
+    background-color: #9e9e9e;
+}
+
+.machine-name {
+    font-size: clamp(0.8rem, 1.2vw, 1rem);
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+
+.status-text {
+    font-size: 0.7rem;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.oee-value {
+    font-size: 1.9rem;
+    font-weight: 800;
+    margin: 5px 0;
+    line-height: 1;
+}
+
+.cycle-status {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    opacity: 0.9;
+}
+
+.program-number {
+    font-size: 0.7rem;
+    font-weight: 500;
+    margin-top: 4px;
+    opacity: 0.95;
+}
+
+.iframe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 25px;
+  margin-bottom: 10px;
+}
+
+.iframe-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.operation-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #666;
+  font-style: italic;
+  text-align: right;
+}
+
+
+@media (min-width: 1440px) {
+    .machine-name {
+        font-size: 1.2rem !important;
+    }
+}
+
+.selected-tile {
+  border: 3px solid #939495;
+  box-shadow: 0 0 10px rgba(75, 76, 77, 0.4);
+}
+
+
+

@@ -8,7 +8,7 @@ import {
   MenuItem,
   Select,
   Card,
-  Grid
+  Grid, CircularProgress
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -45,9 +45,9 @@ const Component = () => {
       ? Number(storedEnd)
       : dayjs().endOf("day").valueOf();
   
-  const selectedDevice = location.state?.selectedDevice || null;
+  const {selectedDevice , codeWiseSummary}= location.state || null;
 
-  console.log('From', from, 'to', to, 'Selected Device', selectedDevice)
+  console.log('From', from, 'to', to, 'Selected Device', selectedDevice, 'codeWiseSummary',codeWiseSummary)
 
   const Id = localStorage.getItem("CustomerID");
   let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
@@ -145,7 +145,7 @@ const Component = () => {
 
 
     fetchCycleTimeFaster();
-  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+  }, [selectedDevice, from, to, devices, shifts, ]);
 
   console.log('Component List', liveComponent);
 
@@ -222,7 +222,7 @@ const Component = () => {
     };
 
     fetchOperationsData();
-  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
+  }, [selectedDevice, from, to, devices, shifts]);
 
 
   console.log('Operations Data', operationsData);
@@ -315,50 +315,60 @@ const sortedFirstItems = sortItemsByCodeFrequencyDesc(firstItems);
 console.log("✅ First items sorted by code frequency (desc):", sortedFirstItems);
 
 
-const groupByCodeSummary = (items) => {
-  if (!items || items.length === 0) return [];
 
-  // Step 1: Group items by code
-  const codeGroups = items.reduce((acc, item) => {
-    const code = item.code || "Unknown";
-    if (!acc[code]) acc[code] = [];
-    acc[code].push(item);
-    return acc;
-  }, {});
+const groupedDataObject = {};
 
-  // Step 2: Map each group to desired summary
-  const summaryArray = Object.entries(codeGroups).map(([code, groupItems]) => {
-    // Take the first operation_name (assuming same for all in group)
-    const operation_name = groupItems[0]?.operation_name || "Unknown";
+for (const item of sortedFirstItems) {
+  const { code, operation_name, goodvsexp, name } = item;
 
-    // Count of items
-    const occurrence = groupItems.length;
+  // Skip invalid entries
+  if (!code || operation_name === "No Operations") continue;
 
-    // Sum the numerators of goodvsexp
-    const numeratorSum = groupItems.reduce((sum, item) => {
-      const [numerator] = (item.goodvsexp || "0/0").split("/").map(Number);
-      return sum + (isNaN(numerator) ? 0 : numerator);
-    }, 0);
+  // Extract numerator part from goodvsexp like "5/10" → 5
+  const partsNumerator = parseInt(goodvsexp?.split('/')?.[0] ?? 0, 10);
+  const machineName = name ?? "Unknown";
 
-    return {
+  // Initialize group if not exists
+  if (!groupedDataObject[code]) {
+    groupedDataObject[code] = {
       code,
       operation_name,
-      occurrence,
-      goodvsexp_numerator: numeratorSum
+      machines: new Set(),
+      parts: 0,
     };
-  });
+  }
 
-  return summaryArray;
-};
+  // Add machine name and parts count
+  groupedDataObject[code].machines.add(machineName);
+  groupedDataObject[code].parts += partsNumerator;
+}
 
-// Usage:
-const codeWiseSummary = groupByCodeSummary(firstItems);
+// Convert object to array for final report
+const finalReport = Object.values(groupedDataObject).map(group => ({
+  code: group.code,
+  operation_name: group.operation_name,
+  machines: Array.from(group.machines).join(', '),
+  parts: group.parts,
+}));
 
-console.log("✅ Code-wise summary:", codeWiseSummary);
+console.log('final report',finalReport);
 
+  // Assuming finalReport and componentMachineArray are both arrays
 
+const updatedComponentMachineArray = componentMachineArray.map(machineItem => {
+  const { code } = machineItem;
 
+  // Find matching group in finalReport
+  const matchingReport = finalReport.find(report => report.code === code);
 
+  // If found, add parts value, else default to 0
+  return {
+    ...machineItem,
+    parts: matchingReport ? matchingReport.parts : 0,
+  };
+});
+
+console.log('Updated Unique component data',updatedComponentMachineArray);
   function formatDuration(seconds) {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -414,52 +424,105 @@ console.log("✅ Code-wise summary:", codeWiseSummary);
 
         <Typography variant="h6" fontWeight="bold" gutterBottom mt={3}>
           Analyzed {
-            (componentMachineArray?.length || 0)
+            (updatedComponentMachineArray?.length || 0)
           } Runs
         </Typography>
 
         {/* Component Boxes in 2 columns */}
-        <Grid container spacing={2} mt={2}>
-          {componentMachineArray.map((item, index) => (
-            <Grid item xs={12} sm={6} key={index}>
-              <Box
-                p={2}
-                sx={{
-                  border: '1px solid #ccc',
-                  borderRadius: 2,
-                  boxShadow: 1,
-                  backgroundColor: '#fff',
-                  cursor: 'pointer', // show pointer on hover
-                  '&:hover': { transform: 'scale(1.03)', transition: '0.2s' } // optional hover effect
-                }}
-                onClick={() =>
-                  navigate('/production-runs', {
-                    state: {
-                      selectedDevice: selectedDevice,
-                      previousScreen: location.pathname,
-                      componentName: item.name,
-                      code: item.code,
-                      from,
-                      to,
-                      selectedDevice, 
-                      codeWiseSummary
-                    }
-                  })
-                }
-              >
-                {/* Component Name and Parts count */}
-                <Typography variant="subtitle1" fontWeight="bold">
-                  {item.name} 
-                </Typography>
+   <Grid container spacing={2} mt={2}>
+      {updatedComponentMachineArray.length === 0 ? (
+    <Grid
+      item
+      xs={12}
+      display="flex"
+      flexDirection="column"
+      justifyContent="center"
+      alignItems="center"
+      minHeight="200px"
+    >
+  <CircularProgress size={20} />
+  <Typography>Loading data...</Typography>    
 
-                {/* Machines list */}
-                <Typography variant="body2" color="textSecondary" mt={1}>
-                  Machines: {item.machines.join(', ')}
-                </Typography>
-              </Box>
-            </Grid>
-          ))}
-        </Grid>
+    </Grid>
+      ) : (
+        updatedComponentMachineArray.map((item, index) => (
+<Grid item xs={12} sm={6} key={index}>
+  <Box
+    p={2}
+    sx={{
+      position: "relative", // ✅ needed for absolute positioning
+      border: "1px solid #151b48ff",
+      borderRadius: 2,
+      boxShadow: 1,
+      backgroundColor: "#fff",
+      cursor: "pointer",
+      transition: "0.2s",
+      "&:hover": { transform: "scale(1.03)" },
+    }}
+    onClick={() =>
+      navigate("/production-runs", {
+        state: {
+          selectedDevice,
+          previousScreen: location.pathname,
+          componentName: item.name,
+          code: item.code,
+          from,
+          to,
+          codeWiseSummary,
+        },
+      })
+    }
+  >
+    {/* ✅ Top-right corner parts label */}
+  <Typography
+  variant="body2"
+  sx={{
+    position: "absolute",
+    top: 20,
+    right: 12,
+    fontWeight: "bold",
+    background: "#e6eff2ff",
+    px: 1,
+    py: 0.2,
+    borderRadius: 1,
+    color: "#093d71ff",
+    cursor: "pointer",
+    "&:hover": { background: "#d0e1e8ff" },
+  }}
+  onClick={(e) => {
+    e.stopPropagation(); 
+    navigate("/partwise-cycletime", {
+      state: {
+         previousScreen: location.pathname,
+        componentName: item.name,
+        code: item.code,
+        start_time:from,
+        end_time: to,
+        to,
+        deviceName: item.machines.join(","), 
+        selectedDevice: item.machineIds, 
+        codeWiseSummary
+      },
+    });
+  }}
+>
+  Parts: {item.parts}
+</Typography>
+
+
+    <Typography variant="subtitle1" fontWeight="bold">
+      {item.name} ({item.code})
+    </Typography>
+
+    <Typography variant="body2" color="textSecondary" mt={1}>
+      Machines: {item.machines.join(", ")}
+    </Typography>
+  </Box>
+</Grid>
+
+        ))
+      )}
+    </Grid>
 
 
       </Box>

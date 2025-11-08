@@ -29,7 +29,8 @@ const Analytics = () => {
   const [shifts, setShifts] = useState([]);
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
-  const [selectedDevice, setSelectedDevice] = useState("all");
+  const [selectedDevice, setSelectedDevice] = useState([]);
+
 
 
   console.log('Selected Device Id', selectedDevice)
@@ -68,30 +69,22 @@ const Analytics = () => {
   const fetchShifts = async () => {
     try {
       const result = await customerbasedshift(customerId, "allShift");
-      const shiftList = result[0]?.value || [];
-      setShifts(shiftList);
+      setShifts(result[0]?.value || []);
     } catch (err) {
       console.error("Failed to fetch shifts", err);
     }
   };
-  console.log('Shifts', shifts)
 
-  // Fetch devices
   const fetchDevices = async () => {
     try {
       const result = await customerbaseddevices(customerId, 100, 0);
       const devicesList = result.data || [];
       setDevices(devicesList);
-
       const nameIdMap = devicesList.reduce((acc, device) => {
-        acc[device.name] = device.id.id;
+        acc[device.id.id] = device.name;
         return acc;
       }, {});
       setDeviceNameIdJson(nameIdMap);
-
-      // ✅ Set default to "all" → all device IDs
-      const allDeviceIds = devicesList.map((d) => d.id.id);
-      setSelectedDevice(allDeviceIds);
     } catch (err) {
       console.error("Failed to fetch devices", err);
     }
@@ -99,11 +92,10 @@ const Analytics = () => {
 
 
   useEffect(() => {
-    if (customerId && newToken) {
-      fetchShifts();
-      fetchDevices();
-    }
-  }, [customerId, newToken]);
+    fetchShifts();
+    fetchDevices();
+    console.log('fetching devices ---------------------')
+  }, []);
 
   // Helper: combine a date + HH:mm:ss time → epoch
   const combineDateAndTime = (dateObj, timeStr, addDay = false) => {
@@ -140,67 +132,7 @@ const Analytics = () => {
   // }, [devices]);
 
   // Fetch latest operations
-  const [latestOperations, setLatestOperations] = useState({});
 
-  useEffect(() => {
-    const fetchAllOperations = async () => {
-      if (!from || !to || devices.length === 0) return;
-      try {
-        const allResults = [];
-
-        for (const device of devices) {
-          const data = await telemetrykeydata(
-            device.id.id,
-            "DEVICE",
-            "operations",
-            from,
-            to
-          );
-
-          const values = data?.operations || [];
-
-          const validValues = values
-            .map((point) => {
-              try {
-                const parsed =
-                  typeof point.value === "string"
-                    ? JSON.parse(point.value)
-                    : point.value;
-                return { ts: Number(point.ts), ...parsed };
-              } catch {
-                return null;
-              }
-            })
-            .filter((v) => v && v.operation_name && v.ts);
-
-          allResults.push(...validValues);
-        }
-
-        const grouped = allResults.reduce((acc, item) => {
-          const key = item.operation_name;
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(item);
-          return acc;
-        }, {});
-
-        const latestByOperation = Object.keys(grouped).map((opName) =>
-          grouped[opName].reduce((a, b) => (a.ts > b.ts ? a : b))
-        );
-
-        const resultObj = latestByOperation.reduce((acc, item) => {
-          acc[item.operation_name] = item;
-          return acc;
-        }, {});
-
-        setLatestOperations(resultObj);
-      } catch (err) {
-        console.error("Error fetching operations:", err);
-        setLatestOperations({});
-      }
-    };
-
-    fetchAllOperations();
-  }, [devices, from, to]);
 
   const reports = [
     {
@@ -249,15 +181,219 @@ const Analytics = () => {
   const handleClosePopover = () => setAnchorEl(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (devices && devices.length > 0) {
+      // Set all device IDs when devices are loaded
+      setSelectedDevice(devices.map((m) => m.id.id));
+    }
+  }, [devices]);
+
   const handleMachineChange = (event) => {
     const value = event.target.value;
-    if (value === "all") {
-      // select all device IDs
+    if (value.includes("all")) {
+      // If user selects "All", select all device IDs
       setSelectedDevice(devices.map((m) => m.id.id));
     } else {
       setSelectedDevice(value);
     }
   };
+
+  const parseTelemetryValues = (data, key) => {
+    const values = data?.[key] || [];
+    return values
+      .map(point => {
+        try {
+          const parsed = typeof point.value === "string" ? JSON.parse(point.value) : point.value;
+          return parsed && typeof parsed === "object" ? { ts: point.ts, ...parsed } : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(v => v !== null);
+  };
+
+  const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState("");
+
+  const [operationsData, setOperationsData] = useState([]);
+
+  useEffect(() => {
+    const fetchOperationsData = async () => {
+      if (!from || !to || !selectedDevice) return;
+
+      try {
+        setLoading(true);
+        setLoadingStage("Fetching data from all devices...");
+        const deviceIds = Array.isArray(selectedDevice) ? selectedDevice : [selectedDevice];
+
+        const allDataArray = await Promise.all(
+          deviceIds.map(async (deviceId) => {
+            const deviceName = deviceNameIdJson[deviceId] || "Unknown Device";
+
+            const data = await telemetrykeydata(
+              deviceId,
+              "DEVICE",
+              "operations",
+              from,
+              to
+            );
+
+            const parsedData = parseTelemetryValues(data, "operations");
+
+            return { deviceName, parsedData };
+          })
+        );
+        setLoadingStage("Processing data...");
+
+        const allDataObject = allDataArray.reduce((acc, curr) => {
+          acc[curr.deviceName] = curr.parsedData;
+          return acc;
+        }, {});
+
+        setOperationsData(allDataObject);
+      } catch (error) {
+        console.error("Error fetching operations data:", error);
+        setOperationsData({});
+      } finally {
+        setLoading(false);
+        setLoadingStage("");
+      }
+    };
+
+    fetchOperationsData();
+  }, [selectedDevice, from, to, devices, shifts, ]);
+
+
+  console.log('Operations Data', operationsData);
+
+  const [groupedOperations, setGroupedOperations] = useState([]);
+  const [finalGroup, setFinalGroup] = useState([]); // ✅ now an array
+
+  useEffect(() => {
+    if (!operationsData || Object.keys(operationsData).length === 0) return;
+
+    const groupedData = Object.entries(operationsData).reduce((acc, [machineName, dataArray]) => {
+      // Group by code
+      const groupedByCode = dataArray.reduce((codeAcc, item) => {
+        const code = item.code || "Unknown Code";
+        if (!codeAcc[code]) codeAcc[code] = [];
+        codeAcc[code].push(item);
+        return codeAcc;
+      }, {});
+
+      // Group by start_time + end_time within each code
+      const finalGroupForMachine = Object.entries(groupedByCode).flatMap(([code, items]) => {
+        const groupedByTime = items.reduce((timeAcc, item) => {
+          const start = item.start_time || "Unknown Start";
+          const end = item.end_time || "Unknown End";
+          const key = `${start}_${end}`;
+          if (!timeAcc[key]) timeAcc[key] = [];
+          timeAcc[key].push(item);
+          return timeAcc;
+        }, {});
+
+        // ✅ Convert the grouped object into array format
+        return Object.entries(groupedByTime).map(([key, timeItems]) => {
+          const [start_time, end_time] = key.split("_");
+          return { code, start_time, end_time, items: timeItems };
+        });
+      });
+
+      acc[machineName] = finalGroupForMachine;
+      return acc;
+    }, {});
+
+    // ✅ Flatten all machine data into one array (optional)
+    const allFinalGroups = Object.values(groupedData).flat();
+
+
+
+    setGroupedOperations(groupedData);
+    setFinalGroup(allFinalGroups); // ✅ now array-based
+  }, [operationsData]);
+
+  console.log("✅ Grouped by code + time per machine:", groupedOperations);
+  console.log("✅ Final group data (array format):", finalGroup);
+
+  const getFirstItemsFromGroups = (finalGroupArray) => {
+    if (!finalGroupArray || finalGroupArray.length === 0) return [];
+
+    return finalGroupArray
+      .map(group => group.items[0]) // pick first item of each group
+      .filter(Boolean); // remove undefined/nulls if any
+  };
+
+  // Usage:
+  const firstItems = getFirstItemsFromGroups(finalGroup);
+
+  console.log("✅ First item from each group:", firstItems);
+
+  // firstItems: array of items, each with a "code" property
+
+  const sortItemsByCodeFrequencyDesc = (items) => {
+    if (!items || items.length === 0) return [];
+
+    // 1️⃣ Count occurrences of each code
+    const codeCount = items.reduce((acc, item) => {
+      const code = item.code || "Unknown";
+      acc[code] = (acc[code] || 0) + 1;
+      return acc;
+    }, {});
+
+    // 2️⃣ Sort items by the frequency of their code (descending)
+    return [...items].sort((a, b) => {
+      const countA = codeCount[a.code] || 0;
+      const countB = codeCount[b.code] || 0;
+      return countB - countA; // descending
+    });
+  };
+
+  // Usage:
+  const sortedFirstItems = sortItemsByCodeFrequencyDesc(firstItems);
+
+  console.log("✅ First items sorted by code frequency (desc):", sortedFirstItems);
+
+
+  const groupByCodeSummary = (items) => {
+    if (!items || items.length === 0) return [];
+
+    // Step 1: Group items by code
+    const codeGroups = items.reduce((acc, item) => {
+      const code = item.code || "Unknown";
+      if (!acc[code]) acc[code] = [];
+      acc[code].push(item);
+      return acc;
+    }, {});
+
+    // Step 2: Map each group to desired summary
+    const summaryArray = Object.entries(codeGroups).map(([code, groupItems]) => {
+      // Take the first operation_name (assuming same for all in group)
+      const operation_name = groupItems[0]?.operation_name || "Unknown";
+
+      // Count of items
+      const occurrence = groupItems.length;
+
+      // Sum the numerators of goodvsexp
+      const numeratorSum = groupItems.reduce((sum, item) => {
+        const [numerator] = (item.goodvsexp || "0/0").split("/").map(Number);
+        return sum + (isNaN(numerator) ? 0 : numerator);
+      }, 0);
+
+      return {
+        code,
+        operation_name,
+        occurrence,
+        goodvsexp_numerator: numeratorSum
+      };
+    });
+
+    return summaryArray;
+  };
+
+  // Usage:
+  const codeWiseSummary = groupByCodeSummary(firstItems);
+
+  console.log("✅ Analytics Code-wise summary:", codeWiseSummary);
 
 
 
@@ -271,6 +407,9 @@ const Analytics = () => {
         formatDuration={formatDuration}
         from={from}
         to={to}
+        selectedDevice={selectedDevice}
+        highestcomponent={codeWiseSummary}
+        loading={loading}
       />
 
       <Box flex={1} p={3} bgcolor="#fff" overflow="auto">
@@ -303,6 +442,7 @@ const Analytics = () => {
                     </MenuItem>
                   ))}
                 </Select>
+
 
               </FormControl>
 
@@ -345,72 +485,74 @@ const Analytics = () => {
 
         {/* Reports Grid */}
         <Grid container spacing={2} mt={2} alignItems="stretch">
-  {reports.map((r, i) => (
-    <Grid item xs={12} sm={6} md={4} key={i}>
-      <Card
-        variant="outlined"
-        sx={{
-          cursor: "pointer",
-        "&:hover": {
-            bgcolor: "#f8f5f5ff",
-            transform: "scale(1.03)",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.1)", 
-          },
-          height: "130px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          border: "1px solid rgba(197, 193, 193, 1)"
-        
-        }}
-        onClick={() => {
-          if (r.title === "Component") {
-            navigate("/production-summary", { state: { from, to, selectedDevice } });
-          } else if (r.title === "Completed Work Cycle Times") {
-            navigate("/cycletime", { state: { from, to, selectedDevice } });
-          } else if (r.title === "Completed Work OEE") {
-            navigate("/analyticoee", { state: { from, to ,selectedDevice} });
-          } else if (r.title === "In-Progress Cycle Times") {
-            navigate("/inprogresscycle", { state: { from, to ,selectedDevice} });
-          }
-        }}
-      >
-        <CardContent
-          sx={{
-            flexGrow: 1,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-          }}
-        >
-          <Typography
-            variant="subtitle1"
-            fontWeight="bold"
-            sx={{ "&:hover": { color: "primary.main" } }}
-          >
-            {r.title}
-          </Typography>
+          {reports.map((r, i) => (
+            <Grid item xs={12} sm={6} md={4} key={i}>
+              <Card
+                variant="outlined"
+                sx={{
+                  cursor: "pointer",
+                  "&:hover": {
+                    bgcolor: "#f8f5f5ff",
+                    transform: "scale(1.03)",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+                  },
+                  height: "130px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  border: "1px solid rgba(197, 193, 193, 1)"
 
-          <Typography
-            variant="body2"
-            color="textSecondary"
-            sx={{
-              mt: 0.5,
-              textAlign: "left",
-              flexGrow: 1,
-              display: "-webkit-box",
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {r.description}
-          </Typography>
-        </CardContent>
-      </Card>
-    </Grid>
-  ))}
-</Grid>
+                }}
+                onClick={() => {
+                  if (r.title === "Component") {
+                    navigate("/production-summary", { state: { from, to, selectedDevice, codeWiseSummary } });
+                  } else if (r.title === "Completed Work Cycle Times") {
+                    navigate("/cycletime", { state: { from, to, selectedDevice, codeWiseSummary } });
+                  } else if (r.title === "Completed Work OEE") {
+                    navigate("/analyticoee", { state: { from, to, selectedDevice, codeWiseSummary } });
+                  } else if (r.title === "In-Progress Cycle Times") {
+                    navigate("/inprogresscycle", { state: { from, to, selectedDevice, codeWiseSummary } });
+                  } else if (r.title === "In-Progress OEE") {
+                    navigate("/inprogressoee", { state: { from, to, selectedDevice, codeWiseSummary } });
+                  }
+                }}
+              >
+                <CardContent
+                  sx={{
+                    flexGrow: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight="bold"
+                    sx={{ "&:hover": { color: "primary.main" } }}
+                  >
+                    {r.title}
+                  </Typography>
+
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    sx={{
+                      mt: 0.5,
+                      textAlign: "left",
+                      flexGrow: 1,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {r.description}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
 
       </Box>
     </Box>

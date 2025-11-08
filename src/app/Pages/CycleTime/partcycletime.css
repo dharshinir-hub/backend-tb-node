@@ -1,0 +1,24 @@
+/* Compact static 3D info box */
+.cycletime-box {
+  position: relative;
+  display: inline-block;
+  background: white;
+  border: 2px solid hsl(145, 63%, 42%);
+  border-radius: 8px;
+  padding: 4px 12px;        
+  color: hsl(0, 0%, 2%);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-size: 0.9rem;        
+  box-shadow:0 2px 0 hsl(145, 63%, 42%);
+  transform: translateY(-1px);
+  transition: all 0.2s ease-in-out;
+  white-space: nowrap;       
+  min-width: fit-content;
+}
+
+.cycletime-box span {
+  display: inline-block;
+}
+
+
