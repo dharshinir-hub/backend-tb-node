@@ -44,11 +44,15 @@ import MachineGroup from './app/Pages/Machinegroup/machinegroup';
 const AppRoutes = () => {
   const { userDetails } = useContext(UserDetailsContext);
   const [pageList, setPageList] = useState([]);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails
     setPageList(usersDetailsData.pageList || []);
+    setInitialized(true);
   }, [userDetails]);
+  
+  if (!initialized) return null;
 
   return (
     <Routes>
