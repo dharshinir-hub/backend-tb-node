@@ -222,7 +222,7 @@ useEffect(() => {
     const cleanedId = cleanCustomerId(customerId) || cleanCustomerId(customerId1);
     const encodedid = encodeURIComponent(JSON.stringify(deviceNameIdJson));
 
-  const url = `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b0/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`;
+  const url = `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b0/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=20s`;
 
   console.log("🔗 Grafana Iframe URL:", url); // ✅ log URL
 

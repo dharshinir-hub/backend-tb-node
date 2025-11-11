@@ -693,15 +693,15 @@ const CompanyDashboard = () => {
 
 
     const grafanaUrls = [
-      `${window._env_.GRAFANA_URL}d/ee6814b1-edf0-4361-ba7b-c2fe16bb1f64/todayyesterdayseries-1?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+      `${window._env_.GRAFANA_URL}d/ee6814b1-edf0-4361-ba7b-c2fe16bb1f64/todayyesterdayseries-1?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=1h`,
 
-      `${window._env_.GRAFANA_URL}d/e05288c8-81a1-4f19-bf5d-d8da502b49b8/lower-utilization-dashboard-3?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+      `${window._env_.GRAFANA_URL}d/e05288c8-81a1-4f19-bf5d-d8da502b49b8/lower-utilization-dashboard-3?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light`,
 
-      `${window._env_.GRAFANA_URL}d/f862d350-2f94-45a6-a561-f7622a57bf7a/piecharts-dasboard-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+      `${window._env_.GRAFANA_URL}d/f862d350-2f94-45a6-a561-f7622a57bf7a/piecharts-dasboard-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=20s`,
 
-      `${window._env_.GRAFANA_URL}d-solo/dd09d336-9d3f-44b7-81bd-5fe2179ac504/lower-cycletime-dashboard-4?orgId=1&panelId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`,
+      `${window._env_.GRAFANA_URL}d-solo/dd09d336-9d3f-44b7-81bd-5fe2179ac504/lower-cycletime-dashboard-4?orgId=1&panelId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light`,
 
-      `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`
+      `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-allid=${encodedid}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light`
     ];
 
     setGrafanaUrls(grafanaUrls);

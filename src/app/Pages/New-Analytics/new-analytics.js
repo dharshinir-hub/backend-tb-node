@@ -135,7 +135,7 @@ export default function NewAnalytics() {
         const baseUrl = window._env_.SERVER_URL;
         const GRAFANA_URL = window._env_.GRAFANA_URL;
         const url =
-            `${GRAFANA_URL}d/a56900cd-961f-4ed4-99c5-3ec120450653/alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${analysisType}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`;
+            `${GRAFANA_URL}d/a56900cd-961f-4ed4-99c5-3ec120450653/alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${analysisType}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=20s`;
         console.log(url, 'Grafana URL');
         setGrafanaUrl(url);
     };
