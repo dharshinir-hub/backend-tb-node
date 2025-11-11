@@ -260,7 +260,7 @@ export default function MachineDashboard() {
   const [liveReason, setLiveReason] = useState({});
   const [lockStatus, setLockStatus] = useState({});
   const hasStartedRef = useRef(false);
-  const intervalRef2 = useRef(null);
+  // const intervalRef2 = useRef(null);
   useEffect(() => {
     if (hasStartedRef.current) return;
     hasStartedRef.current = true;
@@ -475,9 +475,9 @@ export default function MachineDashboard() {
     };
 
     fetchAllMachineData();
-    intervalRef2.current = setInterval(fetchAllMachineData, 5000);
+    // intervalRef2.current = setInterval(fetchAllMachineData, 5000);
     return () => {
-      clearInterval(intervalRef2.current);
+      // clearInterval(intervalRef2.current);
       hasStartedRef.current = false;
     };
   }, [JSON.stringify(filteredDevices), from, to, selectedShift]);
@@ -759,7 +759,7 @@ export default function MachineDashboard() {
 
     const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
     const isTodayOngoingShift = isToday && (currentShiftNo === shiftNo);
-    let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-token=${bearerToken}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-isTodayOngoingShift=${isTodayOngoingShift}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk&refresh=5s`;
+    let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-token=${bearerToken}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-isTodayOngoingShift=${isTodayOngoingShift}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
 
     if (tab === "diagnostics") {
       url = `${baseUrls[tab]}?&from=${from}&to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
