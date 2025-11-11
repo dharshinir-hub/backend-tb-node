@@ -9,11 +9,11 @@ import {
 import { FiActivity } from 'react-icons/fi';
 import {
   MdPowerSettingsNew, MdInsertInvitation, MdMarkunreadMailbox, MdAccountCircle,
-  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment, MdTrendingUp,
+  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment, MdTrendingUp, MdMoreVert, MdLock
 } from "react-icons/md";
-import { AiTwotoneProfile  } from "react-icons/ai";
+import { AiTwotoneProfile } from "react-icons/ai";
 import { FaCogs } from 'react-icons/fa';
-import { Tooltip } from '@mui/material';
+import { Tooltip, Menu, MenuItem, IconButton } from '@mui/material';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import logo from '../../assets/yantraimage.png';
 import Swal from 'sweetalert2';
@@ -26,8 +26,8 @@ import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
 import { stopTokenAutoRefresh } from '../Services/app/loginservice';
 import { UserDetailsContext } from '../Shared/context/UserDetailsContext';
-import { TbChecklist , TbLayoutGrid } from "react-icons/tb";
-
+import { TbChecklist, TbLayoutGrid } from "react-icons/tb";
+import ChangePasswordCard from '../Nav/changepassword';
 
 
 
@@ -41,6 +41,9 @@ export default function PersistentDrawerLeft({ children }) {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [operationOpen, setOperationOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const isMobile = useMobileWidth();
   const navigate = useNavigate();
@@ -79,6 +82,9 @@ export default function PersistentDrawerLeft({ children }) {
       // toggle();
     }
   };
+
+  const handleClick = (event) => setAnchorEl(event.currentTarget);
+  const handleClose = () => setAnchorEl(null);
 
   // const menuItem = useMemo(() => [
   //   ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
@@ -142,14 +148,14 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
         ],
       },
-       {
-      name: "Analytics",
-      icon: <BiBarChart />,
-      children: [
+      {
+        name: "Analytics",
+        icon: <BiBarChart />,
+        children: [
         { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
-         { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
-      ]
-    },
+          { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
+        ]
+      },
       {
         name: "Operation",
         icon: <AiTwotoneProfile />,
@@ -286,11 +292,55 @@ export default function PersistentDrawerLeft({ children }) {
               <h6>{username}</h6>
               <p>{formattedUser}</p>
             </div>
-            <Tooltip title="Log-out">
+             <Tooltip title="Log-out">
               <label className="circles-icon" onClick={handleLogout} style={{ cursor: 'pointer' }}>
                 <MdPowerSettingsNew />
               </label>
             </Tooltip>
+            
+            {/* <IconButton onClick={handleClick} size="large">
+              <MdMoreVert />
+            </IconButton>
+
+            <Menu
+              anchorEl={anchorEl}
+              open={open}
+              onClose={handleClose}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+              <MenuItem
+                onClick={() => {
+                  setShowChangePassword(true);
+                  handleClose();
+                }}
+              >
+                <Tooltip title="Change Password">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MdLock style={{ fontSize: '20px' }} />
+                    Change Password
+                  </span>
+                </Tooltip>
+              </MenuItem>
+
+              <MenuItem
+                onClick={() => {
+                  handleLogout();
+                  handleClose();
+                }}
+              >
+                <Tooltip title="Log out">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MdPowerSettingsNew style={{ fontSize: '20px' }} />
+                    Log out
+                  </span>
+                </Tooltip>
+              </MenuItem>
+            </Menu>
+
+            {showChangePassword && (
+              <ChangePasswordCard onClose={() => setShowChangePassword(false)} />
+            )} */}
           </div>
         </div>
       </Navbar>

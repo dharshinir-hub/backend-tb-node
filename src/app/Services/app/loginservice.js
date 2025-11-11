@@ -159,3 +159,15 @@ export const getCustomerTitle = async (customerId) => {
     throw error;
   }
 };
+
+export const changePassword = async (payload) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/auth/changePassword`;
+    const response = await axiosInstance.post(url, payload);
+    return response.data;
+  } catch (error) {
+    console.error('Error while changing password:', error);
+    throw error;
+  }
+};
