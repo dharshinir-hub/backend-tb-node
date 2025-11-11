@@ -445,8 +445,9 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                   </div>
                 )}
 
-                {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
-                  <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
+                {/* {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
+                )} */}
+                      <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
                     <TextField
                       {...register("password", {
                         required: "Password is required",
@@ -488,7 +489,6 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                     />
                     {errors.password && <div className="mat-error">{errors.password.message}</div>}
                   </div>
-                )}
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>

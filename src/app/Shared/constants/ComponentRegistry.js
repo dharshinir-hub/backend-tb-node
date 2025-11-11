@@ -11,6 +11,7 @@ import ReasonRegistration from '../../Pages/Reasonregistration/reasonreg';
 import Analytics from '../../Pages/Analytics/analytics';
 import NewAnalytics from '../../Pages/New-Analytics/new-analytics';
 import MachineGroup from '../../Pages/Machinegroup/machinegroup';
+import NotificationCenter from '../../Pages/NotificationCenter/notificationcenter';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -25,5 +26,6 @@ export const COMPONENT_REGISTRY = {
   "deviceoee": NewDeviceOee,
   "production-analysis": Analytics,
   "analytics": NewAnalytics,
-  "machines-group": MachineGroup
+  "machines-group": MachineGroup,
+  "notification-center": NotificationCenter
 };

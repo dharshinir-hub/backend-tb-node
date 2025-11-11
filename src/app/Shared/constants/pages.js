@@ -13,7 +13,6 @@ export const PAGE_LIST = [
     { label: "User Registration", value: "user-registration" },
     { label: "Component Registration", value: "component-registration" },
     { label: "Reason Registration", value: "reason-registration" },
-
 ];
 
 //   { label: "Andon Dashboard", value: "andon-dashboard" },

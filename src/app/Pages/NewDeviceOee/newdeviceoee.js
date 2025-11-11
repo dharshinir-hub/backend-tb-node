@@ -729,7 +729,7 @@ const NewDeviceOee = () => {
 
   return (
 
-    <div style={{ paddingBottom: "0.5rem", position: "relative" }}>
+    <div style={{ paddingBottom: "0.5rem", position: "relative", marginTop: '2rem' }}>
       {/* ======= PREMIUM COMPACT HEADER ======= */}
       <div
         style={{

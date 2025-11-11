@@ -7,11 +7,21 @@ export const UserDetailsProvider = ({ children }) => {
     JSON.parse(localStorage.getItem('userDetails')) || {}
   );
 
-  const updateUserDetails = (data) => {
-    localStorage.setItem('userDetails', data);
-    setUserDetails(data);
-  };
-
+const updateUserDetails = (data) => {
+  try {
+    let parsedData = typeof data === "string" ? JSON.parse(data) : { ...data };
+    if (!Array.isArray(parsedData.pageList)) {
+      parsedData.pageList = [];
+    }
+    if (!parsedData.pageList.includes("notification-center")) {
+      parsedData.pageList.push("notification-center");
+    }
+    localStorage.setItem("userDetails", JSON.stringify(parsedData));
+    setUserDetails(parsedData);
+  } catch (error) {
+    console.error("Failed to update user details:", error);
+  }
+};
   const logout = () => {
     localStorage.removeItem('userDetails');
     setUserDetails({});

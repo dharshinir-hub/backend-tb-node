@@ -33,7 +33,8 @@ const Layout = () => {
     location.pathname === '/analyticoee' ||
     location.pathname === '/inprogressoee' ||
     location.pathname === '/partwise-cycletime' ||
-    location.pathname === '/machines-group';
+    location.pathname === '/machines-group' ||
+    location.pathname ===  '/notification-center';
   return (
     <>
       {showSidebar && <Sidebar />} {/* Conditionally render the Sidebar */}

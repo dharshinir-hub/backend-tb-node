@@ -28,6 +28,8 @@ import { stopTokenAutoRefresh } from '../Services/app/loginservice';
 import { UserDetailsContext } from '../Shared/context/UserDetailsContext';
 import { TbChecklist, TbLayoutGrid } from "react-icons/tb";
 import ChangePasswordCard from '../Nav/changepassword';
+import NotificationBell from '../Pages/NotificationBell/notificationBell';
+import { RiNotificationBadgeLine } from "react-icons/ri";
 
 
 
@@ -174,6 +176,7 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/reason-registration", name: "Reason", icon: <TbChecklist /> },
         ],
       },
+      { path: "/notification-center", name: "Notification Center", icon: <RiNotificationBadgeLine /> },
     ];
     return baseItems
       .map((item) => {
@@ -275,6 +278,7 @@ export default function PersistentDrawerLeft({ children }) {
           <img className="Logo" src={logo} alt="Logo" />
           <span style={{ fontWeight: '500', fontSize: '20px' }}></span>
           <div className="rightsidecontents">
+          <NotificationBell />
             <span className="person" style={{
               backgroundColor: 'black',
               color: 'white',
@@ -390,9 +394,7 @@ export default function PersistentDrawerLeft({ children }) {
         className="main-content"
         style={{
           paddingLeft: isOpen
-            ? masterOpen
-              ? '240px'
-              : '210px'
+            ? '240px'
             : '85px',
           transition: 'padding-left 0.3s ease'
         }}
