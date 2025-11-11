@@ -264,6 +264,14 @@ export default function MachineDashboard() {
   useEffect(() => {
     if (hasStartedRef.current) return;
     hasStartedRef.current = true;
+    fetchAllMachineData();
+    // intervalRef2.current = setInterval(fetchAllMachineData, 5000);
+    return () => {
+      // clearInterval(intervalRef2.current);
+      hasStartedRef.current = false;
+    };
+  }, [JSON.stringify(filteredDevices), from, to, selectedShift, activeTab]);
+
     const fetchAllMachineData = async () => {
       if (!from || !to || filteredDevices.length === 0) return;
       const resultsUtilization = {};
@@ -473,16 +481,6 @@ export default function MachineDashboard() {
       setLockStatus(resultsLockStatus);
       console.log(resultsLiveReason, 'result live reason and lock')
     };
-
-    fetchAllMachineData();
-    // intervalRef2.current = setInterval(fetchAllMachineData, 5000);
-    return () => {
-      // clearInterval(intervalRef2.current);
-      hasStartedRef.current = false;
-    };
-  }, [JSON.stringify(filteredDevices), from, to, selectedShift]);
-
-
 
 
   /*state for dropdown selection */
@@ -1207,6 +1205,7 @@ export default function MachineDashboard() {
 
   // Toggle machine selection
   const toggleMachineSelection = (name) => {
+    fetchAllMachineData();
     setSelectedMachines((prev) =>
       prev.includes(name)
         ? prev.filter((m) => m !== name)
@@ -1439,6 +1438,7 @@ export default function MachineDashboard() {
                     setSelectedMachineId(machine.id.id);
                     setSelectedMachine(machine);
                     handleTabClick(activeTab, machine);
+                    fetchAllMachineData();
                   }}
                   sx={{
                     mb: 1.5,
