@@ -155,10 +155,12 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
       };
       existingShifts.push(currentShiftData);
       await shiftadd({ alloperator: existingShifts, lastUpdateTs: Date.now() }, customerId, 'SERVER_SCOPE');
+      setDatasource(existingShifts);
       Swal.fire("User created successfully!");
     } catch (error) {
+      const errorMsg = error?.response?.data?.message;
       console.error('Error in operator creation flow:', error);
-      Swal.fire('Error', error.message, 'error');
+      Swal.fire('Error', errorMsg ? errorMsg : error.message, 'error');
     } finally {
       handleClose();
       reset(defaultShiftForm);

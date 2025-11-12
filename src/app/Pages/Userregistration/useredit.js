@@ -174,7 +174,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
 
       // Send updated local data to backend
       const response = await shiftadd(formData, customerId, 'SERVER_SCOPE');
-
+      setDatasource(existingShifts);
       Swal.fire(response.msg || "User updated successfully!");
       // Swal.fire("User updated successfully!");
 
