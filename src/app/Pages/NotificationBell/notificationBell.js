@@ -21,7 +21,7 @@ useEffect(() => {
     }
   };
   document.addEventListener('mousedown', handleClickOutside);
-  const interval = setInterval(fetchNotifications, 10000);
+  const interval = setInterval(fetchNotifications, 30000);
   return () => {
     document.removeEventListener('mousedown', handleClickOutside);
     clearInterval(interval);
