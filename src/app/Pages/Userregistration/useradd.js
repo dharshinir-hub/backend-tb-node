@@ -23,6 +23,7 @@ import { useUserRole } from '../../Shared/hooks/useUserRole';
 import { useRoleOptions } from '../../Shared/hooks/useRoleOptions';
 import { PAGE_LIST } from '../../Shared/constants/pages';
 import { UserDetailsContext } from '../../Shared/context/UserDetailsContext';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId }) {
 
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
@@ -49,6 +50,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
 
   const { userDetails } = useContext(UserDetailsContext);
   const [pageList, setPageList] = useState([]);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails
@@ -152,7 +154,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
         password: encryptedPassword
       };
       existingShifts.push(currentShiftData);
-      // await shiftadd({ alloperator: existingShifts, lastUpdateTs: Date.now() }, customerId, 'SERVER_SCOPE');
+      await shiftadd({ alloperator: existingShifts, lastUpdateTs: Date.now() }, customerId, 'SERVER_SCOPE');
       Swal.fire("User created successfully!");
     } catch (error) {
       console.error('Error in operator creation flow:', error);
@@ -446,49 +448,62 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                 )}
 
                 {/* {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
-                )} */}
-                      <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
-                    <TextField
-                      {...register("password", {
-                        required: "Password is required",
-                        minLength: {
-                          value: 6,
-                          message: "Password must be at least 6 characters"
+)} */}
+                <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
+                  <TextField
+                    {...register("password", {
+                      required: "Password is required",
+                      minLength: {
+                        value: 6,
+                        message: "Password must be at least 6 characters"
+                      },
+                      maxLength: {
+                        value: 20,
+                        message: "Password must not exceed 20 characters"
+                      }
+                    })}
+                    onBlur={() => trigger("password")}
+                    label="Password"
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={shiftForm.password}
+                    onChange={handleFormChange}
+                    error={!!errors.password}
+                    InputLabelProps={{
+                      required: true,
+                      sx: {
+                        color: "black",
+                        "&.Mui-focused": {
+                          color: "orange",
                         },
-                        maxLength: {
-                          value: 20,
-                          message: "Password must not exceed 20 characters"
-                        }
-                      })}
-                      onBlur={() => trigger("password")}
-                      label="Password"
-                      type="password"
-                      name="password"
-                      value={shiftForm.password}
-                      onChange={handleFormChange}
-                      error={!!errors.password}
-                      InputLabelProps={{
-                        required: true,
-                        sx: {
-                          color: "black",
-                          "&.Mui-focused": {
-                            color: "orange",
-                          },
-                        },
-                      }}
-                      fullWidth
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          "& fieldset": { borderColor: "black" },
-                          "&:hover fieldset": { borderColor: "black" },
-                          "&.Mui-focused fieldset": { borderColor: "orange" },
-                          "& .MuiOutlinedInput-input": { color: "black" },
-                          "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
-                        },
-                      }}
-                    />
-                    {errors.password && <div className="mat-error">{errors.password.message}</div>}
-                  </div>
+                      },
+                    }}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={() => setShowPassword((prev) => !prev)}
+                            edge="end"
+                            tabIndex={-1}
+                          >
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                    fullWidth
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        "& fieldset": { borderColor: "black" },
+                        "&:hover fieldset": { borderColor: "black" },
+                        "&.Mui-focused fieldset": { borderColor: "orange" },
+                        "& .MuiOutlinedInput-input": { color: "black" },
+                        "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
+                      },
+                    }}
+                  />
+                  {errors.password && <div className="mat-error">{errors.password.message}</div>}
+                </div>
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>

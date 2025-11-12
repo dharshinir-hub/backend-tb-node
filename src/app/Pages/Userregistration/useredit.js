@@ -95,25 +95,25 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       if (!apiId || !shiftIdToEdit) {
         throw new Error('Cannot update user: required user IDs are missing.');
       }
-      // let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
-      // const existingShiftIndex = existingShifts.findIndex(item =>
-      //   item.operatorid === shiftIdToEdit
-      // );
+      let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
+      const existingShiftIndex = existingShifts.findIndex(item =>
+        item.operatorid === shiftIdToEdit
+      );
 
-      // if (existingShiftIndex === -1) {
-      //   throw new Error('Shift not found for local update.');
-      // }
+      if (existingShiftIndex === -1) {
+        throw new Error('Shift not found for local update.');
+      }
 
-      // // Check for duplicate Operator ID (excluding current shift)
-      // const isDuplicate = existingShifts.some((item, index) => {
-      //   if (index === existingShiftIndex) return false;
-      //   return item.operatorid?.toString().trim().toLowerCase() === data.operatorid?.toString().trim().toLowerCase();
-      // });
+      // Check for duplicate Operator ID (excluding current shift)
+      const isDuplicate = existingShifts.some((item, index) => {
+        if (index === existingShiftIndex) return false;
+        return item.operatorid?.toString().trim().toLowerCase() === data.operatorid?.toString().trim().toLowerCase();
+      });
 
-      // if (isDuplicate) {
-      //   Swal.fire('Error', 'Duplicate Operator ID is not allowed.', 'error');
-      //   return;
-      // }
+      if (isDuplicate) {
+        Swal.fire('Error', 'Duplicate Operator ID is not allowed.', 'error');
+        return;
+      }
 
       // Encrypt password for local storage
       const encryptedPassword = data.password?.trim() ? encryptText(data.password.trim()) : '';
@@ -159,24 +159,24 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       }
 
       // Update local datasource
-      // existingShifts[existingShiftIndex] = {
-      //   id: shiftIdToEdit, // local shift ID
-      //   operatorname: data.operatorname,
-      //   operatorid: data.operatorid,
-      //   mode: data.mode,
-      //   ...(data.mode === "Operator" && { password: encryptedPassword })
-      // };
+      existingShifts[existingShiftIndex] = {
+        id: shiftIdToEdit, // local shift ID
+        operatorname: data.operatorname,
+        operatorid: data.operatorid,
+        mode: data.mode,
+        ...(data.mode === "Operator" && { password: encryptedPassword })
+      };
 
-      // const formData = {
-      //   alloperator: existingShifts,
-      //   lastUpdateTs: Date.now()
-      // };
+      const formData = {
+        alloperator: existingShifts,
+        lastUpdateTs: Date.now()
+      };
 
       // Send updated local data to backend
-      // const response = await shiftadd(formData, customerId, 'SERVER_SCOPE');
+      const response = await shiftadd(formData, customerId, 'SERVER_SCOPE');
 
-      // Swal.fire(response.msg || "User updated successfully!");
-      Swal.fire("User updated successfully!");
+      Swal.fire(response.msg || "User updated successfully!");
+      // Swal.fire("User updated successfully!");
 
     } catch (error) {
       console.error('Error updating user:', error);
