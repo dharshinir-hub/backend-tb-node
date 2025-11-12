@@ -170,7 +170,7 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
           { path: "/machines-group", name: "Machine Group", icon: <FaCogs /> },
           { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
-          { path: "/operator-registration", name: "Operator", icon: <MdAccountCircle /> },
+          // { path: "/operator-registration", name: "Operator", icon: <MdAccountCircle /> },
           { path: "/user-registration", name: "User", icon: <MdAccountCircle /> },
           { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
           { path: "/reason-registration", name: "Reason", icon: <TbChecklist /> },
