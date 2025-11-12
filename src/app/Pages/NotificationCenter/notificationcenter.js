@@ -314,7 +314,6 @@ const NotificationCenter = () => {
                     />
                   </TableCell>
                   <TableCell>Created time</TableCell>
-                  <TableCell>Type</TableCell>
                   <TableCell>Subject</TableCell>
                   <TableCell>Message</TableCell>
                   <TableCell>Actions</TableCell>
@@ -348,11 +347,6 @@ const NotificationCenter = () => {
                       </TableCell>
                       <TableCell style={{ background: index % 2 === 0 ? '#efefef' : '#f8f8f8' }}>
                         {formatEpochTime(notification.createdTime)}
-                      </TableCell>
-                      <TableCell style={{ background: index % 2 === 0 ? '#efefef' : '#f8f8f8' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {notification.type}
-                        </div>
                       </TableCell>
                       <TableCell style={{ background: index % 2 === 0 ? '#efefef' : '#f8f8f8' }}>{notification.subject}</TableCell>
                       <TableCell style={{ background: index % 2 === 0 ? '#efefef' : '#f8f8f8' }}>{notification.text}</TableCell>
