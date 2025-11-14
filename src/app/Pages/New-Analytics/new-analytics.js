@@ -135,7 +135,7 @@ export default function NewAnalytics() {
         const baseUrl = window._env_.SERVER_URL;
         const GRAFANA_URL = window._env_.GRAFANA_URL;
         const url =
-            `${GRAFANA_URL}d/a56900cd-961f-4ed4-99c5-3ec120450653/alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${analysisType}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=5s`;
+            `${GRAFANA_URL}d/a56900cd-961f-4ed4-99c5-3ec120450653/alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${analysisType}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=20s`;
         console.log(url, 'Grafana URL');
         setGrafanaUrl(url);
     };
@@ -203,11 +203,22 @@ export default function NewAnalytics() {
                     </Select>
                 </FormControl>
             </div>
-            <div style={{ flexGrow: 1 }}>
+            <div style={{ flexGrow: 1, position: "relative" }}>
                 <iframe
                     src={grafanaUrl}
                     style={{ width: "100%", height: "100%", border: "0" }}
                     title="Grafana Right"
+                />
+                <div //0ee
+                    style={{
+                        position: 'absolute',
+                        top: 2,
+                        right: 14,
+                        width: 80,
+                        height: "100%",
+                        backgroundColor: 'transparent',
+                        zIndex: 10
+                    }}
                 />
             </div>
         </Box>

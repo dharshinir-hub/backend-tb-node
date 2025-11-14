@@ -441,7 +441,7 @@ useEffect(() => {
           if (shiftEnd <= shiftStart) {
             shiftEnd.setDate(shiftEnd.getDate() + 1);
           }
-          if (ts >= shiftStart.getTime() && ts <= shiftEnd.getTime()) {
+          if (ts >= shiftStart.getTime() && ts < shiftEnd.getTime()) {
             const dateKey = shiftStart.toISOString().split("T")[0];
             if (!results[machineId][dateKey]) {
               results[machineId][dateKey] = {};
@@ -592,7 +592,7 @@ useEffect(() => {
     const lastWeekOeeJson = encodeURIComponent(JSON.stringify(lastWeekOeeForDevice));
     const fiscalWeekMapJson = encodeURIComponent(JSON.stringify(fiscalWeekMap));
 
-    const url = `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b1/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-prefrom=${LAST_WEEK_FROM_EPOCH}&var-preto=${LAST_WEEK_TO_EPOCH}&var-curfrom=${THIS_WEEK_FROM_EPOCH}&var-curto=${THIS_WEEK_TO_EPOCH}&var-avgOee=${avgOeeJson}&var-shiftOEE=${lastWeekOeeJson}&var-fiscalweek=${fiscalWeekNumber}&var-fiscalmonth=${fiscalWeekMapJson}&kiosk&theme=light&refresh=5s`;
+    const url = `${GRAFANA_URL}d/a94d350e-0089-4739-a549-4d7bf74794b1/machine-card-pmi?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=DEVICE&var-device_id=${device.id.id}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-prefrom=${LAST_WEEK_FROM_EPOCH}&var-preto=${LAST_WEEK_TO_EPOCH}&var-curfrom=${THIS_WEEK_FROM_EPOCH}&var-curto=${THIS_WEEK_TO_EPOCH}&var-avgOee=${avgOeeJson}&var-shiftOEE=${lastWeekOeeJson}&var-fiscalweek=${fiscalWeekNumber}&var-fiscalmonth=${fiscalWeekMapJson}&kiosk&theme=light&refresh=20s`;
 
     console.log("🔗 Grafana Iframe URL:", url);
 
@@ -970,6 +970,41 @@ useEffect(() => {
                       height: "1000px",
                     }}
                     title={`OEE-${device.name}`}
+                  />
+                  <div  //header
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 14,
+                      width: "100%",
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10
+                    }}
+                  />
+                  <div //oee %
+                    style={{
+                      position: 'absolute',
+                      top: 60,
+                      left: "13%",
+                      width: 86,
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10
+
+                    }}
+                  />
+                  <div  //operator detail
+                    style={{
+                      position: 'absolute',
+                      top: 210,
+                      left: "13%",
+                      width: 86,
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10
+
+                    }}
                   />
                 </div>
               );
