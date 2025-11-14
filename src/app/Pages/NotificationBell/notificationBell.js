@@ -80,6 +80,8 @@ useEffect(() => {
         return <FaExclamationCircle {...iconProps} />;
       case 'info':
         return <FaInfoCircle {...iconProps} />;
+          case 'check':
+        return <FaCheck {...iconProps} />;
       default:
         return <FaInfoCircle {...iconProps} />;
     }
