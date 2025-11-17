@@ -119,7 +119,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
       const encryptedPassword = data.password?.trim() ? encryptText(data.password.trim()) : '';
       const decryptedPassword = encryptedPassword ? decryptText(encryptedPassword) : '';
       const email = data.email + '@yantra24x7.com';
-      const descriptionObj = { mode: data.mode, userId: operatorId, pageList: data.mode === ROLE_OPERATOR ? ["operator"] : data.pagelist };
+      const descriptionObj = { mode: data.mode, userId: operatorId, pageList: data.mode === ROLE_OPERATOR ? ["operator"] : data.pagelist, password: encryptedPassword};
       const payload = {
         email,
         firstName: data.operatorname,

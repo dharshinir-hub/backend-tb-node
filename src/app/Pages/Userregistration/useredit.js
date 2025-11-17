@@ -23,6 +23,8 @@ import { useUserRole } from '../../Shared/hooks/useUserRole';
 import { useRoleOptions } from '../../Shared/hooks/useRoleOptions';
 import { PAGE_LIST } from '../../Shared/constants/pages';
 import { UserDetailsContext } from '../../Shared/context/UserDetailsContext';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { changePasswordWithUserToken, fakeLogin } from '../../Services/app/loginservice';
 
 export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId, dialogData }) {
   console.log('datasource', datasource);
@@ -31,11 +33,13 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
   const [shiftsmodule, setShiftsmodule] = useState([]);
   const customDaySelectRef = useRef();
   const [shiftsmode, setShiftsmode] = useState([]);
+  const [showPassword, setShowPassword] = useState(false);
 
   const componentNameRef = useRef();
 
   const { userDetails } = useContext(UserDetailsContext);
   const [pageList, setPageList] = useState([]);
+  const { userRole, isOperator, isSupervisor, isMaintenance, isQuality, isManager, isAdmin, isSuperAdmin } = useUserRole();
 
   useEffect(() => {
     const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails
@@ -96,43 +100,69 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
         throw new Error('Cannot update user: required user IDs are missing.');
       }
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
-      const existingShiftIndex = existingShifts.findIndex(item =>
-        item.operatorid === shiftIdToEdit
+      const existingShiftIndex = existingShifts.findIndex(
+        (item) => item.operatorid === shiftIdToEdit
       );
 
       if (existingShiftIndex === -1) {
         throw new Error('Shift not found for local update.');
       }
 
-      // Check for duplicate Operator ID (excluding current shift)
       const isDuplicate = existingShifts.some((item, index) => {
         if (index === existingShiftIndex) return false;
-        return item.operatorid?.toString().trim().toLowerCase() === data.operatorid?.toString().trim().toLowerCase();
+        return (
+          item.operatorid?.toString().trim().toLowerCase() ===
+          data.operatorid?.toString().trim().toLowerCase()
+        );
       });
-
       if (isDuplicate) {
         Swal.fire('Error', 'Duplicate Operator ID is not allowed.', 'error');
         return;
       }
 
-      // Encrypt password for local storage
-      const encryptedPassword = data.password?.trim() ? encryptText(data.password.trim()) : '';
+      const encryptedPassword = data.password?.trim()
+        ? encryptText(data.password.trim())
+        : '';
+      const oldPassword = dialogData?.userDetails?.password
+        ? decryptText(dialogData.userDetails.password)
+        : '';
+      const isPasswordChanged =
+        data.password?.trim() && data.password.trim() !== oldPassword;
+      let finalEncryptedPassword = dialogData?.userDetails?.password || encryptedPassword;
+      const email = data.email + '@yantra24x7.com';
+      if (isPasswordChanged) {
+        try {
+          const userTokens = await fakeLogin(email, oldPassword);
+          const pwdPayload = {
+            currentPassword: oldPassword,
+            newPassword: data.password?.trim(),
+          };
+          await changePasswordWithUserToken(pwdPayload, userTokens.token);
+          console.log('Password successfully changed!');
+          finalEncryptedPassword = encryptedPassword;
+        } catch (err) {
+          console.warn('Password change failed — using old password:', err);
+          Swal.fire(
+            'Warning',
+            'User updated, but password change failed. Old password retained.',
+            'warning'
+          );
+        }
+      }
 
-      // Build description object for API payload
       const descriptionObj = {
         mode: data.mode,
         userId: data.operatorid,
-        pageList: data.mode === ROLE_OPERATOR ? ["operator"] : data.pagelist
+        pageList: data.mode === ROLE_OPERATOR ? ['operator'] : data.pagelist,
+        password: finalEncryptedPassword,
       };
 
-      // Prepare payload for API update
-      const email = data.email + '@yantra24x7.com';
       const payload = {
-        id: { entityType: "USER", id: dialogData.id.id }, // API ID
-        tenantId: { entityType: "TENANT", id: tenantId },
-        customerId: { entityType: "CUSTOMER", id: customerId },
+        id: { entityType: 'USER', id: dialogData.id.id },
+        tenantId: { entityType: 'TENANT', id: tenantId },
+        customerId: { entityType: 'CUSTOMER', id: customerId },
         email: email,
-        authority: "CUSTOMER_USER",
+        authority: 'CUSTOMER_USER',
         firstName: data.operatorname,
         lastName: null,
         phone: null,
@@ -146,38 +176,33 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
           userCredentialsEnabled: false,
           role: descriptionObj.mode,
           userId: descriptionObj.userId,
-          pageList: descriptionObj.pageList
-        }
+          pageList: descriptionObj.pageList,
+        },
       };
 
       console.log('Payload for user update:', payload);
 
-      // Call API to update user
       const updatedUser = await createNewUser(payload);
       if (!updatedUser?.id?.id) {
         throw new Error('User ID not returned from update API');
       }
 
-      // Update local datasource
       existingShifts[existingShiftIndex] = {
-        id: shiftIdToEdit, // local shift ID
+        id: shiftIdToEdit,
         operatorname: data.operatorname,
         operatorid: data.operatorid,
         mode: data.mode,
-        ...(data.mode === "Operator" && { password: encryptedPassword })
+        ...(data.mode === 'Operator' && { password: finalEncryptedPassword }),
       };
 
       const formData = {
         alloperator: existingShifts,
-        lastUpdateTs: Date.now()
+        lastUpdateTs: Date.now(),
       };
 
-      // Send updated local data to backend
       const response = await shiftadd(formData, customerId, 'SERVER_SCOPE');
       setDatasource(existingShifts);
-      Swal.fire(response.msg || "User updated successfully!");
-      // Swal.fire("User updated successfully!");
-
+      Swal.fire(response.msg || 'User updated successfully!');
     } catch (error) {
       console.error('Error updating user:', error);
       Swal.fire('Error', error.message, 'error');
@@ -185,8 +210,6 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       handleClose();
       reset(defaultShiftForm);
     }
-
-    console.log(data, 'edit data');
   };
 
   useEffect(() => {
@@ -203,7 +226,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
           mode: dialogData.userDetails.mode || '',
           language: dialogData.language || '',
           experiencelevel: dialogData.experiencelevel || '',
-          password: dialogData.password ? decryptText(dialogData.password) : '',
+          password: dialogData.userDetails.password ? decryptText(dialogData.userDetails.password) : '',
           email: dialogData.email ? dialogData.email.split('@')[0] : '',
           pagelist: dialogData.userDetails.pageList || []
         };
@@ -243,6 +266,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                     required={true}
                     options={availableRoles}
                     error={!!errors.mode}
+                    disabled
                   />
                   {errors.mode && <div className="mat-error">Mode is required</div>}
                 </div>
@@ -384,6 +408,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                     label="Email"
                     type="text"
                     name="email"
+                    disabled
                     value={shiftForm.email?.replace(/@yantra24x7\.com$/, '') || ''}
                     onChange={(e) => {
                       const username = e.target.value.replace(/\s/g, '');
@@ -515,6 +540,64 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                     {errors.pagelist && <div className="mat-error">{errors.pagelist.message}</div>}
                   </div>
                 )}
+                {(isAdmin || isSuperAdmin || isManager) && (
+                  <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
+                    <TextField
+                      {...register("password", {
+                        required: "Password is required",
+                        minLength: {
+                          value: 6,
+                          message: "Password must be at least 6 characters"
+                        },
+                        maxLength: {
+                          value: 20,
+                          message: "Password must not exceed 20 characters"
+                        }
+                      })}
+                      onBlur={() => trigger("password")}
+                      label="Password"
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={shiftForm.password}
+                      onChange={handleFormChange}
+                      error={!!errors.password}
+                      InputLabelProps={{
+                        required: true,
+                        sx: {
+                          color: "black",
+                          "&.Mui-focused": {
+                            color: "orange",
+                          },
+                        },
+                      }}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={() => setShowPassword((prev) => !prev)}
+                              edge="end"
+                              tabIndex={-1}
+                            >
+                              {showPassword ? <VisibilityOff /> : <Visibility />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          "& fieldset": { borderColor: "black" },
+                          "&:hover fieldset": { borderColor: "black" },
+                          "&.Mui-focused fieldset": { borderColor: "orange" },
+                          "& .MuiOutlinedInput-input": { color: "black" },
+                          "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
+                        },
+                      }}
+                    />
+                    {errors.password && <div className="mat-error">{errors.password.message}</div>}
+                  </div>
+                )}
+
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
