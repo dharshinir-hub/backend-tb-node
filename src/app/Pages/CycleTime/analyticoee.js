@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef,useState } from "react";
 import {
   Box,
   Typography,
@@ -83,10 +83,7 @@ const AnalyticOee = () => {
       fetchShifts();
       fetchDevices();
     }
-  }, [customerId, newToken]);
-
-
-
+  }, [customerId,newToken]);
 
 
   const [oeeSlower, setOeeTimeSlower] = useState([]);
@@ -113,9 +110,24 @@ const AnalyticOee = () => {
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState("");
   const [firstOperationsItem, setFirstOperationsItem] = useState([]);
+  const hasStartedRef = useRef(false);
+  
 
   useEffect(() => {
-    const fetchOperationsData = async () => {
+
+      if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
+    fetchOperationsData();
+
+    // intervalRef2.current = setInterval(fetchAllMachineData, 5000);
+    return () => {
+      // clearInterval(intervalRef2.current);
+      hasStartedRef.current = false;
+    };
+
+  }, [selectedDevice, from, to, devices]);
+
+   const fetchOperationsData = async () => {
       if (!from || !to || !selectedDevice) return;
 
       try {
@@ -161,9 +173,6 @@ const AnalyticOee = () => {
       }
     };
 
-    fetchOperationsData();
-  }, [selectedDevice, from, to, devices, shifts, deviceNameIdJson]);
-
   const oeebaselineGreater = [];
   const oeebaselineLower = [];
 
@@ -173,7 +182,7 @@ const AnalyticOee = () => {
 
   filteredOperations.forEach((item) => {
     const itemOEE = item?.oee ?? 0;
-    const baselineOEE = item?.baseline?.oee ?? 0;
+    const baselineOEE = item?.historical_baseline?.oee ?? 0;
 
     if (itemOEE > baselineOEE) {
       oeebaselineGreater.push(item);
@@ -705,7 +714,7 @@ const AnalyticOee = () => {
                 ) : oeebaselineLower.length > 0 ? (
                   oeebaselineLower.map((item, index) => {
                     const actual = Number(item?.oee || 0);
-                    const expected = Number(item?.baseline?.oee || 0);
+                    const expected = Number(item?.historical_baseline?.oee || 0);
                     const diff = actual - expected;
 
                     return (
@@ -861,7 +870,7 @@ const AnalyticOee = () => {
                 ) : oeebaselineGreater.length > 0 ? (
                   oeebaselineGreater.map((item, index) => {
                     const actual = Number(item?.oee || 0);
-                    const expected = Number(item?.baseline?.oee || 0);
+                    const expected = Number(item?.historical_baseline?.oee || 0);
                     const diff = actual - expected;
 
                     return (
