@@ -441,7 +441,7 @@ useEffect(() => {
           if (shiftEnd <= shiftStart) {
             shiftEnd.setDate(shiftEnd.getDate() + 1);
           }
-          if (ts >= shiftStart.getTime() && ts <= shiftEnd.getTime()) {
+          if (ts >= shiftStart.getTime() && ts < shiftEnd.getTime()) {
             const dateKey = shiftStart.toISOString().split("T")[0];
             if (!results[machineId][dateKey]) {
               results[machineId][dateKey] = {};
