@@ -150,14 +150,14 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
         ],
       },
-      {
-        name: "Analytics",
-        icon: <BiBarChart />,
-        children: [
-        { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
-          { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
-        ]
-      },
+      // {
+      //   name: "Analytics",
+      //   icon: <BiBarChart />,
+      //   children: [
+      //   { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
+      //     { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
+      //   ]
+      // },
       {
         name: "Operation",
         icon: <AiTwotoneProfile />,
