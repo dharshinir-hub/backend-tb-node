@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import dayjs from 'dayjs';
 import './new-analytics.css';
 import { cleanCustomerId, customerbaseddevices, customerbasedshift } from "../../Services/app/operatorservice";
+import { getAverageOEEForRange } from "../../Shared/utils/oeeCalculations";
 
 export default function NewAnalytics() {
     const [selectedDevice, setSelectedDevice] = useState('all');
@@ -21,6 +22,8 @@ export default function NewAnalytics() {
     const [toTime, setToTime] = useState(null);
     const [from, setFrom] = useState(null);
     const [to, setTo] = useState(null);
+    const [avgOeeData, setAvgOeeData] = useState({}); 
+    const [oeeGrafanaUrl, setOeeGrafanaUrl] = useState(''); 
 
     useEffect(() => {
         if (customerId) {
@@ -32,6 +35,12 @@ export default function NewAnalytics() {
     useEffect(() => {
         updateGrafanaURL();
     }, [selectedDevice, fromTime, toTime, from, to, newToken, analysisType]);
+
+    useEffect(() => {
+        if (analysisType === 'oee' && from && to) {
+            updateOeeDataAndUrl();
+        }
+    }, [selectedDevice, from, to, newToken, analysisType, devices, shifts]);
 
     useEffect(() => {
         if (!fromDate || !toDate || shifts.length === 0) return;
@@ -100,30 +109,53 @@ export default function NewAnalytics() {
         }
     };
 
-    const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
-        const now = dayjs(selectedDate);
-        for (let shift of allShifts) {
-            const [startH, startM, startS = 0] = shift.start_time.split(":").map(Number);
-            const [endH, endM, endS = 0] = shift.end_time.split(":").map(Number);
-            let start = dayjs(now).hour(startH).minute(startM).second(startS).millisecond(0);
-            let end = dayjs(now).hour(endH).minute(endM).second(endS).millisecond(0);
-            if (end.isBefore(start)) {
-                if (now.isBefore(end)) {
-                    start = start.subtract(1, "day");
-                } else {
-                    end = end.add(1, "day");
-                }
+    const updateOeeDataAndUrl = async () => {
+        try {
+            let devicesToProcess = devices;
+            if (selectedDevice !== "all") {
+                const selectedDeviceObj = devices.find(d => d.id.id === selectedDevice);
+                devicesToProcess = selectedDeviceObj ? [selectedDeviceObj] : [];
             }
-            if (now.isAfter(start) && now.isBefore(end)) {
-                return shift;
+            if (devicesToProcess.length === 0) {
+                console.log("No devices to process for OEE data");
+                setAvgOeeData({});
+                return;
             }
+            const { avgData } = await getAverageOEEForRange(devicesToProcess, shifts, from, to);
+            console.log(avgData, 'average data ??????????????????????')
+            setAvgOeeData(avgData);
+            const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
+            const cleanedId = cleanCustomerId(customerId);
+            const baseUrl = window._env_.SERVER_URL;
+            const GRAFANA_URL = window._env_.GRAFANA_URL;
+            let entityType = "CUSTOMER";
+            let entityId = cleanedId;
+            if (selectedDevice !== "all") {
+                entityType = "DEVICE";
+                entityId = selectedDevice;
+            }
+            const deviceWiseData = Object.fromEntries(
+                Object.entries(avgData).map(([deviceId, deviceData]) => {
+                    const formatted = Object.entries(deviceData).map(([date, value]) => ({
+                        date,
+                        value
+                    }));
+                    return [deviceId, formatted];
+                })
+            );
+            const avgOeeJson = encodeURIComponent(JSON.stringify(deviceWiseData));
+            const url = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-device_id=${entityId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgOeeJson}&kiosk&theme=light&refresh=20s`;
+            console.log("OEE Grafana URL:", url);
+            setOeeGrafanaUrl(url);
+        } catch (error) {
+            console.error("Error updating OEE data:", error);
         }
-        return null;
     };
 
-    const isShiftDisabled = !fromDate || !toDate ? true : !fromDate.isSame(toDate, 'day');
-
     const updateGrafanaURL = () => {
+        if (analysisType === 'oee') {
+            return;
+        }
         const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
         const cleanedId = cleanCustomerId(customerId);
         let entityType = "CUSTOMER";
@@ -138,6 +170,15 @@ export default function NewAnalytics() {
             `${GRAFANA_URL}d/a56900cd-961f-4ed4-99c5-3ec120450653/alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${analysisType}&var-grafanaurl=${GRAFANA_URL}&kiosk&theme=light&refresh=20s`;
         console.log(url, 'Grafana URL');
         setGrafanaUrl(url);
+    };
+
+    const isShiftDisabled = !fromDate || !toDate ? true : !fromDate.isSame(toDate, 'day');
+    const getCurrentIframeUrl = () => {
+        if (analysisType === 'oee') {
+            return oeeGrafanaUrl;
+        } else {
+            return grafanaUrl;
+        }
     };
 
     return (
@@ -166,6 +207,7 @@ export default function NewAnalytics() {
                     >
                         <MenuItem value="live_alarm">Alarm</MenuItem>
                         <MenuItem value="live_reason">Downtime</MenuItem>
+                        <MenuItem value="oee">OEE</MenuItem> {/* New OEE option */}
                     </Select>
                 </FormControl>
                 <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -205,9 +247,9 @@ export default function NewAnalytics() {
             </div>
             <div style={{ flexGrow: 1, position: "relative" }}>
                 <iframe
-                    src={grafanaUrl}
+                    src={getCurrentIframeUrl()}
                     style={{ width: "100%", height: "100%", border: "0" }}
-                    title="Grafana Right"
+                    title="Grafana Dashboard"
                 />
                 <div //0ee
                     style={{
