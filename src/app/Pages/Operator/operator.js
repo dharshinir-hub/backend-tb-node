@@ -65,7 +65,7 @@ function Operator() {
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
             return window._env_.CUSTOMER_ID;
-        } else if (location.pathname === "/kZ8p_RaQ3-XmY7tV5sC9bJ1hF4uN0eLrT~6wDgP2iKoM") {
+        } else if (location.pathname === "/smc_operator_bf9tz") {
             return window._env_.SMC_CUSTOMER_ID;
         } else {
             const customerIdStr = localStorage.getItem('CustomerID');
@@ -1016,7 +1016,10 @@ function Operator() {
     };
 
     useEffect(() => {
-        if (location.pathname !== "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
+        if (
+            location.pathname !== "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" &&
+            location.pathname !== "/smc_operator_bf9tz"
+        ) {
             return;
         }
         const init = async () => {
