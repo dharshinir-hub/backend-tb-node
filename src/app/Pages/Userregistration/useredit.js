@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef, useContext } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -12,7 +13,7 @@ import { useForm } from 'react-hook-form';
 import { convertTo24Hour } from '../Inputfield/inputfield';
 import Swal from 'sweetalert2';
 import { Checkbox, FormControl, InputAdornment, InputLabel, ListItemText, MenuItem, Select, Tooltip } from '@mui/material';
-import { shiftadd, customerbasedshift } from '../../Services/app/masterservice';
+import { shiftadd } from '../../Services/app/masterservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
 import { decryptText, encryptText } from '../../Shared/utils/cryptoUtils';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
@@ -39,69 +40,6 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
   const { userDetails } = useContext(UserDetailsContext);
   const [pageList, setPageList] = useState([]);
   const { userRole, isOperator, isSupervisor, isMaintenance, isQuality, isManager, isAdmin, isSuperAdmin } = useUserRole();
-  const [machineGroups, setMachineGroups] = useState([]);
-  const [allowedMachineGroups, setAllowedMachineGroups] = useState([]);
-  const [shouldShowGroupsField, setShouldShowGroupsField] = useState(false);
-
-    const { register, handleSubmit, formState: { errors }, trigger, setValue, reset } = useForm({
-    shouldFocusError: true,
-    mode: 'onBlur'
-  });
-  
-  useEffect(() => {
-    if (open) {
-      fetchMachineGroups();
-    }
-  }, [open, customerId]);
-
-  const fetchMachineGroups = async () => {
-    try {
-      const key = 'machinegroups';
-      const data = await customerbasedshift(customerId, key);
-      const allMachineGroups = data[0]?.value || [];
-      setMachineGroups(allMachineGroups);
-      console.log("✅ Machine Groups:", allMachineGroups);
-    } catch (error) {
-      console.error("Error fetching machine groups:", error);
-      setMachineGroups([]);
-    }
-  };
-
-  useEffect(() => {
-    if (userDetails && machineGroups.length > 0) {
-      const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
-      
-      if (usersDetailsData?.mode === ROLE_SUPER_ADMIN) {
-        setAllowedMachineGroups(machineGroups);
-        setShouldShowGroupsField(machineGroups.length > 0);
-      } else {
-        // For other roles, check if they have specific groups assigned
-        const userGroups = usersDetailsData.groups || [];
-        
-        if (userGroups.length === 0) {
-          // If no groups assigned, show all groups
-          setAllowedMachineGroups(machineGroups);
-          setShouldShowGroupsField(machineGroups.length > 0);
-        } else if (userGroups.length === 1) {
-          // If only one group, don't show the field but auto-assign it
-          setAllowedMachineGroups([]);
-          setShouldShowGroupsField(false);
-          
-          // Auto-set the single group in the form
-          const singleGroupCode = userGroups[0];
-          setShiftForm(prev => ({ ...prev, groups: [singleGroupCode] }));
-          setValue("groups", [singleGroupCode]);
-        } else {
-          // If multiple groups, show only those groups
-          const filteredGroups = machineGroups.filter(group => 
-            userGroups.includes(group.code)
-          );
-          setAllowedMachineGroups(filteredGroups);
-          setShouldShowGroupsField(filteredGroups.length > 0);
-        }
-      }
-    }
-  }, [userDetails, machineGroups, setValue]);
 
   useEffect(() => {
     const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails
@@ -128,49 +66,24 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
     }
   }, [open]);
 
-
-  
+  const { register, handleSubmit, formState: { errors }, trigger, setValue, reset } = useForm({
+    shouldFocusError: true,
+    mode: 'onBlur'
+  });
   const handleFormChange = (event) => {
     const { name, value } = event.target;
     setShiftForm({ ...shiftForm, [name]: value });
     setValue(name, value);
     trigger(name);
   };
-
-  const handleGroupsChange = (event) => {
-    const { value } = event.target;
-    
-    // Get the groups to use for selection (either all groups or allowed groups)
-    const availableGroups = userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups;
-    
-    if (value.includes("all")) {
-      const allGroupCodes = availableGroups.map(group => group.code);
-      const isAllSelected = shiftForm.groups?.length === allGroupCodes.length;
-      const newValues = isAllSelected ? [] : allGroupCodes;
-      setShiftForm({ ...shiftForm, groups: newValues });
-      setValue("groups", newValues);
-      trigger("groups");
-      return;
-    }
-    
-    setShiftForm({
-      ...shiftForm,
-      groups: typeof value === "string" ? value.split(",") : value,
-    });
-    setValue("groups", value);
-    trigger("groups");
-  };
-
   const defaultShiftForm = useMemo(() => ({
     operatorname: '',
     operatorid: '',
     mode: '',
     password: '',
     email: '',
-    pagelist: '',
-    groups: [] // Added groups field
+    pagelist: ''
   }), []);
-  
   const { availableRoles } = useRoleOptions();
 
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
@@ -237,21 +150,11 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
         }
       }
 
-      // Auto-assign single group if current user has only one group
-      let finalGroups = data.groups || [];
-      if (!shouldShowGroupsField && userDetails) {
-        const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
-        if (usersDetailsData.groups?.length === 1) {
-          finalGroups = usersDetailsData.groups;
-        }
-      }
-
       const descriptionObj = {
         mode: data.mode,
         userId: data.operatorid,
         pageList: data.mode === ROLE_OPERATOR ? ['operator'] : data.pagelist,
         password: finalEncryptedPassword,
-        groups: finalGroups // Added groups to description
       };
 
       const payload = {
@@ -274,7 +177,6 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
           role: descriptionObj.mode,
           userId: descriptionObj.userId,
           pageList: descriptionObj.pageList,
-          groups: descriptionObj.groups // Added groups to additionalInfo
         },
       };
 
@@ -290,7 +192,6 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
         operatorname: data.operatorname,
         operatorid: data.operatorid,
         mode: data.mode,
-        groups: finalGroups, // Added groups to local data
         ...(data.mode === 'Operator' && { password: finalEncryptedPassword }),
       };
 
@@ -316,6 +217,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       reset(defaultShiftForm);
       setShiftForm(defaultShiftForm);
     } else {
+
       if (dialogData) {
         console.log(dialogData, 'dialogdata')
         const initialFormState = {
@@ -326,8 +228,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
           experiencelevel: dialogData.experiencelevel || '',
           password: dialogData.userDetails.password ? decryptText(dialogData.userDetails.password) : '',
           email: dialogData.email ? dialogData.email.split('@')[0] : '',
-          pagelist: dialogData.userDetails.pageList || [],
-          groups: dialogData.userDetails.groups || [] // Added groups to initial form state
+          pagelist: dialogData.userDetails.pageList || []
         };
         setShiftForm(initialFormState);
         reset(initialFormState);
@@ -433,6 +334,9 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                       }}
                     />
                     {errors.operatorid && <div className="mat-error">{errors.operatorid.message}</div>}
+
+
+                    {/* Changed to div and mat-error */}
                   </div>
                 )}
 
@@ -488,7 +392,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                       },
                     }}
                   />
-                  {errors.operatorname && <div className="mat-error">{errors.operatorname.message}</div>}
+                  {errors.operatorname && <div className="mat-error">{errors.operatorname.message}</div>} {/* Changed to div and mat-error */}
                 </div>
 
                 <div className={`form_field ${errors.email ? 'error-outline' : ''}`}>
@@ -533,13 +437,13 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                   />
                   {errors.email && <div className="mat-error">{errors.email.message}</div>}
                 </div>
-
                 {shiftForm.mode != ROLE_OPERATOR && (
                   <div className={`form_field ${errors.pagelist ? 'error-outline' : ''}`}>
                     <FormControl
                       fullWidth
                       error={!!errors.pagelist}
                       {...register("pagelist", { required: "Page list is required" })}
+
                     >
                       <InputLabel
                         required
@@ -631,99 +535,11 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                           </MenuItem>
                         ))}
                       </Select>
+
                     </FormControl>
                     {errors.pagelist && <div className="mat-error">{errors.pagelist.message}</div>}
                   </div>
                 )}
-
-                {/* Machine Groups Field - Conditionally Rendered */}
-                {shouldShowGroupsField && (
-                  <div className={`form_field ${errors.groups ? 'error-outline' : ''}`}>
-                    <FormControl
-                      fullWidth
-                      error={!!errors.groups}
-                      {...register("groups", { required: "Machine groups are required" })}
-                    >
-                      <InputLabel
-                        required
-                        sx={{
-                          background: "#ededed",
-                          color: "black",
-                          '&.Mui-focused': { color: "orange" },
-                        }}
-                      >
-                        Machine Groups
-                      </InputLabel>
-                      <Select
-                        multiple
-                        value={shiftForm.groups || []}
-                        onChange={handleGroupsChange}
-                        renderValue={(selected) =>
-                          (selected || [])
-                            .map((code) => {
-                              const group = (userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups)
-                                .find(g => g.code === code);
-                              return group ? group.name : code;
-                            })
-                            .join(", ")
-                        }
-                        MenuProps={{
-                          PaperProps: {
-                            style: {
-                              maxHeight: 48 * 5 + 8,
-                              width: 'auto',
-                            },
-                          },
-                        }}
-                        name="groups"
-                        sx={{
-                          '&.MuiOutlinedInput-root': {
-                            '&.Mui-focused fieldset': {
-                              borderColor: 'orange',
-                            },
-                            '&.Mui-focused.MuiInputBase-input': {
-                              caretColor: 'orange',
-                            },
-                          },
-                          '&.MuiSelect-icon': {
-                            color: 'black',
-                          },
-                          '&.Mui-focused.MuiSelect-icon': {
-                            color: 'orange',
-                          },
-                        }}
-                      >
-                        <MenuItem value="all">
-                          <Checkbox
-                            checked={shiftForm.groups?.length === (userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups).length}
-                            sx={{ '&.Mui-checked': { color: "#f47803ff" } }}
-                          />
-                          <ListItemText
-                            primary={
-                              shiftForm.groups?.length === (userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups).length
-                                ? "Unselect All"
-                                : "Select All"
-                            }
-                          />
-                        </MenuItem>
-                        {(userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups).map((group, index) => (
-                          <MenuItem key={index} value={group.code}>
-                            <Checkbox
-                              checked={shiftForm.groups?.includes(group.code)}
-                              sx={{ '&.Mui-checked': { color: "#f47803ff" } }}
-                            />
-                            <ListItemText 
-                              primary={`${group.name}`} 
-                              secondary={`Machines: ${group.machines?.join(', ') || 'None'}`}
-                            />
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    {errors.groups && <div className="mat-error">{errors.groups.message}</div>}
-                  </div>
-                )}
-
                 {(isAdmin || isSuperAdmin || isManager) && (
                   <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
                     <TextField

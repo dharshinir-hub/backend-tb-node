@@ -1,7 +1,6 @@
 // components/NotificationBell.js
 import React, { useState, useEffect, useRef } from 'react';
 import { FaBell, FaCheck, FaExclamationTriangle, FaInfoCircle, FaExclamationCircle } from 'react-icons/fa';
-import { Button } from '@mui/material';
 import './notificationBell.css';
 import { getNotifications, markAllAsRead, markAsRead } from '../../Services/app/notificationservice';
 import { useNavigate } from 'react-router-dom';
@@ -13,21 +12,21 @@ const NotificationBell = () => {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchNotifications();
+useEffect(() => {
+  fetchNotifications();
 
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      clearInterval(interval);
-    };
-  }, []);
+  const handleClickOutside = (event) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      setIsOpen(false);
+    }
+  };
+  document.addEventListener('mousedown', handleClickOutside);
+  const interval = setInterval(fetchNotifications, 30000);
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside);
+    clearInterval(interval);
+  };
+}, []);
 
   const fetchNotifications = async () => {
     try {
@@ -61,14 +60,6 @@ const NotificationBell = () => {
     }
   };
 
-  const handleActionButtonClick = (notification, e) => {
-    e.stopPropagation();
-    const actionConfig = notification.additionalConfig?.actionButtonConfig;
-    if (actionConfig?.enabled && actionConfig.linkType === 'LINK' && actionConfig.link) {
-      window.open(actionConfig.link, '_blank');
-    }
-  };
-
   const getNotificationIcon = (notification) => {
     if (!notification.additionalConfig?.icon?.enabled) {
       return null;
@@ -89,7 +80,7 @@ const NotificationBell = () => {
         return <FaExclamationCircle {...iconProps} />;
       case 'info':
         return <FaInfoCircle {...iconProps} />;
-      case 'check':
+          case 'check':
         return <FaCheck {...iconProps} />;
       default:
         return <FaInfoCircle {...iconProps} />;
@@ -116,10 +107,11 @@ const NotificationBell = () => {
 
   const unreadCount = notifications.length;
 
+
   const viewAllNotifications = () => {
     navigate('/notification-center');
-    setIsOpen(false);
-  };
+    setIsOpen(false)
+  }
   
   return (
     <div className="notification-container" ref={dropdownRef}>
@@ -160,9 +152,6 @@ const NotificationBell = () => {
             ) : (
               notifications.map((notification) => {
                 const icon = getNotificationIcon(notification);
-                const actionConfig = notification.additionalConfig?.actionButtonConfig;
-                const hasActionButton = actionConfig?.enabled && actionConfig.linkType === 'LINK';
-                
                 return (
                   <div
                     key={notification.id.id}
@@ -180,29 +169,6 @@ const NotificationBell = () => {
                       <div className="notification-text">
                         {notification.text}
                       </div>
-                      {hasActionButton && (
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          sx={{
-                            borderColor: '#F69320',
-                            color: '#F69320',
-                            '&:hover': {
-                              borderColor: '#F69320',
-                              backgroundColor: 'rgba(246, 147, 32, 0.04)'
-                            },
-                            marginTop: '4px',
-                            fontSize: '11px',
-                            padding: '2px 8px',
-                            minWidth: 'auto',
-                            lineHeight: 1.2,
-                            height: '24px'
-                          }}
-                          onClick={(e) => handleActionButtonClick(notification, e)}
-                        >
-                          {actionConfig.text || 'View Details'}
-                        </Button>
-                      )}
                     </div>
                     
                     <div className="notification-right">

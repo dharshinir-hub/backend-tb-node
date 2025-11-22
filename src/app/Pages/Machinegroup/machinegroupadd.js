@@ -20,7 +20,6 @@ import { useForm, Controller } from 'react-hook-form';
 import './machinegroup.css';
 import { shiftadd } from '../../Services/app/masterservice';
 import { customerbaseddevices } from '../../Services/app/operatorservice';
-import { createMachineGroupNotificationGroup } from '../../Services/app/machineGroupNotificationService';
 
 export default function MachineGroupAdd({
   open,
@@ -35,7 +34,6 @@ export default function MachineGroupAdd({
   const componentNameRef = useRef();
 
   const [machines, setMachines] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const defaultForm = useMemo(
     () => ({
@@ -74,88 +72,70 @@ export default function MachineGroupAdd({
   useEffect(() => {
     if (!open) reset(defaultForm);
   }, [open, reset, defaultForm]);
-  
-const onSubmit = async (data) => {
-  if (isSubmitting) return;
-  setIsSubmitting(true);
-  try {
-    const id = Math.random().toString(36).substr(2, 9);
-    let existingGroups = Array.isArray(datasource) ? [...datasource] : [];
-    let lastCode = 0;
 
-    if (existingGroups.length > 0) {
-      lastCode = Math.max(
-        ...existingGroups.map((item) => parseInt(item.code, 10) || 0)
-      );
-    }
-    const autoCode = lastCode + 1;
-    const newGroup = {
-      id,
-      code: String(autoCode),
-      name: data.name.trim(),
-      machines: data.machines,
-    };
-
-    const isDuplicate = existingGroups.some(
-      (item) => item.name?.trim().toLowerCase() === newGroup.name.toLowerCase()
-    );
-    if (isDuplicate) {
-      Swal.fire('Error', 'Duplicate Machine Group is not allowed.', 'error');
-      setIsSubmitting(false);
-      return;
-    }
-
-    existingGroups.push(newGroup);
-
-    const formData = {
-      machinegroups: existingGroups,
-      lastUpdateTs: Date.now(),
-    };
-
-    const scope = 'SERVER_SCOPE';
-    const response = await shiftadd(formData, customerId, scope);
-
+  const onSubmit = async (data) => {
     try {
-      const currentUserId = localStorage.getItem("userID");
-      await createMachineGroupNotificationGroup(newGroup, currentUserId, customerId);
-      
-      Swal.fire({
-        icon: 'success',
-        title: 'Success!',
-        text: 'Machine Group and Notification Group Created Successfully',
-        timer: 1500,
-        showConfirmButton: false,
-      });
-      
-    } catch (notificationError) {
-      console.error('Failed to create notification group:', notificationError);
-      const rollbackGroups = existingGroups.filter(group => group.id !== id);
-      const rollbackFormData = {
-        machinegroups: rollbackGroups,
+      const id = Math.random().toString(36).substr(2, 9);
+      let existingGroups = Array.isArray(datasource) ? [...datasource] : [];
+      let lastCode = 0;
+
+      if (existingGroups.length > 0) {
+        lastCode = Math.max(
+          ...existingGroups.map((item) => parseInt(item.code, 10) || 0)
+        );
+      }
+
+      const autoCode = lastCode + 1;
+
+      const newGroup = {
+        id,
+        code: String(autoCode),
+        name: data.name.trim(),
+        machines: data.machines,
+      };
+
+      const isDuplicate = existingGroups.some(
+        (item) => item.name?.trim().toLowerCase() === newGroup.name.toLowerCase()
+      );
+      if (isDuplicate) {
+        handleClose();
+        Swal.fire('Error', 'Duplicate Machine Group is not allowed.', 'error');
+        return;
+      }
+
+      existingGroups.push(newGroup);
+
+      const formData = {
+        machinegroups: existingGroups,
         lastUpdateTs: Date.now(),
       };
-      await shiftadd(rollbackFormData, customerId, scope);
-      Swal.fire({
-        icon: 'error',
-        title: 'Partial Failure',
-        text: 'Machine Group created but failed to create notification group. Machine Group has been rolled back.',
-        timer: 2000,
-      });
-      setIsSubmitting(false);
-      return;
-    }
 
-    handleClose();
-    reset(defaultForm);
-    setDatasource(existingGroups);
-    if (handleAdd) handleAdd();
-  } catch (error) {
-    console.error('Error submitting machine group:', error);
-    Swal.fire('Error', 'Failed to create machine group: ' + error.message, 'error');
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+      const scope = 'SERVER_SCOPE';
+      const response = await shiftadd(formData, customerId, scope);
+
+      if (response.msg) {
+        Swal.fire(response.msg);
+      } else {
+        Swal.fire({
+          icon: 'success',
+          title: 'Submitted!',
+          text: 'Machine Group Created Successfully',
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      }
+
+      handleClose();
+      reset(defaultForm);
+      setDatasource(existingGroups);
+      if (handleAdd) handleAdd();
+    } catch (error) {
+      console.error('Error submitting machine group:', error);
+      Swal.fire('Error submitting machine group: ' + error.message);
+      handleClose();
+      reset(defaultForm);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -183,7 +163,6 @@ const onSubmit = async (data) => {
             aria-label="close"
             onClick={handleClose}
             style={{ backgroundColor: '#ffffff' }}
-            disabled={isSubmitting}
           >
             <CloseIcon />
           </IconButton>
@@ -205,7 +184,6 @@ const onSubmit = async (data) => {
               label="Machine Group Name"
               type="text"
               fullWidth
-              disabled={isSubmitting}
               {...register('name', {
                 required: 'Machine Group Name is required',
                 maxLength: { value: 100, message: 'Maximum 100 characters' },
@@ -239,7 +217,6 @@ const onSubmit = async (data) => {
                   fullWidth
                   error={!!errors.machines}
                   required
-                  disabled={isSubmitting}
                   sx={{
                     flex: 1,
                     '& .MuiOutlinedInput-root': {
@@ -273,6 +250,8 @@ const onSubmit = async (data) => {
                         transform: 'translateY(-50%) scale(0.75)',
                       },
                     },
+
+
                   }}
                 >
                   <InputLabel sx={{ background: '#ededed' }}>Machines</InputLabel>
@@ -328,9 +307,8 @@ const onSubmit = async (data) => {
               variant="contained"
               className="filter_btn btn_orange"
               color="warning"
-              disabled={isSubmitting}
             >
-              {isSubmitting ? 'Creating...' : 'Save'}
+              Save
             </Button>
           </div>
         </form>

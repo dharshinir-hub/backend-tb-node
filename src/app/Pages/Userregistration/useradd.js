@@ -12,7 +12,7 @@ import { useForm } from 'react-hook-form';
 import { convertTo24Hour } from '../Inputfield/inputfield';
 import Swal from 'sweetalert2';
 import { Box, Checkbox, Chip, FormControl, InputAdornment, InputLabel, ListItemText, MenuItem, Select, Tooltip } from '@mui/material';
-import { shiftadd, customerbasedshift } from '../../Services/app/masterservice'; 
+import { shiftadd } from '../../Services/app/masterservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
 import { decryptText, encryptText } from '../../Shared/utils/cryptoUtils';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
@@ -40,8 +40,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
     mode: '',
     password: '',
     email: '',
-    pagelist: '',
-    groups: []
+    pagelist: ''
   }), []);
 
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
@@ -52,56 +51,6 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
   const { userDetails } = useContext(UserDetailsContext);
   const [pageList, setPageList] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
-  const [machineGroups, setMachineGroups] = useState([]);
-  const [allowedMachineGroups, setAllowedMachineGroups] = useState([]);
-  const [shouldShowGroupsField, setShouldShowGroupsField] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      fetchMachineGroups();
-    }
-  }, [open, customerId]);
-
-  const fetchMachineGroups = async () => {
-    try {
-      const key = 'machinegroups';
-      const data = await customerbasedshift(customerId, key);
-      const allMachineGroups = data[0]?.value || [];
-      setMachineGroups(allMachineGroups);
-      console.log("✅ Machine Groups:", allMachineGroups);
-    } catch (error) {
-      console.error("Error fetching machine groups:", error);
-      setMachineGroups([]);
-    }
-  };
-
-  useEffect(() => {
-    if (userDetails && machineGroups.length > 0) {
-      const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
-      if (usersDetailsData?.mode === ROLE_SUPER_ADMIN) {
-        setAllowedMachineGroups(machineGroups);
-        setShouldShowGroupsField(machineGroups.length > 0);
-      } else {
-        const userGroups = usersDetailsData.groups || [];
-        if (userGroups.length === 0) {
-          setAllowedMachineGroups(machineGroups);
-          setShouldShowGroupsField(machineGroups.length > 0);
-        } else if (userGroups.length === 1) {
-          setAllowedMachineGroups([]);
-          setShouldShowGroupsField(false);
-          const singleGroupCode = userGroups[0];
-          setShiftForm(prev => ({ ...prev, groups: [singleGroupCode] }));
-          setValue("groups", [singleGroupCode]);
-        } else {
-          const filteredGroups = machineGroups.filter(group => 
-            userGroups.includes(group.code)
-          );
-          setAllowedMachineGroups(filteredGroups);
-          setShouldShowGroupsField(filteredGroups.length > 0);
-        }
-      }
-    }
-  }, [userDetails, machineGroups, setValue]);
 
   useEffect(() => {
     const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails
@@ -129,26 +78,6 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
     setShiftForm({ ...shiftForm, [name]: value });
     setValue(name, value);
     trigger(name);
-  };
-
-  const handleGroupsChange = (event) => {
-    const { value } = event.target;
-    const availableGroups = userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups;
-    if (value.includes("all")) {
-      const allGroupCodes = availableGroups.map(group => group.code);
-      const isAllSelected = shiftForm.groups?.length === allGroupCodes.length;
-      const newValues = isAllSelected ? [] : allGroupCodes;
-      setShiftForm({ ...shiftForm, groups: newValues });
-      setValue("groups", newValues);
-      trigger("groups");
-      return;
-    }
-    setShiftForm({
-      ...shiftForm,
-      groups: typeof value === "string" ? value.split(",") : value,
-    });
-    setValue("groups", value);
-    trigger("groups");
   };
 
   const componentNameRef = useRef();
@@ -190,21 +119,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
       const encryptedPassword = data.password?.trim() ? encryptText(data.password.trim()) : '';
       const decryptedPassword = encryptedPassword ? decryptText(encryptedPassword) : '';
       const email = data.email + '@yantra24x7.com';
-      let finalGroups = data.groups || [];
-      if (!shouldShowGroupsField && userDetails) {
-        const usersDetailsData = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
-        if (usersDetailsData.groups?.length === 1) {
-          finalGroups = usersDetailsData.groups;
-        }
-      }
-      const descriptionObj = { 
-        mode: data.mode, 
-        userId: operatorId, 
-        pageList: data.mode === ROLE_OPERATOR ? ["operator"] : data.pagelist, 
-        password: encryptedPassword,
-        groups: finalGroups
-      };
-      
+      const descriptionObj = { mode: data.mode, userId: operatorId, pageList: data.mode === ROLE_OPERATOR ? ["operator"] : data.pagelist, password: encryptedPassword};
       const payload = {
         email,
         firstName: data.operatorname,
@@ -216,8 +131,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
           homeDashboardHideToolbar: true,
           role: descriptionObj.mode,
           userId: descriptionObj.userId,
-          pageList: descriptionObj.pageList,
-          groups: descriptionObj.groups
+          pageList: descriptionObj.pageList
         },
         authority: "CUSTOMER_USER",
         tenantId: { entityType: "TENANT", id: tenantId },
@@ -237,8 +151,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
         operatorname: data.operatorname,
         operatorid: operatorId,
         mode: data.mode,
-        password: encryptedPassword,
-        groups: finalGroups
+        password: encryptedPassword
       };
       existingShifts.push(currentShiftData);
       await shiftadd({ alloperator: existingShifts, lastUpdateTs: Date.now() }, customerId, 'SERVER_SCOPE');
@@ -286,6 +199,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                 </div>
 
                 {![ROLE_ADMIN, ROLE_MANAGER, ROLE_SUPER_ADMIN].includes(shiftForm.mode) && (
+
                   <div className={`form_field  ${errors.operatorid ? 'error-outline' : ''}`}>
                     <TextField
                       {...register("operatorid", {
@@ -408,6 +322,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                       const username = e.target.value.replace(/\s/g, '');
                       handleFormChange({ target: { name: 'email', value: username } });
                     }}
+
                     error={!!errors.email}
                     InputProps={{
                       endAdornment: <InputAdornment position="end">@yantra24x7.com</InputAdornment>,
@@ -448,11 +363,13 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                       >
                         Page Access
                       </InputLabel>
+
                       <Select
                         multiple
                         value={shiftForm.pagelist || []}
                         onChange={(e) => {
                           const { value } = e.target;
+
                           if (value.includes("all")) {
                             const allValues = pageList.map((p) => p.value);
                             const isAllSelected = shiftForm.pagelist?.length === allValues.length;
@@ -462,6 +379,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                             trigger("pagelist");
                             return;
                           }
+
                           setShiftForm({
                             ...shiftForm,
                             pagelist: typeof value === "string" ? value.split(",") : value,
@@ -477,7 +395,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                         MenuProps={{
                           PaperProps: {
                             style: {
-                              maxHeight: 48 * 5 + 8,
+                              maxHeight: 48 * 5 + 8, // 5 items visible
                               width: 'auto',
                             },
                           },
@@ -492,6 +410,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                               caretColor: 'orange',
                             },
                           },
+
                           '&.MuiSelect-icon': {
                             color: 'black',
                           },
@@ -513,6 +432,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                             }
                           />
                         </MenuItem>
+
                         {pageList.map((page, index) => (
                           <MenuItem key={index} value={page.value}>
                             <Checkbox
@@ -523,99 +443,14 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                           </MenuItem>
                         ))}
                       </Select>
+
                     </FormControl>
                     {errors.pagelist && <div className="mat-error">{errors.pagelist.message}</div>}
                   </div>
                 )}
 
-                {/* Machine Groups Field - Conditionally Rendered */}
-                {shouldShowGroupsField && (
-                  <div className={`form_field ${errors.groups ? 'error-outline' : ''}`}>
-                    <FormControl
-                      fullWidth
-                      error={!!errors.groups}
-                      {...register("groups", { required: "Machine groups are required" })}
-                    >
-                      <InputLabel
-                        required
-                        sx={{
-                          background: "#ededed",
-                          color: "black",
-                          '&.Mui-focused': { color: "orange" },
-                        }}
-                      >
-                        Machine Groups
-                      </InputLabel>
-                      <Select
-                        multiple
-                        value={shiftForm.groups || []}
-                        onChange={handleGroupsChange}
-                        renderValue={(selected) =>
-                          (selected || [])
-                            .map((code) => {
-                              const group = (userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups)
-                                .find(g => g.code === code);
-                              return group ? group.name : code;
-                            })
-                            .join(", ")
-                        }
-                        MenuProps={{
-                          PaperProps: {
-                            style: {
-                              maxHeight: 48 * 5 + 8,
-                              width: 'auto',
-                            },
-                          },
-                        }}
-                        name="groups"
-                        sx={{
-                          '&.MuiOutlinedInput-root': {
-                            '&.Mui-focused fieldset': {
-                              borderColor: 'orange',
-                            },
-                            '&.Mui-focused.MuiInputBase-input': {
-                              caretColor: 'orange',
-                            },
-                          },
-                          '&.MuiSelect-icon': {
-                            color: 'black',
-                          },
-                          '&.Mui-focused.MuiSelect-icon': {
-                            color: 'orange',
-                          },
-                        }}
-                      >
-                        <MenuItem value="all">
-                          <Checkbox
-                            checked={shiftForm.groups?.length === (userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups).length}
-                            sx={{ '&.Mui-checked': { color: "#f47803ff" } }}
-                          />
-                          <ListItemText
-                            primary={
-                              shiftForm.groups?.length === (userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups).length
-                                ? "Unselect All"
-                                : "Select All"
-                            }
-                          />
-                        </MenuItem>
-                        {(userDetails?.mode === ROLE_SUPER_ADMIN ? machineGroups : allowedMachineGroups).map((group, index) => (
-                          <MenuItem key={index} value={group.code}>
-                            <Checkbox
-                              checked={shiftForm.groups?.includes(group.code)}
-                              sx={{ '&.Mui-checked': { color: "#f47803ff" } }}
-                            />
-                            <ListItemText 
-                              primary={`${group.name}`} 
-                              secondary={`Machines: ${group.machines?.join(', ') || 'None'}`}
-                            />
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    {errors.groups && <div className="mat-error">{errors.groups.message}</div>}
-                  </div>
-                )}
-
+                {/* {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
+)} */}
                 <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
                   <TextField
                     {...register("password", {

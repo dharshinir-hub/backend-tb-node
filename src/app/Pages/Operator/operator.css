@@ -831,20 +831,3 @@ div:where(.swal2-icon) {
 div:where(.swal2-container).swal2-center>.swal2-popup {
   width: auto !important;
 }
-
-.logout-btn {
-    background: #F99022;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-}
-
-.logout-btn:hover {
-    background: #d86602;
-}

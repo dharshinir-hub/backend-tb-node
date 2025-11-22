@@ -54,7 +54,6 @@ function LoginForm() {
           localStorage.setItem("authority", JSON.stringify(userResponse.authority));
           localStorage.setItem("firstName", JSON.stringify(userResponse.firstName));
           localStorage.setItem("lastName", JSON.stringify(userResponse.lastName));
-          localStorage.setItem("userID",userResponse?.id?.id);
           try {
             const description = userResponse?.additionalInfo?.description || "{}";
             updateUserDetails(description);
