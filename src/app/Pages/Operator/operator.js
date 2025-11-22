@@ -1,6 +1,6 @@
 import './operator.css';
 import logo from '../../../assets/yantraimage.png';
-import { FaRegClock, FaRegCalendarAlt } from "react-icons/fa";
+import { FaRegClock, FaRegCalendarAlt, FaSignOutAlt } from "react-icons/fa";
 import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
 import { useEffect, useRef, useState } from "react";
@@ -18,11 +18,11 @@ import {
     Button,
 } from "@mui/material";
 import { ROLE_OPERATOR } from '../../Shared/constants/role'
-import { getOperatorDetails, Loginapi, startTokenAutoRefresh } from '../../Services/app/loginservice';
+import { getOperatorDetails, Loginapi, startTokenAutoRefresh, stopTokenAutoRefresh } from '../../Services/app/loginservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
 import CircularProgress from '../../Shared/Pages/circularprogress/circularprogress';
 import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogress';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
@@ -61,6 +61,7 @@ function Operator() {
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
     const customerId1 = localStorage.getItem('CustomerID');
+      const navigate = useNavigate();
     
     const fetchDevices = async () => {
         try {
@@ -1031,6 +1032,21 @@ function Operator() {
         return () => clearInterval(interval);
     }, []);
 
+      const handleLogout = () => {
+        Swal.fire({
+          title: 'Are you sure want  to logout?',
+          showCancelButton: true,
+          confirmButtonText: 'Ok',
+          cancelButtonText: 'Cancel'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            stopTokenAutoRefresh();
+            localStorage.clear();
+            navigate('/');
+          }
+        });
+      };
+
     const handleConfirm = () => {
         if (confirmType === "machine") {
             setSelectedMachine(pendingMachine);
@@ -1205,6 +1221,7 @@ function Operator() {
                     </h5>
                 </div>
                 <div className="calendar-container">
+                    
                     <div className="calendar">
                         <FaRegCalendarAlt className="icon" style={{ color: '#F99022' }} />
                         <p className='date-label'>Date: </p>
@@ -1216,6 +1233,17 @@ function Operator() {
                         <p className='date-label'>Time: </p>
                         <p className='date-label'>{time}</p>
                     </div>
+                    {location.pathname === "/operator" && (
+    <div className="logout-container">
+        <button 
+            className="logout-btn"
+            onClick={handleLogout}
+        >
+            <FaSignOutAlt /> Logout
+        </button>
+    </div>
+)}
+
                 </div>
             </div>
             <div className="header-2" style={{ background: telemetry.machineColor }}>
