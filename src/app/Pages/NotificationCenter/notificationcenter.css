@@ -1,0 +1,18 @@
+.shift-content-2 {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    align-items: center;
+}
+
+.left-labels-1 {
+    display: flex;
+    padding: 0 2rem 0.2rem 0;
+}
+
+.example-container-1 {
+    height: 65vh;
+    overflow: auto;
+    scrollbar-width: thin;
+    background: #ffffff;
+}

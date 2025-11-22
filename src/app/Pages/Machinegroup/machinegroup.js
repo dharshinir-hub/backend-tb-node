@@ -5,7 +5,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import './machinegroup.css';
 import MachineGroupAdd from './machinegroupadd';
-import { customerbasedshift } from '../../Services/app/operatorservice';
+import { customerbasedshift, getCustomerUsers } from '../../Services/app/operatorservice';
 import MachineGroupEdit from './machinegroupedit';
 import { shiftadd } from '../../Services/app/masterservice';
 import Swal from 'sweetalert2';
@@ -41,6 +41,22 @@ const MachineGroup = () => {
     fetchMachineGroups();
   }, []);
 
+  const getUsersList = async () => {
+    try {
+      const res = await getCustomerUsers(customerId);
+      const usersList = res.data || [];
+      const parsedUsers = usersList.map(user => {
+        let parsedDescription = '';
+        try { parsedDescription = user.additionalInfo?.description ? JSON.parse(user.additionalInfo.description) : ''; }
+        catch { parsedDescription = user.additionalInfo?.description || ''; }
+        return { ...user, userDetails: parsedDescription };
+      });
+      return parsedUsers;
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
   const fetchMachineGroups = async () => {
     const key = 'machinegroups';
     customerbasedshift(customerId, key)
@@ -62,65 +78,112 @@ const MachineGroup = () => {
 
   const handleOpenEditDialog = (group) => {
     console.log('Edit Machine Group:', group);
-    setEditDialogData(group); 
+    setEditDialogData(group);
     setIsEditDialogOpen(true);
     setDialogOpenCount(prevCount => prevCount + 1);
   };
 
-  const handleDeleteMachineGroup = (row) => {
-    Swal.fire({
-      title: 'Are you sure you want to delete this Machine Group?',
+const handleDeleteMachineGroup = async (group) => {
+  try {
+    const users = await getUsersList();
+    const usersInGroup = users.filter(user => {
+      const userGroups = user.userDetails?.groups || [];
+      return userGroups.includes(group.code);
+    });
+    if (usersInGroup.length > 0) {
+      const userListHTML = usersInGroup
+        .map(user => {
+          const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+          const displayName = fullName || user.email || 'Unnamed User';
+          return `
+            <li style="margin-bottom: 4px; line-height: 1.4;">
+              <strong style="color: #222;">${displayName}</strong>
+              ${user.email && fullName
+                ? `<span style="color: #666;"> &nbsp;|&nbsp; ${user.email}</span>`
+                : ''}
+            </li>`;
+        })
+        .join('');
+      await Swal.fire({
+        icon: 'warning',
+        title: `<span style="font-weight:600;">Cannot Delete “${group.name}”</span>`,
+        html: `
+          <div style="text-align:left; font-size:14px; line-height:1.6;">
+            <p>The machine group <strong>“${group.name}”</strong> cannot be deleted because it currently has <strong>${usersInGroup.length}</strong> user${usersInGroup.length > 1 ? 's' : ''} assigned:</p>
+            <ul style="margin:10px 0 12px 22px; padding:0; list-style-type:disc;">${userListHTML}</ul>
+            <p style="margin:0;">Please reassign or remove these users before attempting to delete this group.</p>
+          </div>
+        `,
+        confirmButtonText: 'Understood',
+        confirmButtonColor: '#f47804',
+        width: 500,
+        customClass: {
+          popup: 'swal2-rounded swal2-shadow',
+          title: 'swal2-title-custom',
+        },
+      });
+      return;
+    }
+    const confirm = await Swal.fire({
+      title: `<span style="font-weight:600;">Delete “${group.name}”?</span>`,
+      html: `
+        <div style="text-align:left; font-size:14px; line-height:1.6;">
+          <p>You are about to permanently delete the machine group <strong>“${group.name}”</strong>.</p>
+          <p style="color:#666;">This action cannot be undone.</p>
+        </div>
+      `,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Yes, delete it!',
+      confirmButtonText: 'Yes, delete it',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#a1a1a1',
+      reverseButtons: true,
+      focusCancel: true,
       allowOutsideClick: false,
       allowEscapeKey: false,
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          const key = 'machinegroups';
-          const currentDataResponse = await customerbasedshift(customerId, key);
-          const allMachineGroups = currentDataResponse[0]?.value || [];
-          const updatedMachineGroups = allMachineGroups.filter((group) => {
-            if (
-              typeof group.id === 'object' &&
-              group.id?.$oid &&
-              typeof row.id === 'object' &&
-              row.id?.$oid
-            ) {
-              return group.id.$oid !== row.id.$oid;
-            }
-            return group.id !== row.id;
-          });
-          const formData = {
-            machinegroups: updatedMachineGroups,
-            lastUpdateTs: Date.now(),
-          };
-          const scope = 'SERVER_SCOPE';
-          const response = await shiftadd(formData, customerId, scope);
-          if (response?.msg) {
-            Swal.fire('Deleted!', response.msg, 'success');
-          } else {
-            Swal.fire({
-              icon: "success",
-              title: "Deleted!",
-              text: "Machine Group deleted successfully.",
-              timer: 1500,
-              showConfirmButton: false,
-            });
-          }
-          fetchMachineGroups();
-        } catch (error) {
-          console.error('Error deleting Machine Group:', error);
-          Swal.fire('Error!', 'Failed to delete Machine Group: ' + error.message, 'error');
-        }
-      } else {
-        Swal.fire('Cancelled', '', 'info');
-      }
+      width: 460,
     });
-  };
+
+    if (!confirm.isConfirmed) return;
+    const key = 'machinegroups';
+    const currentDataResponse = await customerbasedshift(customerId, key);
+    const allGroups = currentDataResponse[0]?.value || [];
+    const updatedGroups = allGroups.filter(existing => {
+      const existingId = existing.id?.$oid || existing.id;
+      const targetId = group.id?.$oid || group.id;
+      return existingId !== targetId;
+    });
+
+    const formData = {
+      machinegroups: updatedGroups,
+      lastUpdateTs: Date.now(),
+    };
+
+    const scope = 'SERVER_SCOPE';
+    const response = await shiftadd(formData, customerId, scope);
+    Swal.fire({
+      icon: 'success',
+      title: `<span style="font-weight:600;">“${group.name}” Deleted</span>`,
+      text: response?.msg || `The machine group “${group.name}” has been removed successfully.`,
+      timer: 1600,
+      showConfirmButton: false,
+      customClass: {
+        popup: 'swal2-rounded swal2-shadow',
+      },
+    });
+    fetchMachineGroups();
+  } catch (error) {
+    console.error('Error deleting Machine Group:', error);
+    Swal.fire({
+      icon: 'error',
+      title: '<span style="font-weight:600;">Deletion Failed</span>',
+      text: error.message || 'An unexpected error occurred while deleting the machine group.',
+      confirmButtonColor: '#d33',
+      width: 440,
+    });
+  }
+};
 
   return (
     <div className="pages">

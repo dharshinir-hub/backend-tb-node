@@ -27,10 +27,23 @@ const UserRegistration = () => {
     const [searchText, setSearchText] = useState('');
     const [activeTab, setActiveTab] = useState(ROLES[0].value);
     const { availableRoles } = useRoleOptions();
+    const [machineGroups, setMachineGroups] = useState([]);
 
     const customerId = localStorage.getItem('CustomerID');
     const { userRole, isOperator, isSupervisor, isMaintenance, isQuality, isManager, isAdmin, isSuperAdmin } = useUserRole();
     const currentUserId = JSON.parse(localStorage.getItem("userDetails"))?.id;
+
+    const fetchMachineGroups = async () => {
+        try {
+            const key = 'machinegroups';
+            const data = await customerbasedshift(customerId, key);
+            const allMachineGroups = data[0]?.value || [];
+            setMachineGroups(allMachineGroups);
+        } catch (error) {
+            console.error("Error fetching machine groups:", error);
+            setMachineGroups([]);
+        }
+    };
 
     // Common Search Filter
     const getFilteredDatasource = (role) => {
@@ -55,6 +68,17 @@ const UserRegistration = () => {
     };
 
     const canDeleteUser = (role, rowUserId) => canEditUser(role, rowUserId);
+
+    const getMachineGroupNames = (groupCodes) => {
+        if (!groupCodes || !Array.isArray(groupCodes) || groupCodes.length === 0) {
+            return [];
+        }
+
+        return groupCodes.map(code => {
+            const group = machineGroups.find(g => g.code === code);
+            return group ? group.name : code;
+        });
+    };
 
     // Dialog Handlers
     const handleOpenAddDialog = () => { setIsAddDialogOpen(true); setDialogOpenCount(prev => prev + 1); };
@@ -119,7 +143,6 @@ const UserRegistration = () => {
         }
     };
 
-
     const getShifts = async () => {
         const key = 'alloperator';
         customerbasedshift(customerId, key)
@@ -134,7 +157,11 @@ const UserRegistration = () => {
             });
     };
 
-    useEffect(() => { getUsersList(); getShifts() }, []);
+    useEffect(() => {
+        getUsersList();
+        getShifts();
+        fetchMachineGroups();
+    }, []);
 
     return (
         <div className="pages">
@@ -187,7 +214,6 @@ const UserRegistration = () => {
                 </Box>
 
                 {/* Tab Panels */}
-                {/* Tab Panels */}
                 {ROLES.map(role => (
                     <Box key={role.value} role="tabpanel" hidden={activeTab !== role.value} sx={{ marginTop: 2 }}>
                         {activeTab === role.value && (
@@ -204,8 +230,9 @@ const UserRegistration = () => {
                                                 {activeTab != ROLE_OPERATOR && (
                                                     <TableCell>Page Access</TableCell>
                                                 )}
-
-                                                {/* <TableCell>Role</TableCell> */}
+                                                {/* {activeTab != ROLE_OPERATOR && ( */}
+                                                    <TableCell>Machine Groups</TableCell>
+                                                {/* )} */}
                                                 {/* Check if any row has edit/delete permissions to show Action column */}
                                                 {getFilteredDatasource(role.value).some(row => canEditUser(row.userDetails?.mode, row.id?.id) || canDeleteUser(row.userDetails?.mode, row.id?.id)) && (
                                                     <TableCell>Action</TableCell>
@@ -217,6 +244,8 @@ const UserRegistration = () => {
                                                 const rowRole = row.userDetails?.mode;
                                                 const editAllowed = canEditUser(rowRole, row.id?.id);
                                                 const deleteAllowed = canDeleteUser(rowRole, row.id?.id);
+                                                const userGroups = row.userDetails?.groups || [];
+                                                const groupNames = getMachineGroupNames(userGroups);
 
                                                 return (
                                                     <TableRow key={index}>
@@ -224,7 +253,6 @@ const UserRegistration = () => {
                                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.firstName || '---'}</TableCell>
                                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.email || '---'}</TableCell>
                                                         {activeTab != ROLE_OPERATOR && (
-
                                                             <TableCell
                                                                 className={classNames({
                                                                     "odd-row": index % 2 !== 0,
@@ -252,8 +280,32 @@ const UserRegistration = () => {
                                                                         </Tooltip>
                                                                     );
                                                                 })()}
-                                                            </TableCell>)}
-                                                        {/* <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{rowRole || '---'}</TableCell> */}
+                                                            </TableCell>
+                                                        )}
+                                                        {/* {activeTab != ROLE_OPERATOR && ( */}
+                                                            <TableCell
+                                                                className={classNames({
+                                                                    "odd-row": index % 2 !== 0,
+                                                                    "even-row": index % 2 === 0,
+                                                                })}
+                                                            >
+                                                                {(() => {
+                                                                 
+                                                                    if (!groupNames?.length)
+                                                                        return "---";
+
+                                                                    const visible = groupNames.slice(0, 3).join(", ");
+                                                                    const full = groupNames.join(", ");
+
+                                                                    return (
+                                                                        <Tooltip title={full} placement="top" arrow>
+                                                                            <span>{groupNames.length > 3 ? `${visible}, ...` : visible}</span>
+                                                                        </Tooltip>
+                                                                    );
+                                                                })()}
+
+                                                            </TableCell>
+                                                        {/* )} */}
                                                         {(editAllowed || deleteAllowed) && (
                                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                                 {editAllowed && (
@@ -288,7 +340,6 @@ const UserRegistration = () => {
                         )}
                     </Box>
                 ))}
-
 
                 {isEditDialogOpen && (
                     <UserEdit
