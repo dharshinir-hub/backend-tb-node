@@ -18,7 +18,7 @@ const Layout = () => {
     location.pathname === '/operator-details' ||
     location.pathname === '/allocation' ||
     location.pathname === '/machinemm' ||
-    location.pathname === '/report' ||
+    location.pathname === '/reports' ||
     location.pathname === '/deviceoee' ||
     location.pathname === '/user-registration' ||
     location.pathname === '/machineutilization' ||

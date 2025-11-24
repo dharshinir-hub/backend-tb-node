@@ -114,14 +114,14 @@ export default function PersistentDrawerLeft({ children }) {
   //       { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
   //     ]
   //   },
-  //   // {
-  //   //   name: "Analytics",
-  //   //   icon: <BiChip />,
-  //   //   children: [
-  //   //     { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
-  //   //     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
-  //   //   ]
-  //   // },
+    // {
+    //   name: "Analytics",
+    //   icon: <BiChip />,
+    //   children: [
+    //     { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
+    //     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
+    //   ]
+    // },
   //   {
   //     name: "Master",
   //     icon: <MdList />,
@@ -150,14 +150,15 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
         ],
       },
-      // {
-      //   name: "Analytics",
-      //   icon: <BiBarChart />,
-      //   children: [
-      //   { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
-      //     { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
-      //   ]
-      // },
+      {
+        name: "Analytics",
+        icon: <BiBarChart />,
+        children: [
+        { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
+          { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
+        ]
+      },
+      { path: "/reports", name: "Reports", icon: <MdAssessment /> },
       {
         name: "Operation",
         icon: <AiTwotoneProfile />,
