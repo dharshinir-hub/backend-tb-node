@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef,useState } from "react";
 import {
   Box,
   Typography,
@@ -34,8 +34,9 @@ const Cycletime = () => {
   const [component, setComponent] = useState([]);
   const [selectedComponent, setSelectedComponent] = useState("all");
   const [loadingTimeoutReached, setLoadingTimeoutReached] = useState(false);
-
   const [loader, setLoader] = useState(false);
+    const hasStartedRef = useRef(false);
+
 
   const navigate = useNavigate();
 
@@ -143,7 +144,19 @@ const [loading, setLoading] = useState(false);
 const [loadingStage, setLoadingStage] = useState("");
 
 useEffect(() => {
-  const fetchOperationsData = async () => {
+
+  if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
+  fetchOperationsData();
+    // intervalRef2.current = setInterval(fetchAllMachineData, 5000);
+    return () => {
+      // clearInterval(intervalRef2.current);
+      hasStartedRef.current = false;
+    };
+
+}, [JSON.stringify(selectedDevice), from, to, devices]);
+
+ const fetchOperationsData = async () => {
     if (!from || !to || !selectedDevice) return;
 
     try {
@@ -195,11 +208,6 @@ useEffect(() => {
       setLoadingStage("");
     }
   };
-
-  fetchOperationsData();
-}, [selectedDevice, from, to, devices, shifts]);
-
-
 
   let cycletimeslower = [];
   let cycletimefaster = [];
@@ -255,10 +263,6 @@ useEffect(() => {
 
   console.log("cycletimeslowerbaseline:", cycletimeslowerbaseline);
   console.log("cycletimefasterbaseline:", cycletimefasterbaseline);
-
-
-
-
 
   return (
     <Box display="flex" height="100vh" pt={2}>
@@ -385,7 +389,7 @@ useEffect(() => {
             return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
           };
 
-          const actual = Number(item.total_duration?.actualruntime ?? 0);
+          const actual = Number(item.actualruntime ?? 0);
           const expected = Math.max(0, Number(item.expected_run));
           const diff = actual - expected;
 
@@ -407,7 +411,7 @@ useEffect(() => {
                 "&:hover": { boxShadow: "0 4px 10px rgba(0,0,0,0.15)" },
               }}
               onClick={() =>
-                navigate("/partwise-cycletime", {
+                navigate("/summary", {
                   state: {
                     selectedDevice: selectedDevice,
                     previousScreen: location.pathname,
@@ -588,7 +592,7 @@ useEffect(() => {
                       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
                     };
 
-                    const actual = Number(item.total_duration?.actualruntime ?? 0);
+                    const actual = Number(item.actualruntime ?? 0);
                     const expected = Math.max(0, Number(item.expected_run));
                     const diff = actual - expected;
 
@@ -611,7 +615,7 @@ useEffect(() => {
                           
                         }}
                         onClick={() =>
-                          navigate("/partwise-cycletime", {
+                          navigate("/summary", {
                             state: {
                               selectedDevice: selectedDevice,
                               previousScreen: location.pathname,
@@ -806,7 +810,7 @@ useEffect(() => {
                       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
                     };
 
-                    const actual = Number(item.total_duration?.actualruntime ?? 0);
+                    const actual = Number(item.actualruntime ?? 0);
                     const expected = Math.max(0, Number(item.cycletime_baseline));
                     const diff = actual - expected;
 
@@ -831,7 +835,7 @@ useEffect(() => {
                           },
                         }}
                         onClick={() =>
-                          navigate("/partwise-cycletime", {
+                          navigate("/summary", {
                             state: {
                               selectedDevice: selectedDevice,
                               previousScreen: location.pathname,
@@ -1020,7 +1024,7 @@ useEffect(() => {
       return `${h > 0 ? h + "h " : ""}${m > 0 ? m + "m " : ""}${s}s`;
     };
 
-    const actual = Number(item.total_duration?.actualruntime ?? 0);
+    const actual = Number(item.actualruntime ?? 0);
     const expected = Math.max(0, Number(item.cycletime_baseline));
     const diff = actual - expected;
 
@@ -1045,7 +1049,7 @@ useEffect(() => {
           },
         }}
         onClick={() =>
-          navigate("/partwise-cycletime", {
+          navigate("/summary", {
             state: {
               selectedDevice,
               previousScreen: location.pathname,

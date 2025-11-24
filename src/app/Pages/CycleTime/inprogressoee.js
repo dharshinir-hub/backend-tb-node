@@ -30,6 +30,7 @@ const InprogressOee = () => {
     const [from, setFrom] = useState(null);
     const [to, setTo] = useState(null);
     const [selectedMachine, setSelectedMachine] = useState(null);
+    const [currentShiftNo, setCurrentShiftNo] = useState(null);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -51,9 +52,6 @@ const InprogressOee = () => {
     const Id = localStorage.getItem("CustomerID");
     const customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
 
-    // -------------------------------
-    // Fetch Shifts and determine active shift time
-    // -------------------------------
     const fetchShifts = async () => {
         try {
             const result = await customerbasedshift(customerId, "allShift");
@@ -73,29 +71,33 @@ const InprogressOee = () => {
                 return d.getTime();
             };
 
+            // ⭐ Find the current shift
             const currentShift = dataShifts.find((shift) => {
                 if (!shift.start_time || !shift.end_time) return false;
+
                 const startEpoch = toEpoch(shift.start_time);
                 const endEpoch = toEpoch(shift.end_time, shift.end_time < shift.start_time);
+
                 return now >= startEpoch && now <= endEpoch;
             });
 
             if (currentShift) {
                 setFrom(toEpoch(currentShift.start_time));
                 setTo(toEpoch(currentShift.end_time, currentShift.end_time < currentShift.start_time));
+                setCurrentShiftNo(currentShift.shift_no);   // ⭐ store shift number
             } else {
                 const firstShift = dataShifts[0];
                 setFrom(toEpoch(firstShift.start_time));
                 setTo(toEpoch(firstShift.end_time, firstShift.end_time < firstShift.start_time));
+                setCurrentShiftNo(firstShift.shift_no);     // ⭐ fallback shift_no
             }
         } catch (err) {
             console.error("Failed to fetch shifts", err);
         }
     };
 
-    // -------------------------------
-    // Fetch Devices
-    // -------------------------------
+    console.log("Current Shift No:", currentShiftNo);
+
     const fetchDevices = async () => {
         try {
             const result = await customerbaseddevices(customerId, 100, 0);
@@ -216,52 +218,102 @@ const InprogressOee = () => {
         // 🔹 Initial fetch
         fetchAllData();
 
-        // 🔁 Repeat every 10 seconds
-        const interval = setInterval(fetchAllData, 10000);
-
-        // 🧹 Cleanup on unmount or when dependencies change
-        return () => clearInterval(interval);
+     
     }, [from, to, selectedDevice]);
 
 
     console.log('Oee Data', oeeData);
 
 
-    useEffect(() => {
-        const entries = Object.entries(oeeData || {});
-        if (entries.length > 0 && !selectedMachine) {
-            const [_, firstMachineData] = entries[0];
+useEffect(() => {
+    const entries = Object.entries(oeeData || {});
+    if (entries.length > 0 && !selectedMachine) {
+        const [machineName, firstMachineData] = entries[0];
+
+        if (firstMachineData?.deviceId && firstMachineData?.deviceName) {
             setSelectedMachine({
                 id: firstMachineData.deviceId,
-                name: firstMachineData.deviceName,
+                name: firstMachineData.deviceName   // ✔ FIXED, use name STRING
             });
         }
-    }, [oeeData, selectedMachine]);
+    }
+}, [oeeData]);
+
+
 
     console.log("Selected Machine", selectedMachine);
 
+    const formatTime = (epoch) => {
+        if (!epoch) return "";
+        const d = new Date(epoch);
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    };
+
+    const currentDate = new Date().toLocaleDateString();
+
+    const shiftDisplay = `Shift ${currentShiftNo}: ${formatTime(from)} - ${formatTime(to)}`;
+    const dateDisplay = `Date: ${currentDate}`;
+
+console.log(selectedMachine);
 
     return (
         <div>
             <div className="header-container">
                 <div className="heading">Inprogress OEE</div>
 
-                <Button
-                    variant="contained"
-                    onClick={() => navigate("/production-analysis")}
-                    color="warning"
-                    sx={{
-                        backgroundColor: "#626262",
-                        "&:hover": { backgroundColor: "#4d4d4d" },
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        alignItems: "center",
+                        gap: "20px",
+                        marginBottom: "1rem",
+                        marginTop: "10px",
                     }}
                 >
-                    Back
-                </Button>
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            fontSize: "18px",
+                            color: "#333",
+                            fontWeight: 500,
+                            gap: "12px",
+                            background: "#f2f2f2",
+                            padding: "6px 12px",
+                            borderRadius: "6px",
+                        }}
+                    >
+                        <span>Date: {currentDate}</span>
+                        <span>|</span>
+                        <span>
+                            Shift {currentShiftNo}: {formatTime(from)} - {formatTime(to)}
+                        </span>
+                    </div>
+
+                    <Button
+                        variant="contained"
+                        onClick={() => navigate("/production-analysis")}
+                        color="warning"
+                        sx={{
+                            backgroundColor: "#626262",
+                            "&:hover": { backgroundColor: "#4d4d4d" },
+                        }}
+                    >
+                        Back
+                    </Button>
+                </div>
+
             </div>
 
             <div className="oee-dashboard">
                 {Object.entries(oeeData).map(([machineID, data], index) => {
-                    const { deviceName, oee, machine_Status, operations, deviceId } = data;
+
+                    const machineName =
+                      data.deviceName ||
+                        "Machine";
+
+                    const { oee, machine_Status, operations, deviceId } = data;
 
                     let tileClass = "";
                     switch ((machine_Status || "").toLowerCase()) {
@@ -279,22 +331,20 @@ const InprogressOee = () => {
                             break;
                         default:
                             tileClass = "tile-running";
-                            break;
                     }
 
                     const isSelected = selectedMachine?.id === deviceId;
-                    const cycleText = machine_Status === "Running" ? "IN - CYCLE" : machine_Status || "";
+                    const cycleText =
+                        machine_Status === "Running" ? "IN - CYCLE" : machine_Status || "";
 
                     return (
                         <div
                             key={machineID || index}
                             className={`oee-tile ${tileClass} ${isSelected ? "selected-tile" : ""}`}
-                            onClick={() =>
-                                setSelectedMachine({ id: deviceId, name: deviceName })
-                            }
+                            onClick={() => setSelectedMachine({ id: data.deviceId, name: data.deviceName })}
                             style={{ cursor: "pointer" }}
                         >
-                            <div className="machine-name">{deviceName || 'Machine'}</div>
+                            <div className="machine-name">{machineName}</div>
                             <div className="status-text">{machine_Status || "Unknown"}</div>
                             <div className="oee-value">{oee ?? 0}%</div>
                             <div className="cycle-status">{cycleText}</div>
@@ -305,6 +355,7 @@ const InprogressOee = () => {
                     );
                 })}
             </div>
+
 
             {selectedMachine && oeeData && (
                 <div>
