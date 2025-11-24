@@ -62,9 +62,24 @@ function Operator() {
     const [confirmType, setConfirmType] = useState(null);
     const customerId1 = localStorage.getItem('CustomerID');
     
+    const getCustomerId = () => {
+        if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
+            return window._env_.CUSTOMER_ID;
+        } else if (location.pathname === "/smc_operator_bf9tz") {
+            return window._env_.SMC_CUSTOMER_ID;
+        } else {
+            const customerIdStr = localStorage.getItem('CustomerID');
+            try {
+                return JSON.parse(customerIdStr);
+            } catch (error) {
+                console.error('Error parsing CustomerID from localStorage:', error);
+                return customerIdStr;
+            }
+        }
+    };
     const fetchDevices = async () => {
         try {
-            const customerId = window._env_.CUSTOMER_ID;
+            const customerId = getCustomerId();
             const result = await customerbaseddevices(customerId, 1000, 0);
             const devicesList = result.data || [];
             setMachines(devicesList.map((d) => d.name));
@@ -154,7 +169,7 @@ function Operator() {
     //     let operatorList = [];
 
     //     if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
-    //       const res = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
+    //       const res = await customerbasedshift(getCustomerId(), "alloperator");
     //       const allData = res?.[0]?.value || [];
     //       operatorList = allData
     //         .filter(o => o?.mode?.toLowerCase() === 'operator')
@@ -189,7 +204,7 @@ function Operator() {
     const fetchOperators = async () => {
         try {
             let operatorList = [];
-            const res = await customerbasedshift(window._env_.CUSTOMER_ID, "alloperator");
+            const res = await customerbasedshift(getCustomerId(), "alloperator");
             const allData = res?.[0]?.value || [];
             operatorList = allData
                 .filter(o => o?.mode?.toLowerCase() === 'operator')
@@ -206,7 +221,7 @@ function Operator() {
     const fetchTelemetry = async (deviceId) => {
         try {
             const response = await customerbasedshift(
-                window._env_.CUSTOMER_ID,
+                getCustomerId(),
                 "allShift"
             );
             const shifts = response[0]?.value || [];
@@ -432,7 +447,7 @@ function Operator() {
                 }
 
                 const response = await customerbasedshift(
-                    window._env_.CUSTOMER_ID,
+                    getCustomerId(),
                     "allShift"
                 );
                 const shifts = response[0]?.value || [];
@@ -479,7 +494,7 @@ function Operator() {
 
 
     const openDownTime = async (devicename, deviceid) => {
-        const customerId = window._env_.CUSTOMER_ID;
+        const customerId = getCustomerId();
         setLoading(true);
         try {
             const [reasonsData, shiftsData] = await Promise.all([
@@ -532,7 +547,7 @@ function Operator() {
         const getReasons = async () => {
             try {
                 const response = await customerbasedshift(
-                    window._env_.CUSTOMER_ID,
+                    getCustomerId(),
                     "reason"
                 );
                 const reasons = response?.[0]?.value || [];
@@ -1001,7 +1016,10 @@ function Operator() {
     };
 
     useEffect(() => {
-        if (location.pathname !== "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
+        if (
+            location.pathname !== "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" &&
+            location.pathname !== "/smc_operator_bf9tz"
+        ) {
             return;
         }
         const init = async () => {
