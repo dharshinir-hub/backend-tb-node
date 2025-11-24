@@ -20,6 +20,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { getEfficiencyReport, getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
 import classNames from 'classnames';
+import { DownloadIcon } from "lucide-react";
 
 export default function MachineReport() {
   const [selectedTab, setSelectedTab] = useState("general");
@@ -54,10 +55,10 @@ export default function MachineReport() {
     ],
     idle_reason: [
       "S.no", "Date", "Shift", "Machine Name",
-      "Mode","Category", "Reason", "Duration"
+      "Mode", "Category", "Reason", "Duration"
     ],
     efficiency: [
-      "S.no", "Component Number", "Component Name", "Total Parts", "Target Parts", "Efficiency(%)","Run Time" , "Idle/Stop Time","Duration"
+      "S.no", "Component Number", "Component Name", "Total Parts", "Target Parts", "Efficiency(%)", "Run Time", "Idle/Stop Time", "Duration"
     ]
   };
 
@@ -67,16 +68,16 @@ export default function MachineReport() {
   const formatTimeWithFallback = (value, fallback = "0:00:00") =>
     value === null || value === undefined ? fallback : formatTime(value);
 
-const formatDowntimeType = (value, fallback = "---") => {
-  if (!value) return fallback;
-  if (value.includes("_")) {
-    return value
-      .toLowerCase()
-      .replace(/_/g, " ")
-      .replace(/^\w/, c => c.toUpperCase());
-  }
-  return value; 
-};
+  const formatDowntimeType = (value, fallback = "---") => {
+    if (!value) return fallback;
+    if (value.includes("_")) {
+      return value
+        .toLowerCase()
+        .replace(/_/g, " ")
+        .replace(/^\w/, c => c.toUpperCase());
+    }
+    return value;
+  };
 
   const columns = {
     general: [
@@ -217,7 +218,7 @@ const formatDowntimeType = (value, fallback = "---") => {
           machinesParam.join(","), shiftsParam,
           dateStr, dateEnd, pageNum, limit
         );
-      }  else if (tab === "efficiency") {
+      } else if (tab === "efficiency") {
         response = await getEfficiencyReport(
           selectedMachine.join(","), selectedShift[0],
           efficiencyDateVal, efficiencyDateVal, pageNum, limit
@@ -382,6 +383,65 @@ const formatDowntimeType = (value, fallback = "---") => {
     return dayjs(dateString).format("DD-MM-YYYY");
   };
 
+  const downloadCSV = () => {
+    if (reportData.length === 0) {
+      alert('No data available to download');
+      return;
+    }
+    const headers = REPORT_HEADERS[selectedTab];
+    const currentColumns = columns[selectedTab];
+    let csvContent = headers.join(',') + '\n';
+    const formatValueForCSV = (value, col, row) => {
+      if (value === null || value === undefined) return '---';
+      if (value === 0 || value === '0') return '0';
+      if (value === '') return '---';
+      if (Array.isArray(value)) {
+        return value.join(' | ');
+      }
+      if (col.key === 'date' && row.date) {
+        console.log(formatDate(row.date), 'date')
+        return formatDate(row.date);
+      }
+      if ((col.key === 'start_time' || col.key === 'end_time') && row[col.key]) {
+        return formatDateTime(row[col.key]);
+      }
+      if ((col.key === 'run_time' || col.key === 'idle_time' || col.key === 'alarm_time' ||
+        col.key === 'stop_time' || col.key === 'duration' || col.key === 'total_time') &&
+        (row[col.key] || row[col.key] === 0)) {
+        return formatTimeWithFallback(row[col.key]);
+      }
+      if (selectedTab === 'idle_reason' && row.json_v) {
+        if (col.key === 'mode') return formatWithFallback(row.json_v.mode);
+        if (col.key === 'category') return formatDowntimeType(row.json_v.category);
+        if (col.key === 'idle_reason_name') return formatWithFallback(row.json_v.name);
+        if (col.key === 'duration') return formatTimeWithFallback(row.json_v.idle_duration);
+      }
+      const stringValue = String(value);
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    };
+    reportData.forEach((row, index) => {
+      const rowData = currentColumns.map(col => {
+        const rawValue = col.formatter(row, index);
+        return formatValueForCSV(rawValue, col, row);
+      });
+      csvContent += rowData.join(',') + '\n';
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const timestamp = dayjs().format('DD-MM-YYYY_HH-mm');
+    const filename = `${selectedTab}_report_${timestamp}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <Box sx={{
       p: 2, background: "#fffefeff", color: "#0a0a0aff", height: "100vh", paddingTop: "50px", overflow: 'auto', "&::-webkit-scrollbar": { display: "none", }, scrollbarWidth: "none", msOverflowStyle: "none",
@@ -417,168 +477,168 @@ const formatDowntimeType = (value, fallback = "---") => {
             <MenuItem value="MODULE2">MODULE 2</MenuItem>
           </Select>
         </FormControl> */}
-     <FormControl
-  error={errorMsg.machines}
-  size="small"
-  sx={{ background: "#fff", width: 200 }}
->
-  <InputLabel sx={{ background: "#fff" }}>Machine *</InputLabel>
-  {selectedTab === "efficiency" ? (
-    <Select
-      value={selectedMachine || ""}
-      onChange={(e) => setSelectedMachine([e.target.value])}
-      label="Machine"
-    >
-      {machines.map((machine) => (
-        <MenuItem key={machine.id} value={machine.name}>
-          {machine.name}
-        </MenuItem>
-      ))}
-    </Select>
-  ) : (
-    <Select
-      multiple
-      value={selectedMachines}
-      onChange={handleMachineChange}
-      renderValue={(selected) => selected.join(", ")}
-    >
-      <MenuItem value="all">
-        <Checkbox
-          sx={{
-            "&.Mui-checked": {
-              color: "#f47803ff",
-            },
-          }}
-          checked={selectedMachines.length === machines.length}
-        />
-        <ListItemText primary="All" />
-      </MenuItem>
+        <FormControl
+          error={errorMsg.machines}
+          size="small"
+          sx={{ background: "#fff", width: 200 }}
+        >
+          <InputLabel sx={{ background: "#fff" }}>Machine *</InputLabel>
+          {selectedTab === "efficiency" ? (
+            <Select
+              value={selectedMachine || ""}
+              onChange={(e) => setSelectedMachine([e.target.value])}
+              label="Machine"
+            >
+              {machines.map((machine) => (
+                <MenuItem key={machine.id} value={machine.name}>
+                  {machine.name}
+                </MenuItem>
+              ))}
+            </Select>
+          ) : (
+            <Select
+              multiple
+              value={selectedMachines}
+              onChange={handleMachineChange}
+              renderValue={(selected) => selected.join(", ")}
+            >
+              <MenuItem value="all">
+                <Checkbox
+                  sx={{
+                    "&.Mui-checked": {
+                      color: "#f47803ff",
+                    },
+                  }}
+                  checked={selectedMachines.length === machines.length}
+                />
+                <ListItemText primary="All" />
+              </MenuItem>
 
-      {machines.map((machine) => (
-        <MenuItem key={machine.id} value={machine.name}>
-          <Checkbox
-            checked={selectedMachines.includes(machine.name)}
-            sx={{
-              "&.Mui-checked": {
-                color: "#f47803ff",
-              },
-            }}
-          />
-          <ListItemText primary={machine.name} />
-        </MenuItem>
-      ))}
-    </Select>
-  )}
-</FormControl>
+              {machines.map((machine) => (
+                <MenuItem key={machine.id} value={machine.name}>
+                  <Checkbox
+                    checked={selectedMachines.includes(machine.name)}
+                    sx={{
+                      "&.Mui-checked": {
+                        color: "#f47803ff",
+                      },
+                    }}
+                  />
+                  <ListItemText primary={machine.name} />
+                </MenuItem>
+              ))}
+            </Select>
+          )}
+        </FormControl>
 
         <FormControl
-  error={errorMsg.shifts}
-  size="small"
-  sx={{ background: "#fff", width: 160 }}
->
-  <InputLabel sx={{ background: "#fff" }}>Shift *</InputLabel>
-  {selectedTab === "efficiency" ? (
-    <Select
-      value={selectedShift[0] || ""}
-      onChange={(e) => setSelectedShift([e.target.value])}
-      label="Shift"
-    >
-      {shifts.map((shift) => (
-        <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
-          {shift.shift_no}
-        </MenuItem>
-      ))}
-    </Select>
-  ) : (
-    <Select
-      multiple
-      value={selectedShift}
-      onChange={handleShiftChange}
-      renderValue={(selected) => selected.join(", ")}
-      label="Shift"
-    >
-      <MenuItem value="all">
-        <Checkbox
-          sx={{
-            "&.Mui-checked": { color: "#f47803ff" },
-          }}
-          checked={selectedShift.length === shifts.length}
-        />
-        <ListItemText primary="All" />
-      </MenuItem>
-      {shifts.map((shift) => (
-        <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
-          <Checkbox
-            sx={{
-              "&.Mui-checked": { color: "#f47803ff" },
-            }}
-            checked={selectedShift.includes(String(shift.shift_no))}
-          />
-          <ListItemText primary={`${shift.shift_no}`} />
-        </MenuItem>
-      ))}
-    </Select>
-  )}
-</FormControl>
+          error={errorMsg.shifts}
+          size="small"
+          sx={{ background: "#fff", width: 160 }}
+        >
+          <InputLabel sx={{ background: "#fff" }}>Shift *</InputLabel>
+          {selectedTab === "efficiency" ? (
+            <Select
+              value={selectedShift[0] || ""}
+              onChange={(e) => setSelectedShift([e.target.value])}
+              label="Shift"
+            >
+              {shifts.map((shift) => (
+                <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
+                  {shift.shift_no}
+                </MenuItem>
+              ))}
+            </Select>
+          ) : (
+            <Select
+              multiple
+              value={selectedShift}
+              onChange={handleShiftChange}
+              renderValue={(selected) => selected.join(", ")}
+              label="Shift"
+            >
+              <MenuItem value="all">
+                <Checkbox
+                  sx={{
+                    "&.Mui-checked": { color: "#f47803ff" },
+                  }}
+                  checked={selectedShift.length === shifts.length}
+                />
+                <ListItemText primary="All" />
+              </MenuItem>
+              {shifts.map((shift) => (
+                <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
+                  <Checkbox
+                    sx={{
+                      "&.Mui-checked": { color: "#f47803ff" },
+                    }}
+                    checked={selectedShift.includes(String(shift.shift_no))}
+                  />
+                  <ListItemText primary={`${shift.shift_no}`} />
+                </MenuItem>
+              ))}
+            </Select>
+          )}
+        </FormControl>
 
-  {selectedTab === 'efficiency' ? (
-  <LocalizationProvider dateAdapter={AdapterDayjs}>
-    <DatePicker
-      label="Date *"
-      value={efficiencyDate}
-      onChange={(newValue) => {
-        setEfficiencyDate(newValue);
-      }}
-      format="DD-MM-YYYY"
-      disableFuture
-      slotProps={{
-        textField: {
-          size: "small",
-          style: { background: "#fff", minWidth: 160 },
-          error: !efficiencyDate,
-        },
-      }}
-    />
-  </LocalizationProvider>
-) : (
-  <>
-    {/* Start Date */}
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <DatePicker
-        label="Start Date *"
-        value={startDate}
-        onChange={handleStartDateChange}
-        format="DD-MM-YYYY"
-        disableFuture
-        slotProps={{
-          textField: {
-            size: "small",
-            style: { background: "#fff", minWidth: 160 },
-            error: errorMsg.startDate || errorMsg.dateRange,
-          },
-        }}
-      />
-    </LocalizationProvider>
+        {selectedTab === 'efficiency' ? (
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <DatePicker
+              label="Date *"
+              value={efficiencyDate}
+              onChange={(newValue) => {
+                setEfficiencyDate(newValue);
+              }}
+              format="DD-MM-YYYY"
+              disableFuture
+              slotProps={{
+                textField: {
+                  size: "small",
+                  style: { background: "#fff", minWidth: 160 },
+                  error: !efficiencyDate,
+                },
+              }}
+            />
+          </LocalizationProvider>
+        ) : (
+          <>
+            {/* Start Date */}
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <DatePicker
+                label="Start Date *"
+                value={startDate}
+                onChange={handleStartDateChange}
+                format="DD-MM-YYYY"
+                disableFuture
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    style: { background: "#fff", minWidth: 160 },
+                    error: errorMsg.startDate || errorMsg.dateRange,
+                  },
+                }}
+              />
+            </LocalizationProvider>
 
-    {/* End Date */}
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <DatePicker
-        label="End Date *"
-        value={endDate}
-        onChange={handleEndDateChange}
-        format="DD-MM-YYYY"
-        disableFuture
-        slotProps={{
-          textField: {
-            size: "small",
-            style: { background: "#fff", minWidth: 160 },
-            error: errorMsg.endDate || errorMsg.dateRange,
-          },
-        }}
-      />
-    </LocalizationProvider>
-  </>
-)}
+            {/* End Date */}
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <DatePicker
+                label="End Date *"
+                value={endDate}
+                onChange={handleEndDateChange}
+                format="DD-MM-YYYY"
+                disableFuture
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    style: { background: "#fff", minWidth: 160 },
+                    error: errorMsg.endDate || errorMsg.dateRange,
+                  },
+                }}
+              />
+            </LocalizationProvider>
+          </>
+        )}
 
         <Button
           variant="contained"
@@ -588,7 +648,27 @@ const formatDowntimeType = (value, fallback = "---") => {
         >
           Submit
         </Button>
-
+        {reportData.length > 0 && (
+          <>
+            <Tooltip title="Download current page as CSV">
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={downloadCSV}
+                sx={{
+                  minWidth: 120,
+                  borderColor: '#f47803',
+                  color: '#f47803',
+                  '&:hover': {
+                    borderColor: '#d86602',
+                    backgroundColor: 'rgba(244, 120, 3, 0.04)'
+                  }
+                }}
+              >
+                Export CSV
+              </Button>
+            </Tooltip>
+          </>)}
         {/* Action Buttons */}
         {/* {reportData.length > 0 && (
         <>

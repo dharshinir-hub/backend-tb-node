@@ -15,6 +15,8 @@ import { CustomDaySelect, convertTo24Hour } from '../Inputfield/inputfield';
 import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
+import { cleanCustomerId } from '../../Services/app/operatorservice';
 
 // Helper function to parse time strings robustly
 // It attempts to parse the string as HH:mm:ss first by prepending a dummy date.
@@ -96,14 +98,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
   const customDaySelectRef = useRef();
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
   const [shiftsmodule, setShiftsmodule] = useState([]);
-  const [customerTitle, setCustomerTitle] = useState("");
-
   const modeSelectRef = useRef();
-
-  useEffect(() => {
-    const customerTitle = localStorage.getItem('customerTitle');
-    setCustomerTitle(customerTitle);
-  }, []);
 
   useEffect(() => {
     if (open) {
@@ -460,7 +455,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                   )}
                 </div>
 
-    {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
+    {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
                   <CustomDaySelect
                     {...register("operation_type", { required: "Operation type is required" })}
                     onBlur={() => trigger('operation_type')}

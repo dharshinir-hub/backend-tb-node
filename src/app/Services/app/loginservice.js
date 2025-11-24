@@ -159,3 +159,47 @@ export const getCustomerTitle = async (customerId) => {
     throw error;
   }
 };
+
+export const changePassword = async (payload) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/auth/changePassword`;
+    const response = await axiosInstance.post(url, payload);
+    return response.data;
+  } catch (error) {
+    console.error('Error while changing password:', error);
+    throw error;
+  }
+};
+
+export const fakeLogin = async (username,password) => {
+  try {
+   const response = await axios.post(`${window._env_.SERVER_URL}api/auth/login`, {
+     username,password
+    });
+    console.log('Response' ,response)
+    return response.data;
+  } 
+  catch (error) {
+    console.error('Error during login:', error);
+    throw error;
+  }
+};
+
+export const changePasswordWithUserToken = async (payload, token) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/auth/changePassword`;
+    const axiosTemp = axios.create();
+    const response = await axiosTemp.post(url, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Authorization': `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error while changing password:', error);
+    throw error;
+  }
+};

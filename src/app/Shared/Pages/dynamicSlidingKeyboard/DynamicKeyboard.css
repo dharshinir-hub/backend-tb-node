@@ -1,0 +1,16 @@
+.dynamic-keyboard {
+  position: fixed;
+  width: 100%;
+  max-width: 100%;
+  z-index: 999;
+  transition: bottom 0.3s ease, opacity 0.3s ease;
+  background: #f0f0f0;
+}
+
+.dynamic-keyboard.slide-up {
+  opacity: 1;
+}
+
+.dynamic-keyboard.slide-down {
+  opacity: 0;
+}

@@ -1,4 +1,8 @@
 import axiosInstance1 from "./loginservice";
+import axios from "axios";
+const axiosInstance3 = axios.create({
+  baseURL: "http://localhost:2000/"
+});
 
 export const cleanCustomerId = (customerId) => {
   if (!customerId) return '';
@@ -143,6 +147,99 @@ export const Deviceattributeget = async (customerId, key) => {
     return response.data;
   } catch (error) {
     console.error('Error during Shift latest data:', error);
+    throw error;
+  }
+};
+
+
+export const createNewUser = async (payload) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/user?sendActivationMail=false`;
+    const response = await axiosInstance1.post(url, payload);
+    return response.data;
+  } catch (error) {
+    console.error('Error while creating new user:', error);
+    throw error;
+  }
+};
+
+export const getUserActivationLink = async (customerId) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const cleanedCustomerId = cleanCustomerId(customerId);
+    const url = `${baseUrl}/api/user/${cleanedCustomerId}/activationLinkInfo`;
+    const response = await axiosInstance1.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Error while getting activation link:', error);
+    throw error;
+  }
+};
+
+export const createPasswordForUser = async (payload) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/noauth/activate?sendActivationMail=true`;
+    const response = await axiosInstance1.post(url, payload);
+    return response.data;
+  } catch (error) {
+    console.error('Error while creating password for new user:', error);
+    throw error;
+  }
+};
+
+export const getCustomerUsers = async (customerId, page = 0, pageSize = 1000000) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const cleanedCustomerId = cleanCustomerId(customerId);
+    const url = `${baseUrl}/api/customer/${cleanedCustomerId}/users`;
+    const params = {
+      pageSize,
+      page,
+      sortProperty: 'createdTime',
+      sortOrder: 'DESC',
+    };
+    const response = await axiosInstance1.get(url, { params });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching customer users:", error);
+    throw error;
+  }
+};
+
+export const deleteUserById = async (userId) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/user/${userId}`;
+    const response = await axiosInstance1.delete(url);
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting user with ID ${userId}:`, error);
+    throw error;
+  }
+};
+
+
+export const getMachineAndtOUC = async (userId) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL.replace(/\/$/, '');
+    const url = `${baseUrl}/api/user/${userId}`;
+    const response = await axiosInstance1.delete(url);
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting user with ID ${userId}:`, error);
+    throw error;
+  }
+};
+
+export const getMachineInfo = async () => {
+  try {
+    const url = "/read_files"; // hardcoded endpoint
+    const response = await axiosInstance3.get(url);
+    return response.data; // { Touch, machine_id, machine_name }
+  } catch (error) {
+    console.error("Error fetching machine info:", error);
     throw error;
   }
 };

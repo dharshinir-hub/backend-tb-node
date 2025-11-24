@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useContext } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Button, Navbar } from 'react-bootstrap';
 import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
@@ -9,11 +9,11 @@ import {
 import { FiActivity } from 'react-icons/fi';
 import {
   MdPowerSettingsNew, MdInsertInvitation, MdMarkunreadMailbox, MdAccountCircle,
-  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment, MdTrendingUp,
+  MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment, MdTrendingUp, MdMoreVert, MdLock
 } from "react-icons/md";
-import { AiTwotoneProfile  } from "react-icons/ai";
+import { AiTwotoneProfile } from "react-icons/ai";
 import { FaCogs } from 'react-icons/fa';
-import { Tooltip } from '@mui/material';
+import { Tooltip, Menu, MenuItem, IconButton } from '@mui/material';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import logo from '../../assets/yantraimage.png';
 import Swal from 'sweetalert2';
@@ -25,8 +25,11 @@ import { IoSettingsOutline } from "react-icons/io5";
 import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
 import { stopTokenAutoRefresh } from '../Services/app/loginservice';
-import { TbChecklist , TbLayoutGrid } from "react-icons/tb";
-
+import { UserDetailsContext } from '../Shared/context/UserDetailsContext';
+import { TbChecklist, TbLayoutGrid } from "react-icons/tb";
+import ChangePasswordCard from '../Nav/changepassword';
+import NotificationBell from '../Pages/NotificationBell/notificationBell';
+import { RiNotificationBadgeLine } from "react-icons/ri";
 
 
 
@@ -40,10 +43,22 @@ export default function PersistentDrawerLeft({ children }) {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [operationOpen, setOperationOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const isMobile = useMobileWidth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const { userDetails } = useContext(UserDetailsContext);
+  const [pageList, setPageList] = useState(userDetails.pageList || []);
+
+  useEffect(() => {
+    const parsed = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
+    setPageList(parsed.pageList || []);
+  }, [userDetails]);
+
 
   let user = null;
   try {
@@ -70,49 +85,35 @@ export default function PersistentDrawerLeft({ children }) {
     }
   };
 
-  const menuItem = useMemo(() => [
-    ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
+  const handleClick = (event) => setAnchorEl(event.currentTarget);
+  const handleClose = () => setAnchorEl(null);
 
-    // 1️⃣ Dashboard / Overview Group
-    {
-      name: "Dashboard",
-      icon: <BiSolidDashboard />,
-      children: [
-        { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
-        { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
-        { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
-
-
-
-      ]
-    },
-
-
-    {
-      name: "Analytics",
-      icon: <BiBarChart />,
-      children: [
-        { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
-         { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
-      ]
-    },
-
-
-
-   
-
-
-
-    // { path: "/report", name: "Reports", icon: <MdAssessment /> },
-
-    {
-      name: "Operation",
-      icon: <AiTwotoneProfile   />,
-      children: [
-        { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
-      ]
-    },
-
+  // const menuItem = useMemo(() => [
+  //   ...(user === "TENANT_ADMIN" ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }] : []),
+  //   {
+  //     name: "Dashboard",
+  //     icon: <BiSolidDashboard />,
+  //     children: [
+  //       { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
+  //       { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
+  //       { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
+  //     ]
+  //   },
+  //   // {
+  //   //   name: "Analytics",
+  //   //   icon: <BiBarChart />,
+  //   //   children: [
+  //   //     { path: "/analytics", name: "Analytics 1", icon: <BiBarChart /> },
+  //   //   ]
+  //   // },
+  //   // { path: "/report", name: "Reports", icon: <MdAssessment /> },
+  //   {
+  //     name: "Operation",
+  //     icon: <MdPrecisionManufacturing />,
+  //     children: [
+  //       { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
+  //     ]
+  //   },
     // {
     //   name: "Analytics",
     //   icon: <BiChip />,
@@ -121,23 +122,75 @@ export default function PersistentDrawerLeft({ children }) {
     //     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
     //   ]
     // },
+  //   {
+  //     name: "Master",
+  //     icon: <MdList />,
+  //     children: [
+  //       { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
+  //       { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
+  //       { path: "/operator-registration", name: "Operator", icon: <MdAccountCircle /> },
+  //       { path: "/user-registration", name: "User", icon: <MdAccountCircle /> },
+  //       { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
+  //       { path: "/reason-registration", name: "Reason", icon: <MdList /> },
+  //     ]
+  //   },
+  // ], [user]);
 
-    {
-      name: "Master",
-      icon: <MdList />,
-      children: [
-        { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
-        { path: "/machines-group", name: "Machine Group", icon: <FaCogs /> },
-        { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
-        { path: "/operator-registration", name: "User", icon: <MdAccountCircle /> },
-        { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
-        { path: "/reason-registration", name: "Reason", icon: <TbChecklist /> },
-      ]
-    },
-
-  ], [user]);
-
-
+  const menuItem = useMemo(() => {
+    const baseItems = [
+      ...(user === "TENANT_ADMIN"
+        ? [{ path: "/configuration", name: "Configuration", icon: <MdManageAccounts /> }]
+        : []),
+      {
+        name: "Dashboard",
+        icon: <BiSolidDashboard />,
+        children: [
+          { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
+          { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
+          { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
+        ],
+      },
+      {
+        name: "Analytics",
+        icon: <BiBarChart />,
+        children: [
+        { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
+          { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
+        ]
+      },
+      { path: "/reports", name: "Reports", icon: <MdAssessment /> },
+      {
+        name: "Operation",
+        icon: <AiTwotoneProfile />,
+        children: [{ path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> }],
+      },
+      {
+        name: "Master",
+        icon: <MdList />,
+        children: [
+          { path: "/machines", name: "Machine", icon: <MdPrecisionManufacturing /> },
+          { path: "/machines-group", name: "Machine Group", icon: <FaCogs /> },
+          { path: "/shift-registration", name: "Shift", icon: <MdInsertInvitation /> },
+          // { path: "/operator-registration", name: "Operator", icon: <MdAccountCircle /> },
+          { path: "/user-registration", name: "User", icon: <MdAccountCircle /> },
+          { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
+          { path: "/reason-registration", name: "Reason", icon: <TbChecklist /> },
+        ],
+      },
+      { path: "/notification-center", name: "Notification Center", icon: <RiNotificationBadgeLine /> },
+    ];
+    return baseItems
+      .map((item) => {
+        if (item.children) {
+          const allowedChildren = item.children.filter((child) =>
+            pageList.includes(child.path.replace("/", ""))
+          );
+          return allowedChildren.length > 0 ? { ...item, children: allowedChildren } : null;
+        }
+        return pageList.includes(item.path.replace("/", "")) ? item : null;
+      })
+      .filter(Boolean);
+  }, [user, pageList]);
 
 
   useEffect(() => {
@@ -226,6 +279,7 @@ export default function PersistentDrawerLeft({ children }) {
           <img className="Logo" src={logo} alt="Logo" />
           <span style={{ fontWeight: '500', fontSize: '20px' }}></span>
           <div className="rightsidecontents">
+          <NotificationBell />
             <span className="person" style={{
               backgroundColor: 'black',
               color: 'white',
@@ -243,11 +297,55 @@ export default function PersistentDrawerLeft({ children }) {
               <h6>{username}</h6>
               <p>{formattedUser}</p>
             </div>
-            <Tooltip title="Log-out">
+             <Tooltip title="Log-out">
               <label className="circles-icon" onClick={handleLogout} style={{ cursor: 'pointer' }}>
                 <MdPowerSettingsNew />
               </label>
             </Tooltip>
+            
+            {/* <IconButton onClick={handleClick} size="large">
+              <MdMoreVert />
+            </IconButton>
+
+            <Menu
+              anchorEl={anchorEl}
+              open={open}
+              onClose={handleClose}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+              <MenuItem
+                onClick={() => {
+                  setShowChangePassword(true);
+                  handleClose();
+                }}
+              >
+                <Tooltip title="Change Password">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MdLock style={{ fontSize: '20px' }} />
+                    Change Password
+                  </span>
+                </Tooltip>
+              </MenuItem>
+
+              <MenuItem
+                onClick={() => {
+                  handleLogout();
+                  handleClose();
+                }}
+              >
+                <Tooltip title="Log out">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MdPowerSettingsNew style={{ fontSize: '20px' }} />
+                    Log out
+                  </span>
+                </Tooltip>
+              </MenuItem>
+            </Menu>
+
+            {showChangePassword && (
+              <ChangePasswordCard onClose={() => setShowChangePassword(false)} />
+            )} */}
           </div>
         </div>
       </Navbar>
@@ -297,9 +395,7 @@ export default function PersistentDrawerLeft({ children }) {
         className="main-content"
         style={{
           paddingLeft: isOpen
-            ? masterOpen
-              ? '240px'
-              : '210px'
+            ? '240px'
             : '85px',
           transition: 'padding-left 0.3s ease'
         }}

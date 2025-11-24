@@ -16,11 +16,12 @@ import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
 import dayjs from 'dayjs';
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
+import { cleanCustomerId } from '../../Services/app/operatorservice';
 export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId }) {
   const customDaySelectRef = useRef();
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
   const [shiftsmodule, setShiftsmodule] = useState([]);
-  const [customerTitle, setCustomerTitle] = useState("");
   
   const componentNameRef = useRef();
 
@@ -35,11 +36,6 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
       return () => clearTimeout(timer); // cleanup on unmount
     }
   }, [open]);
-
-  useEffect(() => {
-    const customerTitle = localStorage.getItem('customerTitle');
-    setCustomerTitle(customerTitle);
-  }, []);
 
   const { register, handleSubmit, formState: { errors }, trigger, setValue, reset } = useForm({
     shouldFocusError: true,
@@ -316,7 +312,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   )}
                 </div>
 
-                {(customerTitle === 'ATECH' || customerTitle === 'HITECH') && (
+                {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (
      <div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
                   <CustomDaySelect
                     {...register("operation_type", { required: "Operation type is required" })}
