@@ -30,7 +30,7 @@ const PartCycleTime = () => {
     const [devices, setDevices] = useState([]);
     const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
     const [selectedDashboard, setSelectedDashboard] = useState("summary");
-
+    const [componentData, setComponentData] = useState([]);
     const [partData, setPartData] = useState({}); // object keyed by deviceName
     const [selectedPartNumber, setSelectedPartNumber] = useState(null);
 
@@ -53,10 +53,11 @@ const PartCycleTime = () => {
         end_time,
         code,
         selectedDevice,
+        machineId,
         codeWiseSummary
     } = location.state || {};
 
-    console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code, 'codeWiseSummary', codeWiseSummary,'selectedDevice',selectedDevice)
+    console.log('From', start_time, 'to', end_time, 'Component', componentName, 'deviceName', deviceName, 'code', code, 'codeWiseSummary', codeWiseSummary,'selectedDevice',selectedDevice, 'machineId',machineId);
 
     const Id = localStorage.getItem("CustomerID");
     let customerId = decodeURIComponent(Id || "").replace(/^"|"$/g, "");
@@ -124,8 +125,38 @@ const deviceId = deviceNames
             .filter((v) => v !== null);
     };
     
-    const [liveReasonData, setLiveReasonData] = useState({});
 
+   useEffect(() => {
+    const fetchComponentData = async () => {
+        if (!customerId ) return;
+        const Key = "component";
+        try {
+            const response = await customerbasedshift(customerId, Key);
+           const data = response[0].value || [];
+            // Transform data: { component_name: cycle_time }
+            const formatted = (data || []).map((item) => ({
+                [item.component_name]: item.cycle_time
+            }));
+
+            setComponentData(formatted);
+        } catch (error) {
+            console.error("Error:", error);
+            setComponentData([]);
+        }
+    };
+
+    fetchComponentData();
+}, [customerId]);
+
+    console.log('Component Data', componentData);
+// Convert array of objects into one object
+const componentMap = Object.assign({}, ...componentData);
+
+// Get the matched value
+const matchedCycleTime = componentMap[componentName];
+
+
+    console.log('Cycle Time for',componentName,matchedCycleTime);
 
     useEffect(() => {
         const fetchPartData = async () => {
@@ -210,7 +241,7 @@ const deviceId = deviceNames
     function formatDuration(seconds) {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
-        const s = seconds % 60;
+        const s = Math.floor(seconds % 60);
         return [h > 0 ? `${h}h` : "", m > 0 ? `${m}m` : "", s > 0 ? `${s}s` : ""]
             .filter(Boolean)
             .join(" ");
@@ -303,7 +334,7 @@ const referenceTimes = Object.fromEntries(
                         <div className="cycletime-box">
                             {Object.entries(referenceTimes || {}).map(([machine, ref]) => (
                                 <span key={machine}>
-                                    Cycle Time: {secondsToHhMmSs(ref)}
+                                    Cycle Time: {matchedCycleTime}
                                 </span>
                             ))}
                         </div>

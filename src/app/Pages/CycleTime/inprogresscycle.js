@@ -257,7 +257,6 @@ const Inprogress = () => {
 
   // Main telemetry fetch: pulls utilization, baseline, live component, durations, statuses for each selected device id
   useEffect(() => {
-    let intervalId;
 
     const fetchAllMachineData = async () => {
       if (!from || !to || locSelectedDevice.length === 0) return;
@@ -278,7 +277,7 @@ const Inprogress = () => {
         "machine_Status",
         "total_duration",
         "auto_duration",
-        "part_data"
+        "part_data" 
       ];
 
       await Promise.all(
@@ -411,47 +410,9 @@ const Inprogress = () => {
     // Call immediately
     fetchAllMachineData();
 
-    // Set interval to call every 10s
-    intervalId = setInterval(fetchAllMachineData, 10000);
-
-    // Cleanup on unmount
-    return () => clearInterval(intervalId);
-
   }, [locSelectedDevice, from, to]);
 
 
-  // CycleTimeFaster fetch (example usage) — using startEpoch/endEpoch states
-  useEffect(() => {
-    if (!startEpoch || !endEpoch || !customerId) return;
-
-    let canceled = false;
-
-    const fetchCycleTimeFaster = async () => {
-      try {
-        const data = await telemetrykeydata(customerId, "CUSTOMER", "live_component", startEpoch, endEpoch);
-        if (!data) {
-          setLiveComponent({});
-          return;
-        }
-        const parsedValues = parseTelemetryValues(data, "live_component");
-        if (!canceled) {
-          // NOTE: this was earlier set to state as an array; to avoid colliding with device-specific liveComponent map,
-          // we avoid overwriting the per-device liveComponent map — here we could store it in a separate state if needed.
-          // For now, leave this call commented or use it to set a 'componentsSummary' state if required.
-          // setLiveComponent(parsedValues); // <-- be careful: this conflicts with per-device map above.
-          // console.log("Final live component values:", parsedValues);
-        }
-      } catch (error) {
-        console.error("Error fetching live_component:", error);
-      }
-    };
-
-    fetchCycleTimeFaster();
-    return () => {
-      canceled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId, startEpoch, endEpoch]);
 
   // helpers for formatting
   function formatTime(seconds) {

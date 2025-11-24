@@ -1,5 +1,5 @@
 // analytics.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Typography,
@@ -22,6 +22,11 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { useNavigate } from "react-router-dom";
 import { SidebarPanel } from "../../Pages/AnalyticsSidepanel/analyticslayout";
+import CategoryIcon from "@mui/icons-material/Category";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
+import InsightsIcon from "@mui/icons-material/Insights";
 
 const Analytics = () => {
   const [partNumber, setPartNumber] = useState("");
@@ -134,34 +139,33 @@ const Analytics = () => {
   // Fetch latest operations
 
 
-  const reports = [
-    {
-      title: "Component",
-      description: "Completed Component List.",
-    },
-    {
-      title: "Completed Work Cycle Times",
-      description:
-        "Report comparing completed work cycle times to ERP standards and baseline.",
-    },
-    {
-      title: "Completed Work OEE",
-      description: "A report showing OEE performance of completed work compared with baseline.",
-    },
-    {
-      title: "In-Progress Cycle Times",
-      description: "A report showing work that is currently in progress.",
-    },
-    {
-      title: "In-Progress OEE",
-      description: "A report showing work that is currently in progress.",
-    },
-    {
-      title: "Part Operation History",
-      description:
-        "A summary of a part’s performance across all machines for quoting and cycle time standards.",
-    },
-  ];
+ const reports = [
+  {
+    title: "Component",
+    description: "View component-wise production summary",
+    icon: <CategoryIcon fontSize="large" />
+  },
+  {
+    title: "Completed Work Cycle Times",
+    description: "Cycle time analysis with ERP standards and baseline",
+    icon: <AccessTimeIcon fontSize="large" />
+  },
+  {
+    title: "Completed Work OEE",
+    description: "Overall Equipment Effectiveness compared with baseline",
+    icon: <AssessmentIcon fontSize="large" />
+  },
+  {
+    title: "In-Progress Cycle Times",
+    description: "Live cycle time monitoring",
+    icon: <AutorenewIcon fontSize="large" />
+  },
+  {
+    title: "In-Progress OEE",
+    description: "Live OEE metrics for running jobs",
+    icon: <InsightsIcon fontSize="large" />
+  }
+];
 
   function formatDuration(seconds) {
     const h = Math.floor(seconds / 3600);
@@ -214,54 +218,62 @@ const Analytics = () => {
 
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState("");
-
+  const hasStartedRef = useRef(false);
   const [operationsData, setOperationsData] = useState([]);
 
   useEffect(() => {
-    const fetchOperationsData = async () => {
-      if (!from || !to || !selectedDevice) return;
-
-      try {
-        setLoading(true);
-        setLoadingStage("Fetching data from all devices...");
-        const deviceIds = Array.isArray(selectedDevice) ? selectedDevice : [selectedDevice];
-
-        const allDataArray = await Promise.all(
-          deviceIds.map(async (deviceId) => {
-            const deviceName = deviceNameIdJson[deviceId] || "Unknown Device";
-
-            const data = await telemetrykeydata(
-              deviceId,
-              "DEVICE",
-              "operations",
-              from,
-              to
-            );
-
-            const parsedData = parseTelemetryValues(data, "operations");
-
-            return { deviceName, parsedData };
-          })
-        );
-        setLoadingStage("Processing data...");
-
-        const allDataObject = allDataArray.reduce((acc, curr) => {
-          acc[curr.deviceName] = curr.parsedData;
-          return acc;
-        }, {});
-
-        setOperationsData(allDataObject);
-      } catch (error) {
-        console.error("Error fetching operations data:", error);
-        setOperationsData({});
-      } finally {
-        setLoading(false);
-        setLoadingStage("");
-      }
-    };
-
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
     fetchOperationsData();
-  }, [selectedDevice, from, to, devices, shifts, ]);
+
+    // intervalRef2.current = setInterval(fetchAllMachineData, 5000);
+    return () => {
+      // clearInterval(intervalRef2.current);
+      hasStartedRef.current = false;
+    };
+  }, [JSON.stringify(selectedDevice), from, to]);
+
+  const fetchOperationsData = async () => {
+    if (!from || !to || !selectedDevice) return;
+
+    try {
+      setLoading(true);
+      setLoadingStage("Fetching data from all devices...");
+      const deviceIds = Array.isArray(selectedDevice) ? selectedDevice : [selectedDevice];
+
+      const allDataArray = await Promise.all(
+        deviceIds.map(async (deviceId) => {
+          const deviceName = deviceNameIdJson[deviceId] || "Unknown Device";
+
+          const data = await telemetrykeydata(
+            deviceId,
+            "DEVICE",
+            "operations",
+            from,
+            to
+          );
+
+          const parsedData = parseTelemetryValues(data, "operations");
+
+          return { deviceName, parsedData };
+        })
+      );
+      setLoadingStage("Processing data...");
+
+      const allDataObject = allDataArray.reduce((acc, curr) => {
+        acc[curr.deviceName] = curr.parsedData;
+        return acc;
+      }, {});
+
+      setOperationsData(allDataObject);
+    } catch (error) {
+      console.error("Error fetching operations data:", error);
+      setOperationsData({});
+    } finally {
+      setLoading(false);
+      setLoadingStage("");
+    }
+  };
 
 
   console.log('Operations Data', operationsData);
@@ -354,46 +366,66 @@ const Analytics = () => {
   console.log("✅ First items sorted by code frequency (desc):", sortedFirstItems);
 
 
-  const groupByCodeSummary = (items) => {
-    if (!items || items.length === 0) return [];
+const groupByCodeSummary = (items) => {
+  if (!items || items.length === 0) return [];
 
-    // Step 1: Group items by code
-    const codeGroups = items.reduce((acc, item) => {
-      const code = item.code || "Unknown";
-      if (!acc[code]) acc[code] = [];
-      acc[code].push(item);
-      return acc;
-    }, {});
+  const codeGroups = items.reduce((acc, item) => {
+    const code = item.code || "Unknown";
+    if (!acc[code]) acc[code] = [];
+    acc[code].push(item);
+    return acc;
+  }, {});
 
-    // Step 2: Map each group to desired summary
-    const summaryArray = Object.entries(codeGroups).map(([code, groupItems]) => {
-      // Take the first operation_name (assuming same for all in group)
-      const operation_name = groupItems[0]?.operation_name || "Unknown";
+  const summaryArray = Object.entries(codeGroups).map(([code, groupItems]) => {
+    const operation_name = groupItems[0]?.operation_name || "Unknown";
+    const occurrence = groupItems.length;
 
-      // Count of items
-      const occurrence = groupItems.length;
+    let totalNumerator = 0;
+    let totalDenominator = 0;
 
-      // Sum the numerators of goodvsexp
-      const numeratorSum = groupItems.reduce((sum, item) => {
-        const [numerator] = (item.goodvsexp || "0/0").split("/").map(Number);
-        return sum + (isNaN(numerator) ? 0 : numerator);
-      }, 0);
+    groupItems.forEach((item) => {
+      const [num, den] = (item.goodvsexp || "0/0")
+        .split("/")
+        .map((v) => Number(v));
 
-      return {
-        code,
-        operation_name,
-        occurrence,
-        goodvsexp_numerator: numeratorSum
-      };
+      totalNumerator += isNaN(num) ? 0 : num;
+      totalDenominator += isNaN(den) ? 0 : den;
     });
 
-    return summaryArray;
-  };
+    const percentage =
+      totalDenominator === 0
+        ? 0
+        : Math.floor((totalNumerator / totalDenominator) * 100);
 
-  // Usage:
-  const codeWiseSummary = groupByCodeSummary(firstItems);
+    return {
+      code,
+      operation_name,
+      occurrence,
+      totalNumerator,
+      totalDenominator,
+      difference: totalNumerator - totalDenominator,
+      percentage: `${percentage}%`,
+    };
+  });
 
-  console.log("✅ Analytics Code-wise summary:", codeWiseSummary);
+  // Convert "80%" → 80
+  const getPercentValue = (item) =>
+    Number(item.percentage.replace("%", "")) || 0;
+
+  // ✅ Sort entire array by percentage [DESCENDING]
+  const sorted = summaryArray.sort(
+    (a, b) => getPercentValue(b) - getPercentValue(a)
+  );
+
+  return sorted;
+};
+
+
+// Usage:
+const codeWiseSummary = groupByCodeSummary(firstItems);
+console.log("🔥 Code Wise Summary:", codeWiseSummary);
+
+
 
 
 
@@ -484,75 +516,89 @@ const Analytics = () => {
         </Box>
 
         {/* Reports Grid */}
-        <Grid container spacing={2} mt={2} alignItems="stretch">
-          {reports.map((r, i) => (
-            <Grid item xs={12} sm={6} md={4} key={i}>
-              <Card
-                variant="outlined"
-                sx={{
-                  cursor: "pointer",
-                  "&:hover": {
-                    bgcolor: "#f8f5f5ff",
-                    transform: "scale(1.03)",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-                  },
-                  height: "130px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  border: "1px solid rgba(197, 193, 193, 1)"
+     <Grid container spacing={2} mt={2} alignItems="stretch">
+  {reports.map((r, i) => (
+    <Grid item xs={12} sm={6} md={4} key={i}>
+      <Card
+        variant="outlined"
+        sx={{
+          cursor: "pointer",
+          height: "180px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          textAlign: "center",
+          borderRadius: "12px",
+          background: "#ffffff",
+          border: "1px solid #cfceceff",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.10)",
+          transition: "0.3s ease",
 
-                }}
-                onClick={() => {
-                  if (r.title === "Component") {
-                    navigate("/production-summary", { state: { from, to, selectedDevice, codeWiseSummary } });
-                  } else if (r.title === "Completed Work Cycle Times") {
-                    navigate("/cycletime", { state: { from, to, selectedDevice, codeWiseSummary } });
-                  } else if (r.title === "Completed Work OEE") {
-                    navigate("/analyticoee", { state: { from, to, selectedDevice, codeWiseSummary } });
-                  } else if (r.title === "In-Progress Cycle Times") {
-                    navigate("/inprogresscycle", { state: { from, to, selectedDevice, codeWiseSummary } });
-                  } else if (r.title === "In-Progress OEE") {
-                    navigate("/inprogressoee", { state: { from, to, selectedDevice, codeWiseSummary } });
-                  }
-                }}
-              >
-                <CardContent
-                  sx={{
-                    flexGrow: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Typography
-                    variant="subtitle1"
-                    fontWeight="bold"
-                    sx={{ "&:hover": { color: "primary.main" } }}
-                  >
-                    {r.title}
-                  </Typography>
+          "&:hover": {
+            transform: "scale(1.03)",
+            boxShadow: "0 6px 18px rgba(0,0,0,0.15)",
+            background: "#fafafa",
+          },
+        }}
+        onClick={() => {
+          if (r.title === "Component") {
+            navigate("/production-summary", { state: { from, to, selectedDevice, codeWiseSummary } });
+          } else if (r.title === "Completed Work Cycle Times") {
+            navigate("/cycletime", { state: { from, to, selectedDevice, codeWiseSummary } });
+          } else if (r.title === "Completed Work OEE") {
+            navigate("/analyticoee", { state: { from, to, selectedDevice, codeWiseSummary } });
+          } else if (r.title === "In-Progress Cycle Times") {
+            navigate("/inprogresscycle", { state: { from, to, selectedDevice, codeWiseSummary } });
+          } else if (r.title === "In-Progress OEE") {
+            navigate("/inprogressoee", { state: { from, to, selectedDevice, codeWiseSummary } });
+          }
+        }}
+      >
+        <CardContent
+  sx={{
+    flexGrow: 1,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+  }}
+>
+  {/* ICON */}
+  <Box sx={{ mb: 1, color: "primary.main" }}>
+    {r.icon}
+  </Box>
 
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    sx={{
-                      mt: 0.5,
-                      textAlign: "left",
-                      flexGrow: 1,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {r.description}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+  {/* TITLE */}
+  <Typography
+    variant="subtitle1"
+    fontWeight="bold"
+    sx={{ "&:hover": { color: "primary.main" } , fontSize: '1.03rem' }}
+  >
+    {r.title}
+  </Typography>
+
+  {/* DESCRIPTION */}
+  <Typography
+    variant="body2"
+    color="textSecondary"
+    sx={{
+      mt: 0.5,
+      textAlign: "center",
+      flexGrow: 1,
+      display: "-webkit-box",
+      WebkitLineClamp: 3,
+      WebkitBoxOrient: "vertical",
+      overflow: "hidden",
+    }}
+  >
+    {r.description}
+  </Typography>
+</CardContent>
+
+      </Card>
+    </Grid>
+  ))}
+</Grid>
+
 
       </Box>
     </Box>

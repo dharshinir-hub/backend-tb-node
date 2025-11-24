@@ -2,8 +2,8 @@
 window._env_ = {
     SERVER_URL: "http://74.224.122.231:8080/",
     SERVER_URL2: "http://74.224.122.231:5000/",
-    GRAFANA_URL: "http://74.224.122.231:9097/",
-    // GRAFANA_URL: "http://demo.yantra24x7.com:9097/",
+    GRAFANA_URL: "http://192.168.0.224:3000/",
+    // GRAFANA_URL: "http://74.224.122.231:8080/",
     CUSTOMER_ID: "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
     SMC_CUSTOMER_ID: "527951c0-c50b-11f0-878e-073dc60e4f9a",
     TENANT_GMAIL: "pms@gmail.com",

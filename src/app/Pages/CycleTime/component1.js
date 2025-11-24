@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef,useState } from "react";
 import {
   Box,
   Typography,
@@ -121,9 +121,24 @@ const Component1 = () => {
   };
 
   const [liveComponent, setLiveComponent] = useState([]);
+  const hasStartedRef = useRef(false);
 
   useEffect(() => {
-    const fetchCycleTimeFaster = async () => {
+
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
+    fetchCycleTimeFaster();
+
+    // intervalRef2.current = setInterval(fetchAllMachineData, 5000);
+    return () => {
+      // clearInterval(intervalRef2.current);
+      hasStartedRef.current = false;
+    };
+
+
+  }, [JSON.stringify(selectedDevice), from, to , devices]);
+
+      const fetchCycleTimeFaster = async () => {
       if (!from || !to || !selectedDevice) return;
 
       try {
@@ -159,9 +174,6 @@ const Component1 = () => {
       }
     };
 
-
-    fetchCycleTimeFaster();
-  }, [selectedDevice, from, to, devices, shifts]);
 
   console.log('Component List', liveComponent);
 
