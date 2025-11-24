@@ -546,10 +546,7 @@ function Operator() {
     useEffect(() => {
         const getReasons = async () => {
             try {
-                const response = await customerbasedshift(
-                    getCustomerId(),
-                    "reason"
-                );
+                const response = await customerbasedshift(getCustomerId(), "reason");
                 const reasons = response?.[0]?.value || [];
                 setReasonsList2(reasons);
             } catch (err) {
@@ -557,6 +554,8 @@ function Operator() {
             }
         };
         getReasons();
+        const interval = setInterval(getReasons, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     const [idleStartTime, setIdleStartTime] = useState(null);
