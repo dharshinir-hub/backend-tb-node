@@ -19,7 +19,7 @@ import DialogContent from '@mui/material/DialogContent';
 import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 import Swal from 'sweetalert2';
 import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, DowntimeaddDelete1 } from '../../Services/app/masterservice';
-import { Autocomplete } from '@mui/material';
+import { Autocomplete, FormControl, FormHelperText } from '@mui/material';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 const OperatorDetails = () => {
@@ -74,7 +74,125 @@ const OperatorDetails = () => {
   const [supervisorsByDevice, setSupervisorByDevice] = useState([]);
   const [supervisorselected, setselectedsupervisor] = useState('');
   const [OpenEditDialog4, setOpenEditDialog4] = useState(false);
-  
+
+  const [timeErrors, setTimeErrors] = useState({
+    startTime: '',
+    endTime: ''
+  });
+
+  useEffect(() => {
+    if (openEditDialog1) {
+      const startError = validateStartTime(startTime);
+      const endError = validateEndTime(endTime);
+      setTimeErrors({
+        startTime: startError,
+        endTime: endError
+      });
+    }
+  }, [startTime, endTime, selectedDate, selectedShift, openEditDialog1]);
+
+  const validateStartTime = (value) => {
+    if (!value) return 'Start time is required';
+    const now = dayjs();
+    const selectedShiftData = shifts.find(
+      (shift) => shift.shift_no === selectedShift
+    );
+    if (!selectedShiftData) return '';
+    const startLimit = dayjs(selectedDate)
+      .set('hour', selectedShiftData.start_time.split(':')[0])
+      .set('minute', selectedShiftData.start_time.split(':')[1])
+      .set('second', selectedShiftData.start_time.split(':')[2]);
+    let endLimit = dayjs(selectedDate)
+      .set('hour', selectedShiftData.end_time.split(':')[0])
+      .set('minute', selectedShiftData.end_time.split(':')[1])
+      .set('second', selectedShiftData.end_time.split(':')[2]);
+    const isOvernight = selectedShiftData.start_day !== selectedShiftData.end_day;
+    if (isOvernight) {
+      endLimit = endLimit.add(1, 'day');
+    }
+    const selectedDateTime = dayjs(selectedDate)
+      .set('hour', value.hour())
+      .set('minute', value.minute())
+      .set('second', value.second());
+    if (selectedDateTime.isBefore(now, 'minute') && selectedDate.isSame(now, 'day')) {
+      return "Start time can't be in the past";
+    }
+    if (endTime) {
+      let adjustedEnd = dayjs(selectedDate)
+        .set('hour', endTime.hour())
+        .set('minute', endTime.minute())
+        .set('second', endTime.second());
+      if (isOvernight && adjustedEnd.isBefore(selectedDateTime)) {
+        adjustedEnd = adjustedEnd.add(1, 'day');
+      }
+      if (selectedDateTime.isSame(adjustedEnd, 'second')) {
+        return 'Start and end time cannot be the same';
+      }
+      if (selectedDateTime.isAfter(adjustedEnd)) {
+        return 'Start time cannot be after end time';
+      }
+    }
+    const formattedStart = startLimit.format('hh:mm:ss A');
+    const formattedEnd = endLimit.format('hh:mm:ss A');
+    if (selectedDateTime.isBefore(startLimit) || selectedDateTime.isAfter(endLimit)) {
+      return `Start time must be within shift ${formattedStart} - ${formattedEnd}`;
+    }
+    return '';
+  };
+
+  const validateEndTime = (value) => {
+    if (!value) return 'End time is required';
+    const now = dayjs();
+    const selectedShiftData = shifts.find(
+      (shift) => shift.shift_no === selectedShift
+    );
+    if (!selectedShiftData) return '';
+    const startLimit = dayjs(selectedDate)
+      .set('hour', selectedShiftData.start_time.split(':')[0])
+      .set('minute', selectedShiftData.start_time.split(':')[1])
+      .set('second', selectedShiftData.start_time.split(':')[2]);
+    let endLimit = dayjs(selectedDate)
+      .set('hour', selectedShiftData.end_time.split(':')[0])
+      .set('minute', selectedShiftData.end_time.split(':')[1])
+      .set('second', selectedShiftData.end_time.split(':')[2]);
+    const isOvernight = selectedShiftData.start_day !== selectedShiftData.end_day;
+    if (isOvernight) {
+      endLimit = endLimit.add(1, 'day');
+    }
+    let selectedDateTime = dayjs(selectedDate)
+      .set('hour', value.hour())
+      .set('minute', value.minute())
+      .set('second', value.second());
+    if (
+      isOvernight &&
+      startTime &&
+      (selectedDateTime.isBefore(startTime) || selectedDate.isAfter(now, 'day'))
+    ) {
+      selectedDateTime = selectedDateTime.add(1, 'day');
+    }
+    if (startTime) {
+      const adjustedStart = dayjs(selectedDate)
+        .set('hour', startTime.hour())
+        .set('minute', startTime.minute())
+        .set('second', startTime.second());
+      if (selectedDateTime.isSame(adjustedStart, 'second')) {
+        return 'End and start time cannot be the same';
+      }
+      if (selectedDateTime.isBefore(adjustedStart)) {
+        return 'End time cannot be before start time';
+      }
+    }
+    if (selectedDateTime.isBefore(now, 'second') && selectedDate.isSame(now, 'day')) {
+      return 'End time must be in the future';
+    }
+    const formattedStart = startLimit.format('hh:mm:ss A');
+    const formattedEnd = endLimit.format('hh:mm:ss A');
+    if (selectedDateTime.isBefore(startLimit) || selectedDateTime.isAfter(endLimit)) {
+      return `End time must be within shift ${formattedStart} - ${formattedEnd}`;
+    }
+    return '';
+  };
+
   const getEpochFromShift = (shiftNo, selectedDateObj) => {
     if (!shiftNo || !selectedDateObj || shifts.length === 0) {
       return { fromEpoch: null, toEpoch: null };
@@ -180,27 +298,40 @@ const OperatorDetails = () => {
   };
 
   const handleStartTimeChange1 = async (value) => {
-    if (dayjs(value).isSame(endTime, 'second')) {
-      setOpenEditDialog(false);
-      setOpenEditDialog1(false);
-      setOpenEditDialog4(false);
-      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
-      return;
-    }
-    // if (!value || !isTimeInShift(value, selectedShiftData)) {
-    //   setOpenEditDialog(false);
-    //   setOpenEditDialog1(false);
-    //   setOpenEditDialog4(false);
-    //   Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
-    //   return;
-    // }
-
     setStartTime(value);
-
-    if (endTime) {
+    if (value && endTime && !timeErrors.startTime && !timeErrors.endTime) {
       await validateAndCheckOverlap1(value, endTime);
     }
   };
+
+  const handleEndTimeChange1 = async (value) => {
+    setEndTime(value);
+    if (startTime && value && !timeErrors.startTime && !timeErrors.endTime) {
+      await validateAndCheckOverlap1(startTime, value);
+    }
+  };
+  // const handleStartTimeChange1 = async (value) => {
+  //   if (dayjs(value).isSame(endTime, 'second')) {
+  //     setOpenEditDialog(false);
+  //     setOpenEditDialog1(false);
+  //     setOpenEditDialog4(false);
+  //     Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
+  //     return;
+  //   }
+  //   // if (!value || !isTimeInShift(value, selectedShiftData)) {
+  //   //   setOpenEditDialog(false);
+  //   //   setOpenEditDialog1(false);
+  //   //   setOpenEditDialog4(false);
+  //   //   Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
+  //   //   return;
+  //   // }
+
+  //   setStartTime(value);
+
+  //   if (endTime) {
+  //     await validateAndCheckOverlap1(value, endTime);
+  //   }
+  // };
   const validateAndCheckOverlap = async (newStart, newEnd) => {
     if (!selectedDate || !selectedDeviceId?.id) return false;
 
@@ -348,28 +479,28 @@ const OperatorDetails = () => {
       await validateAndCheckOverlap(startTime, value);
     }
   };
-  const handleEndTimeChange1 = async (value) => {
-    if (dayjs(value).isSame(startTime, 'second')) {
-      setOpenEditDialog(false);
-      setOpenEditDialog1(false);
-      setOpenEditDialog4(false);
-      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
-      return;
-    }
-    // if (!value || !isTimeInShift(value, selectedShiftData)) {
-    //   setOpenEditDialog(false);
-    //   setOpenEditDialog1(false);
-    //   setOpenEditDialog4(false);
-    //   Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
-    //   return;
-    // }
+  // const handleEndTimeChange1 = async (value) => {
+  //   if (dayjs(value).isSame(startTime, 'second')) {
+  //     setOpenEditDialog(false);
+  //     setOpenEditDialog1(false);
+  //     setOpenEditDialog4(false);
+  //     Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
+  //     return;
+  //   }
+  //   // if (!value || !isTimeInShift(value, selectedShiftData)) {
+  //   //   setOpenEditDialog(false);
+  //   //   setOpenEditDialog1(false);
+  //   //   setOpenEditDialog4(false);
+  //   //   Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
+  //   //   return;
+  //   // }
 
-    setEndTime(value);
+  //   setEndTime(value);
 
-    if (startTime) {
-      await validateAndCheckOverlap(startTime, value);
-    }
-  };
+  //   if (startTime) {
+  //     await validateAndCheckOverlap(startTime, value);
+  //   }
+  // };
   const handleDateChange = (newValue) => {
     const dayjsVal = dayjs(newValue);
     setSelectedDate(dayjsVal);
@@ -431,22 +562,26 @@ const OperatorDetails = () => {
   const handleOperatorChange1 = (newValue) => {
     const dayjsVal = dayjs(newValue);
     setSelectedDate(dayjsVal);
-
-    // Recalculate epoch range when date changes
-    if (selectedShift && shifts.length > 0) {
-      const { fromEpoch, toEpoch } = getEpochFromShift(selectedShift, dayjsVal);
-      setEpochRange({ from: fromEpoch, to: toEpoch });
-    }
+    handleShiftChange(selectedShift, dayjsVal);
   };
-  const handleShiftChange = (shiftValue) => {
-    setSelectedShift(shiftValue);
-    setSelectedShift(shiftValue);
+
+  const handleShiftChange = (shiftValue, dateParam) => {
+    const now = dayjs();
+    const selectedDateLocal = dateParam || selectedDate;
+    const isToday = selectedDateLocal.isSame(now, 'day');
+    const currentShiftData = getCurrentShift(shifts, now);
     const selectedShiftData = shifts.find(shift => shift.shift_no === shiftValue);
-    if (selectedShiftData) {
+    setSelectedShift(shiftValue);
+    if (isToday && currentShiftData && currentShiftData.shift_no === shiftValue) {
+      const currentTimeRounded = now.startOf('minute');
+      setStartTime(currentTimeRounded);
+      setEndTime(dayjs(currentShiftData.end_time, 'HH:mm:ss'));
+    }
+    else if (selectedShiftData) {
       setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
       setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
     }
-    const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDate);
+    const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDateLocal);
     setEpochRange({ from: fromEpoch, to: toEpoch });
   };
   const operatorvaluechange = (shiftValue) => {
@@ -686,41 +821,44 @@ const OperatorDetails = () => {
   };
 
   const handleOpenEditDialog1 = async (devicename, deviceid) => {
+    setTimeErrors({ startTime: '', endTime: '' });
     setLoading(true);
-
     const key1 = 'allShift';
-
     try {
       const shiftData = await customerbasedshift(customerId, key1);
       const allShifts = shiftData[0]?.value || [];
       setShifts(allShifts);
-
       const options = allShifts.map((shift) => ({
         value: shift.shift_no,
         label: `Shift${shift.shift_no}`,
       }));
       setShiftOptions(options);
-
-      const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
-      if (selectedShiftData) {
-        setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
-        setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+      const now = dayjs();
+      const currentShiftData = getCurrentShift(allShifts, now);
+      const fallbackShiftData = allShifts[0];
+      if (currentShiftData) {
+        const currentTimeRounded = dayjs().startOf('minute');
+        setStartTime(currentTimeRounded);
+        setEndTime(dayjs(currentShiftData.end_time, 'HH:mm:ss'));
+      } else if (fallbackShiftData) {
+        setStartTime(dayjs(fallbackShiftData.start_time, 'HH:mm:ss'));
+        setEndTime(dayjs(fallbackShiftData.end_time, 'HH:mm:ss'));
       }
       if (options.length > 0) {
-        const defaultShift = options[0].value;
-        setSelectedDate(dayjs()); // Set to current date
-        setSelectedShift(defaultShift);
-
-        setfilteredResult([]); // (Optional) clear table
-
-        // Calculate initial epoch range for current date and first shift
-        const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
-        setEpochRange({ from: fromEpoch, to: toEpoch });
-        console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:', dayjs());
-
+        setSelectedDate(now);
+        const selectedShiftNo = currentShiftData
+          ? currentShiftData.shift_no
+          : fallbackShiftData?.shift_no;
+        setSelectedShift(selectedShiftNo);
         setfilteredResult([]);
-
-        // Get operator data
+        const { fromEpoch, toEpoch } = getEpochFromShift(selectedShiftNo, now);
+        setEpochRange({ from: fromEpoch, to: toEpoch });
+        console.log(
+          'fromEpoch:', fromEpoch,
+          'toEpoch:', toEpoch,
+          'selectedShift:', selectedShiftNo,
+          'date:', now
+        );
         const key = 'component';
         const operatorData = await customerbasedshift(customerId, key);
         const allShifts = operatorData[0]?.value || [];
@@ -735,15 +873,12 @@ const OperatorDetails = () => {
           };
         });
         setcomponents(reasons);
-
-        // ✅ Now safely fetch live_operator after all data is ready
         setSelectedDeviceId(deviceid);
         setSelectedDevicename(devicename);
         const key2 = 'live_component';
         const entitytype = 'DEVICE';
         await fetchLiveComponent(deviceid, entitytype, key2, fromEpoch, toEpoch);
         setOpenEditDialog1(true);
-
       }
     } catch (err) {
       console.error('Error in handleOpenEditDialog:', err);
@@ -1871,6 +2006,10 @@ const OperatorDetails = () => {
   };
 
   const handleSaveThreshold1 = async () => {
+    const hasErrors = timeErrors.startTime || timeErrors.endTime;
+    if (hasErrors) {
+      return;
+    }
     if (
       !startTime || !endTime ||
       !isTimeInShift(startTime, selectedShiftData) ||
@@ -2058,6 +2197,27 @@ const OperatorDetails = () => {
     } finally {
       setOpenEditDialog1(false);
     }
+  };
+
+  const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
+    const now = dayjs(selectedDate);
+    for (let shift of allShifts) {
+      const [startH, startM, startS = 0] = shift.start_time.split(":").map(Number);
+      const [endH, endM, endS = 0] = shift.end_time.split(":").map(Number);
+      let start = dayjs(now).hour(startH).minute(startM).second(startS).millisecond(0);
+      let end = dayjs(now).hour(endH).minute(endM).second(endS).millisecond(0);
+      if (end.isBefore(start)) {
+        if (now.isBefore(end)) {
+          start = start.subtract(1, "day");
+        } else {
+          end = end.add(1, "day");
+        }
+      }
+      if (now.isAfter(start) && now.isBefore(end)) {
+        return shift;
+      }
+    }
+    return null;
   };
 
   const handleSaveThreshold2 = async () => {
@@ -2618,71 +2778,81 @@ const OperatorDetails = () => {
           </div>
           <br></br>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DesktopTimePicker
-                value={startTime}
-                onChange={handleStartTimeChange1}
-                label="Start Time"
-                minTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.start_time, 'HH:mm:ss')
-                    : undefined
-                }
-                maxTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
-                    : undefined
-                }
-                views={['hours', 'minutes', 'seconds']}
-                openTo="hours"
-                format="hh:mm:ss A"
-                error={!!startTime}
-                InputLabelProps={{ required: false }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: 'black' },
-                    '&:hover fieldset': { borderColor: 'black' },
-                    '&.Mui-focused fieldset': { borderColor: 'orange' },
-                    '& .MuiOutlinedInput-input': { color: 'black' },
-                    '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                    '&::placeholder': { color: 'black', opacity: 1 },
-                  },
-                }}
-              />
+            <FormControl fullWidth error={!!timeErrors.startTime}>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DesktopTimePicker
+                  label="Start Time *"
+                  value={startTime}
+                  onChange={handleStartTimeChange1}
+                  views={['hours', 'minutes', 'seconds']}
+                  openTo="hours"
+                  format="hh:mm:ss A"
+                  minTime={
+                    selectedShiftData && !isOvernight(selectedShiftData)
+                      ? dayjs().isSame(selectedDate, 'day')
+                        ? dayjs()
+                        : dayjs(selectedShiftData.start_time, 'HH:mm:ss')
+                      : undefined
+                  }
+                  maxTime={
+                    selectedShiftData && !isOvernight(selectedShiftData)
+                      ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
+                      : undefined
+                  }
+                  slotProps={{
+                    textField: {
+                      error: !!timeErrors.startTime,
+                      sx: {
+                        '& fieldset': { borderColor: timeErrors.startTime ? 'red' : 'black' },
+                        '&:hover fieldset': { borderColor: timeErrors.startTime ? 'red' : 'black' },
+                        '&.Mui-focused fieldset': { borderColor: timeErrors.startTime ? 'red' : 'orange' },
+                      }
+                    }
+                  }}
+                />
+              </LocalizationProvider>
+              <FormHelperText>
+                {timeErrors.startTime || " "}
+              </FormHelperText>
+            </FormControl>
 
-            </LocalizationProvider>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DesktopTimePicker
-                value={endTime}
-                onChange={handleEndTimeChange1}
-                label="End Time"
-                minTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.start_time, 'HH:mm:ss')
-                    : undefined
-                }
-                maxTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
-                    : undefined
-                }
-                views={['hours', 'minutes', 'seconds']}
-                openTo="hours"
-                format="hh:mm:ss A"
-                error={!!endTime}
-                InputLabelProps={{ required: false }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: 'black' },
-                    '&:hover fieldset': { borderColor: 'black' },
-                    '&.Mui-focused fieldset': { borderColor: 'orange' },
-                    '& .MuiOutlinedInput-input': { color: 'black' },
-                    '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                    '&::placeholder': { color: 'black', opacity: 1 },
-                  },
-                }}
-              />
-            </LocalizationProvider>
+            <FormControl fullWidth error={!!timeErrors.endTime}>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DesktopTimePicker
+                  label="End Time *"
+                  value={endTime}
+                  onChange={handleEndTimeChange1}
+                  views={['hours', 'minutes', 'seconds']}
+                  openTo="hours"
+                  format="hh:mm:ss A"
+                  minTime={startTime || (
+                    selectedShiftData && !isOvernight(selectedShiftData)
+                      ? dayjs().isSame(selectedDate, 'day')
+                        ? dayjs()
+                        : dayjs(selectedShiftData.start_time, 'HH:mm:ss')
+                      : undefined
+                  )}
+                  maxTime={
+                    selectedShiftData && !isOvernight(selectedShiftData)
+                      ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
+                      : undefined
+                  }
+                  slotProps={{
+                    textField: {
+                      error: !!timeErrors.endTime,
+                      sx: {
+                        '& fieldset': { borderColor: timeErrors.endTime ? 'red' : 'black' },
+                        '&:hover fieldset': { borderColor: timeErrors.endTime ? 'red' : 'black' },
+                        '&.Mui-focused fieldset': { borderColor: timeErrors.endTime ? 'red' : 'orange' },
+                      }
+                    }
+                  }}
+                />
+              </LocalizationProvider>
+              <FormHelperText>
+                {timeErrors.endTime || " "}
+              </FormHelperText>
+            </FormControl>
           </div>
         </DialogContent>
         <DialogActions>

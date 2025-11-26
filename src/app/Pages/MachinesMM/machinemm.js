@@ -296,7 +296,8 @@ export default function MachineDashboard() {
         "machine_Status",
         "total_duration",
         "auto_duration",
-        "live_reason"
+        "live_reason",
+        "operations"
       ];
 
       await Promise.all(
@@ -363,21 +364,39 @@ export default function MachineDashboard() {
             }
 
             /** ---------------- Live Component ---------------- **/
-            const liveValues = data?.live_component || [];
-            if (liveValues.length) {
-              const now = Date.now();
-              const comps = liveValues.map(p => {
-                const val = typeof p.value === "string" ? JSON.parse(p.value) : p.value;
-                return { ...val, ts: p.ts, start: val.start_time || p.ts, end: val.end_time || p.ts };
-              });
-              let current =
-                comps.find(c => now >= c.start && now <= c.end) ||
-                comps.filter(c => c.end < now).sort((a, b) => b.end - a.end)[0] ||
-                comps.sort((a, b) => a.start - b.start)[0];
-              resultsLiveComponent[machine.id.id] = { componentName: current?.name ?? null };
-            } else {
-              resultsLiveComponent[machine.id.id] = { componentName: null };
+            // const liveValues = data?.live_component || [];
+            // if (liveValues.length) {
+            //   const now = Date.now();
+            //   const comps = liveValues.map(p => {
+            //     const val = typeof p.value === "string" ? JSON.parse(p.value) : p.value;
+            //     return { ...val, ts: p.ts, start: val.start_time || p.ts, end: val.end_time || p.ts };
+            //   });
+            //   let current =
+            //     comps.find(c => now >= c.start && now <= c.end) ||
+            //     comps.filter(c => c.end < now).sort((a, b) => b.end - a.end)[0] ||
+            //     comps.sort((a, b) => a.start - b.start)[0];
+            //   resultsLiveComponent[machine.id.id] = { componentName: current?.name ?? null };
+            // } else {
+            //   resultsLiveComponent[machine.id.id] = { componentName: null };
+            // }
+
+           /** ---------------- operations  ---------------- **/
+            const operationValues = data?.operations || [];
+            let firstValue = null;
+            if (operationValues.length > 0) {
+              let raw = operationValues[0].value;
+              try {
+                firstValue = typeof raw === "string" ? JSON.parse(raw) : raw;
+                if (Array.isArray(firstValue)) firstValue = firstValue[0] || null;
+              } catch (e) {
+                firstValue = null;
+              }
             }
+            let opName = firstValue?.operation_name?.trim() || null;
+            resultsLiveComponent[machine.id.id] =
+              opName && opName.toLowerCase() !== "no operations"
+                ? { componentName: opName }
+                : { componentName: null };
 
             /** ---------------- Total / Auto Durations ---------------- **/
             const totalValues = data?.total_duration || [];
