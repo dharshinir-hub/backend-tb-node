@@ -18,9 +18,10 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
-import { getEfficiencyReport, getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
+import { getEfficiencyReport, getGeneralReport,  getIdleReasonReport,  getOeeReport,  getPartReport,  getReportDownloadLink, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
 import classNames from 'classnames';
 import { DownloadIcon } from "lucide-react";
+import Swal from "sweetalert2";
 
 export default function MachineReport() {
   const [selectedTab, setSelectedTab] = useState("general");
@@ -39,6 +40,7 @@ export default function MachineReport() {
   const [totalCount, setTotalCount] = useState(0);
   const [idleReasonWithPercentage, setIdleReasonWithPercentage] = useState([]);
   const [averageEfficiency, setAverageEfficiency] = useState(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const REPORT_HEADERS = {
     general: [
       "S.no", "Date", "Machine", "Shift", "Operator Name", "Component Number",
@@ -179,7 +181,7 @@ export default function MachineReport() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const customerName = localStorage.getItem('customerName');
+        const customerName = localStorage.getItem('customerTitle');
         const shiftResult = await getReportShifts(customerName);
         const shiftList = shiftResult || [];
         setShifts(shiftList);
@@ -383,63 +385,58 @@ export default function MachineReport() {
     return dayjs(dateString).format("DD-MM-YYYY");
   };
 
-  const downloadCSV = () => {
-    if (reportData.length === 0) {
-      alert('No data available to download');
+  const triggerDownload = (response, defaultFilename) => {
+    let filename = defaultFilename;
+    const disposition = response.headers["content-disposition"];
+    if (disposition && disposition.includes("filename=")) {
+      filename = disposition.split("filename=")[1].replace(/"/g, "").trim();
+    }
+    const blob = new Blob([response.data], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadCSV = async () => {
+    const dateStr = startDate.format("YYYY-MM-DD");
+    const dateEnd = endDate.format("YYYY-MM-DD");
+    const validTabs = ["part", "idle_reason", "general", "oee"];
+    if (!validTabs.includes(selectedTab)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Invalid Tab",
+        text: "Please select a valid report type before downloading.",
+        confirmButtonColor: "#f47803"
+      });
       return;
     }
-    const headers = REPORT_HEADERS[selectedTab];
-    const currentColumns = columns[selectedTab];
-    let csvContent = headers.join(',') + '\n';
-    const formatValueForCSV = (value, col, row) => {
-      if (value === null || value === undefined) return '---';
-      if (value === 0 || value === '0') return '0';
-      if (value === '') return '---';
-      if (Array.isArray(value)) {
-        return value.join(' | ');
-      }
-      if (col.key === 'date' && row.date) {
-        console.log(formatDate(row.date), 'date')
-        return formatDate(row.date);
-      }
-      if ((col.key === 'start_time' || col.key === 'end_time') && row[col.key]) {
-        return formatDateTime(row[col.key]);
-      }
-      if ((col.key === 'run_time' || col.key === 'idle_time' || col.key === 'alarm_time' ||
-        col.key === 'stop_time' || col.key === 'duration' || col.key === 'total_time') &&
-        (row[col.key] || row[col.key] === 0)) {
-        return formatTimeWithFallback(row[col.key]);
-      }
-      if (selectedTab === 'idle_reason' && row.json_v) {
-        if (col.key === 'mode') return formatWithFallback(row.json_v.mode);
-        if (col.key === 'category') return formatDowntimeType(row.json_v.category);
-        if (col.key === 'idle_reason_name') return formatWithFallback(row.json_v.name);
-        if (col.key === 'duration') return formatTimeWithFallback(row.json_v.idle_duration);
-      }
-      const stringValue = String(value);
-      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-        return `"${stringValue.replace(/"/g, '""')}"`;
-      }
-      return stringValue;
-    };
-    reportData.forEach((row, index) => {
-      const rowData = currentColumns.map(col => {
-        const rawValue = col.formatter(row, index);
-        return formatValueForCSV(rawValue, col, row);
+    try {
+      setIsDownloading(true);
+      const response = await getReportDownloadLink(
+        selectedTab,
+        selectedMachines.join(","),
+        selectedShift,
+        dateStr,
+        dateEnd
+      );
+      const filename = `${selectedTab}_report_${dateStr}_${dateEnd}.csv`;
+      triggerDownload(response, filename);
+    } catch (error) {
+      console.error(`Error during ${selectedTab} report download:`, error);
+      Swal.fire({
+        icon: "error",
+        title: "Download Failed",
+        text: "Something went wrong while downloading the report. Please try again later.",
+        confirmButtonColor: "#f47803"
       });
-      csvContent += rowData.join(',') + '\n';
-    });
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    const timestamp = dayjs().format('DD-MM-YYYY_HH-mm');
-    const filename = `${selectedTab}_report_${timestamp}.csv`;
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -462,7 +459,7 @@ export default function MachineReport() {
         {/* <Tab label="Idle Reason Report" value="idle" /> */}
         <Tab label="Idle Reason Report" value="idle_reason" />
         <Tab label="Part Wise Report" value="part" />
-        <Tab label="Efficiency Report" value="efficiency" />
+        {/* <Tab label="Efficiency Report" value="efficiency" /> */}
       </Tabs>
 
       {/* Filters */}
@@ -650,24 +647,23 @@ export default function MachineReport() {
         </Button>
         {reportData.length > 0 && (
           <>
-            <Tooltip title="Download current page as CSV">
-              <Button
-                variant="outlined"
-                startIcon={<DownloadIcon />}
-                onClick={downloadCSV}
-                sx={{
-                  minWidth: 120,
-                  borderColor: '#f47803',
-                  color: '#f47803',
-                  '&:hover': {
-                    borderColor: '#d86602',
-                    backgroundColor: 'rgba(244, 120, 3, 0.04)'
-                  }
-                }}
-              >
-                Export CSV
-              </Button>
-            </Tooltip>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={downloadCSV}
+              disabled={isDownloading}
+              sx={{
+                minWidth: 120,
+                borderColor: '#f47803',
+                color: '#f47803',
+                '&:hover': {
+                  borderColor: '#d86602',
+                  backgroundColor: 'rgba(244, 120, 3, 0.04)'
+                }
+              }}
+            >
+              {isDownloading ? "Exporting..." : "Export CSV"}
+            </Button>
           </>)}
         {/* Action Buttons */}
         {/* {reportData.length > 0 && (

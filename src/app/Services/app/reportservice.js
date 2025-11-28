@@ -88,3 +88,17 @@ export const getEfficiencyReport = async (machine, shiftNo, fromTime, toTime, pa
     throw error;
   }
 };
+
+export const getReportDownloadLink = async (type, machine, shiftNo, fromTime, toTime) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+  const endpointMap = {
+    part: "part_report_download",
+    general: "general_report_download",
+    oee: "oee_report_download",
+    idle_reason: "idle_report_download"
+  };
+  const endpoint = endpointMap[type];
+  if (!endpoint) throw new Error(`Unknown report type: ${type}`);
+  const url = `${baseUrl}/report/${endpoint}/${machine}/${shiftNo}/${fromTime}/${toTime}`;
+  return await axiosInstance.get(url, { responseType: "blob" });
+};
