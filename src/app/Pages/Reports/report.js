@@ -19,23 +19,20 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
-import { getEfficiencyReport, getGeneralReport,  getIdleReasonReport,  getOeeReport,  getPartReport,  getReportDownloadLink, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
+import { getEfficiencyReport, getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportDownloadLink, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
 import classNames from 'classnames';
 import { DownloadIcon } from "lucide-react";
 import Swal from "sweetalert2";
+import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
 
 export default function MachineReport() {
   const [selectedTab, setSelectedTab] = useState("general");
-  // const [selectedModule, setSelectedModule] = useState("SURIN");
-  const [selectedMachines, setSelectedMachines] = useState([]);
-  const [selectedMachine, setSelectedMachine] = useState([]);
   const [selectedShift, setSelectedShift] = useState([]);
   const [startDate, setStartDate] = useState(dayjs());
   const [efficiencyDate, setEfficiencyDate] = useState(dayjs());
   const [endDate, setEndDate] = useState(dayjs());
   const [reportData, setReportData] = useState([]);
   const [shifts, setShifts] = useState([]);
-  const [machines, setMachines] = useState([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
@@ -43,6 +40,20 @@ export default function MachineReport() {
   const [averageEfficiency, setAverageEfficiency] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const customerId = localStorage.getItem("CustomerID");
+  const {
+    machineGroups,
+    availableMachines,
+    selectedMachines: groupedMachines,
+    selectedGroups,
+    showMachineGroupsDropdown,
+    handleGroupChange,
+    handleMachineChange: handleGroupedMachineChange,
+    loading: machineGroupLoading,
+    isAllMachinesSelected
+  } = useMachineGroups(customerId, selectedTab === "efficiency");
+
   const REPORT_HEADERS = {
     general: [
       "S.no", "Date", "Machine", "Shift", "Operator Name", "Component Number",
@@ -51,7 +62,6 @@ export default function MachineReport() {
       "Alarm Time", "Duration"
     ],
     oee: ["S.no", "Date", "Shift", "Machine Name", "Availability(%)", "Performance(%)", "Quality(%)", "OEE(%)"],
-    // idle: ["S.no", "Date", "Shift", "Machine Name", "Operator Name", "Mode", "Reason", "Duration"],
     part: [
       "S.no", "Date", "Shift", "Machine Name", "Component Name", "Operator Name",
       "Actual Parts", "Start Time", "End Time", "Run Time", "Idle/Stop Time",
@@ -59,7 +69,7 @@ export default function MachineReport() {
     ],
     idle_reason: [
       "S.no", "Date", "Shift", "Machine Name",
-      "Mode", "Category", "Reason","Operator Name", "Component Name", "Duration"
+      "Mode", "Category", "Reason", "Operator Name", "Component Name", "Duration"
     ],
     efficiency: [
       "S.no", "Component Number", "Component Name", "Total Parts", "Target Parts", "Efficiency(%)", "Run Time", "Idle/Stop Time", "Duration"
@@ -112,7 +122,6 @@ export default function MachineReport() {
       { key: "run", formatter: row => formatWithFallback(row.run) },
       { key: "run_time", formatter: row => formatTimeWithFallback(row.run_time) },
       { key: "idle_time", formatter: row => formatTimeWithFallback(row.idle_time) },
-      // { key: "discon_time", formatter: row => formatTimeWithFallback(row.discon_time) },
       { key: "alarm_time", formatter: row => formatTimeWithFallback(row.alarm_time) },
       { key: "total_time", formatter: row => formatTimeWithFallback(row.run_time + row.idle_time + row.alarm_time) },
     ],
@@ -191,18 +200,9 @@ export default function MachineReport() {
         setShifts(shiftList);
         const selectedShifts = shiftList.map(s => String(s.shift_no));
         if (shiftList.length > 0) setSelectedShift([selectedShifts[0]]);
-        const machineResult = await getReportMachineList(customerName);
-        const machinesList = machineResult || [];
-        setMachines(machinesList);
-        const selectedMachinesList = machinesList.map(m => m.name);
-        if (machinesList.length > 0) setSelectedMachines([selectedMachinesList[0]]);
-        if (machinesList.length > 0) setSelectedMachine([selectedMachinesList[0]]);
-        if (selectedMachinesList.length > 0 && selectedShifts.length > 0) {
-          await fetchReport(0, rowsPerPage, "general", selectedMachinesList, selectedShifts);
-        }
+
         setErrorMsg(prev => ({
           ...prev,
-          machines: selectedMachinesList.length === 0 || selectedMachinesList[0] === undefined,
           shifts: selectedShifts.length === 0 || selectedShifts[0] === undefined,
         }));
       } catch (err) {
@@ -213,37 +213,43 @@ export default function MachineReport() {
     fetchData();
   }, []);
 
-  const fetchReport = async (pageNum = page, limit = rowsPerPage, tab = selectedTab, machinesParam = selectedMachines, shiftsParam = selectedShift) => {
+  const fetchReport = async (pageNum = page, limit = rowsPerPage, tab = selectedTab, machinesParam = groupedMachines, shiftsParam = selectedShift) => {
     try {
       const dateStr = startDate.format("YYYY-MM-DD");
       const dateEnd = endDate.format("YYYY-MM-DD");
       const efficiencyDateVal = efficiencyDate.format("YYYY-MM-DD");
       let response;
+
       if (tab === "part") {
         response = await getPartReport(
-          machinesParam.join(","), shiftsParam,
+          Array.isArray(machinesParam) ? machinesParam.join(",") : machinesParam,
+          shiftsParam,
           dateStr, dateEnd, pageNum, limit
         );
       } else if (tab === "efficiency") {
         response = await getEfficiencyReport(
-          selectedMachine.join(","), selectedShift[0],
+          groupedMachines,
+          selectedShift[0],
           efficiencyDateVal, efficiencyDateVal, pageNum, limit
         );
         setAverageEfficiency(response.average_efficiency || null)
       }
       else if (tab === "general") {
         response = await getGeneralReport(
-          machinesParam.join(","), shiftsParam,
+          Array.isArray(machinesParam) ? machinesParam.join(",") : machinesParam,
+          shiftsParam,
           dateStr, dateEnd, pageNum, limit
         );
       } else if (tab === "oee") {
         response = await getOeeReport(
-          machinesParam.join(","), shiftsParam,
+          Array.isArray(machinesParam) ? machinesParam.join(",") : machinesParam,
+          shiftsParam,
           dateStr, dateEnd, pageNum, limit
         );
       } else if (tab === "idle_reason") {
         response = await getIdleReasonReport(
-          machinesParam.join(","), shiftsParam,
+          Array.isArray(machinesParam) ? machinesParam.join(",") : machinesParam,
+          shiftsParam,
           dateStr, dateEnd, pageNum, limit
         );
         setIdleReasonWithPercentage(response.idleReasonWithPercentage || [])
@@ -270,7 +276,7 @@ export default function MachineReport() {
 
   const validateForm = () => {
     const errors = {
-      machines: selectedMachines.length === 0 || selectedMachines[0] === undefined,
+      machines: groupedMachines.length === 0 || groupedMachines[0] === undefined,
       shifts: selectedShift.length === 0 || selectedShift[0] === undefined,
       startDate: !startDate,
       endDate: !endDate,
@@ -279,6 +285,7 @@ export default function MachineReport() {
     setErrorMsg(errors);
     return !Object.values(errors).some(Boolean);
   };
+
   const tabChange = (currentTab) => {
     setSelectedTab(currentTab);
     setReportTableHeaders(REPORT_HEADERS[currentTab] || []);
@@ -299,30 +306,6 @@ export default function MachineReport() {
       setIsSubmitting(false);
     }
   };
-
-  const handleMachineChange = (event) => {
-    const value = event.target.value;
-    let finalValue;
-    if (value.includes("all")) {
-      if (selectedMachines.length === machines.length) {
-        finalValue = [];
-      } else {
-        finalValue = machines.map((m) => m.name);
-      }
-    } else {
-      finalValue = value;
-    }
-    if (selectedTab === 'efficiency') {
-      setSelectedMachine(finalValue);
-    } else {
-      setSelectedMachines(finalValue);
-    }
-    setErrorMsg((prev) => ({
-      ...prev,
-      machines: finalValue.length === 0,
-    }));
-  };
-
 
   const handleShiftChange = (event) => {
     const value = event.target.value;
@@ -370,7 +353,6 @@ export default function MachineReport() {
       }));
     }
   };
-
 
   const formatTime = (seconds) => {
     const sec = Number(seconds);
@@ -428,7 +410,7 @@ export default function MachineReport() {
       setIsDownloading(true);
       const response = await getReportDownloadLink(
         selectedTab,
-        selectedMachines.join(","),
+        Array.isArray(groupedMachines) ? groupedMachines.join(",") : groupedMachines,
         selectedShift,
         dateStr,
         dateEnd
@@ -465,24 +447,49 @@ export default function MachineReport() {
       >
         <Tab label="General Report" value="general" />
         <Tab label="OEE Report" value="oee" />
-        {/* <Tab label="Idle Reason Report" value="idle" /> */}
         <Tab label="Idle Reason Report" value="idle_reason" />
         <Tab label="Part Wise Report" value="part" />
-        {/* <Tab label="Efficiency Report" value="efficiency" /> */}
       </Tabs>
 
       {/* Filters */}
       <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", my: 3, }}>
-        {/* <FormControl size="small" sx={{ background: "#fff", minWidth: 160 }}>
-          <InputLabel>Module</InputLabel>
-          <Select
-            value={selectedModule}
-            onChange={(e) => setSelectedModule(e.target.value)}
+        {/* Machine Group Field */}
+        {showMachineGroupsDropdown && (
+          <FormControl
+            size="small"
+            sx={{ background: "#fff", width: 200 }}
           >
-            <MenuItem value="SURIN">SURIN</MenuItem>
-            <MenuItem value="MODULE2">MODULE 2</MenuItem>
-          </Select>
-        </FormControl> */}
+            <InputLabel sx={{ background: "#fff" }}>Machine Group</InputLabel>
+            <Select
+              multiple
+              value={selectedGroups}
+              onChange={(e) => handleGroupChange(e.target.value)}
+              renderValue={(selected) => {
+                if (selected.length === machineGroups.length) return "All Groups";
+                if (selected.length === 0) return "Select Groups";
+                return selected.join(", ");
+              }}            >
+              <MenuItem value="all">
+                <Checkbox
+                  sx={{ "&.Mui-checked": { color: "#f47803ff" } }}
+                  checked={selectedGroups.length === machineGroups.length}
+                />
+                <ListItemText primary="All" />
+              </MenuItem>
+              {machineGroups.map((group) => (
+                <MenuItem key={group.name} value={group.name}>
+                  <Checkbox
+                    checked={selectedGroups.includes(group.name)}
+                    sx={{ "&.Mui-checked": { color: "#f47803ff" } }}
+                  />
+                  <ListItemText primary={group.name} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+
+        {/* Machine Field */}
         <FormControl
           error={errorMsg.machines}
           size="small"
@@ -491,23 +498,26 @@ export default function MachineReport() {
           <InputLabel sx={{ background: "#fff" }}>Machine *</InputLabel>
           {selectedTab === "efficiency" ? (
             <Select
-              value={selectedMachine || ""}
-              onChange={(e) => setSelectedMachine([e.target.value])}
+              value={groupedMachines || ""}
+              onChange={(e) => handleGroupedMachineChange(e.target.value)}
               label="Machine"
             >
-              {machines.map((machine) => (
-                <MenuItem key={machine.id} value={machine.name}>
-                  {machine.name}
+              {availableMachines.map((machineName, idx) => (
+                <MenuItem key={idx} value={machineName}>
+                  {machineName}
                 </MenuItem>
               ))}
             </Select>
           ) : (
             <Select
               multiple
-              value={selectedMachines}
-              onChange={handleMachineChange}
-              renderValue={(selected) => selected.join(", ")}
-            >
+              value={groupedMachines}
+              onChange={(e) => handleGroupedMachineChange(e.target.value)}
+              renderValue={(selected) => {
+                if (isAllMachinesSelected) return "All Machines";
+                if (selected.length === 0) return "Select Machines";
+                return selected.join(", ");
+              }}            >
               <MenuItem value="all">
                 <Checkbox
                   sx={{
@@ -515,28 +525,29 @@ export default function MachineReport() {
                       color: "#f47803ff",
                     },
                   }}
-                  checked={selectedMachines.length === machines.length}
+                  checked={isAllMachinesSelected}
                 />
                 <ListItemText primary="All" />
               </MenuItem>
 
-              {machines.map((machine) => (
-                <MenuItem key={machine.id} value={machine.name}>
+              {availableMachines.map((machineName, idx) => (
+                <MenuItem key={idx} value={machineName}>
                   <Checkbox
-                    checked={selectedMachines.includes(machine.name)}
+                    checked={groupedMachines.includes(machineName)}
                     sx={{
                       "&.Mui-checked": {
                         color: "#f47803ff",
                       },
                     }}
                   />
-                  <ListItemText primary={machine.name} />
+                  <ListItemText primary={machineName} />
                 </MenuItem>
               ))}
             </Select>
           )}
         </FormControl>
 
+        {/* Shift Field */}
         <FormControl
           error={errorMsg.shifts}
           size="small"
@@ -587,6 +598,7 @@ export default function MachineReport() {
           )}
         </FormControl>
 
+        {/* Date Fields */}
         {selectedTab === 'efficiency' ? (
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DatePicker
@@ -608,7 +620,6 @@ export default function MachineReport() {
           </LocalizationProvider>
         ) : (
           <>
-            {/* Start Date */}
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <DatePicker
                 label="Start Date *"
@@ -626,7 +637,6 @@ export default function MachineReport() {
               />
             </LocalizationProvider>
 
-            {/* End Date */}
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <DatePicker
                 label="End Date *"
@@ -650,7 +660,7 @@ export default function MachineReport() {
           variant="contained"
           color="warning"
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || machineGroupLoading}
           sx={{ minWidth: 120 }}
         >
           {isSubmitting ? (
@@ -659,41 +669,31 @@ export default function MachineReport() {
             "Submit"
           )}
         </Button>
+
         {reportData.length > 0 && (
-          <>
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon />}
-              onClick={downloadCSV}
-              disabled={isDownloading}
-              sx={{
-                minWidth: 120,
-                borderColor: '#f47803',
-                color: '#f47803',
-                '&:hover': {
-                  borderColor: '#d86602',
-                  backgroundColor: 'rgba(244, 120, 3, 0.04)'
-                }
-              }}
-            >
-              {isDownloading ?  (
-            <CircularProgress size={24} color="inherit" />
-          ) : "Export CSV"}
-            </Button>
-          </>)}
-        {/* Action Buttons */}
-        {/* {reportData.length > 0 && (
-        <>
-         <Button variant="contained" color="warning">
-            View Chart
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={downloadCSV}
+            disabled={isDownloading}
+            sx={{
+              minWidth: 120,
+              borderColor: '#f47803',
+              color: '#f47803',
+              '&:hover': {
+                borderColor: '#d86602',
+                backgroundColor: 'rgba(244, 120, 3, 0.04)'
+              }
+            }}
+          >
+            {isDownloading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : "Export CSV"}
           </Button>
-          <Button variant="contained" color="warning">
-            Export
-          </Button>
-        </>
-      )} */}
+        )}
       </Box>
 
+      {/* Rest of the component remains the same */}
       {selectedTab === 'idle_reason' && idleReasonWithPercentage.length > 0 && (
         <Box
           sx={{
@@ -905,12 +905,7 @@ export default function MachineReport() {
       )}
 
       {selectedTab === 'efficiency' && averageEfficiency && (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
           <Typography
             sx={{
               fontWeight: 600,
@@ -936,114 +931,110 @@ export default function MachineReport() {
             </Box>
           </Typography>
         </Box>
-
       )}
 
-
       {/* Report Table */}
-      {
-        <Card className="card_sec" sx={{ overflow: "auto", padding: 0 }}>
-          <CardContent sx={{ padding: "0 !important" }}>
-            <div className="example-container" style={{ background: '#fcfcfc' }}>
-              <Table stickyHeader aria-label="sticky table" sx={{ tableLayout: "auto", width: "100%" }} >
-                <TableHead sx={{ background: '#999999' }}>
-                  <TableRow>
-                    {reportTableHeaders.map((header, index) => (
-                      <TableCell align="center"
-                        key={index}
+      <Card className="card_sec" sx={{ overflow: "auto", padding: 0 }}>
+        <CardContent sx={{ padding: "0 !important" }}>
+          <div className="example-container" style={{ background: '#fcfcfc' }}>
+            <Table stickyHeader aria-label="sticky table" sx={{ tableLayout: "auto", width: "100%" }} >
+              <TableHead sx={{ background: '#999999' }}>
+                <TableRow>
+                  {reportTableHeaders.map((header, index) => (
+                    <TableCell align="center"
+                      key={index}
+                      sx={{
+                        minWidth: header === 'Actual Parts Produced' ? 110 : 100,
+                        fontSize: '14px !important',
+                        color: "#fff !important",
+                        backgroundColor:
+                          header === "Alarm Time" ? "red !important" :
+                            header === "Run Time"
+                              ? "#207A24 !important"
+                              : header === "Idle/Stop Time"
+                                ? "#FFA500 !important"
+                                : header === "Machine OFF Time"
+                                  ? "#434343 !important"
+                                  : "#999999 !important",
+                      }}
+                    >
+                      {header}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {reportData.map((row, index) => (
+                  <TableRow key={index}>
+                    {columns[selectedTab].map((col, i) => (
+                      <TableCell
+                        key={i}
+                        align="center"
+                        style={{ background: index % 2 === 0 ? '#efefef' : '#f8f8f8' }}
                         sx={{
-                          minWidth: header === 'Actual Parts Produced' ? 110 : 100,
-                          fontSize: '14px !important',
-                          color: "#fff !important",
-                          backgroundColor:
-                            header === "Alarm Time" ? "red !important" :
-                              header === "Run Time"
-                                ? "#207A24 !important"
-                                : header === "Idle/Stop Time"
-                                  ? "#FFA500 !important"
-                                  : header === "Machine OFF Time"
-                                    ? "#434343 !important"
-                                    : "#999999 !important",
+                          whiteSpace: "nowrap",
+                          minWidth: "fit-content",
+                          maxWidth: "200px",
+                          textOverflow: "ellipsis",
+                          overflow: "hidden",
                         }}
                       >
-                        {header}
+                        {(() => {
+                          const rawData = col.formatter(row, index);
+                          const displayData = rawData !== null && rawData !== undefined ? String(rawData) : "---";
+                          const fullData = Array.isArray(row[col.key]) ? row[col.key].join(" | ") : row[col.key] || "---";
+                          return ['component_name', 'operator_name', 'component_number', 'machine_name', 'component_id'].includes(col.key) ? (
+                            <Tooltip title={fullData}>
+                              <span>{displayData}</span>
+                            </Tooltip>
+                          ) : (
+                            <span>{displayData}</span>
+                          );
+                        })()}
                       </TableCell>
                     ))}
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {reportData.map((row, index) => (
-                    <TableRow key={index}>
-                      {columns[selectedTab].map((col, i) => (
-                        <TableCell
-                          key={i}
-                          align="center"
-                          style={{ background: index % 2 === 0 ? '#efefef' : '#f8f8f8' }}
-                          sx={{
-                            whiteSpace: "nowrap",
-                            minWidth: "fit-content",
-                            maxWidth: "200px",
-                            textOverflow: "ellipsis",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {(() => {
-                            const rawData = col.formatter(row, index);
-                            const displayData = rawData !== null && rawData !== undefined ? String(rawData) : "---";
-                            const fullData = Array.isArray(row[col.key]) ? row[col.key].join(" | ") : row[col.key] || "---";
-                            return ['component_name', 'operator_name', 'component_number', 'machine_name', 'component_id'].includes(col.key) ? (
-                              <Tooltip title={fullData}>
-                                <span>{displayData}</span>
-                              </Tooltip>
-                            ) : (
-                              <span>{displayData}</span>
-                            );
-                          })()}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                  {reportData.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        align="center"
-                        colSpan={reportTableHeaders.length}
-                        style={{
-                          backgroundColor: "#f7f7f7",
-                          color: "#555",
-                          padding: "30px",
-                          fontWeight: 500,
-                          fontSize: "1rem",
-                          height: '100%'
-                        }}
-                      >
-                        NO DATA FOUND
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-          <CardActions sx={{ px: 2, justifyContent: 'end', background: '#dddddd' }}>
-            <TablePagination
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              component="div"
-              count={totalCount}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-              labelRowsPerPage="Items per page"
-              sx={{
-                "& .MuiTablePagination-toolbar": {
-                  alignItems: "baseline"
-                }
-              }}
-            />
-          </CardActions>
-        </Card>
-      }
+                ))}
+                {reportData.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      align="center"
+                      colSpan={reportTableHeaders.length}
+                      style={{
+                        backgroundColor: "#f7f7f7",
+                        color: "#555",
+                        padding: "30px",
+                        fontWeight: 500,
+                        fontSize: "1rem",
+                        height: '100%'
+                      }}
+                    >
+                      NO DATA FOUND
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+        <CardActions sx={{ px: 2, justifyContent: 'end', background: '#dddddd' }}>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            component="div"
+            count={totalCount}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            labelRowsPerPage="Items per page"
+            sx={{
+              "& .MuiTablePagination-toolbar": {
+                alignItems: "baseline"
+              }
+            }}
+          />
+        </CardActions>
+      </Card>
     </Box>
   );
 }

@@ -23,7 +23,7 @@ export default function NewAnalytics() {
         machineGroups,
         availableMachines,
         selectedMachines,
-        selectedGroup,
+        selectedGroups,
         showMachineGroupsDropdown,
         isAllMachinesSelected,
         handleGroupChange,
@@ -151,7 +151,7 @@ export default function NewAnalytics() {
         } else {
             updateGrafanaURL();
         }
-    }, [selectedGroup, selectedMachines, analysisType]);
+    }, [selectedGroups, selectedMachines, analysisType]);
 
     useEffect(() => {
         if (analysisType === "oee") {
@@ -241,28 +241,41 @@ export default function NewAnalytics() {
             <div className="header-1" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 
                 {/* Machine Groups Dropdown - Custom UI for this component */}
-                {showMachineGroupsDropdown && (
+               {showMachineGroupsDropdown && (
                     <FormControl
                         size="small"
                         sx={{ minWidth: 160, background: "#fff" }}
                     >
                         <InputLabel id="machine-group-label">Machine Group</InputLabel>
                         <Select
+                            multiple
                             labelId="machine-group-label"
                             id="machine-group-select"
-                            value={selectedGroup}
+                            value={selectedGroups}
                             onChange={(e) => handleGroupChange(e.target.value)}
                             label="Machine Group"
+                            renderValue={(selected) => {
+                                if (selected.length === machineGroups.length) return "All Groups";
+                                if (selected.length === 0) return "Select Groups";
+                                return selected.join(", ");
+                            }}
                         >
-                            <MenuItem value="all">All Groups</MenuItem>
-                            {machineGroups.map((g, i) => (
-                                <MenuItem key={i} value={g.name}>
-                                    {g.name}
+                            <MenuItem value="all">
+                                <Checkbox
+                                    checked={selectedGroups.length === machineGroups.length}
+                                />
+                                <ListItemText primary="All" />
+                            </MenuItem>
+                            {machineGroups.map((g) => (
+                                <MenuItem key={g.name} value={g.name}>
+                                    <Checkbox checked={selectedGroups.includes(g.name)} />
+                                    <ListItemText primary={g.name} />
                                 </MenuItem>
                             ))}
                         </Select>
                     </FormControl>
                 )}
+
 
                 {/* Machines Dropdown - Custom UI for this component */}
                 <FormControl size="small" sx={{ minWidth: 220, background: "#fff" }}>
