@@ -12,7 +12,8 @@ import {
   CardContent,
   CardActions,
   Tooltip,
-  Typography
+  Typography,
+  CircularProgress
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -41,6 +42,7 @@ export default function MachineReport() {
   const [idleReasonWithPercentage, setIdleReasonWithPercentage] = useState([]);
   const [averageEfficiency, setAverageEfficiency] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const REPORT_HEADERS = {
     general: [
       "S.no", "Date", "Machine", "Shift", "Operator Name", "Component Number",
@@ -57,7 +59,7 @@ export default function MachineReport() {
     ],
     idle_reason: [
       "S.no", "Date", "Shift", "Machine Name",
-      "Mode", "Category", "Reason", "Duration"
+      "Mode", "Category", "Reason","Operator Name", "Component Name", "Duration"
     ],
     efficiency: [
       "S.no", "Component Number", "Component Name", "Total Parts", "Target Parts", "Efficiency(%)", "Run Time", "Idle/Stop Time", "Duration"
@@ -147,6 +149,8 @@ export default function MachineReport() {
       { key: "mode", formatter: row => formatWithFallback(row.json_v.mode) },
       { key: "category", formatter: row => formatDowntimeType(row.json_v.category) },
       { key: "idle_reason_name", formatter: row => formatWithFallback(row.json_v.name) },
+      { key: "operator_name", formatter: row => formatWithFallback(row.json_v.operator_name) },
+      { key: "component_name", formatter: row => formatWithFallback(row.json_v.component_name) },
       { key: "duration", formatter: row => formatTimeWithFallback(row.json_v.idle_duration) },
     ],
     efficiency: [
@@ -286,9 +290,14 @@ export default function MachineReport() {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
+    setIsSubmitting(true);
     setPage(0);
     setTotalCount(0);
-    await fetchReport(0, rowsPerPage);
+    try {
+      await fetchReport(0, rowsPerPage);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleMachineChange = (event) => {
@@ -641,9 +650,14 @@ export default function MachineReport() {
           variant="contained"
           color="warning"
           onClick={handleSubmit}
+          disabled={isSubmitting}
           sx={{ minWidth: 120 }}
         >
-          Submit
+          {isSubmitting ? (
+            <CircularProgress size={24} color="inherit" />
+          ) : (
+            "Submit"
+          )}
         </Button>
         {reportData.length > 0 && (
           <>
@@ -662,7 +676,9 @@ export default function MachineReport() {
                 }
               }}
             >
-              {isDownloading ? "Exporting..." : "Export CSV"}
+              {isDownloading ?  (
+            <CircularProgress size={24} color="inherit" />
+          ) : "Export CSV"}
             </Button>
           </>)}
         {/* Action Buttons */}
