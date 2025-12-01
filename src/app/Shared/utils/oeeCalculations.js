@@ -1,5 +1,6 @@
 // utils/oeeCalculations.js
 
+import { json } from "react-router-dom";
 import { telemetrykeydata } from "../../Services/app/operatorservice";
 
 /**
@@ -16,12 +17,13 @@ export const fetchOEEData = async (devices, fromEpoch, toEpoch) => {
         const data = await telemetrykeydata(
           device.id.id,
           "DEVICE",
-          "oee",
+          ["oee", "live_operator"],
           fromEpoch,
           toEpoch
         );
 
         const values = data?.oee || [];
+
         if (!Array.isArray(values) || values.length === 0) {
           results[device.id.id] = { oeeValues: [] };
           return;
@@ -39,7 +41,12 @@ export const fetchOEEData = async (devices, fromEpoch, toEpoch) => {
           return { ts: point.ts, value: val };
         });
 
-        results[device.id.id] = { oeeValues: oeeArray };
+         const operatorValues = (data?.live_operator || []).map((pt) => ({
+          ts: pt.ts,
+          value: pt.value ? JSON.parse(pt.value): {},
+        }));
+
+        results[device.id.id] = { oeeValues: oeeArray , operatorValues};
 
       } catch (error) {
         console.error("Error fetching OEE data for", device.name, error);
@@ -51,6 +58,56 @@ export const fetchOEEData = async (devices, fromEpoch, toEpoch) => {
   return results;
 };
 
+export const fetchAlarmDowntimeData = async (devices, fromEpoch, toEpoch,keys) => {
+  if (!fromEpoch || !toEpoch || devices.length === 0) return {};
+
+  const results = {};
+
+  await Promise.all(
+    devices.map(async (device) => {
+      try {
+        const data = await telemetrykeydata(
+          device.id.id,
+          "DEVICE",
+          keys,
+          fromEpoch,
+          toEpoch
+        );
+
+        const values = data[keys[0]] || [];
+
+        if (!Array.isArray(values) || values.length === 0) {
+          results[device.id.id] = { result: [] };
+          return;
+        }
+
+         const operatorValues = (data?.live_operator || []).map((pt) => ({
+          ts: pt.ts,
+          value: pt.value ? JSON.parse(pt.value): {},
+        }));
+
+        const componentValues = (data?.live_component || []).map((pt) => ({
+          ts: pt.ts,
+          value: pt.value ? JSON.parse(pt.value): {},
+        }));
+
+         const dataValues = (data[keys[0]] || []).map((pt) => ({
+          ts: pt.ts,
+          value: pt.value ? JSON.parse(pt.value): {},
+        }));
+
+        results[device.id.id] = { result: dataValues , operatorValues,componentValues, machineName: device?.name || null};
+        console.log('Alarm Data',results)
+
+      } catch (error) {
+        console.error("Error fetching OEE data for", device.name, error);
+        results[device.id.id] = { result: [] };
+      }
+    })
+  );
+
+  return results;
+};
 /**
  * Process shift-wise OEE data from raw OEE data
  */
@@ -154,26 +211,29 @@ export const getDailyAveragesOnly = (shiftWiseData) => {
  */
 export const getAverageOEEForRange = async (devices, shifts, fromEpoch, toEpoch) => {
   try {
-    // 1. Fetch raw OEE data
-    const oeeData = await fetchOEEData(devices, fromEpoch, toEpoch);
-    
-    // 2. Process into shift-wise format
-    const shiftWiseData = processShiftWiseOEE(oeeData, shifts);
-    
-    // 3. Calculate daily averages
+    const rawData = await fetchOEEData(devices, fromEpoch, toEpoch);
+
+     const oeeData = {};
+    Object.keys(rawData).forEach((deviceId) => {
+      oeeData[deviceId] = rawData[deviceId].oeeValues || [];
+    });
+
+    const shiftWiseData = processShiftWiseOEE(rawData, shifts);
+
     const avgData = getDailyAveragesOnly(shiftWiseData);
-    
+
     return {
-      avgData,
-      shiftWiseData,
-      oeeData
+      avgData,        
+      shiftWiseData, 
+      oeeData: rawData, 
     };
+
   } catch (error) {
     console.error("Error getting average OEE data:", error);
     return {
       avgData: {},
       shiftWiseData: {},
-      oeeData: {}
+      oeeData: {},
     };
   }
 };

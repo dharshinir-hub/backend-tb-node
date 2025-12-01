@@ -1,7 +1,8 @@
 import {
     Box, FormControl, InputLabel, Select, MenuItem,
     Checkbox,
-    ListItemText
+    ListItemText, Button, Tooltip,
+    duration
 } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -11,9 +12,11 @@ import "./new-analytics.css";
 import {
     cleanCustomerId,
     customerbasedshift,
+    telemetrykeydata
 } from "../../Services/app/operatorservice";
-import { getAverageOEEForRange } from "../../Shared/utils/oeeCalculations";
+import { getAverageOEEForRange, fetchAlarmDowntimeData } from "../../Shared/utils/oeeCalculations";
 import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
+import { Category } from "@mui/icons-material";
 
 export default function NewAnalytics() {
     const customerId = localStorage.getItem("CustomerID");
@@ -47,7 +50,14 @@ export default function NewAnalytics() {
     const [oeeDaysUrl, setOeeDaysUrl] = useState("");
     const [oeeGrafanaUrl, setOeeGrafanaUrl] = useState("");
     const [oeeViewType, setOeeViewType] = useState("fiscal");
-
+    const [isLoading, setIsLoading] = useState(false);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [alarmData, setAlarmData] = useState([]);
+    const [downtimeData, setDowntimeData] = useState([]);
+    const [tableData, setTableData] = useState([]);
+    const isRunDisabled =
+        isLoading ||
+        selectedMachines.length === 0;
     const fetchShifts = async () => {
         try {
             const result = await customerbasedshift(customerId, "allShift");
@@ -60,6 +70,7 @@ export default function NewAnalytics() {
 
     const updateOeeDataAndUrl = async () => {
         try {
+            setIsLoading(true);
             const machinesForUrl = selectedMachines;
             const devicesToProcessFromMachines = getDeviceObjectsForMachines(machinesForUrl);
 
@@ -68,15 +79,18 @@ export default function NewAnalytics() {
             if (devicesToProcess.length === 0) {
                 console.log("No devices to process for OEE data");
                 setAvgOeeData({});
+                setIsLoading(false);
                 return;
             }
 
-            const { avgData } = await getAverageOEEForRange(
+            const { avgData, oeeData } = await getAverageOEEForRange(
                 devicesToProcess,
                 shifts,
                 from,
                 to
             );
+            console.log('oee data', oeeData)
+
             const idToNameMap = Object.fromEntries(
                 deviceNameID.map(d => [d.id, d.name])
             );
@@ -120,48 +134,175 @@ export default function NewAnalytics() {
             setOeeGrafanaUrl(oeeViewType === "fiscal" ? fiscalUrl : daysUrl);
         } catch (error) {
             console.error("Error updating OEE data:", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     console.log('avg oee data', avgOeeData)
 
-    const updateGrafanaURL = () => {
+    const updateGrafanaURL = (latestTableData = null) => {
         if (analysisType === "oee") return;
 
-        const machinesForUrl = selectedMachines;
-        const machineParam = machinesForUrl.join(",");
+        setIsLoading(true);
+        try {
+            const machinesForUrl = selectedMachines;
+            const machineParam = machinesForUrl.join(",");
 
-        const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
-        const cleanedId = cleanCustomerId(customerId);
-        const baseUrl = window._env_.SERVER_URL;
-        const GRAFANA_URL = window._env_.GRAFANA_URL;
-        let entityType = "CUSTOMER";
+            const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
+            const cleanedId = cleanCustomerId(customerId);
+            const baseUrl = window._env_.SERVER_URL;
+            const GRAFANA_URL = window._env_.GRAFANA_URL;
+            let entityType = "CUSTOMER";
+            const dataToUse = latestTableData || tableData;
+            const tableDataJson = encodeURIComponent(JSON.stringify(dataToUse));
 
-        const url =
-            `${GRAFANA_URL}d/a56900cd-961f-4ed4-99c5-3ec120450653/alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${analysisType}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
-        console.log(url, 'Grafana URL');
-        setGrafanaUrl(url);
+            const url =
+                `${GRAFANA_URL}d/a56900cd-961f-4ed4-99c5-3ec120450653/alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${analysisType}&var-tableData=${tableDataJson}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
+            console.log('Grafana URL with tableData:', url, 'Table data length:', dataToUse.length);
+            setGrafanaUrl(url);
+        } catch (error) {
+            console.error("Error updating Grafana URL:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const mapDataToOperator = (data, type, shifts) => {
+        return Object.values(
+            Object.fromEntries(
+                Object.keys(data).map(machineId => {
+                    const machine = data[machineId];
+                    const operatorValues = machine.operatorValues || [];
+                    const componentValues = machine.componentValues || [];
+
+                    const mapped = machine.result.map(item => {
+                        const value = item.value;
+                        const start = Number(value[type === "alarm" ? "alarm_start" : "idle_start"]);
+                        const end = Number(value[type === "alarm" ? "alarm_end" : "idle_end"]);
+                        const durationSec = Number(value[type === "alarm" ? "alarm_duration" : "idle_duration"]);
+
+                        // 🔹 Find operator (partial overlap)
+                        const operator = operatorValues.find(op => {
+                            const opStart = Number(op.value?.start_time);
+                            const opEnd = Number(op.value?.end_time);
+                            return (start < opEnd && end > opStart);
+                        });
+
+                        // 🔹 Find best matching component (largest overlap window)
+                        let bestComponent = null;
+                        let maxOverlap = 0;
+
+                        componentValues.forEach(cmp => {
+                            const cmpStart = Number(cmp.value?.start_time);
+                            const cmpEnd = Number(cmp.value?.end_time);
+                            const overlapStart = Math.max(start, cmpStart);
+                            const overlapEnd = Math.min(end, cmpEnd);
+                            const overlap = Math.max(0, overlapEnd - overlapStart);
+
+                            if (overlap > maxOverlap) {
+                                maxOverlap = overlap;
+                                bestComponent = cmp;
+                            }
+                        });
+
+                        // 🔹 Shift logic
+                        let shiftNumber = "Unknown";
+                        if (shifts?.length > 0) {
+                            const alarmDate = new Date(start);
+                            const alarmMinutes = alarmDate.getHours() * 60 + alarmDate.getMinutes();
+
+                            shifts.forEach(shift => {
+                                const [sH, sM] = shift.start_time.split(":").map(Number);
+                                const [eH, eM] = shift.end_time.split(":").map(Number);
+                                const startMins = sH * 60 + sM;
+                                const endMins = eH * 60 + eM;
+
+                                if (endMins < startMins) {
+                                    if (alarmMinutes >= startMins || alarmMinutes < endMins) {
+                                        shiftNumber = shift.shift_no;
+                                    }
+                                } else if (alarmMinutes >= startMins && alarmMinutes < endMins) {
+                                    shiftNumber = shift.shift_no;
+                                }
+                            });
+                        }
+
+                        return {
+                            machine_name: machine.machineName,
+                            operator_name: operator ? operator.value?.name : "-",
+                            operator_code: operator ? operator.value?.code : "-",
+                            component_name: bestComponent ? bestComponent.value?.name || "-" : "-",
+                            component_code: bestComponent ? bestComponent.value?.code || "-" : "-",
+                            ...(type === "alarm"
+                                ? {
+                                    alarm_number: value.alarm_number,
+                                    alarm_type: value.alarm_type,
+                                    alarm_message: value.alarm_message,
+                                }
+                                : {
+                                    code: value.code,
+                                    mode: value.mode,
+                                    category: value.category,
+                                    name: value.name,
+                                }),
+                            duration: durationSec,
+                            start_time: value[type === "alarm" ? "alarm_start" : "idle_start"],
+                            end_time: value[type === "alarm" ? "alarm_end" : "idle_end"],
+                            shift_number: shiftNumber,
+                        };
+                    });
+
+                    return [machineId, mapped];
+                })
+            )
+        ).flat();
+    };
+
+
+
+    const handleAlarmData = async () => {
+        const devicesToProcess = getDeviceObjectsForMachines(selectedMachines);
+        if (!from || !to) return;
+
+        const dataTypes = analysisType === "live_alarm"
+            ? ["live_alarm", "live_operator", "live_component"]
+            : ["live_reason", "live_operator", "live_component"];
+
+
+        const result = await fetchAlarmDowntimeData(devicesToProcess, from, to, dataTypes);
+        const mappedData = mapDataToOperator(result, analysisType === "live_alarm" ? "alarm" : "reason", shifts);
+
+        setTableData(mappedData);
+        return mappedData;
+    };
+
+    const handleGenerateReport = async () => {
+        if (analysisType === "oee") {
+            if (from && to) {
+                await updateOeeDataAndUrl();
+            }
+        } else {
+            const tableDataResults = await handleAlarmData();
+            console.log('Alarm data processed:', tableDataResults);
+            updateGrafanaURL(tableDataResults);
+        }
     };
 
     useEffect(() => {
-        if (analysisType === "oee") {
-            if (from && to) {
-                updateOeeDataAndUrl();
-            }
-        } else {
+        if (analysisType !== "oee" && tableData.length > 0 && !isInitialLoad) {
+            console.log('TableData updated, refreshing Grafana URL');
             updateGrafanaURL();
         }
-    }, [selectedGroups, selectedMachines, analysisType]);
+    }, [tableData]);
 
     useEffect(() => {
-        if (analysisType === "oee") {
-            if (from && to) {
-                updateOeeDataAndUrl();
-            }
-        } else {
-            updateGrafanaURL();
+        if (isInitialLoad && shifts.length > 0 && from && to && selectedMachines.length > 0) {
+            console.log("Initial load - generating report automatically");
+            handleGenerateReport();
+            setIsInitialLoad(false);
         }
-    }, [from, to, oeeViewType, selectedMachines]);
+    }, [isInitialLoad, shifts, from, to, selectedMachines, analysisType]);
 
     const isShiftDisabled = !fromDate || !toDate ? true : !fromDate.isSame(toDate, "day");
 
@@ -229,6 +370,7 @@ export default function NewAnalytics() {
         }
     }, [customerId]);
 
+
     return (
         <Box
             display="flex"
@@ -241,7 +383,7 @@ export default function NewAnalytics() {
             <div className="header-1" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 
                 {/* Machine Groups Dropdown - Custom UI for this component */}
-               {showMachineGroupsDropdown && (
+                {showMachineGroupsDropdown && (
                     <FormControl
                         size="small"
                         sx={{ minWidth: 160, background: "#fff" }}
@@ -275,7 +417,6 @@ export default function NewAnalytics() {
                         </Select>
                     </FormControl>
                 )}
-
 
                 {/* Machines Dropdown - Custom UI for this component */}
                 <FormControl size="small" sx={{ minWidth: 220, background: "#fff" }}>
@@ -312,7 +453,7 @@ export default function NewAnalytics() {
                 </FormControl>
 
                 <FormControl size="small" sx={{ minWidth: 160, background: "#fff" }}>
-                    <InputLabel id="analysis-label">Analysis Type</InputLabel>
+                    <InputLabel id="analysis-label" sx={{ background: "#fff" }}>Analysis Type</InputLabel>
                     <Select
                         labelId="analysis-label"
                         id="analysis-label"
@@ -344,6 +485,7 @@ export default function NewAnalytics() {
                     <DatePicker
                         label="To"
                         value={toDate}
+                        minDate={fromDate}
                         onChange={(newValue) => setToDate(newValue)}
                         format="DD-MM-YYYY"
                         slotProps={{
@@ -353,7 +495,7 @@ export default function NewAnalytics() {
                 </LocalizationProvider>
 
                 <FormControl size="small" sx={{ minWidth: 160, background: "#fff" }}>
-                    <InputLabel id="shift-label">Shifts</InputLabel>
+                    <InputLabel id="shift-label" sx={{ background: "#fff" }}>Shifts</InputLabel>
                     <Select
                         labelId="shift-label"
                         value={selectedShift}
@@ -368,6 +510,32 @@ export default function NewAnalytics() {
                         ))}
                     </Select>
                 </FormControl>
+
+                <Tooltip
+                    title={
+                        selectedGroups.length === 0
+                            ? "Please select at least one machine group"
+                            : selectedMachines.length === 0
+                                ? "Please select at least one machine"
+                                : ""
+                    }
+                >
+                    <span>
+                        <Button
+                            variant="contained"
+                            size="small"
+                            onClick={handleGenerateReport}
+                            disabled={isRunDisabled}
+                            sx={{
+                                minWidth: 140,
+                                height: "40px",
+                            }}
+                        >
+                            {isLoading ? "Analysing..." : "Run Analysis"}
+                        </Button>
+                    </span>
+                </Tooltip>
+
             </div>
 
             {analysisType === "oee" && (
@@ -385,7 +553,12 @@ export default function NewAnalytics() {
                     <button
                         className={`btn btn-sm ${oeeViewType === "fiscal" ? "btn-secondary" : "btn-outline-secondary"
                             }`}
-                        onClick={() => setOeeViewType("fiscal")}
+                        onClick={() => {
+                            setOeeViewType("fiscal");
+                            if (oeeFiscalUrl) {
+                                setOeeGrafanaUrl(oeeFiscalUrl);
+                            }
+                        }}
                     >
                         Fiscal
                     </button>
@@ -393,7 +566,12 @@ export default function NewAnalytics() {
                     <button
                         className={`btn btn-sm ${oeeViewType === "days" ? "btn-secondary" : "btn-outline-secondary"
                             }`}
-                        onClick={() => setOeeViewType("days")}
+                        onClick={() => {
+                            setOeeViewType("days");
+                            if (oeeDaysUrl) {
+                                setOeeGrafanaUrl(oeeDaysUrl);
+                            }
+                        }}
                     >
                         Days
                     </button>
