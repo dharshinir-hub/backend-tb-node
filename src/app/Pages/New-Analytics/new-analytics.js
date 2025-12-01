@@ -169,6 +169,7 @@ export default function NewAnalytics() {
     };
 
     const mapDataToOperator = (data, type, shifts) => {
+        const now = Date.now();
         return Object.values(
             Object.fromEntries(
                 Object.keys(data).map(machineId => {
@@ -186,15 +187,46 @@ export default function NewAnalytics() {
                         const month = String(dateObj.getMonth() + 1).padStart(2, "0");
                         const year = dateObj.getFullYear();
                         const date = `${day}-${month}-${year}`;
-
-                        // 🔹 Find operator (partial overlap)
+                        let shiftEndTime = null;
+                        if (shifts?.length > 0) {
+                            const eventDate = new Date(start);
+                            const eventMinutes = eventDate.getHours() * 60 + eventDate.getMinutes();
+                            shifts.forEach(shift => {
+                                const [sH, sM] = shift.start_time.split(":").map(Number);
+                                const [eH, eM] = shift.end_time.split(":").map(Number);
+                                const startMins = sH * 60 + sM;
+                                const endMins = eH * 60 + eM;
+                                if (endMins < startMins) {
+                                    if (eventMinutes >= startMins || eventMinutes < endMins) {
+                                        const shiftDate = new Date(start);
+                                        if (eventMinutes >= startMins) {
+                                            shiftDate.setHours(eH, eM, 0, 0);
+                                            shiftDate.setDate(shiftDate.getDate() + 1);
+                                        } else {
+                                            shiftDate.setHours(eH, eM, 0, 0);
+                                        }
+                                        shiftEndTime = shiftDate.getTime();
+                                    }
+                                } else if (eventMinutes >= startMins && eventMinutes < endMins) {
+                                    const shiftDate = new Date(start);
+                                    shiftDate.setHours(eH, eM, 0, 0);
+                                    shiftEndTime = shiftDate.getTime();
+                                }
+                            });
+                        }
                         const operator = operatorValues.find(op => {
                             const opStart = Number(op.value?.start_time);
-                            const opEnd = Number(op.value?.end_time);
+                            let opEnd = Number(op.value?.end_time);
+                            if (!opEnd || opEnd === 0 || isNaN(opEnd)) {
+                                if (shiftEndTime) {
+                                    opEnd = Math.min(now, shiftEndTime);
+                                } else {
+                                    opEnd = now;
+                                }
+                            }
                             return start < opEnd && end > opStart;
                         });
 
-                        // 🔹 Find best matching component (largest overlap)
                         let bestComponent = null;
                         let maxOverlap = 0;
                         componentValues.forEach(cmp => {
@@ -209,7 +241,6 @@ export default function NewAnalytics() {
                             }
                         });
 
-                        // 🔹 Shift logic
                         let shiftNumber = "Unknown";
                         if (shifts?.length > 0) {
                             const alarmDate = new Date(start);
