@@ -181,25 +181,28 @@ export default function NewAnalytics() {
                         const start = Number(value[type === "alarm" ? "alarm_start" : "idle_start"]);
                         const end = Number(value[type === "alarm" ? "alarm_end" : "idle_end"]);
                         const durationSec = Number(value[type === "alarm" ? "alarm_duration" : "idle_duration"]);
+                        const dateObj = new Date(start);
+                        const day = String(dateObj.getDate()).padStart(2, "0");
+                        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+                        const year = dateObj.getFullYear();
+                        const date = `${day}-${month}-${year}`;
 
                         // 🔹 Find operator (partial overlap)
                         const operator = operatorValues.find(op => {
                             const opStart = Number(op.value?.start_time);
                             const opEnd = Number(op.value?.end_time);
-                            return (start < opEnd && end > opStart);
+                            return start < opEnd && end > opStart;
                         });
 
-                        // 🔹 Find best matching component (largest overlap window)
+                        // 🔹 Find best matching component (largest overlap)
                         let bestComponent = null;
                         let maxOverlap = 0;
-
                         componentValues.forEach(cmp => {
                             const cmpStart = Number(cmp.value?.start_time);
                             const cmpEnd = Number(cmp.value?.end_time);
                             const overlapStart = Math.max(start, cmpStart);
                             const overlapEnd = Math.min(end, cmpEnd);
                             const overlap = Math.max(0, overlapEnd - overlapStart);
-
                             if (overlap > maxOverlap) {
                                 maxOverlap = overlap;
                                 bestComponent = cmp;
@@ -229,6 +232,7 @@ export default function NewAnalytics() {
                         }
 
                         return {
+                            date,
                             machine_name: machine.machineName,
                             operator_name: operator ? operator.value?.name : "-",
                             operator_code: operator ? operator.value?.code : "-",
@@ -259,8 +263,6 @@ export default function NewAnalytics() {
         ).flat();
     };
 
-
-
     const handleAlarmData = async () => {
         const devicesToProcess = getDeviceObjectsForMachines(selectedMachines);
         if (!from || !to) return;
@@ -272,7 +274,6 @@ export default function NewAnalytics() {
 
         const result = await fetchAlarmDowntimeData(devicesToProcess, from, to, dataTypes);
         const mappedData = mapDataToOperator(result, analysisType === "live_alarm" ? "alarm" : "reason", shifts);
-
         setTableData(mappedData);
         return mappedData;
     };
