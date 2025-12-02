@@ -17,7 +17,7 @@ export const fetchOEEData = async (devices, fromEpoch, toEpoch) => {
         const data = await telemetrykeydata(
           device.id.id,
           "DEVICE",
-          ["oee", "live_operator"],
+          ["oee", "live_operator","live_component"],
           fromEpoch,
           toEpoch
         );
@@ -46,7 +46,12 @@ export const fetchOEEData = async (devices, fromEpoch, toEpoch) => {
           value: pt.value ? JSON.parse(pt.value): {},
         }));
 
-        results[device.id.id] = { oeeValues: oeeArray , operatorValues};
+        const componentValues = (data?.live_component || []).map((pt) => ({
+          ts: pt.ts,
+          value: pt.value ? JSON.parse(pt.value): {},
+        }));
+
+        results[device.id.id] = { oeeValues: oeeArray , operatorValues, componentValues,  machineName: device?.name};
 
       } catch (error) {
         console.error("Error fetching OEE data for", device.name, error);

@@ -89,6 +89,7 @@ export default function NewAnalytics() {
                 from,
                 to
             );
+            const mappedDataForOee = mapDataToOee(oeeData, shifts);
             console.log('oee data', oeeData)
 
             const idToNameMap = Object.fromEntries(
@@ -121,13 +122,14 @@ export default function NewAnalytics() {
             );
 
             const avgOeeJson = encodeURIComponent(JSON.stringify(deviceWiseData));
+            const oeeTableData = encodeURIComponent(JSON.stringify(mappedDataForOee));
             console.log('avg oee json', avgOeeJson);
 
             const fiscalUrl = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${avgOeeJson}&var-machines=${encodeURIComponent(machinesParam)}&kiosk&theme=light&refresh=20s`;
 
             console.log("OEE Grafana URL:", fiscalUrl);
 
-            const daysUrl = `${GRAFANA_URL}d/df4h01gnbsem8c/analytics-dashboard-oee-day-wise?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgOeeJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&kiosk&theme=light&refresh=20s`;
+            const daysUrl = `${GRAFANA_URL}d/df4h01gnbsem8c/analytics-dashboard-oee-day-wise?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgOeeJson}&var-tableData=${oeeTableData}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&kiosk&theme=light&refresh=20s`;
 
             setOeeFiscalUrl(fiscalUrl);
             setOeeDaysUrl(daysUrl);
@@ -292,6 +294,81 @@ export default function NewAnalytics() {
                 })
             )
         ).flat();
+    };
+
+    const mapDataToOee = (data, shifts) => {
+        const now = Date.now();
+        const results = [];
+        const parsedShifts = shifts.map(shift => {
+            const [sH, sM] = shift.start_time.split(":").map(Number);
+            const [eH, eM] = shift.end_time.split(":").map(Number);
+            const startMinutes = sH * 60 + sM;
+            const endMinutes = eH * 60 + eM;
+            return {
+                ...shift,
+                startMinutes,
+                endMinutes,
+                isOvernight: endMinutes <= startMinutes
+            };
+        });
+        Object.keys(data).forEach(machineId => {
+            const machine = data[machineId];
+            const operatorValues = machine.operatorValues || [];
+            const componentValues = machine.componentValues || [];
+            const oeeValues = machine.oeeValues || [];
+            if (!Array.isArray(oeeValues) || oeeValues.length === 0) return;
+            const sortedOee = [...oeeValues].sort((a, b) => Number(a.ts) - Number(b.ts));
+            const startDate = fromDate.startOf('day');
+            const endDate = toDate.endOf('day');
+            let currentDate = startDate;
+            while (currentDate <= endDate) {
+                const dateString = currentDate.format("DD-MM-YYYY");
+                parsedShifts.forEach(shift => {
+                    const [sH, sM] = shift.start_time.split(":").map(Number);
+                    const [eH, eM] = shift.end_time.split(":").map(Number);
+                    let shiftStart = dayjs(currentDate).hour(sH).minute(sM).second(0).millisecond(0);
+                    let shiftEnd = dayjs(currentDate).hour(eH).minute(eM).second(0).millisecond(0);
+                    if (shift.isOvernight) {
+                        shiftEnd = shiftEnd.add(1, 'day');
+                    }
+                    const shiftOeeValues = sortedOee.filter(oee => {
+                        const ts = Number(oee.ts);
+                        return ts >= shiftStart.valueOf() && ts <= shiftEnd.valueOf();
+                    });
+                    if (shiftOeeValues.length === 0) return;
+                    const lastOee = shiftOeeValues[shiftOeeValues.length - 1];
+                    const ts = Number(lastOee.ts);
+                    const oeeValue = lastOee.value;
+                    const operator = operatorValues.find(op => {
+                        const opStart = Number(op.value?.start_time);
+                        let opEnd = Number(op.value?.end_time);
+                        if (!opEnd || isNaN(opEnd) || opEnd === 0) opEnd = now;
+                        return ts >= opStart && ts <= opEnd;
+                    });
+                    const component = componentValues.find(cmp => {
+                        const cmpStart = Number(cmp.value?.start_time);
+                        let cmpEnd = Number(cmp.value?.end_time);
+                        if (!cmpEnd || isNaN(cmpEnd) || cmpEnd === 0) cmpEnd = now;
+                        return ts >= cmpStart && ts <= cmpEnd;
+                    });
+                    results.push({
+                        date: dateString,
+                        machine_name: machine.machineName || machineId,
+                        oee_value: Number(oeeValue),
+                        shift_number: shift.shift_no,
+                        operator_name: operator?.value?.name || "NO OPERATOR",
+                        operator_code: operator?.value?.code || "-",
+                        component_name: component?.value?.name || "NO ROUTECARD",
+                        component_code: component?.value?.code || "-",
+                        timestamp: ts,
+                        shift_start_time: shift.start_time,
+                        shift_end_time: shift.end_time
+                    });
+                });
+                currentDate = currentDate.add(1, 'day');
+            }
+        });
+        return results;
     };
 
     const handleAlarmData = async () => {
