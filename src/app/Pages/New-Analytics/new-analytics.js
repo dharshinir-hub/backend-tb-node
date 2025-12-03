@@ -178,7 +178,7 @@ export default function NewAnalytics() {
                     const machine = data[machineId];
                     const operatorValues = machine.operatorValues || [];
                     const componentValues = machine.componentValues || [];
-
+                    const lockedStatusValues = machine.lockedStatusValues || [];
                     const mapped = machine.result.map(item => {
                         const value = item.value;
                         const start = Number(value[type === "alarm" ? "alarm_start" : "idle_start"]);
@@ -242,6 +242,78 @@ export default function NewAnalytics() {
                                 bestComponent = cmp;
                             }
                         });
+                        let lockedStart = null;
+                        let lockedDuration = 0;
+                        if (lockedStatusValues.length > 0) {
+                            const sortedLockedEvents = [...lockedStatusValues]
+                                .filter(event => event.value === "locked" || event.value === "unlocked" || event.value.startsWith("Interrupted"))
+                                .sort((a, b) => a.ts - b.ts);
+                            for (let i = 0; i < sortedLockedEvents.length; i++) {
+                                const event = sortedLockedEvents[i];
+                                const eventTime = Number(event.ts);
+                                const eventValue = event.value;
+                                if (eventTime >= start && eventTime <= end) {
+                                    if (eventValue === "locked") {
+                                        lockedStart = eventTime;
+                                        const lockedEndTime = end;
+                                        lockedDuration = Math.round((lockedEndTime - lockedStart) / 1000);
+                                        break;
+                                    }
+                                }
+                                if (i < sortedLockedEvents.length - 1) {
+                                    const currentEvent = sortedLockedEvents[i];
+                                    const nextEvent = sortedLockedEvents[i + 1];
+                                    if (currentEvent.value === "locked" &&
+                                        (nextEvent.value === "unlocked" || nextEvent.value.startsWith("Interrupted"))) {
+                                        const lockTime = Number(currentEvent.ts);
+                                        const unlockTime = Number(nextEvent.ts);
+                                        if (unlockTime > start && lockTime < end) {
+                                            const effectiveLockStart = Math.max(lockTime, start);
+                                            const effectiveLockEndTime = end;
+                                            lockedStart = effectiveLockStart;
+                                            lockedDuration = Math.round((effectiveLockEndTime - effectiveLockStart) / 1000);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            let lastLockBeforeIdle = null;
+                            for (let i = sortedLockedEvents.length - 1; i >= 0; i--) {
+                                const event = sortedLockedEvents[i];
+                                const eventTime = Number(event.ts);
+                                const eventValue = event.value;
+                                if (eventTime < start) {
+                                    if (eventValue === "locked") {
+                                        lastLockBeforeIdle = event;
+                                        break;
+                                    } else if (eventValue === "unlocked" || eventValue.startsWith("Interrupted")) {
+                                        break;
+                                    }
+                                }
+                            }
+                            if (lastLockBeforeIdle && lockedStart === null) {
+                                const lockIndex = sortedLockedEvents.findIndex(e => e.ts === lastLockBeforeIdle.ts);
+                                if (lockIndex !== -1) {
+                                    for (let i = lockIndex + 1; i < sortedLockedEvents.length; i++) {
+                                        const nextEvent = sortedLockedEvents[i];
+                                        const nextEventValue = nextEvent.value;
+                                        if (nextEventValue === "unlocked" || nextEventValue.startsWith("Interrupted")) {
+                                            const unlockTime = Number(nextEvent.ts);
+                                            if (unlockTime > start) {
+                                                lockedStart = start;
+                                                const effectiveLockEndTime = end;
+                                                lockedDuration = Math.round((effectiveLockEndTime - start) / 1000);
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    if (lockedStart === null) {
+                                        lockedStart = start;
+                                        lockedDuration = durationSec;
+                                    }
+                                }
+                            }
+                        }
 
                         let shiftNumber = "Unknown";
                         if (shifts?.length > 0) {
@@ -264,7 +336,7 @@ export default function NewAnalytics() {
                             });
                         }
 
-                        return {
+                        const result = {
                             date,
                             machine_name: machine.machineName,
                             operator_name: operator ? operator.value?.name : "-",
@@ -282,12 +354,19 @@ export default function NewAnalytics() {
                                     mode: value.mode,
                                     category: value.category,
                                     name: value.name,
+                                    locked_start: lockedStart !== null && !isNaN(lockedStart)
+                                        ? lockedStart
+                                        : start,
+                                    locked_duration: lockedStart !== null && !isNaN(lockedStart)
+                                        ? lockedDuration
+                                        : durationSec,
                                 }),
                             duration: durationSec,
                             start_time: value[type === "alarm" ? "alarm_start" : "idle_start"],
                             end_time: value[type === "alarm" ? "alarm_end" : "idle_end"],
                             shift_number: shiftNumber,
                         };
+                        return result;
                     });
 
                     return [machineId, mapped];
@@ -376,10 +455,9 @@ export default function NewAnalytics() {
         if (!from || !to) return;
 
         const dataTypes = analysisType === "live_alarm"
-            ? ["live_alarm", "live_operator", "live_component"]
-            : ["live_reason", "live_operator", "live_component"];
-
-
+            ? ["live_alarm", "live_operator", "live_component","lock_status"
+            ]
+            : ["live_reason", "live_operator", "live_component", "lock_status"];
         const result = await fetchAlarmDowntimeData(devicesToProcess, from, to, dataTypes);
         const mappedData = mapDataToOperator(result, analysisType === "live_alarm" ? "alarm" : "reason", shifts);
         setTableData(mappedData);

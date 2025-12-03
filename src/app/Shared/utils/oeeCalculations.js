@@ -96,12 +96,16 @@ export const fetchAlarmDowntimeData = async (devices, fromEpoch, toEpoch,keys) =
           value: pt.value ? JSON.parse(pt.value): {},
         }));
 
+        const lockedStatusValues = (data?.lock_status || []).map((pt) => ({
+          ts: pt.ts,
+          value: pt.value ? pt.value : '',
+        }));
          const dataValues = (data[keys[0]] || []).map((pt) => ({
           ts: pt.ts,
           value: pt.value ? JSON.parse(pt.value): {},
         }));
 
-        results[device.id.id] = { result: dataValues , operatorValues,componentValues, machineName: device?.name || null};
+        results[device.id.id] = { result: dataValues , operatorValues,componentValues, machineName: device?.name || null, lockedStatusValues};
         console.log('Alarm Data',results)
 
       } catch (error) {
