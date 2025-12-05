@@ -61,7 +61,7 @@ function Operator() {
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
     const customerId1 = localStorage.getItem('CustomerID');
-    
+
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
             return window._env_.CUSTOMER_ID;
@@ -611,38 +611,22 @@ function Operator() {
         });
     }
 
-    const splitIdleByShifts = (idleStart, idleEnd, shifts) => {
+    function splitIdleByShifts(idleStart, idleEnd, shifts) {
         const segments = [];
-        shifts.forEach(shift => {
+        shifts.forEach((shift) => {
             const overlapStart = Math.max(idleStart, shift.startTs);
             const overlapEnd = Math.min(idleEnd, shift.endTs);
             if (overlapStart < overlapEnd) {
                 segments.push({
+                    shift_no: shift.shift_no,
                     start: overlapStart,
-                    end: overlapEnd,
-                    shift_no: shift.shift_no
+                    end: overlapEnd
                 });
             }
         });
-        const firstShift = shifts[0];
-        const lastShift = shifts[shifts.length - 1];
-        if (idleStart < firstShift.startTs && idleEnd > firstShift.startTs) {
-            segments.unshift({
-                start: idleStart,
-                end: Math.min(idleEnd, firstShift.startTs),
-                shift_no: lastShift.shift_no
-            });
-        }
-        if (idleStart < lastShift.endTs && idleEnd > lastShift.endTs) {
-            const nextShift = shifts[0];
-            segments.push({
-                start: Math.max(idleStart, lastShift.endTs),
-                end: idleEnd,
-                shift_no: nextShift.shift_no
-            });
-        }
+
         return segments;
-    };
+    }
 
     useEffect(() => {
         if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
@@ -840,7 +824,8 @@ function Operator() {
                         const duration = Math.floor(
                             (idleEndTime - lockedIdleStartRef.current) / 1000
                         );
-                        const parsedShifts = parseShifts(shifts);
+                        const parsedShifts = generateShiftInstances(lockedIdleStartRef.current,
+                            idleEndTime, shifts);
                         const segments = splitIdleByShifts(
                             lockedIdleStartRef.current,
                             idleEndTime,
@@ -911,6 +896,59 @@ function Operator() {
         const interval = setInterval(() => refreshData(false), 5000);
         return () => clearInterval(interval);
     }, [selectedMachine, deviceNameIdJson, reasonsList2]);
+
+    function generateShiftInstances(startEpoch, endEpoch, shifts) {
+        const startTimeOfDay = dayjs(startEpoch).hour() * 60 + dayjs(startEpoch).minute();
+        const earliestShiftStart = Math.min(
+            ...shifts.map((s) => {
+                const [h, m] = s.start_time.split(":").map(Number);
+                return h * 60 + m;
+            })
+        );
+        const latestShiftEnd = Math.max(
+            ...shifts.map((s) => {
+                const [h, m] = s.end_time.split(":").map(Number);
+                return h * 60 + m;
+            })
+        );
+        const needsPreviousDay = startTimeOfDay < earliestShiftStart;
+        const needsNextDay = (dayjs(endEpoch).hour() * 60 + dayjs(endEpoch).minute()) > latestShiftEnd;
+        const startDate = dayjs(startEpoch)
+            .startOf("day")
+            .subtract(needsPreviousDay ? 1 : 0, "day");
+        const endDate = dayjs(endEpoch)
+            .endOf("day")
+            .add(needsNextDay ? 1 : 0, "day");
+        const result = [];
+        let currentDate = startDate;
+        while (currentDate.valueOf() <= endDate.valueOf()) {
+            shifts.forEach((shift) => {
+                const [startH, startM, startS] = shift.start_time.split(":").map(Number);
+                const [endH, endM, endS] = shift.end_time.split(":").map(Number);
+                let startTs = currentDate
+                    .add(shift.start_day - 1, "day")
+                    .hour(startH)
+                    .minute(startM)
+                    .second(startS);
+                let endTs = currentDate
+                    .add(shift.end_day - 1, "day")
+                    .hour(endH)
+                    .minute(endM)
+                    .second(endS);
+                if (endTs.isBefore(startTs)) endTs = endTs.add(1, "day");
+
+                if (endTs.valueOf() >= startEpoch && startTs.valueOf() <= endEpoch) {
+                    result.push({
+                        shift_no: shift.shift_no,
+                        startTs: startTs.valueOf(),
+                        endTs: endTs.valueOf(),
+                    });
+                }
+            });
+            currentDate = currentDate.add(1, "day");
+        }
+        return result;
+    }
 
     useEffect(() => {
         if (!operators.length) return;
