@@ -59,7 +59,7 @@ export default function MachineReport() {
       "S.no", "Date", "Machine", "Shift", "Operator Name", "Component Number",
       "Component Name", "Target", "Actual Parts Produced", "Reject", "Rework",
       "Efficiency(%)", "Utilization(%)", "Run Time", "Idle/Stop Time",
-      "Alarm Time", "Duration"
+      "Alarm Time", "Disconnect Time", "Duration"
     ],
     oee: ["S.no", "Date", "Shift", "Machine Name", "Availability(%)", "Performance(%)", "Quality(%)", "OEE(%)"],
     part: [
@@ -123,6 +123,7 @@ export default function MachineReport() {
       { key: "run_time", formatter: row => formatTimeWithFallback(row.run_time) },
       { key: "idle_time", formatter: row => formatTimeWithFallback(row.idle_time) },
       { key: "alarm_time", formatter: row => formatTimeWithFallback(row.alarm_time) },
+      { key: "discon_time", formatter: row => formatTimeWithFallback(row.discon_time) },
       { key: "total_time", formatter: row => formatTimeWithFallback(row.run_time + row.idle_time + row.alarm_time + row?.discon_time) },
     ],
     oee: [
@@ -954,8 +955,9 @@ export default function MachineReport() {
                               : header === "Idle/Stop Time"
                                 ? "#FFA500 !important"
                                 : header === "Machine OFF Time"
-                                  ? "#434343 !important"
-                                  : "#999999 !important",
+                                  ? "#434343 !important" :
+                                  header === "Disconnect Time" ? "#4b4949ff !important"
+                                    : "#999999 !important",
                       }}
                     >
                       {header}
