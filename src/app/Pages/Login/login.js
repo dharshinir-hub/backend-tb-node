@@ -137,6 +137,7 @@ handleNavigationAfterLogin(role, pageList);
       "company",
       "machinemm",
       "deviceoee",
+      "reports",
       "operator-details",
       "machines",
       "shift-registration",
