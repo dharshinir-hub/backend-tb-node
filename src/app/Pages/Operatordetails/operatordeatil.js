@@ -74,6 +74,9 @@ const OperatorDetails = () => {
   const [supervisorsByDevice, setSupervisorByDevice] = useState([]);
   const [supervisorselected, setselectedsupervisor] = useState('');
   const [OpenEditDialog4, setOpenEditDialog4] = useState(false);
+  const [selectedComponentId, setSelectedComponentId] = useState('');
+  const [selectedOperatorId, setSelectedOperatorId] = useState('');
+  const [operatorName, setOperatorName] = useState(''); 
 
   const [timeErrors, setTimeErrors] = useState({
     startTime: '',
@@ -501,64 +504,73 @@ const OperatorDetails = () => {
   //     await validateAndCheckOverlap(startTime, value);
   //   }
   // };
-  const handleDateChange = (newValue) => {
-    const dayjsVal = dayjs(newValue);
-    setSelectedDate(dayjsVal);
+const handleDateChange = (newValue) => {
+  const dayjsVal = dayjs(newValue);
+  setSelectedDate(dayjsVal);
 
-    // Recalculate epoch range when date changes
-    if (selectedShift && shifts.length > 0) {
-      const { fromEpoch, toEpoch } = getEpochFromShift(selectedShift, dayjsVal);
-      setEpochRange({ from: fromEpoch, to: toEpoch });
-      const key = 'alloperator';
-      customerbasedshift(customerId, key)
-        .then(async (data) => {
-          const allShifts = data[0]?.value || [];
-          setoperatorslist(allShifts);
-          console.log('alloperator', allShifts);
+  // Recalculate epoch range when date changes
+  if (selectedShift && shifts.length > 0) {
+    const { fromEpoch, toEpoch } = getEpochFromShift(selectedShift, dayjsVal);
+    setEpochRange({ from: fromEpoch, to: toEpoch });
+    const key = 'alloperator';
+    customerbasedshift(customerId, key)
+      .then(async (data) => {
+        const allOperators = data[0]?.value || [];
+        setoperatorslist(allOperators);
 
-          // ✅ Filter only "Operator" mode
-          const operatorNames = allShifts
-            .filter(shift => shift.mode === "Operator")  // <-- filter added
-            .map(shift => ({
-              value: shift.operatorname,
-              label: `${shift.operatorid} - ${shift.operatorname}`
-            }));
+        const operatorOptions = allOperators
+          .filter(shift => shift.mode === "Operator")
+          .map(shift => ({
+            id: shift.operatorid,
+            value: shift.operatorid,
+            label: `${shift.operatorid} - ${shift.operatorname}`,
+            name: shift.operatorname
+          }));
 
-          setoperators(operatorNames);
-          const key2 = 'live_operator';
-          const entitytype = 'DEVICE';
-          const deviceid = selectedDeviceId;
+        setoperators(operatorOptions);
+        
+        const key2 = 'live_operator';
+        const entitytype = 'DEVICE';
+        const deviceid = selectedDeviceId;
 
-          try {
-            const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
-            //const response = await telemetrylatestdata(deviceid, entitytype, key2);
-            if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
-              let operator = JSON.parse(response.live_operator[0].value).operator;
-              setselectedoperator(operator);
+        try {
+          const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
+          if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
+            const parsedValue = JSON.parse(response.live_operator[0].value);
+            const operatorCode = parsedValue.code || '';
+            
+            const foundOperator = allOperators.find(op => op.operatorid === operatorCode);
+            if (foundOperator) {
+              setSelectedOperatorId(foundOperator.operatorid);
+              setOperatorName(foundOperator.operatorname);
             } else {
-              setselectedoperator('');
+              setSelectedOperatorId('');
+              setOperatorName('');
             }
-          } catch (error) {
-
-            setselectedoperator('');
+          } else {
+            setSelectedOperatorId('');
+            setOperatorName('');
           }
-          //setOpenEditDialog(true);
-        })
-        .catch(error => {
-          console.error("Error fetching shifts:", error);
-        });
-    }
-  };
-  const handleOperatorChange = (newValue) => {
-    const dayjsVal = dayjs(newValue);
-    setSelectedDate(dayjsVal);
-
-    // Recalculate epoch range when date changes
-    if (selectedShift && shifts.length > 0) {
-      const { fromEpoch, toEpoch } = getEpochFromShift(selectedShift, dayjsVal);
-      setEpochRange({ from: fromEpoch, to: toEpoch });
-    }
-  };
+        } catch (error) {
+          console.error('Error fetching live_operator:', error);
+          setSelectedOperatorId('');
+          setOperatorName('');
+        }
+      })
+      .catch(error => {
+        console.error("Error fetching operators:", error);
+      });
+  }
+};
+const handleOperatorChange = (event, newValue) => {
+  if (newValue) {
+    setSelectedOperatorId(newValue.id);
+    setOperatorName(newValue.name || '');
+  } else {
+    setSelectedOperatorId('');
+    setOperatorName('');
+  }
+};
   const handleOperatorChange1 = (newValue) => {
     const dayjsVal = dayjs(newValue);
     setSelectedDate(dayjsVal);
@@ -584,95 +596,102 @@ const OperatorDetails = () => {
     const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDateLocal);
     setEpochRange({ from: fromEpoch, to: toEpoch });
   };
-  const operatorvaluechange = (shiftValue) => {
+const operatorvaluechange = async (shiftValue) => {
+  try {
     setSelectedShift(shiftValue);
     const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDate);
     setEpochRange({ from: fromEpoch, to: toEpoch });
+
     const key = 'alloperator';
-    customerbasedshift(customerId, key)
-      .then(async (data) => {
-        const allShifts = data[0]?.value || [];
-        setoperatorslist(allShifts);
-        console.log('alloperator', allShifts);
+    const operatorData = await customerbasedshift(customerId, key);
+    const allOperators = operatorData[0]?.value || [];
+    setoperatorslist(allOperators);
 
-        // ✅ Filter only "Operator" mode
-        const operatorNames = allShifts
-          .filter(shift => shift.mode === "Operator")  // <-- filter added
-          .map(shift => ({
-            value: shift.operatorname,
-            label: `${shift.operatorid} - ${shift.operatorname}`
-          }));
+    const operatorOptions = allOperators
+      .filter(shift => shift.mode === "Operator")
+      .map(shift => ({
+        id: shift.operatorid,
+        value: shift.operatorid,
+        label: `${shift.operatorid} - ${shift.operatorname}`,
+        name: shift.operatorname
+      }));
 
-        setoperators(operatorNames);
-        const key2 = 'live_operator';
-        const entitytype = 'DEVICE';
-        const deviceid = selectedDeviceId;
+    setoperators(operatorOptions);
 
-        try {
-          const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
-          //const response = await telemetrylatestdata(deviceid, entitytype, key2);
-          if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
-            let operator = JSON.parse(response.live_operator[0].value).operator;
-            setselectedoperator(operator);
-          } else {
-            setselectedoperator('');
-          }
-        } catch (error) {
+    const key2 = 'live_operator';
+    const entitytype = 'DEVICE';
+    const deviceId = selectedDeviceId;
 
-          setselectedoperator('');
+    try {
+      const response = await telemetrykeydata(deviceId, entitytype, key2, fromEpoch, toEpoch);
+      if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
+        const parsedValue = JSON.parse(response.live_operator[0].value);
+        const operatorName = parsedValue.operator || '';
+        const operatorCode = parsedValue.code || '';
+        
+        const foundOperator = allOperators.find(op => 
+          op.operatorid === operatorCode || op.operatorname === operatorName
+        );
+        
+        if (foundOperator) {
+          setSelectedOperatorId(foundOperator.operatorid);
+          setOperatorName(foundOperator.operatorname);
+        } else {
+          setSelectedOperatorId('');
+          setOperatorName('');
         }
-        setOpenEditDialog(true);
-      })
-      .catch(error => {
-        console.error("Error fetching shifts:", error);
-      });
-  };
+      } else {
+        setSelectedOperatorId('');
+        setOperatorName('');
+      }
+    } catch (error) {
+      console.error('Error fetching live_operator:', error);
+      setSelectedOperatorId('');
+      setOperatorName('');
+    }
+    setOpenEditDialog(true);
+  } catch (error) {
+    console.error('Error in operatorvaluechange:', error);
+  }
+};
   const operatorvaluechange1 = async (shiftValue) => {
     try {
       setSelectedShift(shiftValue);
-
       const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDate);
       setEpochRange({ from: fromEpoch, to: toEpoch });
 
       const key = 'component';
       const operatorData = await customerbasedshift(customerId, key);
-      const allShifts = operatorData[0]?.value || [];
-      console.log('componentss', allShifts)
-      setcomponentslist(allShifts);
-
-      console.log('All Shifts:', allShifts);
-
-      const reasons = allShifts.map(shift => ({
-        value: shift.component_name,
+      const allComponents = operatorData[0]?.value || [];
+      setcomponentslist(allComponents);
+      const componentOptions = allComponents.map(comp => ({
+        id: comp.id,
+        value: comp.component_name,
         label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
-          ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
-          : `${shift.component_number} - ${shift.component_name}`
+          ? `${comp.component_number} - ${comp.component_name.length > 15 ? comp.component_name.slice(0, 15) + '...' : comp.component_name}${comp.operation_type ? ` (${comp.operation_type})` : ''}`
+          : `${comp.component_number} - ${comp.component_name}`
       }));
-
-      setcomponents(reasons);
-
+      setcomponents(componentOptions);
       const key2 = 'live_component';
       const entitytype = 'DEVICE';
       const deviceId = selectedDeviceId;
 
       try {
         const response = await telemetrykeydata(deviceId, entitytype, key2, fromEpoch, toEpoch);
-
-        if (
-          response &&
-          response.live_component &&
-          response.live_component.length > 0 &&
-          response.live_component[0].value
-        ) {
+        if (response?.live_component?.[0]?.value) {
           const parsedValue = JSON.parse(response.live_component[0].value);
-          const operator = parsedValue.component_name || '';
-          setselectedcomponent(operator);
+          const componentName = parsedValue.component_name || '';
+          setselectedcomponent(componentName);
+          const foundComponent = allComponents.find(comp => comp.component_name === componentName);
+          setSelectedComponentId(foundComponent?.id || '');
         } else {
           setselectedcomponent('');
+          setSelectedComponentId('');
         }
       } catch (error) {
         console.error('Error fetching live_component:', error);
         setselectedcomponent('');
+        setSelectedComponentId('');
       }
 
       setOpenEditDialog1(true);
@@ -738,88 +757,105 @@ const OperatorDetails = () => {
     const { name, value } = event.target;
     setselectedsupervisor(value);
   };
-  const handleOpenEditDialog = async (devicename, deviceid) => {
-    setLoading(true);
+const handleOpenEditDialog = async (devicename, deviceid) => {
+  setLoading(true);
 
-    const key1 = 'allShift';
+  const key1 = 'allShift';
 
-    try {
-      const shiftData = await customerbasedshift(customerId, key1);
-      const allShifts = shiftData[0]?.value || [];
-      setShifts(allShifts);
+  try {
+    const shiftData = await customerbasedshift(customerId, key1);
+    const allShifts = shiftData[0]?.value || [];
+    setShifts(allShifts);
 
-      const options = allShifts.map((shift) => ({
-        value: shift.shift_no,
-        label: `Shift${shift.shift_no}`,
-      }));
-      setShiftOptions(options);
-      const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
-      if (selectedShiftData) {
-        setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
-        setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
-      }
-      if (options.length > 0) {
-        const defaultShift = options[0].value;
-        setSelectedDate(dayjs()); // Set to current date
-        setSelectedShift(defaultShift);
-        setfilteredResult([]); // (Optional) clear table
-
-        // Calculate initial epoch range for current date and first shift
-        const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
-        setEpochRange({ from: fromEpoch, to: toEpoch });
-        console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:', dayjs());
-
-        setfilteredResult([]);
-
-        // Get operator data
-        const key = 'alloperator';
-        const operatorData = await customerbasedshift(customerId, key);
-        const allOperators = operatorData[0]?.value || [];
-        setoperatorslist(allOperators);
-
-        const operatorNames = allOperators
-          .filter((shift) => shift.mode === "Operator")
-          .map((shift) => ({
-            value: shift.operatorname,
-            label: `${shift.operatorid} - ${shift.operatorname}`
-          }));
-        setoperators(operatorNames);
-
-        // ✅ Now safely fetch live_operator after all data is ready
-        setSelectedDeviceId(deviceid);
-        setSelectedDevicename(devicename);
-        const key2 = 'live_operator';
-        const entitytype = 'DEVICE';
-
-        await fetchLiveOperator(deviceid, entitytype, key2, fromEpoch, toEpoch);
-        setOpenEditDialog(true);
-      }
-    } catch (err) {
-      console.error('Error in handleOpenEditDialog:', err);
-    } finally {
-      setLoading(false);
+    const options = allShifts.map((shift) => ({
+      value: shift.shift_no,
+      label: `Shift${shift.shift_no}`,
+    }));
+    setShiftOptions(options);
+    const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
+    if (selectedShiftData) {
+      setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
+      setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
     }
-  };
-  const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch) => {
-    try {
-      const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
-      if (
-        response &&
-        response.live_operator &&
-        response.live_operator.length > 0 &&
-        response.live_operator[0].value
-      ) {
-        const operator = JSON.parse(response.live_operator[0].value).operator;
-        setselectedoperator(operator);
+    if (options.length > 0) {
+      const defaultShift = options[0].value;
+      setSelectedDate(dayjs()); // Set to current date
+      setSelectedShift(defaultShift);
+      setfilteredResult([]); // (Optional) clear table
+
+      // Calculate initial epoch range for current date and first shift
+      const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
+      setEpochRange({ from: fromEpoch, to: toEpoch });
+      console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:', dayjs());
+
+      setfilteredResult([]);
+
+      // Get operator data
+      const key = 'alloperator';
+      const operatorData = await customerbasedshift(customerId, key);
+      const allOperators = operatorData[0]?.value || [];
+      setoperatorslist(allOperators);
+
+      const operatorOptions = allOperators
+        .filter((shift) => shift.mode === "Operator")
+        .map((shift) => ({
+          id: shift.operatorid,
+          value: shift.operatorid,
+          label: `${shift.operatorid} - ${shift.operatorname}`,
+          name: shift.operatorname
+        }));
+      setoperators(operatorOptions);
+
+      // ✅ Now safely fetch live_operator after all data is ready
+      setSelectedDeviceId(deviceid);
+      setSelectedDevicename(devicename);
+      const key2 = 'live_operator';
+      const entitytype = 'DEVICE';
+
+      await fetchLiveOperator(deviceid, entitytype, key2, fromEpoch, toEpoch);
+      setOpenEditDialog(true);
+    }
+  } catch (err) {
+    console.error('Error in handleOpenEditDialog:', err);
+  } finally {
+    setLoading(false);
+  }
+};
+const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch) => {
+  try {
+    const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
+    if (
+      response &&
+      response.live_operator &&
+      response.live_operator.length > 0 &&
+      response.live_operator[0].value
+    ) {
+      const parsedValue = JSON.parse(response.live_operator[0].value);
+      const operatorName = parsedValue.operator || '';
+      const operatorCode = parsedValue.code || '';
+      
+      // Find operator by code (operatorid) or name
+      const foundOperator = operatorslist.find(op => 
+        op.operatorid === operatorCode || op.operatorname === operatorName
+      );
+      
+      if (foundOperator) {
+        setSelectedOperatorId(foundOperator.operatorid);
+        setOperatorName(foundOperator.operatorname);
       } else {
-        setselectedoperator('');
+        setSelectedOperatorId('');
+        setOperatorName('');
       }
-    } catch (error) {
-      console.error('Error fetching live_operator:', error);
-      setselectedoperator('');
+    } else {
+      setSelectedOperatorId('');
+      setOperatorName('');
     }
-  };
-
+  } catch (error) {
+    console.error('Error fetching live_operator:', error);
+    setSelectedOperatorId('');
+    setOperatorName('');
+  }
+};
   const handleOpenEditDialog1 = async (devicename, deviceid) => {
     setTimeErrors({ startTime: '', endTime: '' });
     setLoading(true);
@@ -853,26 +889,20 @@ const OperatorDetails = () => {
         setfilteredResult([]);
         const { fromEpoch, toEpoch } = getEpochFromShift(selectedShiftNo, now);
         setEpochRange({ from: fromEpoch, to: toEpoch });
-        console.log(
-          'fromEpoch:', fromEpoch,
-          'toEpoch:', toEpoch,
-          'selectedShift:', selectedShiftNo,
-          'date:', now
-        );
+
         const key = 'component';
         const operatorData = await customerbasedshift(customerId, key);
-        const allShifts = operatorData[0]?.value || [];
-        setcomponentslist(allShifts);
-        console.log('componentss', allShifts)
-        const reasons = allShifts.map((shift) => {
-          return {
-            value: shift.component_name,
-            label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
-              ? `${shift.component_number} - ${shift.component_name.length > 15 ? shift.component_name.slice(0, 15) + '...' : shift.component_name}${shift.operation_type ? ` (${shift.operation_type})` : ''}`
-              : `${shift.component_number} - ${shift.component_name}`
-          };
-        });
-        setcomponents(reasons);
+        const allComponents = operatorData[0]?.value || [];
+        setcomponentslist(allComponents);
+        const componentOptions = allComponents.map(comp => ({
+          id: comp.id,
+          value: comp.component_name,
+          label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
+            ? `${comp.component_number} - ${comp.component_name.length > 15 ? comp.component_name.slice(0, 15) + '...' : comp.component_name}${comp.operation_type ? ` (${comp.operation_type})` : ''}`
+            : `${comp.component_number} - ${comp.component_name}`
+        }));
+        setcomponents(componentOptions);
+
         setSelectedDeviceId(deviceid);
         setSelectedDevicename(devicename);
         const key2 = 'live_component';
@@ -890,14 +920,23 @@ const OperatorDetails = () => {
     try {
       const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
       if (response && response.live_component && response.live_component.length > 0 && response.live_component[0].value) {
-        let operator = JSON.parse(response.live_component[0].value).component_name;
-        setselectedcomponent(operator);
+        const data = JSON.parse(response.live_component[0].value);
+        const componentName = data.component_name || '';
+        setselectedcomponent(componentName);
+        const foundComponent = componentslist.find(comp => comp.component_name === componentName);
+        if (foundComponent) {
+          setSelectedComponentId(foundComponent.id);
+        } else {
+          setSelectedComponentId('');
+        }
       } else {
         setselectedcomponent('');
+        setSelectedComponentId('');
       }
     } catch (error) {
-      console.error('Error fetching live_operator:', error);
+      console.error('Error fetching live_component:', error);
       setselectedcomponent('');
+      setSelectedComponentId('');
     }
   };
   const handleOpenEditDialog2 = async (devicename, deviceid) => {
@@ -1773,432 +1812,533 @@ const OperatorDetails = () => {
     const end = dayjs(shift.end_time, 'HH:mm:ss');
     return end.isBefore(start);
   };
-  const handleSaveThreshold = async () => {
-    if (
-      !startTime || !endTime ||
-      !isTimeInShift(startTime, selectedShiftData) ||
-      !isTimeInShift(endTime, selectedShiftData)
-    ) {
-      setOpenEditDialog(false);
-      setOpenEditDialog1(false);
-      setOpenEditDialog4(false);
-      Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
+const handleSaveThreshold = async () => {
+  if (
+    !startTime || !endTime ||
+    !isTimeInShift(startTime, selectedShiftData) ||
+    !isTimeInShift(endTime, selectedShiftData)
+  ) {
+    setOpenEditDialog(false);
+    setOpenEditDialog1(false);
+    setOpenEditDialog4(false);
+    Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
+    return;
+  }
+  try {
+    if (!selectedDeviceId || !selectedShift || !selectedDate || !selectedOperatorId) {
+      Swal.fire('Error', 'Please fill all required fields.', 'error');
       return;
     }
-    try {
-      if (!selectedDeviceId || !selectedShift || !selectedDate || !operatorselected) {
-        Swal.fire('Error', 'Please fill all required fields.', 'error');
-        return;
-      }
 
-      let fromEpoch, toEpoch;
+    let fromEpoch, toEpoch;
 
-      if (startTime && endTime && selectedDate) {
-        const start = dayjs(selectedDate)
-          .set('hour', startTime.hour())
-          .set('minute', startTime.minute())
-          .set('second', startTime.second())
+    if (startTime && endTime && selectedDate) {
+      const start = dayjs(selectedDate)
+        .set('hour', startTime.hour())
+        .set('minute', startTime.minute())
+        .set('second', startTime.second())
+        .set('millisecond', 0);
+
+      let end;
+
+      // Overnight shift: end time is earlier than start time
+      if (endTime.isBefore(startTime)) {
+        end = dayjs(selectedDate)
+          .add(1, 'day')
+          .set('hour', endTime.hour())
+          .set('minute', endTime.minute())
+          .set('second', endTime.second())
           .set('millisecond', 0);
-
-        let end;
-
-        // Overnight shift: end time is earlier than start time
-        if (endTime.isBefore(startTime)) {
-          end = dayjs(selectedDate)
-            .add(1, 'day')
-            .set('hour', endTime.hour())
-            .set('minute', endTime.minute())
-            .set('second', endTime.second())
-            .set('millisecond', 0);
-        } else {
-          // Same-day shift
-          end = dayjs(selectedDate)
-            .set('hour', endTime.hour())
-            .set('minute', endTime.minute())
-            .set('second', endTime.second())
-            .set('millisecond', 0);
-        }
-
-        fromEpoch = start.valueOf();
-        toEpoch = end.valueOf();
-      }
-      else {
-        const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-        fromEpoch = shiftEpoch.fromEpoch;
-        toEpoch = shiftEpoch.toEpoch;
+      } else {
+        // Same-day shift
+        end = dayjs(selectedDate)
+          .set('hour', endTime.hour())
+          .set('minute', endTime.minute())
+          .set('second', endTime.second())
+          .set('millisecond', 0);
       }
 
-      if (!fromEpoch || !toEpoch) return;
+      fromEpoch = start.valueOf();
+      toEpoch = end.valueOf();
+    }
+    else {
       const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-      let fromtime = shiftEpoch.fromEpoch;
-      let totime = shiftEpoch.toEpoch;
-      let durations = Math.floor((toEpoch - fromEpoch) / 1000);
+      fromEpoch = shiftEpoch.fromEpoch;
+      toEpoch = shiftEpoch.toEpoch;
+    }
 
-      // 🔍 Check for overlap before saving
-      const response = await telemetrykeydata(
-        selectedDeviceId,
-        'DEVICE',
-        'live_operator',
-        fromtime,
-        totime
-      );
+    if (!fromEpoch || !toEpoch) return;
+    const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
+    let fromtime = shiftEpoch.fromEpoch;
+    let totime = shiftEpoch.toEpoch;
+    let durations = Math.floor((toEpoch - fromEpoch) / 1000);
 
-      const existingEntries = response?.live_operator || [];
-      console.log('existingdatas', existingEntries)
-      for (const item of existingEntries) {
-        if (!item?.value) continue;
+    // Find the selected operator from operatorslist using ID
+    const selectedOperator = operatorslist.find(op => op.operatorid === selectedOperatorId);
+    if (!selectedOperator) {
+      Swal.fire('Error', 'Selected operator not found.', 'error');
+      return;
+    }
 
-        let parsed;
-        try {
-          parsed = JSON.parse(item.value);
-        } catch (e) {
-          continue;
-        }
+    // 🔍 Check for overlap before saving
+    const response = await telemetrykeydata(
+      selectedDeviceId,
+      'DEVICE',
+      'live_operator',
+      fromtime,
+      totime
+    );
 
-        const existingStart = parsed.start_time || item.ts;
-        const existingEnd =
-          parsed.end_time ||
-          (existingStart + (parsed.duration || 0) * 1000);
+    const existingEntries = response?.live_operator || [];
+    console.log('existingdatas', existingEntries)
+    for (const item of existingEntries) {
+      if (!item?.value) continue;
 
-        const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
+      let parsed;
+      try {
+        parsed = JSON.parse(item.value);
+      } catch (e) {
+        continue;
+      }
 
-        if (isOverlapping) {
-          const existingOperator = parsed.name || 'Unknown';
-          const conflictStart = dayjs(existingStart).format('DD-MM-YYYY HH:mm:ss');
-          const conflictEnd = dayjs(existingEnd).format('DD-MM-YYYY HH:mm:ss');
+      const existingStart = parsed.start_time || item.ts;
+      const existingEnd =
+        parsed.end_time ||
+        (existingStart + (parsed.duration || 0) * 1000);
 
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            html: `Time overlaps with existing operator "<strong>${existingOperator}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`,
-            showCancelButton: true,
-            confirmButtonText: 'Overwrite',
-            cancelButtonText: 'No, Cancel',
-            backdrop: true,
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            allowEnterKey: false
-          }).then((result1) => {
-            if (result1.isConfirmed) {
-              // Only show the second confirmation if user clicked "Overwrite"
-              Swal.fire({
-                title: 'Do you want to overwrite the existing operator allocation with the new changes?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, Save',
-                cancelButtonText: 'No, Cancel',
-                backdrop: true,
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                allowEnterKey: false
-              }).then(async (result2) => {
-                if (result2.isConfirmed) {
-                  try {
-                    // First delete existing data in the time range
-                    const deleteResponse = await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', fromEpoch, toEpoch);
+      const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
 
-                    if (deleteResponse !== true) {
-                      throw new Error('Failed to delete existing data for the specified time range.');
-                    }
-                    else {
-                      const operator = operatorslist.find(op => op.operatorname === operatorselected);
-                      const opertorid = operator ? operator.operatorid : null;
+      if (isOverlapping) {
+        const existingOperator = parsed.name || 'Unknown';
+        const conflictStart = dayjs(existingStart).format('DD-MM-YYYY HH:mm:ss');
+        const conflictEnd = dayjs(existingEnd).format('DD-MM-YYYY HH:mm:ss');
 
-                      const key = {
-                        ts: fromEpoch,
-                        values: {
-                          live_operator: {
-                            name: operatorselected,
-                            code: opertorid,
-                            start_time: fromEpoch,
-                            end_time: toEpoch,
-                            duration: durations
-                          }
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          html: `Time overlaps with existing operator "<strong>${existingOperator}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`,
+          showCancelButton: true,
+          confirmButtonText: 'Overwrite',
+          cancelButtonText: 'No, Cancel',
+          backdrop: true,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
+        }).then((result1) => {
+          if (result1.isConfirmed) {
+            // Only show the second confirmation if user clicked "Overwrite"
+            Swal.fire({
+              title: 'Do you want to overwrite the existing operator allocation with the new changes?',
+              icon: 'question',
+              showCancelButton: true,
+              confirmButtonText: 'Yes, Save',
+              cancelButtonText: 'No, Cancel',
+              backdrop: true,
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+              allowEnterKey: false
+            }).then(async (result2) => {
+              if (result2.isConfirmed) {
+                try {
+                  // First delete existing data in the time range
+                  const deleteResponse = await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', fromEpoch, toEpoch);
+
+                  if (deleteResponse !== true) {
+                    throw new Error('Failed to delete existing data for the specified time range.');
+                  }
+                  else {
+                    const key = {
+                      ts: fromEpoch,
+                      values: {
+                        live_operator: {
+                          name: selectedOperator.operatorname,
+                          code: selectedOperatorId,
+                          start_time: fromEpoch,
+                          end_time: toEpoch,
+                          duration: durations
                         }
-                      };
+                      }
+                    };
 
-                      await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+                    await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
 
-                      setDeviceThresholds(prev => ({
-                        ...prev,
-                        [selectedDeviceId.id || selectedDeviceId]: operatorselected
-                      }));
-                      Swal.fire({
-                        title: 'Success',
-                        text: 'Operator assigned successfully.',
-                        icon: 'success',
-                        backdrop: true,
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        allowEnterKey: false
-                      });
-                      setTimeout(() => {
-                        handleSubmit();
-                      }, 2000);
-                      // setTimeout(() => {
-                      //   window.location.reload()
-                      // ;
-                      // }, 10);
-                    }
-                    // Then proceed to add new operator data
-
-                  } catch (error) {
-                    console.error('Error in operator allocation update:', error);
+                    setDeviceThresholds(prev => ({
+                      ...prev,
+                      [selectedDeviceId.id || selectedDeviceId]: selectedOperator.operatorname
+                    }));
                     Swal.fire({
-                      title: 'Error',
-                      text: error.message || 'Failed to update operator allocation.',
-                      icon: 'error',
+                      title: 'Success',
+                      text: 'Operator assigned successfully.',
+                      icon: 'success',
                       backdrop: true,
                       allowOutsideClick: false,
                       allowEscapeKey: false,
                       allowEnterKey: false
                     });
+                    setTimeout(() => {
+                      handleSubmit();
+                    }, 2000);
                   }
-                } else {
-                  console.log("User cancelled save.");
+                  // Then proceed to add new operator data
+
+                } catch (error) {
+                  console.error('Error in operator allocation update:', error);
+                  Swal.fire({
+                    title: 'Error',
+                    text: error.message || 'Failed to update operator allocation.',
+                    icon: 'error',
+                    backdrop: true,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    allowEnterKey: false
+                  });
                 }
-              });
-            } else {
-              console.log("User cancelled overwrite.");
-            }
-          });
-
-
-          return;
-        }
-
-      }
-
-      // ✅ Proceed to save if no overlap
-      const operator = operatorslist.find(op => op.operatorname === operatorselected);
-      const opertorid = operator ? operator.operatorid : null;
-
-      const key = {
-        ts: fromEpoch,
-        values: {
-          live_operator: {
-            name: operatorselected,
-            code: opertorid,
-            start_time: fromEpoch,
-            end_time: toEpoch,
-            duration: durations
+              } else {
+                console.log("User cancelled save.");
+              }
+            });
+          } else {
+            console.log("User cancelled overwrite.");
           }
-        }
-      };
+        });
 
-      await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-
-      setDeviceThresholds(prev => ({
-        ...prev,
-        [selectedDeviceId.id || selectedDeviceId]: operatorselected
-      }));
-
-      Swal.fire('Success', 'Operator assigned successfully.', 'success');
-      setTimeout(() => {
-        handleSubmit();
-      }, 2000);
-    } catch (err) {
-      console.error('Update error:', err);
-      Swal.fire('Error', 'Failed to assign operator.', 'error');
-    } finally {
-      setOpenEditDialog(false);
-    }
-  };
-
-  const handleSaveThreshold1 = async () => {
-    const hasErrors = timeErrors.startTime || timeErrors.endTime;
-    if (hasErrors) {
-      return;
-    }
-    if (
-      !startTime || !endTime ||
-      !isTimeInShift(startTime, selectedShiftData) ||
-      !isTimeInShift(endTime, selectedShiftData)
-    ) {
-      setOpenEditDialog(false);
-      setOpenEditDialog1(false);
-      setOpenEditDialog4(false);
-      Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
-      return;
-    }
-    try {
-      if (!selectedDeviceId || !selectedShift || !selectedDate || !componentselected) {
-        Swal.fire('Error', 'Please fill all required fields.', 'error');
         return;
       }
-      let fromEpoch, toEpoch;
-      if (startTime && endTime && selectedDate) {
-        const start = dayjs(selectedDate)
-          .set('hour', startTime.hour())
-          .set('minute', startTime.minute())
-          .set('second', startTime.second())
-          .set('millisecond', 0);
-        let end;
-        if (endTime.isBefore(startTime)) {
-          end = dayjs(selectedDate)
-            .add(1, 'day')
-            .set('hour', endTime.hour())
-            .set('minute', endTime.minute())
-            .set('second', endTime.second())
-            .set('millisecond', 0);
-        } else {
-          end = dayjs(selectedDate)
-            .set('hour', endTime.hour())
-            .set('minute', endTime.minute())
-            .set('second', endTime.second())
-            .set('millisecond', 0);
-        }
-        fromEpoch = start.valueOf();
-        toEpoch = end.valueOf();
-      } else {
-        const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-        fromEpoch = shiftEpoch.fromEpoch;
-        toEpoch = shiftEpoch.toEpoch;
-      }
-      if (!fromEpoch || !toEpoch) return;
-      const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-      let fromtime = shiftEpoch.fromEpoch;
-      let totime = shiftEpoch.toEpoch;
-      let durations = Math.floor((toEpoch - fromEpoch) / 1000);
-      const response = await telemetrykeydata(
-        selectedDeviceId,
-        'DEVICE',
-        'live_component',
-        fromtime,
-        totime
-      );
-      const existingEntries = response?.live_component || [];
-      const overlapping = [];
-      for (const item of existingEntries) {
-        if (!item?.value) continue;
-        let parsed;
-        try {
-          parsed = JSON.parse(item.value);
-        } catch {
-          continue;
-        }
-        const existingStart = parsed.start_time || item.ts;
-        const existingEnd =
-          parsed.end_time ||
-          (existingStart + (parsed.duration || 0) * 1000);
-        const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
-        if (isOverlapping) {
-          overlapping.push({ item, parsed, existingStart, existingEnd });
+
+    }
+
+    // ✅ Proceed to save if no overlap
+    const key = {
+      ts: fromEpoch,
+      values: {
+        live_operator: {
+          name: selectedOperator.operatorname,
+          code: selectedOperatorId,
+          start_time: fromEpoch,
+          end_time: toEpoch,
+          duration: durations
         }
       }
-      if (overlapping.length > 0) {
-        for (const overlap of overlapping) {
-          const { parsed, existingStart, existingEnd } = overlap;
-          if (fromEpoch > existingStart && toEpoch < existingEnd) {
-            const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
-            const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
-            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-            const leftKey = {
-              ts: existingStart,
-              values: {
-                live_component: {
-                  ...parsed,
-                  start_time: existingStart,
-                  end_time: fromEpoch,
-                  duration: leftDuration,
-                },
-              },
-            };
-            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
-            const rightKey = {
-              ts: toEpoch,
-              values: {
-                live_component: {
-                  ...parsed,
-                  start_time: toEpoch,
-                  end_time: existingEnd,
-                  duration: rightDuration,
-                },
-              },
-            };
-            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
-          }
-          else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
-            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-            const newStart = toEpoch;
-            const newDuration = Math.floor((existingEnd - newStart) / 1000);
-            const updatedKey = {
-              ts: newStart,
-              values: {
-                live_component: {
-                  ...parsed,
-                  start_time: newStart,
-                  end_time: existingEnd,
-                  duration: newDuration,
-                },
-              },
-            };
-            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-          }
-          else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
-            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-            const newEnd = fromEpoch;
-            const newDuration = Math.floor((newEnd - existingStart) / 1000);
-            const updatedKey = {
-              ts: existingStart,
-              values: {
-                live_component: {
-                  ...parsed,
-                  start_time: existingStart,
-                  end_time: newEnd,
-                  duration: newDuration,
-                },
-              },
-            };
-            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-          }
-          else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
-            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-          }
-        }
+    };
+
+    await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+
+    setDeviceThresholds(prev => ({
+      ...prev,
+      [selectedDeviceId.id || selectedDeviceId]: selectedOperator.operatorname
+    }));
+
+    Swal.fire('Success', 'Operator assigned successfully.', 'success');
+    setTimeout(() => {
+      handleSubmit();
+    }, 2000);
+  } catch (err) {
+    console.error('Update error:', err);
+    Swal.fire('Error', 'Failed to assign operator.', 'error');
+  } finally {
+    setOpenEditDialog(false);
+  }
+};
+const handleSaveThreshold1 = async () => {
+  const hasErrors = timeErrors.startTime || timeErrors.endTime;
+  if (hasErrors) {
+    return;
+  }
+  if (!selectedDeviceId || !selectedShift || !selectedDate || !selectedComponentId) {
+    Swal.fire('Error', 'Please fill all required fields.', 'error');
+    return;
+  }
+  const component = componentslist.find(comp => comp.id === selectedComponentId);
+  if (!component) {
+    Swal.fire('Error', 'Selected component not found.', 'error');
+    return;
+  }
+
+  const componentName = component.component_name;
+  const componentNumber = component.component_number || null;
+  const cycleTime = component.cycle_time || null;
+  const handlingTime = component.handling_time || null;
+  const setupTime = component.setupTime || null;
+  const factorValue = component.factorval || null;
+  const factors = component.factor || null;
+
+  let fromEpoch, toEpoch;
+  if (startTime && endTime && selectedDate) {
+    const start = dayjs(selectedDate)
+      .set('hour', startTime.hour())
+      .set('minute', startTime.minute())
+      .set('second', startTime.second())
+      .set('millisecond', 0);
+    let end;
+    if (endTime.isBefore(startTime)) {
+      end = dayjs(selectedDate)
+        .add(1, 'day')
+        .set('hour', endTime.hour())
+        .set('minute', endTime.minute())
+        .set('second', endTime.second())
+        .set('millisecond', 0);
+    } else {
+      end = dayjs(selectedDate)
+        .set('hour', endTime.hour())
+        .set('minute', endTime.minute())
+        .set('second', endTime.second())
+        .set('millisecond', 0);
+    }
+    fromEpoch = start.valueOf();
+    toEpoch = end.valueOf();
+  } else {
+    const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
+    fromEpoch = shiftEpoch.fromEpoch;
+    toEpoch = shiftEpoch.toEpoch;
+  }
+
+  if (!fromEpoch || !toEpoch) return;
+  const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
+  let fromtime = shiftEpoch.fromEpoch;
+  let totime = shiftEpoch.toEpoch;
+  let durations = Math.floor((toEpoch - fromEpoch) / 1000);
+
+  // Check for overlapping entries
+  const response = await telemetrykeydata(
+    selectedDeviceId,
+    'DEVICE',
+    'live_component',
+    fromtime,
+    totime
+  );
+
+  const existingEntries = response?.live_component || [];
+  const overlapping = [];
+  
+  for (const item of existingEntries) {
+    if (!item?.value) continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(item.value);
+    } catch {
+      continue;
+    }
+    const existingStart = parsed.start_time || item.ts;
+    const existingEnd =
+      parsed.end_time ||
+      (existingStart + (parsed.duration || 0) * 1000);
+    const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
+    if (isOverlapping) {
+      overlapping.push({ item, parsed, existingStart, existingEnd });
+    }
+  }
+
+  // If there are overlaps, show confirmation dialog
+  if (overlapping.length > 0) {
+    // Close the main dialog first
+    setOpenEditDialog1(false);
+    
+    const overlapDetails = overlapping.map(overlap => {
+      const existingComponent = overlap.parsed.name || 'Unknown';
+      const conflictStart = dayjs(overlap.existingStart).format('DD-MM-YYYY HH:mm:ss');
+      const conflictEnd = dayjs(overlap.existingEnd).format('DD-MM-YYYY HH:mm:ss');
+      return `"<strong>${existingComponent}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`;
+    }).join('<br>');
+
+    // Show confirmation dialog for overwrite
+    const result1 = await Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      html: `Time overlaps with existing component ${overlapDetails}`,
+      showCancelButton: true,
+      confirmButtonText: 'Overwrite',
+      cancelButtonText: 'No, Cancel',
+      backdrop: true,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      allowEnterKey: false
+    });
+
+    if (!result1.isConfirmed) {
+      console.log("User cancelled overwrite.");
+      return;
+    }
+
+    // Show second confirmation
+    const result2 = await Swal.fire({
+      title: 'Confirm Overwrite',
+      text: 'Do you want to overwrite the existing component allocation with the new changes?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Save',
+      cancelButtonText: 'No, Cancel',
+      backdrop: true,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      allowEnterKey: false
+    });
+
+    if (!result2.isConfirmed) {
+      console.log("User cancelled save.");
+      return;
+    }
+
+    // Handle the overlap cases
+    for (const overlap of overlapping) {
+      const { parsed, existingStart, existingEnd } = overlap;
+      if (fromEpoch > existingStart && toEpoch < existingEnd) {
+        const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
+        const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
+        await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+        const leftKey = {
+          ts: existingStart,
+          values: {
+            live_component: {
+              ...parsed,
+              start_time: existingStart,
+              end_time: fromEpoch,
+              duration: leftDuration,
+            },
+          },
+        };
+        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
+        const rightKey = {
+          ts: toEpoch,
+          values: {
+            live_component: {
+              ...parsed,
+              start_time: toEpoch,
+              end_time: existingEnd,
+              duration: rightDuration,
+            },
+          },
+        };
+        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
       }
-      const operator = componentslist.find(op => op.component_name === componentselected);
-      const component_number = operator?.component_number || null;
-      const cycle_time = operator?.cycle_time || null;
-      const handling_time = operator?.handling_time || null;
-      const setupTime = operator?.setupTime || null;
-      const factorvalue = operator?.factorval || null;
-      const factors = operator?.factor || null;
+      else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
+        await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+        const newStart = toEpoch;
+        const newDuration = Math.floor((existingEnd - newStart) / 1000);
+        const updatedKey = {
+          ts: newStart,
+          values: {
+            live_component: {
+              ...parsed,
+              start_time: newStart,
+              end_time: existingEnd,
+              duration: newDuration,
+            },
+          },
+        };
+        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+      }
+      else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
+        await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+        const newEnd = fromEpoch;
+        const newDuration = Math.floor((newEnd - existingStart) / 1000);
+        const updatedKey = {
+          ts: existingStart,
+          values: {
+            live_component: {
+              ...parsed,
+              start_time: existingStart,
+              end_time: newEnd,
+              duration: newDuration,
+            },
+          },
+        };
+        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+      }
+      else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
+        await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+      }
+    }
+
+    // Save the new component assignment after handling overlaps
+    try {
       const now = Date.now();
       const key = {
         ts: fromEpoch > now ? fromEpoch : now,
         values: {
           live_component: {
-            name: componentselected,
-            code: component_number,
+            name: componentName,
+            code: componentNumber,
             start_time: fromEpoch,
             end_time: toEpoch,
             duration: durations,
-            cycle_time: cycle_time,
-            handling_time: handling_time,
+            cycle_time: cycleTime,
+            handling_time: handlingTime,
             setup_time: setupTime,
-            factorval: factorvalue,
+            factorval: factorValue,
             factor: factors,
           },
         },
       };
+
       await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
       setDeviceThresholds(prev => ({
         ...prev,
-        [selectedDeviceId.id || selectedDeviceId]: operatorselected,
+        [selectedDeviceId.id || selectedDeviceId]: componentName,
       }));
-      Swal.fire('Success', 'Component assigned successfully.', 'success');
+
+      Swal.fire({
+        title: 'Success',
+        text: 'Component assigned successfully.',
+        icon: 'success',
+        backdrop: true,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        allowEnterKey: false
+      });
       setTimeout(() => {
         handleSubmit();
       }, 2000);
-    } catch (err) {
-      console.error('Update error:', err);
-      Swal.fire('Error', 'Failed to assign Component.', 'error');
-    } finally {
-      setOpenEditDialog1(false);
+      // Don't call handleCloseComponentDialog() here since we already closed it
+      return; // Exit early
+    } catch (error) {
+      console.error('Error saving component:', error);
+      Swal.fire('Error', 'Failed to assign component.', 'error');
+      return;
     }
-  };
+  }
 
+  // ✅ Proceed to save if no overlap
+  try {
+    const now = Date.now();
+    const key = {
+      ts: fromEpoch > now ? fromEpoch : now,
+      values: {
+        live_component: {
+          name: componentName,
+          code: componentNumber,
+          start_time: fromEpoch,
+          end_time: toEpoch,
+          duration: durations,
+          cycle_time: cycleTime,
+          handling_time: handlingTime,
+          setup_time: setupTime,
+          factorval: factorValue,
+          factor: factors,
+        },
+      },
+    };
+
+    await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+    setDeviceThresholds(prev => ({
+      ...prev,
+      [selectedDeviceId.id || selectedDeviceId]: componentName,
+    }));
+
+    Swal.fire('Success', 'Component assigned successfully.', 'success');
+    setTimeout(() => {
+      handleSubmit();
+    }, 2000);
+    handleCloseComponentDialog();
+  } catch (error) {
+    console.error('Error saving component:', error);
+    Swal.fire('Error', 'Failed to assign component.', 'error');
+  }
+};
+  const handleCloseComponentDialog = () => {
+    setOpenEditDialog1(false);
+    setselectedcomponent('');
+    setSelectedComponentId('');
+  };
   const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
     const now = dayjs(selectedDate);
     for (let shift of allShifts) {
@@ -2564,43 +2704,39 @@ const OperatorDetails = () => {
               error={!operatorselected}
               ref={customDaySelectRef}
             /> */}
-            <Autocomplete
-              sx={{
-                width: '100%',
-                '& .MuiOutlinedInput-root': {
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'orange',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-input': {
-                    caretColor: 'orange',
-                  },
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: 'orange',
-                },
-              }}
-              options={operators}
-              getOptionLabel={(option) => option.label}
-              value={operators.find(c => c.value === operatorselected) || null}
-              onChange={(event, newValue) => {
-                handleFormChange({
-                  target: { name: 'operatorselected', value: newValue ? newValue.value : '' }
-                });
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Select Operator"
-                  required
-                  error={!operatorselected}
-                  helperText={!operatorselected ? 'Operator is required' : ''}
-                />
-              )}
-              isOptionEqualToValue={(option, value) => option.value === value.value}
-              autoHighlight
-              filterSelectedOptions
-              componentsProps={{ popper: { style: { minWidth: 'fit-content' } } }}
-            />
+           <Autocomplete
+  sx={{
+    width: '100%',
+    '& .MuiOutlinedInput-root': {
+      '&.Mui-focused fieldset': {
+        borderColor: 'orange',
+      },
+      '&.Mui-focused .MuiOutlinedInput-input': {
+        caretColor: 'orange',
+      },
+    },
+    '& .MuiInputLabel-root.Mui-focused': {
+      color: 'orange',
+    },
+  }}
+  options={operators}
+  getOptionLabel={(option) => option.label}
+  value={operators.find(c => c.id === selectedOperatorId) || null}
+  onChange={handleOperatorChange}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Select Operator"
+      required
+      error={!selectedOperatorId}
+      helperText={!selectedOperatorId ? 'Operator is required' : ''}
+    />
+  )}
+  isOptionEqualToValue={(option, value) => option.id === value.id}
+  autoHighlight
+  filterSelectedOptions
+  componentsProps={{ popper: { style: { minWidth: 'fit-content' } } }}
+/>
 
           </div>
           <br></br>
@@ -2742,35 +2878,36 @@ const OperatorDetails = () => {
               sx={{
                 width: '100%',
                 '& .MuiOutlinedInput-root': {
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'orange',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-input': {
-                    caretColor: 'orange',
-                  },
+                  '&.Mui-focused fieldset': { borderColor: 'orange' },
+                  '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
                 },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: 'orange',
-                },
+                '& .MuiInputLabel-root.Mui-focused': { color: 'orange' },
               }}
               options={components}
               getOptionLabel={(option) => option.label}
-              value={components.find(c => c.value === componentselected) || null}
+              value={components.find(c => c.id === selectedComponentId) || null}
               onChange={(event, newValue) => {
-                handleFormChange2({
-                  target: { name: 'componentselected', value: newValue ? newValue.value : '' }
-                });
+                if (newValue) {
+                  setselectedcomponent(newValue.value);
+                  setSelectedComponentId(newValue.id);
+                } else {
+                  setselectedcomponent('');
+                  setSelectedComponentId('');
+                }
+              }}
+              isOptionEqualToValue={(option, value) => {
+                if (!option || !value) return false;
+                return option.id === value.id;
               }}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   label="Select Component"
                   required
-                  error={!componentselected}
-                  helperText={!componentselected ? 'Component is required' : ''}
+                  error={!selectedComponentId}
+                  helperText={!selectedComponentId ? 'Component is required' : ''}
                 />
               )}
-              isOptionEqualToValue={(option, value) => option.value === value.value}
               autoHighlight
               filterSelectedOptions
               componentsProps={{ popper: { style: { width: 'fit-content' } } }}
