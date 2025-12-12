@@ -1873,14 +1873,14 @@ const handleSaveThreshold = async () => {
     let totime = shiftEpoch.toEpoch;
     let durations = Math.floor((toEpoch - fromEpoch) / 1000);
 
-    // Find the selected operator from operatorslist using ID
+    // Find the selected operator
     const selectedOperator = operatorslist.find(op => op.operatorid === selectedOperatorId);
     if (!selectedOperator) {
       Swal.fire('Error', 'Selected operator not found.', 'error');
       return;
     }
 
-    // 🔍 Check for overlap before saving
+    // Check for overlapping entries
     const response = await telemetrykeydata(
       selectedDeviceId,
       'DEVICE',
@@ -1890,126 +1890,182 @@ const handleSaveThreshold = async () => {
     );
 
     const existingEntries = response?.live_operator || [];
-    console.log('existingdatas', existingEntries)
+    const overlapping = [];
+    
     for (const item of existingEntries) {
       if (!item?.value) continue;
-
       let parsed;
       try {
         parsed = JSON.parse(item.value);
-      } catch (e) {
+      } catch {
         continue;
       }
-
       const existingStart = parsed.start_time || item.ts;
       const existingEnd =
         parsed.end_time ||
         (existingStart + (parsed.duration || 0) * 1000);
-
       const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
-
       if (isOverlapping) {
-        const existingOperator = parsed.name || 'Unknown';
-        const conflictStart = dayjs(existingStart).format('DD-MM-YYYY HH:mm:ss');
-        const conflictEnd = dayjs(existingEnd).format('DD-MM-YYYY HH:mm:ss');
+        overlapping.push({ item, parsed, existingStart, existingEnd });
+      }
+    }
+    if (overlapping.length > 0) {
+      setOpenEditDialog(false);
+      const overlapDetails = overlapping.map(overlap => {
+        const existingOperator = overlap.parsed.name || 'Unknown';
+        const conflictStart = dayjs(overlap.existingStart).format('DD-MM-YYYY HH:mm:ss');
+        const conflictEnd = dayjs(overlap.existingEnd).format('DD-MM-YYYY HH:mm:ss');
+        return `"<strong>${existingOperator}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`;
+      }).join('<br>');
+      const result1 = await Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        html: `Time overlaps with existing operator ${overlapDetails}`,
+        showCancelButton: true,
+        confirmButtonText: 'Overwrite',
+        cancelButtonText: 'No, Cancel',
+        backdrop: true,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        allowEnterKey: false
+      });
+
+      if (!result1.isConfirmed) {
+        console.log("User cancelled overwrite.");
+        return;
+      }
+      const result2 = await Swal.fire({
+        title: 'Confirm Overwrite',
+        text: 'Do you want to overwrite the existing operator allocation with the new changes?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Save',
+        cancelButtonText: 'No, Cancel',
+        backdrop: true,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        allowEnterKey: false
+      });
+
+      if (!result2.isConfirmed) {
+        console.log("User cancelled save.");
+        return;
+      }
+      for (const overlap of overlapping) {
+        const { parsed, existingStart, existingEnd } = overlap;
+        if (fromEpoch > existingStart && toEpoch < existingEnd) {
+          const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
+          const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
+          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+          const leftKey = {
+            ts: existingStart,
+            values: {
+              live_operator: {
+                ...parsed,
+                start_time: existingStart,
+                end_time: fromEpoch,
+                duration: leftDuration,
+              },
+            },
+          };
+          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
+          const rightKey = {
+            ts: toEpoch,
+            values: {
+              live_operator: {
+                ...parsed,
+                start_time: toEpoch,
+                end_time: existingEnd,
+                duration: rightDuration,
+              },
+            },
+          };
+          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
+        }
+        else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
+          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+          
+          const newStart = toEpoch;
+          const newDuration = Math.floor((existingEnd - newStart) / 1000);
+          const updatedKey = {
+            ts: newStart,
+            values: {
+              live_operator: {
+                ...parsed,
+                start_time: newStart,
+                end_time: existingEnd,
+                duration: newDuration,
+              },
+            },
+          };
+          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+        }
+        else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
+          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+          const newEnd = fromEpoch;
+          const newDuration = Math.floor((newEnd - existingStart) / 1000);
+          const updatedKey = {
+            ts: existingStart,
+            values: {
+              live_operator: {
+                ...parsed,
+                start_time: existingStart,
+                end_time: newEnd,
+                duration: newDuration,
+              },
+            },
+          };
+          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+        }
+        else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
+          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+        }
+      }
+      try {
+        const now = Date.now();
+        const key = {
+          ts: fromEpoch > now ? fromEpoch : now,
+          values: {
+            live_operator: {
+              name: selectedOperator.operatorname,
+              code: selectedOperatorId,
+              start_time: fromEpoch,
+              end_time: toEpoch,
+              duration: durations
+            }
+          }
+        };
+
+        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+        setDeviceThresholds(prev => ({
+          ...prev,
+          [selectedDeviceId.id || selectedDeviceId]: selectedOperator.operatorname,
+        }));
 
         Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          html: `Time overlaps with existing operator "<strong>${existingOperator}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`,
-          showCancelButton: true,
-          confirmButtonText: 'Overwrite',
-          cancelButtonText: 'No, Cancel',
+          title: 'Success',
+          text: 'Operator assigned successfully.',
+          icon: 'success',
           backdrop: true,
           allowOutsideClick: false,
           allowEscapeKey: false,
           allowEnterKey: false
-        }).then((result1) => {
-          if (result1.isConfirmed) {
-            // Only show the second confirmation if user clicked "Overwrite"
-            Swal.fire({
-              title: 'Do you want to overwrite the existing operator allocation with the new changes?',
-              icon: 'question',
-              showCancelButton: true,
-              confirmButtonText: 'Yes, Save',
-              cancelButtonText: 'No, Cancel',
-              backdrop: true,
-              allowOutsideClick: false,
-              allowEscapeKey: false,
-              allowEnterKey: false
-            }).then(async (result2) => {
-              if (result2.isConfirmed) {
-                try {
-                  // First delete existing data in the time range
-                  const deleteResponse = await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', fromEpoch, toEpoch);
-
-                  if (deleteResponse !== true) {
-                    throw new Error('Failed to delete existing data for the specified time range.');
-                  }
-                  else {
-                    const key = {
-                      ts: fromEpoch,
-                      values: {
-                        live_operator: {
-                          name: selectedOperator.operatorname,
-                          code: selectedOperatorId,
-                          start_time: fromEpoch,
-                          end_time: toEpoch,
-                          duration: durations
-                        }
-                      }
-                    };
-
-                    await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-
-                    setDeviceThresholds(prev => ({
-                      ...prev,
-                      [selectedDeviceId.id || selectedDeviceId]: selectedOperator.operatorname
-                    }));
-                    Swal.fire({
-                      title: 'Success',
-                      text: 'Operator assigned successfully.',
-                      icon: 'success',
-                      backdrop: true,
-                      allowOutsideClick: false,
-                      allowEscapeKey: false,
-                      allowEnterKey: false
-                    });
-                    setTimeout(() => {
-                      handleSubmit();
-                    }, 2000);
-                  }
-                  // Then proceed to add new operator data
-
-                } catch (error) {
-                  console.error('Error in operator allocation update:', error);
-                  Swal.fire({
-                    title: 'Error',
-                    text: error.message || 'Failed to update operator allocation.',
-                    icon: 'error',
-                    backdrop: true,
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    allowEnterKey: false
-                  });
-                }
-              } else {
-                console.log("User cancelled save.");
-              }
-            });
-          } else {
-            console.log("User cancelled overwrite.");
-          }
         });
-
+        setTimeout(() => {
+          handleSubmit();
+        }, 2000);
+        return;
+      } catch (error) {
+        console.error('Error saving operator:', error);
+        Swal.fire('Error', 'Failed to assign operator.', 'error');
         return;
       }
-
     }
 
     // ✅ Proceed to save if no overlap
+    const now = Date.now();
     const key = {
-      ts: fromEpoch,
+      ts: fromEpoch > now ? fromEpoch : now,
       values: {
         live_operator: {
           name: selectedOperator.operatorname,
