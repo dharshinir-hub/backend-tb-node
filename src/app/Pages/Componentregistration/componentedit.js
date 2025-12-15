@@ -142,28 +142,44 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
     setupTime: null
   }), []);
   const handleTimeChange = (name, value) => {
-    if (value && value.isValid()) {
-      setShiftForm((prevShiftForm) => ({
-        ...prevShiftForm,
-        [name]: value,
-      }));
-      setValue(name, value); // Update the form state in react-hook-form
-      trigger(name); // Trigger validation for this field
-    }
+    setShiftForm((prevShiftForm) => ({
+      ...prevShiftForm,
+      [name]: value,
+    }));
+    setValue(name, value); // Update the form state in react-hook-form
+    trigger(name); // Trigger validation for this field
+
   };
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
   const onSubmit = async (data) => {
-      if (
-        !data.cycle_time ||
-        data.cycle_time.format('HH:mm:ss') === '00:00:00'
 
-      ) {
-        handleClose();
-        Swal.fire('Error', 'Cycle Time must not be 00:00:00.', 'error');
-        return;
-      }
-      
     try {
+      const timeFields = [
+        { key: "cycle_time", label: "Cycle Time" },
+        { key: "handling_time", label: "Handling Time" },
+        { key: "setupTime", label: "Setup Time" },
+      ];
+      for (const { key, label } of timeFields) {
+        const value = data[key];
+        if (!value || !dayjs(value).isValid()) {
+          handleClose();
+          Swal.fire({
+            icon: "error",
+            title: "Invalid Input",
+            text: `${label} has an invalid or incomplete time format.`,
+          });
+          return;
+        }
+        if (key === "cycle_time" && dayjs(value).format("HH:mm:ss") === "00:00:00") {
+          handleClose();
+          Swal.fire({
+            icon: "error",
+            title: "Invalid Input",
+            text: "Cycle Time must not be 00:00:00.",
+          });
+          return;
+        }
+      }
       const startTimeString = shiftForm.cycle_time.format('hh:mm:ss A');
       const endTimeString = shiftForm.handling_time.format('hh:mm:ss A');
       const breakTimeString = shiftForm.setupTime.format('hh:mm:ss A'); // Changed to 'hh:mm:ss A' for consistency
@@ -465,7 +481,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                   )}
                 </div>
 
-    {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
+                {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
                   <CustomDaySelect
                     {...register("operation_type", { required: "Operation type is required" })}
                     onBlur={() => trigger('operation_type')}
@@ -482,7 +498,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                     ]}
                     error={!!errors.operation_type}
                     sx={{
-                     '& .MuiInputLabel-root': {
+                      '& .MuiInputLabel-root': {
                         top: '-6px',
                         backgroundColor: '#ededed',
                         padding: '0 4px',
@@ -695,183 +711,132 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                   />
                   {errors.factor && <div className="mat-error">{errors.factor.message}</div>} {/* Changed to div and mat-error */}
                 </div>
-                <div className={`form_field  ${errors.cycle_time ? 'error-outline' : ''}`}>
+                {/* ===== Cycle Time ===== */}
+                <div className={`form_field ${errors.cycle_time ? "error-outline" : ""}`}>
                   <DemoItem className="white-label">
                     <TimePicker
                       {...register("cycle_time", {
                         required: "Cycle Time is required",
-                        // validate: (value, formValues) => {
-                        //   if (customerTitle === "ATECH") {
-                        //     return true;
-                        //   }
-                        //   const cycleTime = value;
-                        //   const handlingTime = formValues.handling_time;
-                        //   const setupTime = formValues.setupTime;
-
-                        //   if (cycleTime && cycleTime.isValid()) {
-                        //     if (handlingTime && handlingTime.isValid() && cycleTime.isSame(handlingTime, 'second')) {
-                        //       return "Cycle Time cannot be same as Handling Time";
-                        //     }
-                        //     if (setupTime && setupTime.isValid() && cycleTime.isSame(setupTime, 'second')) {
-                        //       return "Cycle Time cannot be same as Setup Time";
-                        //     }
-                        //   }
-                        //   return true;
-                        // }
+                        validate: (value) => {
+                          if (!value) return "Cycle Time is required";
+                          if (!dayjs(value).isValid()) return "Invalid time format";
+                          return true;
+                        },
                       })}
-                      onBlur={() => trigger('cycle_time')}
+                      onBlur={() => trigger("cycle_time")}
                       value={shiftForm.cycle_time}
-                      onChange={(value) => {
-                        handleTimeChange('cycle_time', value);
-                        if (value && value.isValid()) {
-                          trigger('handling_time');
-                          trigger('setupTime');
-                        }
-                      }}
-                      views={['hours', 'minutes', 'seconds']}
-                      openTo="hours"
+                      onChange={(value) => handleTimeChange("cycle_time", value)}
+                      views={["hours", "minutes", "seconds"]}
                       format="HH:mm:ss"
-                      label="Cycle Time *"
                       ampm={false}
+                      label="Cycle Time *"
                       error={!!errors.cycle_time}
-                      InputLabelProps={{ required: true }}
                       slotProps={{
                         textField: {
-                          placeholder: "HH:mm:ss",   // allows typing manually
-                        }
+                          helperText: errors.cycle_time?.message,
+                        },
                       }}
                       sx={{
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': { borderColor: 'black' },
-                          '&:hover fieldset': { borderColor: 'black' },
-                          '&.Mui-focused fieldset': { borderColor: 'orange' },
-                          '& .MuiOutlinedInput-input': { color: 'black' },
-                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                          '&::placeholder': { color: 'black', opacity: 1 },
+                        "& .MuiOutlinedInput-root": {
+                          "& fieldset": {
+                            borderColor: errors.cycle_time ? "red" : "black",
+                          },
+                          "&:hover fieldset": { borderColor: "black" },
+                          "&.Mui-focused fieldset": {
+                            borderColor: errors.cycle_time ? "red" : "orange",
+                          },
+                          "& .MuiOutlinedInput-input": { color: "black" },
+                          "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
                         },
                       }}
                     />
                   </DemoItem>
-                  {errors.cycle_time && <div className="mat-error">{errors.cycle_time.message}</div>}
                 </div>
-                <div className={`form_field  ${errors.handling_time ? 'error-outline' : ''}`}>
+
+                {/* ===== Handling Time ===== */}
+                <div className={`form_field ${errors.handling_time ? "error-outline" : ""}`}>
                   <DemoItem>
                     <TimePicker
                       {...register("handling_time", {
                         required: "Handling Time is required",
-                        // validate: (value, formValues) => {
-                        //   if (customerTitle === "ATECH") {
-                        //     return true;
-                        //   }
-                        //   const handlingTime = value;
-                        //   const cycleTime = formValues.cycle_time;
-                        //   const setupTime = formValues.setupTime;
-
-                        //   if (handlingTime && handlingTime.isValid()) {
-                        //     if (cycleTime && cycleTime.isValid() && handlingTime.isSame(cycleTime, 'second')) {
-                        //       return "Handling Time cannot be same as Cycle Time";
-                        //     }
-                        //     if (setupTime && setupTime.isValid() && handlingTime.isSame(setupTime, 'second')) {
-                        //       return "Handling Time cannot be same as Setup Time";
-                        //     }
-                        //   }
-                        //   return true;
-                        // }
+                        validate: (value) => {
+                          if (!value) return "Handling Time is required";
+                          if (!dayjs(value).isValid()) return "Invalid time format";
+                          return true;
+                        },
                       })}
-                      onBlur={() => trigger('handling_time')}
+                      onBlur={() => trigger("handling_time")}
                       value={shiftForm.handling_time}
-                      onChange={(value) => {
-                        handleTimeChange('handling_time', value);
-                        if (value && value.isValid()) {
-                          trigger('cycle_time');
-                          trigger('setupTime');
-                        }
-                      }}
-                      views={['hours', 'minutes', 'seconds']}
-                      openTo="hours"
+                      onChange={(value) => handleTimeChange("handling_time", value)}
+                      views={["hours", "minutes", "seconds"]}
                       format="HH:mm:ss"
                       ampm={false}
                       label="Handling Time *"
                       error={!!errors.handling_time}
-                      InputLabelProps={{ required: true }}
                       slotProps={{
                         textField: {
-                          placeholder: "HH:mm:ss",   // ✅ allows manual typing
-                        }
+                          helperText: errors.handling_time?.message,
+                        },
                       }}
                       sx={{
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': { borderColor: 'black' },
-                          '&:hover fieldset': { borderColor: 'black' },
-                          '&.Mui-focused fieldset': { borderColor: 'orange' },
-                          '& .MuiOutlinedInput-input': { color: 'black' },
-                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                          '&::placeholder': { color: 'black', opacity: 1 },
+                        "& .MuiOutlinedInput-root": {
+                          "& fieldset": {
+                            borderColor: errors.handling_time ? "red" : "black",
+                          },
+                          "&:hover fieldset": { borderColor: "black" },
+                          "&.Mui-focused fieldset": {
+                            borderColor: errors.handling_time ? "red" : "orange",
+                          },
+                          "& .MuiOutlinedInput-input": { color: "black" },
+                          "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
                         },
                       }}
                     />
                   </DemoItem>
-                  {errors.handling_time && <div className="mat-error">{errors.handling_time.message}</div>}
                 </div>
-                <div className={`form_field  ${errors.setupTime ? 'error-outline' : ''}`}>
+
+                {/* ===== Setup Time ===== */}
+                <div className={`form_field ${errors.setupTime ? "error-outline" : ""}`}>
                   <DemoItem>
                     <TimePicker
                       {...register("setupTime", {
                         required: "Setup Time is required",
-                        // validate: (value, formValues) => {
-                        //   if (customerTitle === "ATECH") {
-                        //     return true;
-                        //   }
-                        //   const setupTime = value;
-                        //   const cycleTime = formValues.cycle_time;
-                        //   const handlingTime = formValues.handling_time;
-
-                        //   if (setupTime && setupTime.isValid()) {
-                        //     if (cycleTime && cycleTime.isValid() && setupTime.isSame(cycleTime, 'second')) {
-                        //       return "Setup Time cannot be same as Cycle Time";
-                        //     }
-                        //     if (handlingTime && handlingTime.isValid() && setupTime.isSame(handlingTime, 'second')) {
-                        //       return "Setup Time cannot be same as Handling Time";
-                        //     }
-                        //   }
-                        //   return true;
-                        // }
+                        validate: (value) => {
+                          if (!value) return "Setup Time is required";
+                          if (!dayjs(value).isValid()) return "Invalid time format";
+                          return true;
+                        },
                       })}
-                      onBlur={() => trigger('setupTime')}
+                      onBlur={() => trigger("setupTime")}
                       value={shiftForm.setupTime}
-                      onChange={(value) => {
-                        handleTimeChange('setupTime', value);
-                        if (value && value.isValid()) {
-                          trigger('cycle_time');
-                          trigger('handling_time');
-                        }
-                      }}
-                      views={['hours', 'minutes', 'seconds']}
-                      openTo="hours"
+                      onChange={(value) => handleTimeChange("setupTime", value)}
+                      views={["hours", "minutes", "seconds"]}
                       format="HH:mm:ss"
-                      label="Setup Time *"
                       ampm={false}
+                      label="Setup Time *"
                       error={!!errors.setupTime}
-                      InputLabelProps={{ required: true }}
                       slotProps={{
                         textField: {
-                          placeholder: "HH:mm:ss",   // ✅ allows manual typing
-                        }
+                          helperText: errors.setupTime?.message,
+                        },
                       }}
                       sx={{
-                        '& .MuiOutlinedInput-root': {
-                          '& fieldset': { borderColor: 'black' },
-                          '&:hover fieldset': { borderColor: 'black' },
-                          '&.Mui-focused fieldset': { borderColor: 'orange' },
-                          '& .MuiOutlinedInput-input': { color: 'black' },
-                          '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                          '&::placeholder': { color: 'black', opacity: 1 },
+                        "& .MuiOutlinedInput-root": {
+                          "& fieldset": {
+                            borderColor: errors.setupTime ? "red" : "black",
+                          },
+                          "&:hover fieldset": { borderColor: "black" },
+                          "&.Mui-focused fieldset": {
+                            borderColor: errors.setupTime ? "red" : "orange",
+                          },
+                          "& .MuiOutlinedInput-input": { color: "black" },
+                          "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
                         },
                       }}
                     />
                   </DemoItem>
-                  {errors.setupTime && <div className="mat-error">{errors.setupTime.message}</div>}
                 </div>
+
 
 
                 {/* Operation Number Field 
