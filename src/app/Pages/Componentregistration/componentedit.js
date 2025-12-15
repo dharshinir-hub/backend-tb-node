@@ -153,6 +153,16 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
   };
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
   const onSubmit = async (data) => {
+      if (
+        !data.cycle_time ||
+        data.cycle_time.format('HH:mm:ss') === '00:00:00'
+
+      ) {
+        handleClose();
+        Swal.fire('Error', 'Cycle Time must not be 00:00:00.', 'error');
+        return;
+      }
+      
     try {
       const startTimeString = shiftForm.cycle_time.format('hh:mm:ss A');
       const endTimeString = shiftForm.handling_time.format('hh:mm:ss A');
