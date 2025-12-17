@@ -184,9 +184,13 @@ export default function MachineDashboard() {
       return { from: null, to: null };
     }
 
-    const todayStr = dayjs().format("YYYY-MM-DD"); // today
     const selectedStr = dayjs(selectedDate).format("YYYY-MM-DD");
-    const nextDayStr = dayjs(selectedDate).add(1, "day").format("YYYY-MM-DD");
+
+    // helper function to calculate date offset
+    const getDateByDayOffset = (baseDate, dayValue) => {
+      const offset = Number(dayValue) - 1; // 1 = same day, 2 = +1 day, etc.
+      return dayjs(baseDate).add(offset, "day").format("YYYY-MM-DD");
+    };
 
     const normalizedShift =
       typeof selectedShift === "string"
@@ -197,58 +201,44 @@ export default function MachineDashboard() {
 
     if (normalizedShift === "") return { from: null, to: null };
 
-    // All shifts
+    // 🟢 Handle All Shifts
     if (normalizedShift === "allshift" || normalizedShift === "all shift") {
       const sortedShifts = [...shifts].sort(
         (a, b) => Number(a.shift_no) - Number(b.shift_no)
       );
-      const firstShiftStart = sortedShifts[0]?.start_time;
-      const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
 
-      if (firstShiftStart && lastShiftEnd) {
-        const fromStr = `${selectedStr}T${firstShiftStart}`;
-        let toStr;
-        if (selectedStr === todayStr) {
-          toStr =
-            lastShiftEnd <= firstShiftStart
-              ? `${nextDayStr}T${lastShiftEnd}`
-              : `${selectedStr}T${lastShiftEnd}`;
-        } else {
-          // handle overnight shifts
-          toStr =
-            lastShiftEnd <= firstShiftStart
-              ? `${nextDayStr}T${lastShiftEnd}`
-              : `${selectedStr}T${lastShiftEnd}`;
-        }
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+      if (!firstShift || !lastShift) return { from: null, to: null };
 
-        return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
-      }
+      const fromDateStr = getDateByDayOffset(selectedStr, firstShift.start_day);
+      const toDateStr = getDateByDayOffset(selectedStr, lastShift.end_day);
 
-      return { from: null, to: null };
+      const fromStr = `${fromDateStr}T${firstShift.start_time}`;
+      const toStr = `${toDateStr}T${lastShift.end_time}`;
+
+      return {
+        from: new Date(fromStr).getTime(),
+        to: new Date(toStr).getTime(),
+      };
     }
 
-    // Single shift
+    // 🟡 Handle Single Shift
     const shiftData = shifts.find((s) => String(s.shift_no) === normalizedShift);
     if (!shiftData) return { from: null, to: null };
 
-    const shiftStart = shiftData.start_time;
-    const shiftEnd = shiftData.end_time;
+    const { start_time, end_time, start_day, end_day } = shiftData;
 
-    const fromStr = `${selectedStr}T${shiftStart}`;
-    let toStr;
-    if (selectedStr === todayStr) {
-      toStr = shiftEnd <= shiftStart
-        ? `${nextDayStr}T${shiftEnd}`
-        : `${selectedStr}T${shiftEnd}`; // current time
-    } else {
-      // handle overnight shifts
-      toStr =
-        shiftEnd <= shiftStart
-          ? `${nextDayStr}T${shiftEnd}`
-          : `${selectedStr}T${shiftEnd}`;
-    }
+    const fromDateStr = getDateByDayOffset(selectedStr, start_day);
+    const toDateStr = getDateByDayOffset(selectedStr, end_day);
 
-    return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
+    const fromStr = `${fromDateStr}T${start_time}`;
+    const toStr = `${toDateStr}T${end_time}`;
+
+    return {
+      from: new Date(fromStr).getTime(),
+      to: new Date(toStr).getTime(),
+    };
   }
 
 
@@ -602,46 +592,65 @@ export default function MachineDashboard() {
       return { fromEpoch: null, toEpoch: null };
     }
 
-    const shiftValue = typeof selectedShift === "number" ? String(selectedShift) : selectedShift || "";
+    const shiftValue =
+      typeof selectedShift === "number"
+        ? String(selectedShift)
+        : selectedShift || "";
+
+    const normalizedShift = shiftValue.trim().toLowerCase();
     const baseDate = dayjs(selectedDate).subtract(1, "day").format("YYYY-MM-DD");
     const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
+
+    // helper: get actual date string based on start_day or end_day
+    const getDateByDayOffset = (baseDate, dayValue) => {
+      const offset = Number(dayValue) - 1; // 1 = same day, 2 = +1 day
+      return dayjs(baseDate).add(offset, "day").format("YYYY-MM-DD");
+    };
 
     let fromEpoch = null;
     let toEpoch = null;
 
-    const normalizedShift = shiftValue.trim().toLowerCase();
-
+    // 🟢 Handle All Shifts
     if (normalizedShift === "allshift" || normalizedShift === "all shift") {
-      const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
-      const firstShiftStart = sortedShifts[0]?.start_time;
-      const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
+      const sortedShifts = [...shifts].sort(
+        (a, b) => Number(a.shift_no) - Number(b.shift_no)
+      );
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+      if (!firstShift || !lastShift) return { fromEpoch: null, toEpoch: null };
 
-      if (firstShiftStart && lastShiftEnd) {
-        fromEpoch = new Date(`${baseDate}T${firstShiftStart}`).getTime();
-        toEpoch = new Date(`${baseDate}T${lastShiftEnd}`).getTime();
+      const fromDateStr = getDateByDayOffset(baseDate, firstShift.start_day);
+      const toDateStr = getDateByDayOffset(baseDate, lastShift.end_day);
 
-        if (lastShiftEnd <= firstShiftStart) {
-          toEpoch = new Date(`${todayStr}T${lastShiftEnd}`).getTime();
-        }
-      }
-    } else {
-      const shiftData = shifts.find((s) => String(s.shift_no) === String(shiftValue));
-      if (shiftData) {
-        const shiftStart = shiftData.start_time;
-        const shiftEnd = shiftData.end_time;
+      const fromStr = `${fromDateStr}T${firstShift.start_time}`;
+      const toStr = `${toDateStr}T${lastShift.end_time}`;
 
-        fromEpoch = new Date(`${baseDate}T${shiftStart}`).getTime();
-        toEpoch = new Date(`${baseDate}T${shiftEnd}`).getTime();
-
-        if (shiftEnd <= shiftStart) {
-          toEpoch = new Date(`${todayStr}T${shiftEnd}`).getTime();
-        }
-      }
+      fromEpoch = new Date(fromStr).getTime();
+      toEpoch = new Date(toStr).getTime();
     }
 
+    // 🟡 Handle Single Shift
+    else {
+      const shiftData = shifts.find(
+        (s) => String(s.shift_no) === String(shiftValue)
+      );
+      if (!shiftData) return { fromEpoch: null, toEpoch: null };
+
+      const { start_time, end_time, start_day, end_day } = shiftData;
+
+      const fromDateStr = getDateByDayOffset(baseDate, start_day);
+      const toDateStr = getDateByDayOffset(baseDate, end_day);
+
+      const fromStr = `${fromDateStr}T${start_time}`;
+      const toStr = `${toDateStr}T${end_time}`;
+
+      fromEpoch = new Date(fromStr).getTime();
+      toEpoch = new Date(toStr).getTime();
+    }
 
     return { fromEpoch, toEpoch };
   }
+
 
   console.log("FromTime (epoch):", fromTime);
   console.log("ToTime (epoch):", toTime);
@@ -660,14 +669,14 @@ export default function MachineDashboard() {
       setToTime(toEpoch);
       setFrom(from);
       setTo(to);
-
-      console.log("✅ fromTime:", fromEpoch);
-      console.log("✅ toTime:", toEpoch);
-
-
-
-      console.log("✅ from:", from);
-      console.log("✅ to:", to);
+      const fromTimeFormatted = dayjs(fromEpoch).format("YYYY-MM-DD HH:mm:ss");
+      const toTimeFormatted = dayjs(toEpoch).format("YYYY-MM-DD HH:mm:ss");
+      console.log("✅ fromTime:", fromEpoch, fromTimeFormatted, '(yesterday)');
+      console.log("✅ toTime:", toEpoch, toTimeFormatted, '(yesterday)');
+      const fromFormatted = dayjs(from).format("YYYY-MM-DD HH:mm:ss");
+      const toFormatted = dayjs(to).format("YYYY-MM-DD HH:mm:ss");
+      console.log("✅ from:", from, fromFormatted, '(today)');
+      console.log("✅ to:", to, toFormatted, '(today)');
     }
   }, [shifts, selectedShift, selectedDate]);
 
