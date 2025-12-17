@@ -7,6 +7,7 @@ window._env_ = {
     CUSTOMER_ID: "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
     SMC_CUSTOMER_ID: "527951c0-c50b-11f0-878e-073dc60e4f9a",
     MARKS_CUSTOMER_ID: "f05b99b0-da4c-11f0-a7b3-dbcd7348bdb3",
+    MAKINO_CUSTOMER_ID: "29c6cb40-74fc-11f0-b2ca-b34d1d1b8f24",
     TENANT_GMAIL: "pms@gmail.com",
     TENANT_PASSWORD: "pmspms",
     LOGO: "b0coVWpU9C1Ztg9CrjtkHgi87ia4gFxH",

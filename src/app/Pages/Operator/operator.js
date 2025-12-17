@@ -69,6 +69,8 @@ function Operator() {
             return window._env_.SMC_CUSTOMER_ID;
         } else if (location.pathname === "/marks_operator_ch8st") {
             return window._env_.MARKS_CUSTOMER_ID;
+        } else if (location.pathname === "/makino_operator_av5tc") {
+            return window._env_.MAKINO_CUSTOMER_ID;
         } else {
             const customerIdStr = localStorage.getItem('CustomerID');
             try {
@@ -1058,7 +1060,8 @@ function Operator() {
         if (
             location.pathname !== "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" &&
             location.pathname !== "/smc_operator_bf9tz" &&
-            location.pathname !== "/marks_operator_ch8st"
+            location.pathname !== "/marks_operator_ch8st" &&
+            location.pathname !== "/makino_operator_av5tc" 
         ) {
             return;
         }
