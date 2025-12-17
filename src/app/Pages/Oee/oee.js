@@ -87,10 +87,25 @@ const Oee = () => {
     };
   }, [newToken]);
 
+
+    const getCustomerIdFromPath = () => {
+    if (location.pathname === "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp") {
+      return window._env_.CUSTOMER_ID;
+    } else if (location.pathname === "/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp") {
+      return window._env_.MARKS_CUSTOMER_ID;
+    }
+    return null;
+  };
+
   // ✅ login and set customerId1
   useEffect(() => {
-    if (location.pathname !== "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp" &&
-      location.pathname !== "/o") {
+     const allowedPaths = [
+      "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp",
+      "/o",
+      "/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp"
+    ];
+    
+    if (!allowedPaths.includes(location.pathname)) {
       return;
     }
 
@@ -104,7 +119,12 @@ const Oee = () => {
         localStorage.setItem("refreshToken1", secondResponse.refreshToken);
         localStorage.setItem("Companyname1", secondResponse.Companyname);
         localStorage.setItem("role_name1", secondResponse.Role);
-        setCustomerId1(window._env_.CUSTOMER_ID);
+        const newCustomerId = getCustomerIdFromPath();
+        if (newCustomerId) {
+          setCustomerId1(newCustomerId);
+          localStorage.setItem("customerId1", newCustomerId);
+        }
+     
         startTokenAutoRefresh();
       } catch (err) {
         console.error("Init failed", err);
@@ -165,12 +185,7 @@ const Oee = () => {
     }
   };
 
-  useEffect(() => {
-    if (customerId || customerId1) {
-      fetchShifts();
-    }
-  }, [customerId, customerId1]);
-  console.log('Shifts', shifts)
+
 
   const formatCountdown = (ms) => {
     if (ms <= 0) return "00:00:00";
@@ -238,6 +253,7 @@ const Oee = () => {
 
   useEffect(() => {
     if (customerId || customerId1) {
+      fetchShifts();
       fetchDevices();
       fetchMachineGroups();
     }
@@ -250,30 +266,44 @@ const Oee = () => {
 
 
   function setLastWeekEpoch(shifts) {
+    if (!Array.isArray(shifts) || shifts.length === 0) return;
     const now = new Date();
     const dayOfWeek = now.getDay();
-    let lastWeekStart, lastWeekEnd;
-    if (shifts && shifts.length >= 1) {
-      const firstShift = shifts[0];
-      const lastShift = shifts[shifts.length - 1];
-      lastWeekStart = new Date(now);
-      const diffToMonday = ((dayOfWeek + 6) % 7) + 7;
-      lastWeekStart.setDate(now.getDate() - diffToMonday);
-      const [startH, startM, startS] = firstShift.start_time.split(":").map(Number);
-      lastWeekStart.setHours(startH, startM, startS, 0);
-      lastWeekEnd = new Date(lastWeekStart);
-      lastWeekEnd.setDate(lastWeekStart.getDate() + 7);
-      const [endH, endM, endS] = lastShift.end_time.split(":").map(Number);
-      lastWeekEnd.setHours(endH, endM, endS, 0);
-    } else {
-      lastWeekStart = new Date(now);
-      const diffToMonday = ((dayOfWeek + 6) % 7) + 7;
-      lastWeekStart.setDate(now.getDate() - diffToMonday);
-      lastWeekStart.setHours(0, 0, 0, 0);
-      lastWeekEnd = new Date(lastWeekStart);
-      lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
-      lastWeekEnd.setHours(23, 59, 59, 999);
+    const lastMonday = new Date(now);
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    lastMonday.setDate(now.getDate() - diffToMonday - 7);
+    lastMonday.setHours(0, 0, 0, 0);
+    let minStart = Infinity;
+    for (const shift of shifts) {
+      const [h, m, s] = shift.start_time.split(":").map(Number);
+      const total = h * 3600 + m * 60 + s;
+      if (total < minStart) minStart = total;
     }
+    let maxEnd = -Infinity;
+    for (const shift of shifts) {
+      const [h, m, s] = shift.end_time.split(":").map(Number);
+      const total = h * 3600 + m * 60 + s;
+      if (total <= minStart) {
+        maxEnd = Math.max(maxEnd, total + 24 * 3600);
+      } else {
+        maxEnd = Math.max(maxEnd, total);
+      }
+    }
+    const lastWeekStart = new Date(lastMonday);
+    lastWeekStart.setHours(
+      Math.floor(minStart / 3600),
+      Math.floor((minStart % 3600) / 60),
+      minStart % 60,
+      0
+    );
+    const lastWeekEnd = new Date(lastMonday);
+    lastWeekEnd.setDate(lastMonday.getDate() + 7);
+    lastWeekEnd.setHours(
+      Math.floor(maxEnd / 3600) % 24,
+      Math.floor((maxEnd % 3600) / 60),
+      maxEnd % 60,
+      0
+    );
     LAST_WEEK_FROM_EPOCH = lastWeekStart.getTime();
     LAST_WEEK_TO_EPOCH = lastWeekEnd.getTime();
   }
@@ -667,7 +697,7 @@ useEffect(() => {
   const [scrollDelay, setScrollDelay] = useState(15000);
 
   useEffect(() => {
-    const customerTitle = localStorage.getItem('customerTitle') || 'PMI GLOBAL';
+    const customerTitle = localStorage.getItem('customerTitle') || '';
     setCustomerTitle(customerTitle);
   }, []);
 

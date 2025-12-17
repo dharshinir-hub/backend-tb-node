@@ -30,8 +30,13 @@ function LoginForm() {
 
     try {
       if (data.username === 'pmi_tv1@yantra24x7.com' && data.password === 'pmitv1') {
+        localStorage.setItem("customerTitle",  "PMI GLOBAL");
         tenantLogin()
         navigate("/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp");
+      } else if (data.username === 'marks_tv@yantra24x7.com' && data.password === 'markstv') {
+        localStorage.setItem("customerTitle", "MARKS");
+        tenantLogin()
+        navigate("/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp");
       }
       else
         if (data.username.includes("@") && data.username.includes(".com")) {

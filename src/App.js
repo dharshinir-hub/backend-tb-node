@@ -17,6 +17,7 @@ function App() {
   const location = useLocation();
   const operatorPath = "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV";
   const oeePath = '/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp';
+  const oeePath2 = '/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp'
   const { logout } = useContext(UserDetailsContext);
   
 const [touchEnabled, setTouchEnabled] = useState(false);
@@ -36,7 +37,7 @@ const [touchEnabled, setTouchEnabled] = useState(false);
 
 
   const handleLogout = () => {
-    if (location.pathname === operatorPath || location.pathname === oeePath) {
+    if (location.pathname === operatorPath || location.pathname === oeePath || location.pathname === oeePath2) {
       return;
     }
     Swal.fire({
