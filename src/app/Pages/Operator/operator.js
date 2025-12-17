@@ -231,7 +231,7 @@ function Operator() {
             const shifts = response[0]?.value || [];
             setShifts(shifts);
             const currentActiveShift = await getCurrentShift(shifts, dayjs());
-            const { shiftStart, now } = getShiftEpoch(currentActiveShift?.start_time);
+            const { shiftStart, now, shiftEnd } = getShiftEpoch(currentActiveShift?.start_time, currentActiveShift?.end_time);
             await fetchOperators();
             const keysConfig = [
                 { key: "machine_status", isJson: false },
@@ -243,10 +243,15 @@ function Operator() {
             const data = await getFirstMachineActive("DEVICE", deviceId, {
                 keys: keysConfig.map(k => k.key).join(","),
                 startTs: shiftStart || Date.now() - 3600000,
-                endTs: now || Date.now(),
+                endTs: shiftEnd || Date.now(),
             });
+            const filteredData = {
+                ...data,
+                live_operator: (data.live_operator || []).filter(item => item.ts <= now),
+                live_component: (data.live_component || []).filter(item => item.ts <= now),
+            };
             const getLatest = (key, isJson = false) => {
-                const arr = data[key];
+                const arr = filteredData[key];
                 if (!arr || arr.length === 0) return isJson ? {} : null;
                 const value = arr[0].value;
                 if (!isJson) return value;
@@ -257,7 +262,7 @@ function Operator() {
                     return {};
                 }
             };
-            const machineStatusArray = data.machine_status || [];
+            const machineStatusArray = filteredData.machine_status || [];
             const latestStatusCode = parseInt(machineStatusArray[0]?.value || 0, 10);
             const machineStatus = statusText(latestStatusCode);
             const firstActive = machineStatusArray
@@ -295,7 +300,7 @@ function Operator() {
                 jobCode,
                 liveOperator: liveOperatorCode,
             });
-            return data;
+            return filteredData;
         } catch (err) {
             console.error("Telemetry fetch failed", err);
         }

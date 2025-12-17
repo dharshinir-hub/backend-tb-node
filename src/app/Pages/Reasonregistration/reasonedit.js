@@ -18,7 +18,8 @@ import { CustomDaySelect } from '../Inputfield/inputfield';
 export default function ReasonEdit({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId, dialogData }) {
   const memoizedDatasource = useMemo(() => datasource, [datasource]);
   const memoizedDialogData = useMemo(() => dialogData, [dialogData]);
-
+  const userDetails = JSON.parse(localStorage.getItem("userDetails") || "{}");
+  const hasReasonEditAccess = userDetails?.reasonEditAccess === true;
   const customDaySelectRef = useRef();
   const modeSelectRef = useRef(); // New ref for mode field
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
@@ -203,7 +204,7 @@ export default function ReasonEdit({ open, handleClose, handleAdd, dialogOpenCou
                     label="Reason"
                     type="text"
                     name="reason"
-                    disabled
+                    disabled={!hasReasonEditAccess}
                     value={shiftForm.reason}
                     onChange={handleFormChange}
                     error={!!errors.reason}
