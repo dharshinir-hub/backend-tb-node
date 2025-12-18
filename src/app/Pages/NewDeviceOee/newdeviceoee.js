@@ -253,30 +253,44 @@ const NewDeviceOee = () => {
 
 
   function setLastWeekEpoch(shifts) {
+    if (!Array.isArray(shifts) || shifts.length === 0) return;
     const now = new Date();
     const dayOfWeek = now.getDay();
-    let lastWeekStart, lastWeekEnd;
-    if (shifts && shifts.length >= 1) {
-      const firstShift = shifts[0];
-      const lastShift = shifts[shifts.length - 1];
-      lastWeekStart = new Date(now);
-      const diffToMonday = ((dayOfWeek + 6) % 7) + 7;
-      lastWeekStart.setDate(now.getDate() - diffToMonday);
-      const [startH, startM, startS] = firstShift.start_time.split(":").map(Number);
-      lastWeekStart.setHours(startH, startM, startS, 0);
-      lastWeekEnd = new Date(lastWeekStart);
-      lastWeekEnd.setDate(lastWeekStart.getDate() + 7);
-      const [endH, endM, endS] = lastShift.end_time.split(":").map(Number);
-      lastWeekEnd.setHours(endH, endM, endS, 0);
-    } else {
-      lastWeekStart = new Date(now);
-      const diffToMonday = ((dayOfWeek + 6) % 7) + 7;
-      lastWeekStart.setDate(now.getDate() - diffToMonday);
-      lastWeekStart.setHours(0, 0, 0, 0);
-      lastWeekEnd = new Date(lastWeekStart);
-      lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
-      lastWeekEnd.setHours(23, 59, 59, 999);
+    const lastMonday = new Date(now);
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    lastMonday.setDate(now.getDate() - diffToMonday - 7);
+    lastMonday.setHours(0, 0, 0, 0);
+    let minStart = Infinity;
+    for (const shift of shifts) {
+      const [h, m, s] = shift.start_time.split(":").map(Number);
+      const total = h * 3600 + m * 60 + s;
+      if (total < minStart) minStart = total;
     }
+    let maxEnd = -Infinity;
+    for (const shift of shifts) {
+      const [h, m, s] = shift.end_time.split(":").map(Number);
+      const total = h * 3600 + m * 60 + s;
+      if (total <= minStart) {
+        maxEnd = Math.max(maxEnd, total + 24 * 3600);
+      } else {
+        maxEnd = Math.max(maxEnd, total);
+      }
+    }
+    const lastWeekStart = new Date(lastMonday);
+    lastWeekStart.setHours(
+      Math.floor(minStart / 3600),
+      Math.floor((minStart % 3600) / 60),
+      minStart % 60,
+      0
+    );
+    const lastWeekEnd = new Date(lastMonday);
+    lastWeekEnd.setDate(lastMonday.getDate() + 7);
+    lastWeekEnd.setHours(
+      Math.floor(maxEnd / 3600) % 24,
+      Math.floor((maxEnd % 3600) / 60),
+      maxEnd % 60,
+      0
+    );
     LAST_WEEK_FROM_EPOCH = lastWeekStart.getTime();
     LAST_WEEK_TO_EPOCH = lastWeekEnd.getTime();
   }
