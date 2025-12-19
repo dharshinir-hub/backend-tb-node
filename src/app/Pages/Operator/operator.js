@@ -277,7 +277,7 @@ function Operator() {
                         : machineStatus.toLowerCase() === "alarm"
                             ? "#E53E3E"
                             : machineStatus.toLowerCase() === "disconnect"
-                                ? "#ccc"
+                                ? "#808080"
                                 : "#ccc";
             const targetParts = parseInt(getLatest("targetparts") || 0, 10);
             const totalParts = getLatest("totalparts", true);
@@ -298,6 +298,7 @@ function Operator() {
                 ncr,
                 jobName,
                 jobCode,
+                liveComponent,
                 liveOperator: liveOperatorCode,
             });
             return filteredData;
@@ -1159,12 +1160,13 @@ function Operator() {
     }));
 
     const handleConfirmAlert = () => {
+        const operator = operators.find((o) => o.id === pendingOperator)
         Swal.fire({
             title: "Confirm Change",
             text:
                 confirmType === "machine"
                     ? `Are you sure you want to change the machine to "${pendingMachine}"?`
-                    : `Are you sure you want to change the operator to "${operators.find((o) => o.id === pendingOperator)?.name || ""
+                    : `Are you sure you want to change the operator to "${operator.id} - ${operator.name
                     }"?`,
             icon: "warning",
             showCancelButton: true,
@@ -1377,7 +1379,7 @@ function Operator() {
                                         return <span style={{ color: "#f99022" }}>No operator assigned</span>;
                                     }
                                     const operator = operators.find(op => String(op.id) === String(selected));
-                                    return operator ? operator.name : "";
+                                    return operator ? `${operator.id} - ${operator.name}`  : "";
                                 }}
                                 disableUnderline
                             >
@@ -1386,7 +1388,7 @@ function Operator() {
                                 </MenuItem>
                                 {operators.map((op) => (
                                     <MenuItem key={op.id} value={op.id}>
-                                        {op?.name}
+                                        {op?.id} - {op?.name}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -1394,13 +1396,24 @@ function Operator() {
                     </div>
                 </div>
                 <div className="contect-section">
-                    <p style={{ textAlign: 'center' }}>
-                        {telemetry.jobName}
-                    </p>
-                    <div style={{ textAlign: "end", marginTop: "0.2rem" }}>
-                        <p className="actual">Actual vs Target</p>
+                    <div className="job-info">
+                        <p className="job-code">{telemetry.jobCode || ""}</p>
+                        <p className="job-name">{telemetry.jobName || "—"}</p>
+                    </div>
+                    <div className="time-wrapper">
+                        <div className="time-item">
+                            <span>Cycle Time</span>
+                            <p>{telemetry?.liveComponent?.cycle_time || "00:00:00"}</p>
+                        </div>
+                        <div className="time-item">
+                            <span>Handling Time</span>
+                            <p>{telemetry?.liveComponent?.handling_time || "00:00:00"}</p>
+                        </div>
+                    </div>
+                    <div className="actual-wrapper">
+                        <p className="actual-label">Actual vs Target</p>
                         <p className="actual-value">
-                            {telemetry.totalShots}/{telemetry.targetParts}
+                            {telemetry.totalShots ?? 0}/{telemetry.targetParts ?? 0}
                         </p>
                     </div>
                 </div>

@@ -831,3 +831,152 @@ div:where(.swal2-icon) {
 div:where(.swal2-container).swal2-center>.swal2-popup {
   width: auto !important;
 }
+
+.contect-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #1a1a1a;
+  font-family: "Poppins", sans-serif;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* --- Job Info --- */
+.job-info {
+  margin-bottom: 1.5rem;
+}
+
+.job-code {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #000;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.job-name {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #555;
+  margin: 0.3rem 0 0;
+}
+
+/* --- Time Info (Two Columns) --- */
+.time-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 3rem;
+  margin: 1.2rem 0 2rem;
+}
+
+.time-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 150px;
+}
+
+.time-item span {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #111;
+  margin-bottom: 0.2rem;
+  text-transform: capitalize;
+}
+
+.time-item p {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+  font-weight: 500;
+}
+
+/* --- Actual vs Target --- */
+.actual-wrapper {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.actual-label {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 0.4rem;
+}
+
+.actual-value {
+  font-size: 3.6rem;
+  font-weight: 800;
+  color: #f99022;
+  margin: 0;
+  line-height: 1.1;
+}
+
+/* --- Large Screens --- */
+@media (min-width: 1440px) {
+  .job-code {
+    font-size: 2rem;
+  }
+
+  .job-name {
+    font-size: 1.3rem;
+  }
+
+  .time-item span,
+  .time-item p {
+    font-size: 1.25rem;
+  }
+
+  .actual-value {
+    font-size: 4rem;
+  }
+}
+
+/* --- Medium Screens --- */
+@media (max-width: 1024px) {
+  .job-code {
+    font-size: 1.5rem;
+  }
+
+  .job-name {
+    font-size: 1.05rem;
+  }
+
+  .actual-value {
+    font-size: 2.8rem;
+  }
+
+  .time-item span,
+  .time-item p {
+    font-size: 1rem;
+  }
+
+  .time-wrapper {
+    gap: 1.2rem;
+    margin: 0.8rem 0 1.5rem;
+  }
+}
+
+/* --- Small Screens --- */
+@media (max-width: 768px) {
+  .contect-section {
+    padding: 0.5rem;
+  }
+
+  .time-wrapper {
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 1rem 0;
+  }
+
+  .actual-value {
+    font-size: 2.4rem;
+  }
+}
+
