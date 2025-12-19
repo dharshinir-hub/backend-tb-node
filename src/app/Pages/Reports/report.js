@@ -63,7 +63,7 @@ export default function MachineReport() {
     ],
     oee: ["S.no", "Date", "Shift", "Machine Name", "Availability(%)", "Performance(%)", "Quality(%)", "OEE(%)"],
     part: [
-      "S.no", "Date", "Shift", "Machine Name", "Component Name", "Operator Name",
+      "S.no", "Date", "Shift", "Machine Name", "Component Name", "Operator Name","Total Parts",
       "Actual Parts", "Start Time", "End Time", "Run Time", "Idle/Stop Time",
       "Machine OFF Time", "Duration"
     ],
@@ -143,6 +143,7 @@ export default function MachineReport() {
       { key: "machine_name", formatter: row => formatWithFallback(row.machine_name) },
       { key: "route_card", formatter: row => formatWithFallback(row.route_card) },
       { key: "operator", formatter: row => formatWithFallback(row.operator) },
+      { key: "total_parts", formatter: row => formatWithFallback(row.total_parts) },
       { key: "productresult", formatter: row => formatWithFallback(row.productresult) },
       { key: "start_time", formatter: row => row.start_time ? formatDateTime(row.start_time) : "---" },
       { key: "end_time", formatter: row => row.end_time ? formatDateTime(row.end_time) : "---" },
