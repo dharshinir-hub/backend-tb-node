@@ -76,15 +76,38 @@ const OperatorDetails = () => {
   const [OpenEditDialog4, setOpenEditDialog4] = useState(false);
   const [selectedComponentId, setSelectedComponentId] = useState('');
   const [selectedOperatorId, setSelectedOperatorId] = useState('');
-  const [operatorName, setOperatorName] = useState(''); 
-
+  const [operatorName, setOperatorName] = useState('');
+  const [savingComponent, setSavingComponent] = useState(false);
   const [timeErrors, setTimeErrors] = useState({
     startTime: '',
     endTime: ''
   });
+  const [savingStates, setSavingStates] = useState({
+    operator: false,
+    component: false,
+    supervisor: false
+  });
+
+  const [dateErrors, setDateErrors] = useState({
+    operator: '',
+    component: '',
+    supervisor: ''
+  });
 
   useEffect(() => {
-    if (openEditDialog1) {
+    if (openEditDialog || openEditDialog1 || OpenEditDialog4) {
+      const dateError = validateDate(selectedDate);
+      const newDateErrors = {
+        operator: openEditDialog ? dateError : '',
+        component: openEditDialog1 ? dateError : '',
+        supervisor: OpenEditDialog4 ? dateError : ''
+      };
+      setDateErrors(newDateErrors);
+    }
+  }, [selectedDate, openEditDialog, openEditDialog1, OpenEditDialog4]);
+
+  useEffect(() => {
+    if (openEditDialog || openEditDialog1 || OpenEditDialog4) {
       const startError = validateStartTime(startTime);
       const endError = validateEndTime(endTime);
       setTimeErrors({
@@ -92,42 +115,68 @@ const OperatorDetails = () => {
         endTime: endError
       });
     }
-  }, [startTime, endTime, selectedDate, selectedShift, openEditDialog1]);
+  }, [startTime, endTime, selectedDate, selectedShift, openEditDialog, openEditDialog1, OpenEditDialog4]);
+  // Add date validation function
+  const validateDate = (date) => {
+    if (!date || !date.isValid()) {
+      return 'Invalid date format';
+    }
+    const now = dayjs().startOf('day');
+    const maxDate = dayjs().add(7, 'day').endOf('day');
+    if (date.isBefore(now, 'day')) {
+      return 'Date cannot be in the past.';
+    }
+    if (date.isAfter(maxDate)) {
+      return 'Date cannot be more than 7 days from today.';
+    }
+    return '';
+  };
+
+  const handleTimeChange = (type, value, dialogType) => {
+    if (type === 'start') {
+      setStartTime(value);
+    } else {
+      setEndTime(value);
+    }
+    const startError = validateStartTime(type === 'start' ? value : startTime);
+    const endError = validateEndTime(type === 'end' ? value : endTime);
+    setTimeErrors({
+      startTime: startError,
+      endTime: endError
+    });
+    if (dialogType === 'component' && type === 'start' && value && endTime) {
+      setTimeout(() => validateAndCheckOverlap1(value, endTime), 100);
+    } else if (dialogType === 'component' && type === 'end' && startTime && value) {
+      setTimeout(() => validateAndCheckOverlap1(startTime, value), 100);
+    }
+  };
+
+  const handleStartTimeChange = (value) => handleTimeChange('start', value, 'operator');
+  const handleEndTimeChange = (value) => handleTimeChange('end', value, 'operator');
+  const handleStartTimeChange1 = (value) => handleTimeChange('start', value, 'component');
+  const handleEndTimeChange1 = (value) => handleTimeChange('end', value, 'component');
 
   const validateStartTime = (value) => {
     if (!value) return 'Start time is required';
-    const now = dayjs();
+    if (!value.isValid()) {
+      return 'Invalid time format';
+    }
     const selectedShiftData = shifts.find(
       (shift) => shift.shift_no === selectedShift
     );
     if (!selectedShiftData) return '';
-    const startLimit = dayjs(selectedDate)
-      .set('hour', selectedShiftData.start_time.split(':')[0])
-      .set('minute', selectedShiftData.start_time.split(':')[1])
-      .set('second', selectedShiftData.start_time.split(':')[2]);
-    let endLimit = dayjs(selectedDate)
-      .set('hour', selectedShiftData.end_time.split(':')[0])
-      .set('minute', selectedShiftData.end_time.split(':')[1])
-      .set('second', selectedShiftData.end_time.split(':')[2]);
-    const isOvernight = selectedShiftData.start_day !== selectedShiftData.end_day;
-    if (isOvernight) {
-      endLimit = endLimit.add(1, 'day');
+    const now = dayjs();
+    const isToday = selectedDate.isSame(now, 'day');
+    const { shiftStart, shiftEnd } = getShiftBoundaries(selectedShiftData, selectedDate);
+    const selectedDateTime = getAdjustedDateTime(value, selectedDate, selectedShiftData);
+    if (!selectedDateTime || !shiftStart || !shiftEnd) {
+      return 'Unable to validate time';
     }
-    const selectedDateTime = dayjs(selectedDate)
-      .set('hour', value.hour())
-      .set('minute', value.minute())
-      .set('second', value.second());
-    if (selectedDateTime.isBefore(now, 'minute') && selectedDate.isSame(now, 'day')) {
+    if (isToday && selectedDateTime.isBefore(now, 'minute')) {
       return "Start time can't be in the past";
     }
     if (endTime) {
-      let adjustedEnd = dayjs(selectedDate)
-        .set('hour', endTime.hour())
-        .set('minute', endTime.minute())
-        .set('second', endTime.second());
-      if (isOvernight && adjustedEnd.isBefore(selectedDateTime)) {
-        adjustedEnd = adjustedEnd.add(1, 'day');
-      }
+      const adjustedEnd = getAdjustedDateTime(endTime, selectedDate, selectedShiftData);
       if (selectedDateTime.isSame(adjustedEnd, 'second')) {
         return 'Start and end time cannot be the same';
       }
@@ -135,9 +184,9 @@ const OperatorDetails = () => {
         return 'Start time cannot be after end time';
       }
     }
-    const formattedStart = startLimit.format('hh:mm:ss A');
-    const formattedEnd = endLimit.format('hh:mm:ss A');
-    if (selectedDateTime.isBefore(startLimit) || selectedDateTime.isAfter(endLimit)) {
+    const formattedStart = shiftStart.format('DD-MM-YYYY hh:mm:ss A');
+    const formattedEnd = shiftEnd.format('DD-MM-YYYY hh:mm:ss A');
+    if (selectedDateTime.isBefore(shiftStart) || selectedDateTime.isAfter(shiftEnd)) {
       return `Start time must be within shift ${formattedStart} - ${formattedEnd}`;
     }
     return '';
@@ -145,39 +194,25 @@ const OperatorDetails = () => {
 
   const validateEndTime = (value) => {
     if (!value) return 'End time is required';
-    const now = dayjs();
+    if (!value.isValid()) {
+      return 'Invalid time format';
+    }
     const selectedShiftData = shifts.find(
       (shift) => shift.shift_no === selectedShift
     );
     if (!selectedShiftData) return '';
-    const startLimit = dayjs(selectedDate)
-      .set('hour', selectedShiftData.start_time.split(':')[0])
-      .set('minute', selectedShiftData.start_time.split(':')[1])
-      .set('second', selectedShiftData.start_time.split(':')[2]);
-    let endLimit = dayjs(selectedDate)
-      .set('hour', selectedShiftData.end_time.split(':')[0])
-      .set('minute', selectedShiftData.end_time.split(':')[1])
-      .set('second', selectedShiftData.end_time.split(':')[2]);
-    const isOvernight = selectedShiftData.start_day !== selectedShiftData.end_day;
-    if (isOvernight) {
-      endLimit = endLimit.add(1, 'day');
+    const now = dayjs();
+    const isToday = selectedDate.isSame(now, 'day');
+    const { shiftStart, shiftEnd } = getShiftBoundaries(selectedShiftData, selectedDate);
+    const selectedDateTime = getAdjustedDateTime(value, selectedDate, selectedShiftData);
+    if (!selectedDateTime || !shiftStart || !shiftEnd) {
+      return 'Unable to validate time';
     }
-    let selectedDateTime = dayjs(selectedDate)
-      .set('hour', value.hour())
-      .set('minute', value.minute())
-      .set('second', value.second());
-    if (
-      isOvernight &&
-      startTime &&
-      (selectedDateTime.isBefore(startTime) || selectedDate.isAfter(now, 'day'))
-    ) {
-      selectedDateTime = selectedDateTime.add(1, 'day');
+    if (isToday && selectedDateTime.isBefore(now, 'second')) {
+      return 'End time must be in the future';
     }
     if (startTime) {
-      const adjustedStart = dayjs(selectedDate)
-        .set('hour', startTime.hour())
-        .set('minute', startTime.minute())
-        .set('second', startTime.second());
+      const adjustedStart = getAdjustedDateTime(startTime, selectedDate, selectedShiftData);
       if (selectedDateTime.isSame(adjustedStart, 'second')) {
         return 'End and start time cannot be the same';
       }
@@ -185,12 +220,9 @@ const OperatorDetails = () => {
         return 'End time cannot be before start time';
       }
     }
-    if (selectedDateTime.isBefore(now, 'second') && selectedDate.isSame(now, 'day')) {
-      return 'End time must be in the future';
-    }
-    const formattedStart = startLimit.format('hh:mm:ss A');
-    const formattedEnd = endLimit.format('hh:mm:ss A');
-    if (selectedDateTime.isBefore(startLimit) || selectedDateTime.isAfter(endLimit)) {
+    const formattedStart = shiftStart.format('DD-MM-YYYY hh:mm:ss A');
+    const formattedEnd = shiftEnd.format('DD-MM-YYYY hh:mm:ss A');
+    if (selectedDateTime.isBefore(shiftStart) || selectedDateTime.isAfter(shiftEnd)) {
       return `End time must be within shift ${formattedStart} - ${formattedEnd}`;
     }
     return '';
@@ -206,21 +238,11 @@ const OperatorDetails = () => {
       return { fromEpoch: null, toEpoch: null };
     }
 
-    const dateStr = selectedDateObj.format('YYYY-MM-DD');
-    const startDateTime = dayjs(`${dateStr}T${selectedShiftData.start_time}`);
-
-    let endDateTime;
-    // If shift 2, assume overnight so add 1 day to end time
-    if (String(shiftNo) === "2" || shiftNo === 2) {
-      const nextDay = selectedDateObj.add(1, 'day').format('YYYY-MM-DD');
-      endDateTime = dayjs(`${nextDay}T${selectedShiftData.end_time}`);
-    } else {
-      endDateTime = dayjs(`${dateStr}T${selectedShiftData.end_time}`);
-    }
+    const { shiftStart, shiftEnd } = getShiftBoundaries(selectedShiftData, selectedDateObj);
 
     return {
-      fromEpoch: startDateTime.valueOf(),
-      toEpoch: endDateTime.valueOf()
+      fromEpoch: shiftStart.valueOf(),
+      toEpoch: shiftEnd.valueOf()
     };
   };
   const getEpochFromShift1 = (shiftNo, selectedDateObj) => {
@@ -270,58 +292,20 @@ const OperatorDetails = () => {
     // Normal shift
     return (time.isAfter(start) && time.isBefore(end)) || time.isSame(start) || time.isSame(end);
   };
-  const handleStartTimeChange = async (value) => {
-    if (!value) return;
+  // const handleStartTimeChange = async (value) => {
+  //   if (!value) return;
 
-    // 1. Check if start time equals end time (to the second)
-    if (dayjs(value).isSame(endTime, 'second')) {
-      setOpenEditDialog(false);
-      setOpenEditDialog4(false);
-      setOpenEditDialog1(false);
-      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
-      return;
-    }
-
-    // // 2. Check if start time is within shift range
-    // if (!isTimeInShift(value, selectedShiftData)) {
-    //   setOpenEditDialog(false);
-    //   setOpenEditDialog1(false);
-    //   setOpenEditDialog4(false);
-    //   Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
-    //   return;
-    // }
-
-    // 3. Proceed
-    setStartTime(value);
-
-    // 4. Check overlap if endTime exists
-    if (endTime) {
-      await validateAndCheckOverlap(value, endTime);
-    }
-  };
-
-  const handleStartTimeChange1 = async (value) => {
-    setStartTime(value);
-    if (value && endTime && !timeErrors.startTime && !timeErrors.endTime) {
-      await validateAndCheckOverlap1(value, endTime);
-    }
-  };
-
-  const handleEndTimeChange1 = async (value) => {
-    setEndTime(value);
-    if (startTime && value && !timeErrors.startTime && !timeErrors.endTime) {
-      await validateAndCheckOverlap1(startTime, value);
-    }
-  };
-  // const handleStartTimeChange1 = async (value) => {
+  //   // 1. Check if start time equals end time (to the second)
   //   if (dayjs(value).isSame(endTime, 'second')) {
   //     setOpenEditDialog(false);
-  //     setOpenEditDialog1(false);
   //     setOpenEditDialog4(false);
+  //     setOpenEditDialog1(false);
   //     Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
   //     return;
   //   }
-  //   // if (!value || !isTimeInShift(value, selectedShiftData)) {
+
+  //   // // 2. Check if start time is within shift range
+  //   // if (!isTimeInShift(value, selectedShiftData)) {
   //   //   setOpenEditDialog(false);
   //   //   setOpenEditDialog1(false);
   //   //   setOpenEditDialog4(false);
@@ -329,12 +313,41 @@ const OperatorDetails = () => {
   //   //   return;
   //   // }
 
+  //   // 3. Proceed
   //   setStartTime(value);
 
+  //   // 4. Check overlap if endTime exists
   //   if (endTime) {
+  //     await validateAndCheckOverlap(value, endTime);
+  //   }
+  // };
+
+  // const handleStartTimeChange1 = async (value) => {
+  //   setStartTime(value);
+  //   const startError = validateStartTime(value);
+  //   const endError = endTime ? validateEndTime(endTime) : '';
+  //   setTimeErrors({
+  //     startTime: startError,
+  //     endTime: endError
+  //   });
+  //   if (value && endTime && !startError && !endError) {
   //     await validateAndCheckOverlap1(value, endTime);
   //   }
   // };
+
+  // const handleEndTimeChange1 = async (value) => {
+  //   setEndTime(value);
+  //   const endError = validateEndTime(value);
+  //   const startError = startTime ? validateStartTime(startTime) : '';
+  //   setTimeErrors({
+  //     startTime: startError,
+  //     endTime: endError
+  //   });
+  //   if (startTime && value && !startError && !endError) {
+  //     await validateAndCheckOverlap1(startTime, value);
+  //   }
+  // };
+
   const validateAndCheckOverlap = async (newStart, newEnd) => {
     if (!selectedDate || !selectedDeviceId?.id) return false;
 
@@ -357,19 +370,26 @@ const OperatorDetails = () => {
   const validateAndCheckOverlap1 = async (newStart, newEnd) => {
     if (!selectedDate || !selectedDeviceId?.id) return false;
 
-    const fromEpoch = dayjs(selectedDate).hour(newStart.hour()).minute(newStart.minute()).second(newStart.second()).valueOf();
-    const toEpoch = dayjs(selectedDate).hour(newEnd.hour()).minute(newEnd.minute()).second(newEnd.second()).valueOf();
+    const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
+    if (!selectedShiftData) return false;
+    const fromDateTime = getAdjustedDateTime(newStart, selectedDate, selectedShiftData);
+    const toDateTime = getAdjustedDateTime(newEnd, selectedDate, selectedShiftData);
+    if (!fromDateTime || !toDateTime) return false;
+    const fromEpoch = fromDateTime.valueOf();
+    const toEpoch = toDateTime.valueOf();
 
     // Ensure start time is before end time
     if (fromEpoch >= toEpoch) {
       Swal.fire('Error', 'Start time must be before end time.', 'error');
+      setStartTime(null);
+      setEndTime(null);
       return false;
     }
 
     const hasOverlap = await checkOperatorTimeOverlap1(selectedDeviceId.id, fromEpoch, toEpoch);
 
     if (hasOverlap) {
-      Swal.fire('Error', 'Selected time overlaps with an already assigned operator.', 'error');
+      Swal.fire('Error', 'Selected time overlaps with an already assigned component.', 'error');
       setStartTime(null);
       setEndTime(null);
     }
@@ -459,29 +479,29 @@ const OperatorDetails = () => {
       return false;
     }
   };
-  const handleEndTimeChange = async (value) => {
-    if (dayjs(value).isSame(startTime, 'second')) {
-      setOpenEditDialog(false);
-      setOpenEditDialog1(false);
-      setOpenEditDialog4(false);
-      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
-      return;
-    }
-    // if (!value || !isTimeInShift(value, selectedShiftData)) {
-    //   setOpenEditDialog(false);
-    //   setOpenEditDialog1(false);
-    //   setOpenEditDialog4(false);
-    //   Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
-    //   return;
-    // }
+  // const handleEndTimeChange = async (value) => {
+  //   if (dayjs(value).isSame(startTime, 'second')) {
+  //     setOpenEditDialog(false);
+  //     setOpenEditDialog1(false);
+  //     setOpenEditDialog4(false);
+  //     Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
+  //     return;
+  //   }
+  //   // if (!value || !isTimeInShift(value, selectedShiftData)) {
+  //   //   setOpenEditDialog(false);
+  //   //   setOpenEditDialog1(false);
+  //   //   setOpenEditDialog4(false);
+  //   //   Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
+  //   //   return;
+  //   // }
 
 
-    setEndTime(value);
+  //   setEndTime(value);
 
-    if (startTime) {
-      await validateAndCheckOverlap(startTime, value);
-    }
-  };
+  //   if (startTime) {
+  //     await validateAndCheckOverlap(startTime, value);
+  //   }
+  // };
   // const handleEndTimeChange1 = async (value) => {
   //   if (dayjs(value).isSame(startTime, 'second')) {
   //     setOpenEditDialog(false);
@@ -504,73 +524,74 @@ const OperatorDetails = () => {
   //     await validateAndCheckOverlap(startTime, value);
   //   }
   // };
-const handleDateChange = (newValue) => {
-  const dayjsVal = dayjs(newValue);
-  setSelectedDate(dayjsVal);
+  const handleDateChange = (newValue) => {
+    const dayjsVal = dayjs(newValue);
+    setSelectedDate(dayjsVal);
 
-  // Recalculate epoch range when date changes
-  if (selectedShift && shifts.length > 0) {
-    const { fromEpoch, toEpoch } = getEpochFromShift(selectedShift, dayjsVal);
-    setEpochRange({ from: fromEpoch, to: toEpoch });
-    const key = 'alloperator';
-    customerbasedshift(customerId, key)
-      .then(async (data) => {
-        const allOperators = data[0]?.value || [];
-        setoperatorslist(allOperators);
+    // Recalculate epoch range when date changes
+    if (selectedShift && shifts.length > 0) {
+      const { fromEpoch, toEpoch } = getEpochFromShift(selectedShift, dayjsVal);
+      setEpochRange({ from: fromEpoch, to: toEpoch });
+      const key = 'alloperator';
+      customerbasedshift(customerId, key)
+        .then(async (data) => {
+          const allOperators = data[0]?.value || [];
+          setoperatorslist(allOperators);
 
-        const operatorOptions = allOperators
-          .filter(shift => shift.mode === "Operator")
-          .map(shift => ({
-            id: shift.operatorid,
-            value: shift.operatorid,
-            label: `${shift.operatorid} - ${shift.operatorname}`,
-            name: shift.operatorname
-          }));
+          const operatorOptions = allOperators
+            .filter(shift => shift.mode === "Operator")
+            .map(shift => ({
+              id: shift.operatorid,
+              value: shift.operatorid,
+              label: `${shift.operatorid} - ${shift.operatorname}`,
+              name: shift.operatorname
+            }));
 
-        setoperators(operatorOptions);
-        
-        const key2 = 'live_operator';
-        const entitytype = 'DEVICE';
-        const deviceid = selectedDeviceId;
+          setoperators(operatorOptions);
 
-        try {
-          const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
-          if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
-            const parsedValue = JSON.parse(response.live_operator[0].value);
-            const operatorCode = parsedValue.code || '';
-            
-            const foundOperator = allOperators.find(op => op.operatorid === operatorCode);
-            if (foundOperator) {
-              setSelectedOperatorId(foundOperator.operatorid);
-              setOperatorName(foundOperator.operatorname);
+          const key2 = 'live_operator';
+          const entitytype = 'DEVICE';
+          const deviceid = selectedDeviceId;
+
+          try {
+            const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
+            if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
+              const parsedValue = JSON.parse(response.live_operator[0].value);
+              const operatorCode = parsedValue.code || '';
+
+              const foundOperator = allOperators.find(op => op.operatorid === operatorCode);
+              if (foundOperator) {
+                setSelectedOperatorId(foundOperator.operatorid);
+                setOperatorName(foundOperator.operatorname);
+              } else {
+                setSelectedOperatorId('');
+                setOperatorName('');
+              }
             } else {
               setSelectedOperatorId('');
               setOperatorName('');
             }
-          } else {
+          } catch (error) {
+            console.error('Error fetching live_operator:', error);
             setSelectedOperatorId('');
             setOperatorName('');
           }
-        } catch (error) {
-          console.error('Error fetching live_operator:', error);
-          setSelectedOperatorId('');
-          setOperatorName('');
-        }
-      })
-      .catch(error => {
-        console.error("Error fetching operators:", error);
-      });
-  }
-};
-const handleOperatorChange = (event, newValue) => {
-  if (newValue) {
-    setSelectedOperatorId(newValue.id);
-    setOperatorName(newValue.name || '');
-  } else {
-    setSelectedOperatorId('');
-    setOperatorName('');
-  }
-};
+        })
+        .catch(error => {
+          console.error("Error fetching operators:", error);
+        });
+    }
+  };
+  const handleOperatorChange = (event, newValue) => {
+    if (newValue) {
+      setSelectedOperatorId(newValue.id);
+      setOperatorName(newValue.name || '');
+    } else {
+      setSelectedOperatorId('');
+      setOperatorName('');
+    }
+  };
+
   const handleOperatorChange1 = (newValue) => {
     const dayjsVal = dayjs(newValue);
     setSelectedDate(dayjsVal);
@@ -596,64 +617,64 @@ const handleOperatorChange = (event, newValue) => {
     const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDateLocal);
     setEpochRange({ from: fromEpoch, to: toEpoch });
   };
-const operatorvaluechange = async (shiftValue) => {
-  try {
-    setSelectedShift(shiftValue);
-    const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDate);
-    setEpochRange({ from: fromEpoch, to: toEpoch });
-
-    const key = 'alloperator';
-    const operatorData = await customerbasedshift(customerId, key);
-    const allOperators = operatorData[0]?.value || [];
-    setoperatorslist(allOperators);
-
-    const operatorOptions = allOperators
-      .filter(shift => shift.mode === "Operator")
-      .map(shift => ({
-        id: shift.operatorid,
-        value: shift.operatorid,
-        label: `${shift.operatorid} - ${shift.operatorname}`,
-        name: shift.operatorname
-      }));
-
-    setoperators(operatorOptions);
-
-    const key2 = 'live_operator';
-    const entitytype = 'DEVICE';
-    const deviceId = selectedDeviceId;
-
+  const operatorvaluechange = async (shiftValue) => {
     try {
-      const response = await telemetrykeydata(deviceId, entitytype, key2, fromEpoch, toEpoch);
-      if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
-        const parsedValue = JSON.parse(response.live_operator[0].value);
-        const operatorName = parsedValue.operator || '';
-        const operatorCode = parsedValue.code || '';
-        
-        const foundOperator = allOperators.find(op => 
-          op.operatorid === operatorCode || op.operatorname === operatorName
-        );
-        
-        if (foundOperator) {
-          setSelectedOperatorId(foundOperator.operatorid);
-          setOperatorName(foundOperator.operatorname);
+      setSelectedShift(shiftValue);
+      const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDate);
+      setEpochRange({ from: fromEpoch, to: toEpoch });
+
+      const key = 'alloperator';
+      const operatorData = await customerbasedshift(customerId, key);
+      const allOperators = operatorData[0]?.value || [];
+      setoperatorslist(allOperators);
+
+      const operatorOptions = allOperators
+        .filter(shift => shift.mode === "Operator")
+        .map(shift => ({
+          id: shift.operatorid,
+          value: shift.operatorid,
+          label: `${shift.operatorid} - ${shift.operatorname}`,
+          name: shift.operatorname
+        }));
+
+      setoperators(operatorOptions);
+
+      const key2 = 'live_operator';
+      const entitytype = 'DEVICE';
+      const deviceId = selectedDeviceId;
+
+      try {
+        const response = await telemetrykeydata(deviceId, entitytype, key2, fromEpoch, toEpoch);
+        if (response && response.live_operator && response.live_operator.length > 0 && response.live_operator[0].value) {
+          const parsedValue = JSON.parse(response.live_operator[0].value);
+          const operatorName = parsedValue.operator || '';
+          const operatorCode = parsedValue.code || '';
+
+          const foundOperator = allOperators.find(op =>
+            op.operatorid === operatorCode || op.operatorname === operatorName
+          );
+
+          if (foundOperator) {
+            setSelectedOperatorId(foundOperator.operatorid);
+            setOperatorName(foundOperator.operatorname);
+          } else {
+            setSelectedOperatorId('');
+            setOperatorName('');
+          }
         } else {
           setSelectedOperatorId('');
           setOperatorName('');
         }
-      } else {
+      } catch (error) {
+        console.error('Error fetching live_operator:', error);
         setSelectedOperatorId('');
         setOperatorName('');
       }
+      setOpenEditDialog(true);
     } catch (error) {
-      console.error('Error fetching live_operator:', error);
-      setSelectedOperatorId('');
-      setOperatorName('');
+      console.error('Error in operatorvaluechange:', error);
     }
-    setOpenEditDialog(true);
-  } catch (error) {
-    console.error('Error in operatorvaluechange:', error);
-  }
-};
+  };
   const operatorvaluechange1 = async (shiftValue) => {
     try {
       setSelectedShift(shiftValue);
@@ -757,105 +778,114 @@ const operatorvaluechange = async (shiftValue) => {
     const { name, value } = event.target;
     setselectedsupervisor(value);
   };
-const handleOpenEditDialog = async (devicename, deviceid) => {
-  setLoading(true);
+  const handleOpenEditDialog = async (devicename, deviceid) => {
+    setLoading(true);
 
-  const key1 = 'allShift';
+    const key1 = 'allShift';
 
-  try {
-    const shiftData = await customerbasedshift(customerId, key1);
-    const allShifts = shiftData[0]?.value || [];
-    setShifts(allShifts);
+    try {
+      const shiftData = await customerbasedshift(customerId, key1);
+      const allShifts = shiftData[0]?.value || [];
+      setShifts(allShifts);
 
-    const options = allShifts.map((shift) => ({
-      value: shift.shift_no,
-      label: `Shift${shift.shift_no}`,
-    }));
-    setShiftOptions(options);
-    const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
-    if (selectedShiftData) {
-      setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
-      setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+      const options = allShifts.map((shift) => ({
+        value: shift.shift_no,
+        label: `Shift${shift.shift_no}`,
+      }));
+      setShiftOptions(options);
+      const now = dayjs();
+      const currentShiftData = getCurrentShift(allShifts, now);
+      const fallbackShiftData = allShifts[0];
+      if (currentShiftData) {
+        const currentTimeRounded = dayjs().startOf('minute');
+        setStartTime(currentTimeRounded);
+        setEndTime(dayjs(currentShiftData.end_time, 'HH:mm:ss'));
+      } else if (fallbackShiftData) {
+        setStartTime(dayjs(fallbackShiftData.start_time, 'HH:mm:ss'));
+        setEndTime(dayjs(fallbackShiftData.end_time, 'HH:mm:ss'));
+      }
+      if (options.length > 0) {
+        const defaultShift = options[0].value;
+         setSelectedDate(now);
+        const selectedShiftNo = currentShiftData
+          ? currentShiftData.shift_no
+          : fallbackShiftData?.shift_no;
+        setSelectedShift(selectedShiftNo);
+        setfilteredResult([]); // (Optional) clear table
+
+        // Calculate initial epoch range for current date and first shift
+        const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
+        setEpochRange({ from: fromEpoch, to: toEpoch });
+        console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:', dayjs());
+
+        setfilteredResult([]);
+
+        // Get operator data
+        const key = 'alloperator';
+        const operatorData = await customerbasedshift(customerId, key);
+        const allOperators = operatorData[0]?.value || [];
+        setoperatorslist(allOperators);
+
+        const operatorOptions = allOperators
+          .filter((shift) => shift.mode === "Operator")
+          .map((shift) => ({
+            id: shift.operatorid,
+            value: shift.operatorid,
+            label: `${shift.operatorid} - ${shift.operatorname}`,
+            name: shift.operatorname
+          }));
+        setoperators(operatorOptions);
+
+        // ✅ Now safely fetch live_operator after all data is ready
+        setSelectedDeviceId(deviceid);
+        setSelectedDevicename(devicename);
+        const key2 = 'live_operator';
+        const entitytype = 'DEVICE';
+
+        await fetchLiveOperator(deviceid, entitytype, key2, fromEpoch, toEpoch);
+        setOpenEditDialog(true);
+      }
+    } catch (err) {
+      console.error('Error in handleOpenEditDialog:', err);
+    } finally {
+      setLoading(false);
     }
-    if (options.length > 0) {
-      const defaultShift = options[0].value;
-      setSelectedDate(dayjs()); // Set to current date
-      setSelectedShift(defaultShift);
-      setfilteredResult([]); // (Optional) clear table
+  };
+  const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch) => {
+    try {
+      const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
+      if (
+        response &&
+        response.live_operator &&
+        response.live_operator.length > 0 &&
+        response.live_operator[0].value
+      ) {
+        const parsedValue = JSON.parse(response.live_operator[0].value);
+        const operatorName = parsedValue.operator || '';
+        const operatorCode = parsedValue.code || '';
 
-      // Calculate initial epoch range for current date and first shift
-      const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
-      setEpochRange({ from: fromEpoch, to: toEpoch });
-      console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:', dayjs());
+        // Find operator by code (operatorid) or name
+        const foundOperator = operatorslist.find(op =>
+          op.operatorid === operatorCode || op.operatorname === operatorName
+        );
 
-      setfilteredResult([]);
-
-      // Get operator data
-      const key = 'alloperator';
-      const operatorData = await customerbasedshift(customerId, key);
-      const allOperators = operatorData[0]?.value || [];
-      setoperatorslist(allOperators);
-
-      const operatorOptions = allOperators
-        .filter((shift) => shift.mode === "Operator")
-        .map((shift) => ({
-          id: shift.operatorid,
-          value: shift.operatorid,
-          label: `${shift.operatorid} - ${shift.operatorname}`,
-          name: shift.operatorname
-        }));
-      setoperators(operatorOptions);
-
-      // ✅ Now safely fetch live_operator after all data is ready
-      setSelectedDeviceId(deviceid);
-      setSelectedDevicename(devicename);
-      const key2 = 'live_operator';
-      const entitytype = 'DEVICE';
-
-      await fetchLiveOperator(deviceid, entitytype, key2, fromEpoch, toEpoch);
-      setOpenEditDialog(true);
-    }
-  } catch (err) {
-    console.error('Error in handleOpenEditDialog:', err);
-  } finally {
-    setLoading(false);
-  }
-};
-const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch) => {
-  try {
-    const response = await telemetrykeydata(deviceid, entitytype, key2, fromEpoch, toEpoch);
-    if (
-      response &&
-      response.live_operator &&
-      response.live_operator.length > 0 &&
-      response.live_operator[0].value
-    ) {
-      const parsedValue = JSON.parse(response.live_operator[0].value);
-      const operatorName = parsedValue.operator || '';
-      const operatorCode = parsedValue.code || '';
-      
-      // Find operator by code (operatorid) or name
-      const foundOperator = operatorslist.find(op => 
-        op.operatorid === operatorCode || op.operatorname === operatorName
-      );
-      
-      if (foundOperator) {
-        setSelectedOperatorId(foundOperator.operatorid);
-        setOperatorName(foundOperator.operatorname);
+        if (foundOperator) {
+          setSelectedOperatorId(foundOperator.operatorid);
+          setOperatorName(foundOperator.operatorname);
+        } else {
+          setSelectedOperatorId('');
+          setOperatorName('');
+        }
       } else {
         setSelectedOperatorId('');
         setOperatorName('');
       }
-    } else {
+    } catch (error) {
+      console.error('Error fetching live_operator:', error);
       setSelectedOperatorId('');
       setOperatorName('');
     }
-  } catch (error) {
-    console.error('Error fetching live_operator:', error);
-    setSelectedOperatorId('');
-    setOperatorName('');
-  }
-};
+  };
   const handleOpenEditDialog1 = async (devicename, deviceid) => {
     setTimeErrors({ startTime: '', endTime: '' });
     setLoading(true);
@@ -1003,15 +1033,24 @@ const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch)
       label: `Shift${shift.shift_no}`,
     }));
     setShiftOptions(options);
-    const selectedShiftData = allShifts.find(shift => shift.shift_no === allShifts[0]?.shift_no || '1');
-    if (selectedShiftData) {
-      setStartTime(dayjs(selectedShiftData.start_time, 'HH:mm:ss'));
-      setEndTime(dayjs(selectedShiftData.end_time, 'HH:mm:ss'));
+    const now = dayjs();
+    const currentShiftData = getCurrentShift(allShifts, now);
+    const fallbackShiftData = allShifts[0];
+    if (currentShiftData) {
+      const currentTimeRounded = dayjs().startOf('minute');
+      setStartTime(currentTimeRounded);
+      setEndTime(dayjs(currentShiftData.end_time, 'HH:mm:ss'));
+    } else if (fallbackShiftData) {
+      setStartTime(dayjs(fallbackShiftData.start_time, 'HH:mm:ss'));
+      setEndTime(dayjs(fallbackShiftData.end_time, 'HH:mm:ss'));
     }
     if (options.length > 0) {
       const defaultShift = options[0].value;
-      setSelectedDate(dayjs()); // Set to current date
-      setSelectedShift(defaultShift);
+      setSelectedDate(now);
+        const selectedShiftNo = currentShiftData
+          ? currentShiftData.shift_no
+          : fallbackShiftData?.shift_no;
+        setSelectedShift(selectedShiftNo);
       setfilteredResult([]); // (Optional) clear table
 
       // Calculate initial epoch range for current date and first shift
@@ -1064,65 +1103,55 @@ const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch)
 
   }
   const handleSaveThreshold3 = async () => {
-    if (
-      !startTime || !endTime ||
-      !isTimeInShift(startTime, selectedShiftData) ||
-      !isTimeInShift(endTime, selectedShiftData)
-    ) {
-      setOpenEditDialog(false);
-      setOpenEditDialog1(false);
-      setOpenEditDialog4(false);
-      Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
-      return;
-    }
+    if (savingStates.supervisor) return;
+    setSavingStates(prev => ({ ...prev, supervisor: true }));
     try {
+      const dateError = validateDate(selectedDate);
+      if (dateError) {
+        setDateErrors(prev => ({ ...prev, supervisor: dateError }));
+        Swal.fire('Error', dateError, 'error');
+        return;
+      }
+      const startError = validateStartTime(startTime);
+      const endError = validateEndTime(endTime);
+      if (startError || endError) {
+        setTimeErrors({ startTime: startError, endTime: endError });
+        Swal.fire('Error', 'Please fix time validation errors.', 'error');
+        return;
+      }
+
       if (!selectedShift || !selectedDate || !supervisorselected) {
         Swal.fire('Error', 'Please fill all required fields.', 'error');
         return;
       }
 
-      let fromEpoch, toEpoch;
-
-      if (startTime && endTime && selectedDate) {
-        const start = dayjs(selectedDate)
-          .set('hour', startTime.hour())
-          .set('minute', startTime.minute())
-          .set('second', startTime.second())
-          .set('millisecond', 0);
-
-        let end;
-
-        // Overnight shift: end time is earlier than start time
-        if (endTime.isBefore(startTime)) {
-          end = dayjs(selectedDate)
-            .add(1, 'day')
-            .set('hour', endTime.hour())
-            .set('minute', endTime.minute())
-            .set('second', endTime.second())
-            .set('millisecond', 0);
-        } else {
-          // Same-day shift
-          end = dayjs(selectedDate)
-            .set('hour', endTime.hour())
-            .set('minute', endTime.minute())
-            .set('second', endTime.second())
-            .set('millisecond', 0);
-        }
-
-        fromEpoch = start.valueOf();
-        toEpoch = end.valueOf();
+      const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
+      if (!selectedShiftData) {
+        Swal.fire('Error', 'Selected shift not found.', 'error');
+        return;
       }
-      else {
-        const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-        fromEpoch = shiftEpoch.fromEpoch;
-        toEpoch = shiftEpoch.toEpoch;
+      const fromDateTime = getAdjustedDateTime(startTime, selectedDate, selectedShiftData);
+      const toDateTime = getAdjustedDateTime(endTime, selectedDate, selectedShiftData);
+      if (!fromDateTime || !toDateTime) {
+        Swal.fire('Error', 'Invalid time selection. Please check start and end times.', 'error');
+        return;
+      }
+      const fromEpoch = fromDateTime.valueOf();
+      const toEpoch = toDateTime.valueOf();
+      if (fromEpoch >= toEpoch) {
+        Swal.fire('Error', 'Start time must be before end time.', 'error');
+        return;
       }
 
-      if (!fromEpoch || !toEpoch) return;
+      const durations = Math.floor((toEpoch - fromEpoch) / 1000);
       const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-      let fromtime = shiftEpoch.fromEpoch;
-      let totime = shiftEpoch.toEpoch;
-      let durations = Math.floor((toEpoch - fromEpoch) / 1000);
+      const fromtime = shiftEpoch.fromEpoch;
+      const totime = shiftEpoch.toEpoch;
+
+      if (!fromtime || !totime) {
+        Swal.fire('Error', 'Unable to determine shift boundaries.', 'error');
+        return;
+      }
       const cleancustomerid1 = cleanCustomerId(customerId);
       // 🔍 Check for overlap before saving
       const response = await telemetrykeydata(
@@ -1281,6 +1310,7 @@ const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch)
       console.error('Update error:', err);
       Swal.fire('Error', 'Failed to assign Supervisor.', 'error');
     } finally {
+      setSavingStates(prev => ({ ...prev, supervisor: false }));
       setOpenEditDialog4(false);
     }
   }
@@ -1618,7 +1648,7 @@ const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch)
     const commonOptions = [
       { value: 'Component', label: 'Component' },
       { value: 'Reason', label: 'Reason' },
-      { value: 'Supervisor', label: 'Supervisor' },
+      // { value: 'Supervisor', label: 'Supervisor' },
     ];
     const fallbackOptions =
       cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
@@ -1812,588 +1842,644 @@ const fetchLiveOperator = async (deviceid, entitytype, key2, fromEpoch, toEpoch)
     const end = dayjs(shift.end_time, 'HH:mm:ss');
     return end.isBefore(start);
   };
-const handleSaveThreshold = async () => {
-  if (
-    !startTime || !endTime ||
-    !isTimeInShift(startTime, selectedShiftData) ||
-    !isTimeInShift(endTime, selectedShiftData)
-  ) {
-    setOpenEditDialog(false);
-    setOpenEditDialog1(false);
-    setOpenEditDialog4(false);
-    Swal.fire('Error', 'Selected time is outside the shift range!', 'error');
-    return;
-  }
-  try {
-    if (!selectedDeviceId || !selectedShift || !selectedDate || !selectedOperatorId) {
+  const handleSaveThreshold = async () => {
+    if (savingStates.operator) return;
+    setSavingStates(prev => ({ ...prev, operator: true }));
+    try {
+      const dateError = validateDate(selectedDate);
+      if (dateError) {
+        setDateErrors(prev => ({ ...prev, operator: dateError }));
+        Swal.fire('Error', dateError, 'error');
+        return;
+      }
+      const startError = validateStartTime(startTime);
+      const endError = validateEndTime(endTime);
+      if (startError || endError) {
+        setTimeErrors({ startTime: startError, endTime: endError });
+        Swal.fire('Error', 'Please fix time validation errors.', 'error');
+        return;
+      }
+
+      if (!selectedDeviceId || !selectedShift || !selectedDate || !selectedOperatorId) {
+        Swal.fire('Error', 'Please fill all required fields.', 'error');
+        return;
+      }
+
+      const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
+      if (!selectedShiftData) {
+        Swal.fire('Error', 'Selected shift not found.', 'error');
+        return;
+      }
+      const fromDateTime = getAdjustedDateTime(startTime, selectedDate, selectedShiftData);
+      const toDateTime = getAdjustedDateTime(endTime, selectedDate, selectedShiftData);
+
+      if (!fromDateTime || !toDateTime) {
+        Swal.fire('Error', 'Invalid time selection. Please check start and end times.', 'error');
+        return;
+      }
+
+      const fromEpoch = fromDateTime.valueOf();
+      const toEpoch = toDateTime.valueOf();
+
+      if (fromEpoch >= toEpoch) {
+        Swal.fire('Error', 'Start time must be before end time.', 'error');
+        return;
+      }
+
+      const durations = Math.floor((toEpoch - fromEpoch) / 1000);
+      const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
+      const fromtime = shiftEpoch.fromEpoch;
+      const totime = shiftEpoch.toEpoch;
+
+      if (!fromtime || !totime) {
+        Swal.fire('Error', 'Unable to determine shift boundaries.', 'error');
+        return;
+      }
+
+      // Find the selected operator
+      const selectedOperator = operatorslist.find(op => op.operatorid === selectedOperatorId);
+      if (!selectedOperator) {
+        Swal.fire('Error', 'Selected operator not found.', 'error');
+        return;
+      }
+
+      // Check for overlapping entries
+      const response = await telemetrykeydata(
+        selectedDeviceId,
+        'DEVICE',
+        'live_operator',
+        fromtime,
+        totime
+      );
+
+      const existingEntries = response?.live_operator || [];
+      const overlapping = [];
+
+      for (const item of existingEntries) {
+        if (!item?.value) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(item.value);
+        } catch {
+          continue;
+        }
+        const existingStart = parsed.start_time || item.ts;
+        const existingEnd =
+          parsed.end_time ||
+          (existingStart + (parsed.duration || 0) * 1000);
+        const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
+        if (isOverlapping) {
+          overlapping.push({ item, parsed, existingStart, existingEnd });
+        }
+      }
+      if (overlapping.length > 0) {
+        setOpenEditDialog(false);
+        const overlapDetails = overlapping.map(overlap => {
+          const existingOperator = overlap.parsed.name || 'Unknown';
+          const conflictStart = dayjs(overlap.existingStart).format('DD-MM-YYYY HH:mm:ss');
+          const conflictEnd = dayjs(overlap.existingEnd).format('DD-MM-YYYY HH:mm:ss');
+          return `"<strong>${existingOperator}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`;
+        }).join('<br>');
+        const result1 = await Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          html: `Time overlaps with existing operator ${overlapDetails}`,
+          showCancelButton: true,
+          confirmButtonText: 'Overwrite',
+          cancelButtonText: 'No, Cancel',
+          backdrop: true,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
+        });
+
+        if (!result1.isConfirmed) {
+          console.log("User cancelled overwrite.");
+          return;
+        }
+        const result2 = await Swal.fire({
+          title: 'Confirm Overwrite',
+          text: 'Do you want to overwrite the existing operator allocation with the new changes?',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, Save',
+          cancelButtonText: 'No, Cancel',
+          backdrop: true,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
+        });
+
+        if (!result2.isConfirmed) {
+          console.log("User cancelled save.");
+          return;
+        }
+        for (const overlap of overlapping) {
+          const { parsed, existingStart, existingEnd } = overlap;
+          if (fromEpoch > existingStart && toEpoch < existingEnd) {
+            const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
+            const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+            const leftKey = {
+              ts: existingStart,
+              values: {
+                live_operator: {
+                  ...parsed,
+                  start_time: existingStart,
+                  end_time: fromEpoch,
+                  duration: leftDuration,
+                },
+              },
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
+            const rightKey = {
+              ts: toEpoch,
+              values: {
+                live_operator: {
+                  ...parsed,
+                  start_time: toEpoch,
+                  end_time: existingEnd,
+                  duration: rightDuration,
+                },
+              },
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
+          }
+          else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+
+            const newStart = toEpoch;
+            const newDuration = Math.floor((existingEnd - newStart) / 1000);
+            const updatedKey = {
+              ts: newStart,
+              values: {
+                live_operator: {
+                  ...parsed,
+                  start_time: newStart,
+                  end_time: existingEnd,
+                  duration: newDuration,
+                },
+              },
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+          }
+          else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+            const newEnd = fromEpoch;
+            const newDuration = Math.floor((newEnd - existingStart) / 1000);
+            const updatedKey = {
+              ts: existingStart,
+              values: {
+                live_operator: {
+                  ...parsed,
+                  start_time: existingStart,
+                  end_time: newEnd,
+                  duration: newDuration,
+                },
+              },
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+          }
+          else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+          }
+        }
+        try {
+          const now = Date.now();
+          const key = {
+            ts: fromEpoch || now,
+            values: {
+              live_operator: {
+                name: selectedOperator.operatorname,
+                code: selectedOperatorId,
+                start_time: fromEpoch,
+                end_time: toEpoch,
+                duration: durations
+              }
+            }
+          };
+
+          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+          setDeviceThresholds(prev => ({
+            ...prev,
+            [selectedDeviceId.id || selectedDeviceId]: selectedOperator.operatorname,
+          }));
+
+          Swal.fire({
+            title: 'Success',
+            text: 'Operator assigned successfully.',
+            icon: 'success',
+            backdrop: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            allowEnterKey: false
+          });
+          setTimeout(() => {
+            handleSubmit();
+          }, 2000);
+          return;
+        } catch (error) {
+          console.error('Error saving operator:', error);
+          Swal.fire('Error', 'Failed to assign operator.', 'error');
+          return;
+        }
+      }
+
+      // ✅ Proceed to save if no overlap
+      const now = Date.now();
+      const key = {
+        // ts: fromEpoch > now ? fromEpoch : now,
+        ts: fromEpoch || now,
+        values: {
+          live_operator: {
+            name: selectedOperator.operatorname,
+            code: selectedOperatorId,
+            start_time: fromEpoch,
+            end_time: toEpoch,
+            duration: durations
+          }
+        }
+      };
+
+      await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+
+      setDeviceThresholds(prev => ({
+        ...prev,
+        [selectedDeviceId.id || selectedDeviceId]: selectedOperator.operatorname
+      }));
+
+      Swal.fire('Success', 'Operator assigned successfully.', 'success');
+      setTimeout(() => {
+        handleSubmit();
+      }, 2000);
+    } catch (err) {
+      console.error('Update error:', err);
+      Swal.fire('Error', 'Failed to assign operator.', 'error');
+    } finally {
+      setSavingStates(prev => ({ ...prev, operator: false }));
+      setOpenEditDialog(false);
+    }
+  };
+  const handleSaveThreshold1 = async () => {
+ 
+    if (savingComponent) {
+      return;
+    }
+    if (selectedDate && !selectedDate.isValid()) {
+      Swal.fire('Error', 'Invalid date format. Please select a valid date.', 'error');
+      return;
+    }
+
+    if (startTime && !startTime.isValid()) {
+      Swal.fire('Error', 'Invalid start time format. Please select a valid time.', 'error');
+      return;
+    }
+
+    if (endTime && !endTime.isValid()) {
+      Swal.fire('Error', 'Invalid end time format. Please select a valid time.', 'error');
+      return;
+    }
+
+    if (startTime && endTime && startTime.isSame(endTime, 'second')) {
+      Swal.fire('Error', 'Start Time and End Time cannot be the same!', 'error');
+      return;
+    }
+
+    const hasErrors = timeErrors.startTime || timeErrors.endTime;
+    if (hasErrors) {
+      Swal.fire('Error', 'Please fix the time validation errors before saving.', 'error');
+      return;
+    }
+
+    if (!selectedDeviceId || !selectedShift || !selectedDate || !selectedComponentId) {
       Swal.fire('Error', 'Please fill all required fields.', 'error');
       return;
     }
 
-    let fromEpoch, toEpoch;
-
-    if (startTime && endTime && selectedDate) {
-      const start = dayjs(selectedDate)
-        .set('hour', startTime.hour())
-        .set('minute', startTime.minute())
-        .set('second', startTime.second())
-        .set('millisecond', 0);
-
-      let end;
-
-      // Overnight shift: end time is earlier than start time
-      if (endTime.isBefore(startTime)) {
-        end = dayjs(selectedDate)
-          .add(1, 'day')
-          .set('hour', endTime.hour())
-          .set('minute', endTime.minute())
-          .set('second', endTime.second())
-          .set('millisecond', 0);
-      } else {
-        // Same-day shift
-        end = dayjs(selectedDate)
-          .set('hour', endTime.hour())
-          .set('minute', endTime.minute())
-          .set('second', endTime.second())
-          .set('millisecond', 0);
-      }
-
-      fromEpoch = start.valueOf();
-      toEpoch = end.valueOf();
-    }
-    else {
-      const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-      fromEpoch = shiftEpoch.fromEpoch;
-      toEpoch = shiftEpoch.toEpoch;
-    }
-
-    if (!fromEpoch || !toEpoch) return;
-    const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-    let fromtime = shiftEpoch.fromEpoch;
-    let totime = shiftEpoch.toEpoch;
-    let durations = Math.floor((toEpoch - fromEpoch) / 1000);
-
-    // Find the selected operator
-    const selectedOperator = operatorslist.find(op => op.operatorid === selectedOperatorId);
-    if (!selectedOperator) {
-      Swal.fire('Error', 'Selected operator not found.', 'error');
+    const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
+    if (!selectedShiftData) {
+      Swal.fire('Error', 'Selected shift not found.', 'error');
       return;
     }
 
-    // Check for overlapping entries
-    const response = await telemetrykeydata(
-      selectedDeviceId,
-      'DEVICE',
-      'live_operator',
-      fromtime,
-      totime
-    );
-
-    const existingEntries = response?.live_operator || [];
-    const overlapping = [];
-    
-    for (const item of existingEntries) {
-      if (!item?.value) continue;
-      let parsed;
-      try {
-        parsed = JSON.parse(item.value);
-      } catch {
-        continue;
-      }
-      const existingStart = parsed.start_time || item.ts;
-      const existingEnd =
-        parsed.end_time ||
-        (existingStart + (parsed.duration || 0) * 1000);
-      const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
-      if (isOverlapping) {
-        overlapping.push({ item, parsed, existingStart, existingEnd });
-      }
+    const component = componentslist.find(comp => comp.id === selectedComponentId);
+    if (!component) {
+      Swal.fire('Error', 'Selected component not found.', 'error');
+      return;
     }
-    if (overlapping.length > 0) {
-      setOpenEditDialog(false);
-      const overlapDetails = overlapping.map(overlap => {
-        const existingOperator = overlap.parsed.name || 'Unknown';
-        const conflictStart = dayjs(overlap.existingStart).format('DD-MM-YYYY HH:mm:ss');
-        const conflictEnd = dayjs(overlap.existingEnd).format('DD-MM-YYYY HH:mm:ss');
-        return `"<strong>${existingOperator}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`;
-      }).join('<br>');
-      const result1 = await Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        html: `Time overlaps with existing operator ${overlapDetails}`,
-        showCancelButton: true,
-        confirmButtonText: 'Overwrite',
-        cancelButtonText: 'No, Cancel',
-        backdrop: true,
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false
-      });
 
-      if (!result1.isConfirmed) {
-        console.log("User cancelled overwrite.");
+    // Set saving state
+    setSavingComponent(true);
+
+    try {
+      const componentName = component.component_name;
+      const componentNumber = component.component_number || null;
+      const cycleTime = component.cycle_time || null;
+      const handlingTime = component.handling_time || null;
+      const setupTime = component.setupTime || null;
+      const factorValue = component.factorval || null;
+      const factors = component.factor || null;
+
+      const fromDateTime = getAdjustedDateTime(startTime, selectedDate, selectedShiftData);
+      const toDateTime = getAdjustedDateTime(endTime, selectedDate, selectedShiftData);
+
+      if (!fromDateTime || !toDateTime) {
+        Swal.fire('Error', 'Invalid time selection. Please check start and end times.', 'error');
         return;
       }
-      const result2 = await Swal.fire({
-        title: 'Confirm Overwrite',
-        text: 'Do you want to overwrite the existing operator allocation with the new changes?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, Save',
-        cancelButtonText: 'No, Cancel',
-        backdrop: true,
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false
-      });
 
-      if (!result2.isConfirmed) {
-        console.log("User cancelled save.");
+      const fromEpoch = fromDateTime.valueOf();
+      const toEpoch = toDateTime.valueOf();
+
+      if (fromEpoch >= toEpoch) {
+        Swal.fire('Error', 'Start time must be before end time.', 'error');
         return;
       }
-      for (const overlap of overlapping) {
-        const { parsed, existingStart, existingEnd } = overlap;
-        if (fromEpoch > existingStart && toEpoch < existingEnd) {
-          const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
-          const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
-          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
-          const leftKey = {
-            ts: existingStart,
-            values: {
-              live_operator: {
-                ...parsed,
-                start_time: existingStart,
-                end_time: fromEpoch,
-                duration: leftDuration,
-              },
-            },
-          };
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
-          const rightKey = {
-            ts: toEpoch,
-            values: {
-              live_operator: {
-                ...parsed,
-                start_time: toEpoch,
-                end_time: existingEnd,
-                duration: rightDuration,
-              },
-            },
-          };
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
+
+      const durations = Math.floor((toEpoch - fromEpoch) / 1000);
+      const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
+      const fromtime = shiftEpoch.fromEpoch;
+      const totime = shiftEpoch.toEpoch;
+
+      if (!fromtime || !totime) {
+        Swal.fire('Error', 'Unable to determine shift boundaries.', 'error');
+        return;
+      }
+
+      // Check for overlapping entries within the shift period
+      const response = await telemetrykeydata(
+        selectedDeviceId,
+        'DEVICE',
+        'live_component',
+        fromtime,
+        totime
+      );
+
+      const existingEntries = response?.live_component || [];
+      const overlapping = [];
+
+      for (const item of existingEntries) {
+        if (!item?.value) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(item.value);
+        } catch {
+          continue;
         }
-        else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
-          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
-          
-          const newStart = toEpoch;
-          const newDuration = Math.floor((existingEnd - newStart) / 1000);
-          const updatedKey = {
-            ts: newStart,
-            values: {
-              live_operator: {
-                ...parsed,
-                start_time: newStart,
-                end_time: existingEnd,
-                duration: newDuration,
-              },
-            },
-          };
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-        }
-        else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
-          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
-          const newEnd = fromEpoch;
-          const newDuration = Math.floor((newEnd - existingStart) / 1000);
-          const updatedKey = {
-            ts: existingStart,
-            values: {
-              live_operator: {
-                ...parsed,
-                start_time: existingStart,
-                end_time: newEnd,
-                duration: newDuration,
-              },
-            },
-          };
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-        }
-        else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
-          await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_operator', existingStart, existingEnd);
+        const existingStart = parsed.start_time || item.ts;
+        const existingEnd = parsed.end_time || (existingStart + (parsed.duration || 0) * 1000);
+        const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
+        if (isOverlapping) {
+          overlapping.push({ item, parsed, existingStart, existingEnd });
         }
       }
+
+      // If there are overlaps, show confirmation dialog
+      if (overlapping.length > 0) {
+        // Close the main dialog first
+        setOpenEditDialog1(false);
+
+        const overlapDetails = overlapping.map(overlap => {
+          const existingComponent = overlap.parsed.name || 'Unknown';
+          const conflictStart = dayjs(overlap.existingStart).format('DD-MM-YYYY HH:mm:ss');
+          const conflictEnd = dayjs(overlap.existingEnd).format('DD-MM-YYYY HH:mm:ss');
+          return `"<strong>${existingComponent}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`;
+        }).join('<br>');
+
+        // Show confirmation dialog for overwrite
+        const result1 = await Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          html: `Time overlaps with existing component ${overlapDetails}`,
+          showCancelButton: true,
+          confirmButtonText: 'Overwrite',
+          cancelButtonText: 'No, Cancel',
+          backdrop: true,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
+        });
+
+        if (!result1.isConfirmed) {
+          console.log("User cancelled overwrite.");
+          setSavingComponent(false);
+          return;
+        }
+
+        // Show second confirmation
+        const result2 = await Swal.fire({
+          title: 'Confirm Overwrite',
+          text: 'Do you want to overwrite the existing component allocation with the new changes?',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, Save',
+          cancelButtonText: 'No, Cancel',
+          backdrop: true,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
+        });
+
+        if (!result2.isConfirmed) {
+          console.log("User cancelled save.");
+          setSavingComponent(false);
+          return;
+        }
+
+        // Handle the overlap cases
+        for (const overlap of overlapping) {
+          const { parsed, existingStart, existingEnd } = overlap;
+          if (fromEpoch > existingStart && toEpoch < existingEnd) {
+            const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
+            const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+            if (leftDuration > 0) {
+              const leftKey = {
+                ts: existingStart,
+                values: {
+                  live_component: {
+                    ...parsed,
+                    start_time: existingStart,
+                    end_time: fromEpoch,
+                    duration: leftDuration,
+                  },
+                },
+              };
+              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
+            }
+            if (rightDuration > 0) {
+              const rightKey = {
+                ts: toEpoch,
+                values: {
+                  live_component: {
+                    ...parsed,
+                    start_time: toEpoch,
+                    end_time: existingEnd,
+                    duration: rightDuration,
+                  },
+                },
+              };
+              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
+            }
+          }
+          else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+            const newStart = toEpoch;
+            const newDuration = Math.floor((existingEnd - newStart) / 1000);
+            if (newDuration > 0) {
+              const updatedKey = {
+                ts: newStart,
+                values: {
+                  live_component: {
+                    ...parsed,
+                    start_time: newStart,
+                    end_time: existingEnd,
+                    duration: newDuration,
+                  },
+                },
+              };
+              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+            }
+          }
+          else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+            const newEnd = fromEpoch;
+            const newDuration = Math.floor((newEnd - existingStart) / 1000);
+            if (newDuration > 0) {
+              const updatedKey = {
+                ts: existingStart,
+                values: {
+                  live_component: {
+                    ...parsed,
+                    start_time: existingStart,
+                    end_time: newEnd,
+                    duration: newDuration,
+                  },
+                },
+              };
+              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
+            }
+          }
+          else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
+            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+          }
+        }
+
+        // Save the new component assignment after handling overlaps
+        try {
+          const now = Date.now();
+          const key = {
+            ts: fromEpoch || now,
+            values: {
+              live_component: {
+                name: componentName,
+                code: componentNumber,
+                start_time: fromEpoch,
+                end_time: toEpoch,
+                duration: durations,
+                cycle_time: cycleTime,
+                handling_time: handlingTime,
+                setup_time: setupTime,
+                factorval: factorValue,
+                factor: factors,
+              },
+            },
+          };
+
+          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+          setDeviceThresholds(prev => ({
+            ...prev,
+            [selectedDeviceId.id || selectedDeviceId]: componentName,
+          }));
+
+          Swal.fire({
+            title: 'Success',
+            text: 'Component assigned successfully.',
+            icon: 'success',
+            backdrop: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            allowEnterKey: false
+          });
+
+          setTimeout(() => {
+            handleSubmit();
+          }, 2000);
+
+          return;
+        } catch (error) {
+          console.error('Error saving component:', error);
+          Swal.fire('Error', 'Failed to assign component.', 'error');
+          return;
+        } finally {
+          setSavingComponent(false);
+        }
+      }
+
+      // ✅ Proceed to save if no overlap
       try {
         const now = Date.now();
         const key = {
-          ts: fromEpoch > now ? fromEpoch : now,
+          ts: fromEpoch || now,
           values: {
-            live_operator: {
-              name: selectedOperator.operatorname,
-              code: selectedOperatorId,
+            live_component: {
+              name: componentName,
+              code: componentNumber,
               start_time: fromEpoch,
               end_time: toEpoch,
-              duration: durations
-            }
-          }
+              duration: durations,
+              cycle_time: cycleTime,
+              handling_time: handlingTime,
+              setup_time: setupTime,
+              factorval: factorValue,
+              factor: factors,
+            },
+          },
         };
 
+        console.log(key, 'payload for component');
+
+        // Uncomment when ready to save
         await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
         setDeviceThresholds(prev => ({
           ...prev,
-          [selectedDeviceId.id || selectedDeviceId]: selectedOperator.operatorname,
+          [selectedDeviceId.id || selectedDeviceId]: componentName,
         }));
 
         Swal.fire({
           title: 'Success',
-          text: 'Operator assigned successfully.',
+          text: 'Component assigned successfully.',
           icon: 'success',
           backdrop: true,
           allowOutsideClick: false,
           allowEscapeKey: false,
           allowEnterKey: false
         });
+
         setTimeout(() => {
           handleSubmit();
         }, 2000);
-        return;
+
       } catch (error) {
-        console.error('Error saving operator:', error);
-        Swal.fire('Error', 'Failed to assign operator.', 'error');
-        return;
+        console.error('Error saving component:', error);
+        Swal.fire('Error', 'Failed to assign component.', 'error');
+      } finally {
+        setSavingComponent(false);
+        handleCloseComponentDialog();
       }
-    }
 
-    // ✅ Proceed to save if no overlap
-    const now = Date.now();
-    const key = {
-      ts: fromEpoch > now ? fromEpoch : now,
-      values: {
-        live_operator: {
-          name: selectedOperator.operatorname,
-          code: selectedOperatorId,
-          start_time: fromEpoch,
-          end_time: toEpoch,
-          duration: durations
-        }
-      }
-    };
-
-    await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-
-    setDeviceThresholds(prev => ({
-      ...prev,
-      [selectedDeviceId.id || selectedDeviceId]: selectedOperator.operatorname
-    }));
-
-    Swal.fire('Success', 'Operator assigned successfully.', 'success');
-    setTimeout(() => {
-      handleSubmit();
-    }, 2000);
-  } catch (err) {
-    console.error('Update error:', err);
-    Swal.fire('Error', 'Failed to assign operator.', 'error');
-  } finally {
-    setOpenEditDialog(false);
-  }
-};
-const handleSaveThreshold1 = async () => {
-  const hasErrors = timeErrors.startTime || timeErrors.endTime;
-  if (hasErrors) {
-    return;
-  }
-  if (!selectedDeviceId || !selectedShift || !selectedDate || !selectedComponentId) {
-    Swal.fire('Error', 'Please fill all required fields.', 'error');
-    return;
-  }
-  const component = componentslist.find(comp => comp.id === selectedComponentId);
-  if (!component) {
-    Swal.fire('Error', 'Selected component not found.', 'error');
-    return;
-  }
-
-  const componentName = component.component_name;
-  const componentNumber = component.component_number || null;
-  const cycleTime = component.cycle_time || null;
-  const handlingTime = component.handling_time || null;
-  const setupTime = component.setupTime || null;
-  const factorValue = component.factorval || null;
-  const factors = component.factor || null;
-
-  let fromEpoch, toEpoch;
-  if (startTime && endTime && selectedDate) {
-    const start = dayjs(selectedDate)
-      .set('hour', startTime.hour())
-      .set('minute', startTime.minute())
-      .set('second', startTime.second())
-      .set('millisecond', 0);
-    let end;
-    if (endTime.isBefore(startTime)) {
-      end = dayjs(selectedDate)
-        .add(1, 'day')
-        .set('hour', endTime.hour())
-        .set('minute', endTime.minute())
-        .set('second', endTime.second())
-        .set('millisecond', 0);
-    } else {
-      end = dayjs(selectedDate)
-        .set('hour', endTime.hour())
-        .set('minute', endTime.minute())
-        .set('second', endTime.second())
-        .set('millisecond', 0);
-    }
-    fromEpoch = start.valueOf();
-    toEpoch = end.valueOf();
-  } else {
-    const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-    fromEpoch = shiftEpoch.fromEpoch;
-    toEpoch = shiftEpoch.toEpoch;
-  }
-
-  if (!fromEpoch || !toEpoch) return;
-  const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-  let fromtime = shiftEpoch.fromEpoch;
-  let totime = shiftEpoch.toEpoch;
-  let durations = Math.floor((toEpoch - fromEpoch) / 1000);
-
-  // Check for overlapping entries
-  const response = await telemetrykeydata(
-    selectedDeviceId,
-    'DEVICE',
-    'live_component',
-    fromtime,
-    totime
-  );
-
-  const existingEntries = response?.live_component || [];
-  const overlapping = [];
-  
-  for (const item of existingEntries) {
-    if (!item?.value) continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(item.value);
-    } catch {
-      continue;
-    }
-    const existingStart = parsed.start_time || item.ts;
-    const existingEnd =
-      parsed.end_time ||
-      (existingStart + (parsed.duration || 0) * 1000);
-    const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
-    if (isOverlapping) {
-      overlapping.push({ item, parsed, existingStart, existingEnd });
-    }
-  }
-
-  // If there are overlaps, show confirmation dialog
-  if (overlapping.length > 0) {
-    // Close the main dialog first
-    setOpenEditDialog1(false);
-    
-    const overlapDetails = overlapping.map(overlap => {
-      const existingComponent = overlap.parsed.name || 'Unknown';
-      const conflictStart = dayjs(overlap.existingStart).format('DD-MM-YYYY HH:mm:ss');
-      const conflictEnd = dayjs(overlap.existingEnd).format('DD-MM-YYYY HH:mm:ss');
-      return `"<strong>${existingComponent}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`;
-    }).join('<br>');
-
-    // Show confirmation dialog for overwrite
-    const result1 = await Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      html: `Time overlaps with existing component ${overlapDetails}`,
-      showCancelButton: true,
-      confirmButtonText: 'Overwrite',
-      cancelButtonText: 'No, Cancel',
-      backdrop: true,
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      allowEnterKey: false
-    });
-
-    if (!result1.isConfirmed) {
-      console.log("User cancelled overwrite.");
-      return;
-    }
-
-    // Show second confirmation
-    const result2 = await Swal.fire({
-      title: 'Confirm Overwrite',
-      text: 'Do you want to overwrite the existing component allocation with the new changes?',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, Save',
-      cancelButtonText: 'No, Cancel',
-      backdrop: true,
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      allowEnterKey: false
-    });
-
-    if (!result2.isConfirmed) {
-      console.log("User cancelled save.");
-      return;
-    }
-
-    // Handle the overlap cases
-    for (const overlap of overlapping) {
-      const { parsed, existingStart, existingEnd } = overlap;
-      if (fromEpoch > existingStart && toEpoch < existingEnd) {
-        const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
-        const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
-        await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-        const leftKey = {
-          ts: existingStart,
-          values: {
-            live_component: {
-              ...parsed,
-              start_time: existingStart,
-              end_time: fromEpoch,
-              duration: leftDuration,
-            },
-          },
-        };
-        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
-        const rightKey = {
-          ts: toEpoch,
-          values: {
-            live_component: {
-              ...parsed,
-              start_time: toEpoch,
-              end_time: existingEnd,
-              duration: rightDuration,
-            },
-          },
-        };
-        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
-      }
-      else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
-        await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-        const newStart = toEpoch;
-        const newDuration = Math.floor((existingEnd - newStart) / 1000);
-        const updatedKey = {
-          ts: newStart,
-          values: {
-            live_component: {
-              ...parsed,
-              start_time: newStart,
-              end_time: existingEnd,
-              duration: newDuration,
-            },
-          },
-        };
-        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-      }
-      else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
-        await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-        const newEnd = fromEpoch;
-        const newDuration = Math.floor((newEnd - existingStart) / 1000);
-        const updatedKey = {
-          ts: existingStart,
-          values: {
-            live_component: {
-              ...parsed,
-              start_time: existingStart,
-              end_time: newEnd,
-              duration: newDuration,
-            },
-          },
-        };
-        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-      }
-      else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
-        await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-      }
-    }
-
-    // Save the new component assignment after handling overlaps
-    try {
-      const now = Date.now();
-      const key = {
-        ts: fromEpoch > now ? fromEpoch : now,
-        values: {
-          live_component: {
-            name: componentName,
-            code: componentNumber,
-            start_time: fromEpoch,
-            end_time: toEpoch,
-            duration: durations,
-            cycle_time: cycleTime,
-            handling_time: handlingTime,
-            setup_time: setupTime,
-            factorval: factorValue,
-            factor: factors,
-          },
-        },
-      };
-
-      await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-      setDeviceThresholds(prev => ({
-        ...prev,
-        [selectedDeviceId.id || selectedDeviceId]: componentName,
-      }));
-
-      Swal.fire({
-        title: 'Success',
-        text: 'Component assigned successfully.',
-        icon: 'success',
-        backdrop: true,
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false
-      });
-      setTimeout(() => {
-        handleSubmit();
-      }, 2000);
-      // Don't call handleCloseComponentDialog() here since we already closed it
-      return; // Exit early
     } catch (error) {
-      console.error('Error saving component:', error);
-      Swal.fire('Error', 'Failed to assign component.', 'error');
-      return;
+      console.error('Error in component assignment:', error);
+      Swal.fire('Error', 'An error occurred while assigning component.', 'error');
+      setSavingComponent(false);
     }
-  }
-
-  // ✅ Proceed to save if no overlap
-  try {
-    const now = Date.now();
-    const key = {
-      ts: fromEpoch > now ? fromEpoch : now,
-      values: {
-        live_component: {
-          name: componentName,
-          code: componentNumber,
-          start_time: fromEpoch,
-          end_time: toEpoch,
-          duration: durations,
-          cycle_time: cycleTime,
-          handling_time: handlingTime,
-          setup_time: setupTime,
-          factorval: factorValue,
-          factor: factors,
-        },
-      },
-    };
-
-    await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-    setDeviceThresholds(prev => ({
-      ...prev,
-      [selectedDeviceId.id || selectedDeviceId]: componentName,
-    }));
-
-    Swal.fire('Success', 'Component assigned successfully.', 'success');
-    setTimeout(() => {
-      handleSubmit();
-    }, 2000);
-    handleCloseComponentDialog();
-  } catch (error) {
-    console.error('Error saving component:', error);
-    Swal.fire('Error', 'Failed to assign component.', 'error');
-  }
-};
+  };
   const handleCloseComponentDialog = () => {
     setOpenEditDialog1(false);
     setselectedcomponent('');
     setSelectedComponentId('');
+    setSavingComponent(false); // Reset saving state
+    setTimeErrors({ startTime: '', endTime: '' }); // Also reset errors
   };
   const getCurrentShift = (allShifts, selectedDate = dayjs()) => {
     const now = dayjs(selectedDate);
@@ -2486,6 +2572,69 @@ const handleSaveThreshold1 = async () => {
     const { name, value } = event.target;
     setselectedcomponent(value);
   };
+
+  const isShiftOvernight = (shift) => {
+    if (!shift) return false;
+    if (parseInt(shift.start_day) !== parseInt(shift.end_day)) return true;
+    const [startHour, startMin] = shift.start_time.split(':').map(Number);
+    const [endHour, endMin] = shift.end_time.split(':').map(Number);
+    if (endHour < startHour || (endHour === startHour && endMin < startMin)) {
+      return true;
+    }
+    return false;
+  };
+
+  const getShiftBoundaries = (shift, baseDate) => {
+    if (!shift) return { shiftStart: null, shiftEnd: null };
+    const startDay = parseInt(shift.start_day);
+    const endDay = parseInt(shift.end_day);
+    const isOvernight = isShiftOvernight(shift);
+    const [startHour, startMinute, startSecond] = shift.start_time.split(':').map(Number);
+    const [endHour, endMinute, endSecond] = shift.end_time.split(':').map(Number);
+    let shiftStart = dayjs(baseDate)
+      .add(startDay - 1, 'day')
+      .set('hour', startHour)
+      .set('minute', startMinute)
+      .set('second', startSecond || 0)
+      .set('millisecond', 0);;
+    let shiftEnd = dayjs(baseDate)
+      .add(endDay - 1, 'day')
+      .set('hour', endHour)
+      .set('minute', endMinute)
+      .set('second', endSecond || 0)
+      .set('millisecond', 0);
+    return { shiftStart, shiftEnd };
+  };
+
+  const getAdjustedDateTime = (timeValue, selectedDate, shift) => {
+    if (!timeValue || !shift) return null;
+    const startDay = parseInt(shift.start_day);
+    const endDay = parseInt(shift.end_day);
+    const isOvernight = isShiftOvernight(shift);
+    let datetime = dayjs(selectedDate)
+      .set('hour', timeValue.hour())
+      .set('minute', timeValue.minute())
+      .set('second', timeValue.second())
+      .set('millisecond', 0); 
+    const { shiftStart, shiftEnd } = getShiftBoundaries(shift, selectedDate);
+    if (startDay > 1 && endDay > 1) {
+      datetime = datetime.add(startDay - 1, 'day');
+    }
+    else if (isOvernight && startDay === 1 && endDay === 2) {
+      if (timeValue.hour() < 12) {
+        datetime = datetime.add(1, 'day');
+      }
+    }
+    else if (isOvernight) {
+      const startHour = parseInt(shift.start_time.split(':')[0]);
+      const endHour = parseInt(shift.end_time.split(':')[0]);
+      if (startHour >= 18 && timeValue.hour() < 12) {
+        datetime = datetime.add(1, 'day');
+      }
+    }
+    return datetime;
+  };
+
   const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
   return (
     <div className="pages">
@@ -2731,11 +2880,18 @@ const handleSaveThreshold1 = async () => {
                 value={selectedDate}
                 onChange={(e) => {
                   handleDateChange(e);
-                  handleOperatorChange(e);
+                  handleOperatorChange1(e);
                 }}
                 format="DD-MM-YYYY"
                 minDate={dayjs()} // ✅ Allows today
                 maxDate={dayjs().add(7, 'day')} // ✅ Allows up to 7 days from today
+                slotProps={{
+                  textField: {
+                    sx: { width: '100%' },
+                    error: !!dateErrors.operator,
+                    helperText: dateErrors.operator || '',
+                  },
+                }}
               />
             </LocalizationProvider>
             <CustomDaySelect
@@ -2749,6 +2905,7 @@ const handleSaveThreshold1 = async () => {
               label="Select Shift"
               required
               options={shiftOptions}
+
             />
             {/* <CustomDaySelect
               name="operatorselected"
@@ -2760,114 +2917,121 @@ const handleSaveThreshold1 = async () => {
               error={!operatorselected}
               ref={customDaySelectRef}
             /> */}
-           <Autocomplete
-  sx={{
-    width: '100%',
-    '& .MuiOutlinedInput-root': {
-      '&.Mui-focused fieldset': {
-        borderColor: 'orange',
-      },
-      '&.Mui-focused .MuiOutlinedInput-input': {
-        caretColor: 'orange',
-      },
-    },
-    '& .MuiInputLabel-root.Mui-focused': {
-      color: 'orange',
-    },
-  }}
-  options={operators}
-  getOptionLabel={(option) => option.label}
-  value={operators.find(c => c.id === selectedOperatorId) || null}
-  onChange={handleOperatorChange}
-  renderInput={(params) => (
-    <TextField
-      {...params}
-      label="Select Operator"
-      required
-      error={!selectedOperatorId}
-      helperText={!selectedOperatorId ? 'Operator is required' : ''}
-    />
-  )}
-  isOptionEqualToValue={(option, value) => option.id === value.id}
-  autoHighlight
-  filterSelectedOptions
-  componentsProps={{ popper: { style: { minWidth: 'fit-content' } } }}
-/>
+            <Autocomplete
+              sx={{
+                width: '100%',
+                '& .MuiOutlinedInput-root': {
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'orange',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-input': {
+                    caretColor: 'orange',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: 'orange',
+                },
+              }}
+              options={operators}
+              getOptionLabel={(option) => option.label}
+              value={operators.find(c => c.id === selectedOperatorId) || null}
+              onChange={handleOperatorChange}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Operator"
+                  required
+                  error={!selectedOperatorId}
+                  helperText={!selectedOperatorId ? 'Operator is required' : ''}
+                />
+              )}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              autoHighlight
+              filterSelectedOptions
+              componentsProps={{ popper: { style: { minWidth: 'fit-content' } } }}
+            />
 
           </div>
           <br></br>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DesktopTimePicker
-                value={startTime}
-                onChange={handleStartTimeChange}
-                label="Start Time"
-                minTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.start_time, 'HH:mm:ss')
-                    : undefined
-                }
-                maxTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
-                    : undefined
-                }
-                views={['hours', 'minutes', 'seconds']}
-                openTo="hours"
-                format="hh:mm:ss A"
-                error={!!startTime}
-                InputLabelProps={{ required: false }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: 'black' },
-                    '&:hover fieldset': { borderColor: 'black' },
-                    '&.Mui-focused fieldset': { borderColor: 'orange' },
-                    '& .MuiOutlinedInput-input': { color: 'black' },
-                    '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                    '&::placeholder': { color: 'black', opacity: 1 },
-                  },
-                }}
-              />
+            <FormControl fullWidth error={!!timeErrors.startTime}>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DesktopTimePicker
+                  value={startTime}
+                  onChange={(value) => handleTimeChange('start', value, 'operator')}
+                  label="Start Time *"
+                  views={['hours', 'minutes', 'seconds']}
+                  openTo="hours"
+                  format="hh:mm:ss A"
+                  slotProps={{
+                    textField: {
+                      error: !!timeErrors.startTime,
+                    }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: timeErrors.startTime ? 'red' : 'black' },
+                      '&:hover fieldset': { borderColor: timeErrors.startTime ? 'red' : 'black' },
+                      '&.Mui-focused fieldset': { borderColor: timeErrors.startTime ? 'red' : 'orange' },
+                    },
+                  }}
+                />
+              </LocalizationProvider>
+              <FormHelperText>
+                {timeErrors.startTime || " "}
+              </FormHelperText>
+            </FormControl>
 
-            </LocalizationProvider>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DesktopTimePicker
-                value={endTime}
-                onChange={handleEndTimeChange}
-                label="End Time"
-                minTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.start_time, 'HH:mm:ss')
-                    : undefined
-                }
-                maxTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
-                    : undefined
-                }
-                views={['hours', 'minutes', 'seconds']}
-                openTo="hours"
-                format="hh:mm:ss A"
-                error={!!endTime}
-                InputLabelProps={{ required: false }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: 'black' },
-                    '&:hover fieldset': { borderColor: 'black' },
-                    '&.Mui-focused fieldset': { borderColor: 'orange' },
-                    '& .MuiOutlinedInput-input': { color: 'black' },
-                    '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                    '&::placeholder': { color: 'black', opacity: 1 },
-                  },
-                }}
-              />
-            </LocalizationProvider>
+            <FormControl fullWidth error={!!timeErrors.endTime}>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DesktopTimePicker
+                  value={endTime}
+                  onChange={(value) => handleTimeChange('end', value, 'operator')}
+                  label="End Time *"
+                  views={['hours', 'minutes', 'seconds']}
+                  openTo="hours"
+                  format="hh:mm:ss A"
+                  slotProps={{
+                    textField: {
+                      error: !!timeErrors.endTime,
+                    }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: timeErrors.endTime ? 'red' : 'black' },
+                      '&:hover fieldset': { borderColor: timeErrors.endTime ? 'red' : 'black' },
+                      '&.Mui-focused fieldset': { borderColor: timeErrors.endTime ? 'red' : 'orange' },
+                    },
+                  }}
+                />
+              </LocalizationProvider>
+              <FormHelperText>
+                {timeErrors.endTime || " "}
+              </FormHelperText>
+            </FormControl>
           </div>
         </DialogContent>
         <DialogActions>
           <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff4444' }} onClick={() => setOpenEditDialog(false)}>Cancel</Button>
-          <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff9800' }} onClick={handleSaveThreshold}>Save</Button>
-        </DialogActions>
+          <Button
+            type="submit"
+            variant="contained"
+            className="filter_btn btn_orange"
+            sx={{ backgroundColor: '#ff9800' }}
+            onClick={handleSaveThreshold}
+            disabled={
+              savingStates.operator ||
+              !selectedOperatorId ||
+              !startTime ||
+              !endTime ||
+              timeErrors.startTime ||
+              timeErrors.endTime ||
+              dateErrors.operator ||
+              !selectedDate?.isValid()
+            }
+          >
+            {savingStates.operator ? 'Saving...' : 'Save'}
+          </Button>        </DialogActions>
       </Dialog>
 
 
@@ -2879,6 +3043,7 @@ const handleSaveThreshold1 = async () => {
           }
         }}
         disableEscapeKeyDown={true}
+        disableBackdropClick={savingComponent}
         sx={{
           '& .MuiDialog-paper': {
             width: '700px',
@@ -2906,6 +3071,15 @@ const handleSaveThreshold1 = async () => {
                 format="DD-MM-YYYY"
                 minDate={dayjs()} // ✅ Allows today
                 maxDate={dayjs().add(7, 'day')} // ✅ Allows up to 7 days from today
+                slotProps={{
+                  textField: {
+                    sx: {
+                      width: '100%',
+                    },
+                    error: selectedDate && !selectedDate.isValid(),
+                    helperText: selectedDate && !selectedDate.isValid() ? 'Invalid date format' : '',
+                  },
+                }}
               />
             </LocalizationProvider>
             <CustomDaySelect
@@ -3050,7 +3224,16 @@ const handleSaveThreshold1 = async () => {
         </DialogContent>
         <DialogActions>
           <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff4444' }} onClick={() => setOpenEditDialog1(false)}>Cancel</Button>
-          <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff9800' }} onClick={handleSaveThreshold1}>Save</Button>
+          <Button
+            type="submit"
+            variant="contained"
+            className="filter_btn btn_orange"
+            sx={{ backgroundColor: '#ff9800' }}
+            onClick={handleSaveThreshold1}
+            disabled={savingComponent || !selectedComponentId || !startTime || !endTime || timeErrors.startTime || timeErrors.endTime || !selectedDate?.isValid()}
+          >
+            {savingComponent ? 'Saving...' : 'Save'}
+          </Button>
         </DialogActions>
       </Dialog>
       <Dialog
@@ -3174,19 +3357,28 @@ const handleSaveThreshold1 = async () => {
           <br></br>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
             <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <CustomDateSelect
-                name="selectedDate"
-                label="Select Date"
-                required
-                value={selectedDate}
-                onChange={(e) => {
-                  handleDateChange(e);
-                  handleOperatorChange1(e);
-                }}
-                format="DD-MM-YYYY"
-                minDate={dayjs()} // ✅ Allows today
-                maxDate={dayjs().add(7, 'day')} // ✅ Allows up to 7 days from today
-              />
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <CustomDateSelect
+                  name="selectedDate"
+                  label="Select Date"
+                  required
+                  value={selectedDate}
+                  onChange={(e) => {
+                    handleDateChange(e);
+                    handleOperatorChange1(e);
+                  }}
+                  format="DD-MM-YYYY"
+                  minDate={dayjs()}
+                  maxDate={dayjs().add(7, 'day')}
+                  slotProps={{
+                    textField: {
+                      sx: { width: '100%' },
+                      error: !!dateErrors.supervisor,
+                      helperText: dateErrors.supervisor || '',
+                    },
+                  }}
+                />
+              </LocalizationProvider>
             </LocalizationProvider>
             <CustomDaySelect
               name="shift_no"
@@ -3213,78 +3405,85 @@ const handleSaveThreshold1 = async () => {
           </div>
           <br></br>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DesktopTimePicker
-                value={startTime}
-                onChange={handleStartTimeChange1}
-                label="Start Time"
-                minTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.start_time, 'HH:mm:ss')
-                    : undefined
-                }
-                maxTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
-                    : undefined
-                }
-                views={['hours', 'minutes', 'seconds']}
-                openTo="hours"
-                format="hh:mm:ss A"
-                error={!!startTime}
-                InputLabelProps={{ required: false }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: 'black' },
-                    '&:hover fieldset': { borderColor: 'black' },
-                    '&.Mui-focused fieldset': { borderColor: 'orange' },
-                    '& .MuiOutlinedInput-input': { color: 'black' },
-                    '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                    '&::placeholder': { color: 'black', opacity: 1 },
-                  },
-                }}
-              />
+            <FormControl fullWidth error={!!timeErrors.startTime}>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DesktopTimePicker
+                  value={startTime}
+                  onChange={(value) => handleTimeChange('start', value, 'supervisor')}
+                  label="Start Time *"
+                  views={['hours', 'minutes', 'seconds']}
+                  openTo="hours"
+                  format="hh:mm:ss A"
+                  slotProps={{
+                    textField: {
+                      error: !!timeErrors.startTime,
+                    }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: timeErrors.startTime ? 'red' : 'black' },
+                      '&:hover fieldset': { borderColor: timeErrors.startTime ? 'red' : 'black' },
+                      '&.Mui-focused fieldset': { borderColor: timeErrors.startTime ? 'red' : 'orange' },
+                    },
+                  }}
+                />
+              </LocalizationProvider>
+              <FormHelperText>
+                {timeErrors.startTime || " "}
+              </FormHelperText>
+            </FormControl>
 
-            </LocalizationProvider>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DesktopTimePicker
-                value={endTime}
-                onChange={handleEndTimeChange1}
-                label="End Time"
-                minTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.start_time, 'HH:mm:ss')
-                    : undefined
-                }
-                maxTime={
-                  selectedShiftData && !isOvernight(selectedShiftData)
-                    ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
-                    : undefined
-                }
-                views={['hours', 'minutes', 'seconds']}
-                openTo="hours"
-                format="hh:mm:ss A"
-                error={!!endTime}
-                InputLabelProps={{ required: false }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: 'black' },
-                    '&:hover fieldset': { borderColor: 'black' },
-                    '&.Mui-focused fieldset': { borderColor: 'orange' },
-                    '& .MuiOutlinedInput-input': { color: 'black' },
-                    '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                    '&::placeholder': { color: 'black', opacity: 1 },
-                  },
-                }}
-              />
-            </LocalizationProvider>
+            <FormControl fullWidth error={!!timeErrors.endTime}>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DesktopTimePicker
+                  value={endTime}
+                  onChange={(value) => handleTimeChange('end', value, 'supervisor')}
+                  label="End Time *"
+                  views={['hours', 'minutes', 'seconds']}
+                  openTo="hours"
+                  format="hh:mm:ss A"
+                  slotProps={{
+                    textField: {
+                      error: !!timeErrors.endTime,
+                    }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: timeErrors.endTime ? 'red' : 'black' },
+                      '&:hover fieldset': { borderColor: timeErrors.endTime ? 'red' : 'black' },
+                      '&.Mui-focused fieldset': { borderColor: timeErrors.endTime ? 'red' : 'orange' },
+                    },
+                  }}
+                />
+              </LocalizationProvider>
+              <FormHelperText>
+                {timeErrors.endTime || " "}
+              </FormHelperText>
+            </FormControl>
           </div>
 
         </DialogContent>
         <DialogActions>
           <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff4444' }} onClick={() => setOpenEditDialog4(false)}>Cancel</Button>
-          <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff9800' }} onClick={handleSaveThreshold3}>Save</Button>
-        </DialogActions>
+          <Button
+            type="submit"
+            variant="contained"
+            className="filter_btn btn_orange"
+            sx={{ backgroundColor: '#ff9800' }}
+            onClick={handleSaveThreshold3}
+            disabled={
+              savingStates.supervisor ||
+              !supervisorselected ||
+              !startTime ||
+              !endTime ||
+              timeErrors.startTime ||
+              timeErrors.endTime ||
+              dateErrors.supervisor ||
+              !selectedDate?.isValid()
+            }
+          >
+            {savingStates.supervisor ? 'Saving...' : 'Save'}
+          </Button>        </DialogActions>
       </Dialog>
     </div>
   );
