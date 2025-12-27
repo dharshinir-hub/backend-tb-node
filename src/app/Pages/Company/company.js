@@ -286,9 +286,11 @@ const CompanyDashboard = () => {
       return { from: null, to: null };
     }
 
-    const todayStr = dayjs().format("YYYY-MM-DD"); // today
     const selectedStr = dayjs(selectedDate).format("YYYY-MM-DD");
-    const nextDayStr = dayjs(selectedDate).add(1, "day").format("YYYY-MM-DD");
+    const getDateByDayOffset = (baseDate, dayValue) => {
+      const offset = Number(dayValue) - 1; // 1 = same day, 2 = +1 day, etc.
+      return dayjs(baseDate).add(offset, "day").format("YYYY-MM-DD");
+    };
 
     const normalizedShift =
       typeof selectedShift === "string"
@@ -299,59 +301,43 @@ const CompanyDashboard = () => {
 
     if (normalizedShift === "") return { from: null, to: null };
 
-    // All shifts
     if (normalizedShift === "allshift" || normalizedShift === "all shift") {
       const sortedShifts = [...shifts].sort(
         (a, b) => Number(a.shift_no) - Number(b.shift_no)
       );
-      const firstShiftStart = sortedShifts[0]?.start_time;
-      const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
 
-      if (firstShiftStart && lastShiftEnd) {
-        const fromStr = `${selectedStr}T${firstShiftStart}`;
-        let toStr;
-        if (selectedStr === todayStr) {
-          toStr =
-            lastShiftEnd <= firstShiftStart
-              ? `${nextDayStr}T${lastShiftEnd}`
-              : `${selectedStr}T${lastShiftEnd}`;// current time
-        } else {
-          // handle overnight shifts
-          toStr =
-            lastShiftEnd <= firstShiftStart
-              ? `${nextDayStr}T${lastShiftEnd}`
-              : `${selectedStr}T${lastShiftEnd}`;
-        }
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+      if (!firstShift || !lastShift) return { from: null, to: null };
 
-        return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
-      }
+      const fromDateStr = getDateByDayOffset(selectedStr, firstShift.start_day);
+      const toDateStr = getDateByDayOffset(selectedStr, lastShift.end_day);
 
-      return { from: null, to: null };
+      const fromStr = `${fromDateStr}T${firstShift.start_time}`;
+      const toStr = `${toDateStr}T${lastShift.end_time}`;
+
+      return {
+        from: new Date(fromStr).getTime(),
+        to: new Date(toStr).getTime(),
+      };
     }
 
-    // Single shift
+    // 🟡 Handle Single Shift
     const shiftData = shifts.find((s) => String(s.shift_no) === normalizedShift);
     if (!shiftData) return { from: null, to: null };
 
-    const shiftStart = shiftData.start_time;
-    const shiftEnd = shiftData.end_time;
+    const { start_time, end_time, start_day, end_day } = shiftData;
 
-    const fromStr = `${selectedStr}T${shiftStart}`;
-    let toStr;
-    if (selectedStr === todayStr) {
-      toStr =
-        shiftEnd <= shiftStart
-          ? `${nextDayStr}T${shiftEnd}`
-          : `${selectedStr}T${shiftEnd}`; // current time
-    } else {
-      // handle overnight shifts
-      toStr =
-        shiftEnd <= shiftStart
-          ? `${nextDayStr}T${shiftEnd}`
-          : `${selectedStr}T${shiftEnd}`;
-    }
+    const fromDateStr = getDateByDayOffset(selectedStr, start_day);
+    const toDateStr = getDateByDayOffset(selectedStr, end_day);
 
-    return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
+    const fromStr = `${fromDateStr}T${start_time}`;
+    const toStr = `${toDateStr}T${end_time}`;
+
+    return {
+      from: new Date(fromStr).getTime(),
+      to: new Date(toStr).getTime(),
+    };
   }
 
 
@@ -363,41 +349,56 @@ const CompanyDashboard = () => {
       return { fromEpoch: null, toEpoch: null };
     }
 
-    const shiftValue = typeof selectedShift === "number" ? String(selectedShift) : selectedShift || "";
+    const shiftValue =
+      typeof selectedShift === "number"
+        ? String(selectedShift)
+        : selectedShift || "";
+
+    const normalizedShift = shiftValue.trim().toLowerCase();
     const baseDate = dayjs(selectedDate).subtract(1, "day").format("YYYY-MM-DD");
     const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
+
+    const getDateByDayOffset = (baseDate, dayValue) => {
+      const offset = Number(dayValue) - 1; // 1 = same day, 2 = +1 day
+      return dayjs(baseDate).add(offset, "day").format("YYYY-MM-DD");
+    };
 
     let fromEpoch = null;
     let toEpoch = null;
 
-    const normalizedShift = shiftValue.trim().toLowerCase();
-
     if (normalizedShift === "allshift" || normalizedShift === "all shift") {
-      const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
-      const firstShiftStart = sortedShifts[0]?.start_time;
-      const lastShiftEnd = sortedShifts[sortedShifts.length - 1]?.end_time;
+      const sortedShifts = [...shifts].sort(
+        (a, b) => Number(a.shift_no) - Number(b.shift_no)
+      );
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+      if (!firstShift || !lastShift) return { fromEpoch: null, toEpoch: null };
 
-      if (firstShiftStart && lastShiftEnd) {
-        fromEpoch = new Date(`${baseDate}T${firstShiftStart}`).getTime();
-        toEpoch = new Date(`${baseDate}T${lastShiftEnd}`).getTime();
+      const fromDateStr = getDateByDayOffset(baseDate, firstShift.start_day);
+      const toDateStr = getDateByDayOffset(baseDate, lastShift.end_day);
 
-        if (lastShiftEnd <= firstShiftStart) {
-          toEpoch = new Date(`${todayStr}T${lastShiftEnd}`).getTime();
-        }
-      }
-    } else {
-      const shiftData = shifts.find((s) => String(s.shift_no) === String(shiftValue));
-      if (shiftData) {
-        const shiftStart = shiftData.start_time;
-        const shiftEnd = shiftData.end_time;
+      const fromStr = `${fromDateStr}T${firstShift.start_time}`;
+      const toStr = `${toDateStr}T${lastShift.end_time}`;
 
-        fromEpoch = new Date(`${baseDate}T${shiftStart}`).getTime();
-        toEpoch = new Date(`${baseDate}T${shiftEnd}`).getTime();
+      fromEpoch = new Date(fromStr).getTime();
+      toEpoch = new Date(toStr).getTime();
+    }
+    else {
+      const shiftData = shifts.find(
+        (s) => String(s.shift_no) === String(shiftValue)
+      );
+      if (!shiftData) return { fromEpoch: null, toEpoch: null };
 
-        if (shiftEnd <= shiftStart) {
-          toEpoch = new Date(`${todayStr}T${shiftEnd}`).getTime();
-        }
-      }
+      const { start_time, end_time, start_day, end_day } = shiftData;
+
+      const fromDateStr = getDateByDayOffset(baseDate, start_day);
+      const toDateStr = getDateByDayOffset(baseDate, end_day);
+
+      const fromStr = `${fromDateStr}T${start_time}`;
+      const toStr = `${toDateStr}T${end_time}`;
+
+      fromEpoch = new Date(fromStr).getTime();
+      toEpoch = new Date(toStr).getTime();
     }
 
     return { fromEpoch, toEpoch };
@@ -827,14 +828,12 @@ const CompanyDashboard = () => {
               onChange={(e) => setSelectedShift(e.target.value)}
             >
               {shifts.map((s) => {
-                // check if selected date = today
                 const isToday =
                   dayjs(selectedDate).format("YYYY-MM-DD") === dayjs().format("YYYY-MM-DD");
 
-                // compute shift start timestamp for today
-                const shiftStart = new Date(`${dayjs(selectedDate).format("YYYY-MM-DD")}T${s.start_time}`).getTime();
+                const shiftDate = dayjs(selectedDate).add(Number(s.start_day) - 1, "day");
+                const shiftStart = dayjs(`${shiftDate.format("YYYY-MM-DD")}T${s.start_time}`).valueOf();
 
-                // disable only if today AND shift start is in the future
                 const isDisabled = isToday && shiftStart > Date.now();
 
                 return (
@@ -846,19 +845,38 @@ const CompanyDashboard = () => {
             </Select>
           </FormControl>
 
-
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DatePicker
               label="Select Date"
               value={selectedDate}
-              onChange={(newValue) => setSelectedDate(newValue)}
+              onChange={(newValue) => {
+                if (!newValue) return;
+                const newDate = dayjs(newValue);
+                const isToday = newDate.isSame(dayjs(), "day");
+                if (isToday && selectedShift) {
+                  const currentShift = shifts.find(
+                    (s) => String(s.shift_no) === String(selectedShift)
+                  );
+                  if (currentShift) {
+                    const shiftDate = newDate.add(Number(currentShift.start_day) - 1, "day");
+                    const shiftStart = dayjs(
+                      `${shiftDate.format("YYYY-MM-DD")}T${currentShift.start_time}`
+                    ).valueOf();
+                    if (shiftStart > Date.now()) {
+                      setSelectedShift("1");
+                    }
+                  }
+                }
+                setSelectedDate(newValue);
+              }}
               format="DD-MM-YYYY"
+              maxDate={dayjs()}
               slotProps={{
                 textField: {
-                  size: "small",            // ✅ match dropdown height
+                  size: "small",
                   fullWidth: false,
-                  sx: { minWidth: 160, background: "#fff" } // ✅ same width & style as others
-                }
+                  sx: { minWidth: 160, background: "#fff" },
+                },
               }}
             />
           </LocalizationProvider>
