@@ -1342,11 +1342,58 @@ const OperatorDetails = () => {
     };
   };
 
+  function getShiftTimes(shifts, selectedShift, selectedDate) {
+    if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
+      return { from: null, to: null };
+    }
+    const selectedStr = dayjs(selectedDate).format("YYYY-MM-DD");
+    const getDateByDayOffset = (baseDate, dayValue) => {
+      const offset = Number(dayValue) - 1; // 1 = same day, 2 = +1 day, etc.
+      return dayjs(baseDate).add(offset, "day").format("YYYY-MM-DD");
+    };
+    const normalizedShift =
+      typeof selectedShift === "string"
+        ? selectedShift.trim().toLowerCase()
+        : selectedShift == null
+          ? ""
+          : String(selectedShift);
+    if (normalizedShift === "") return { from: null, to: null };
+    if (normalizedShift === "allshift" || normalizedShift === "all shift") {
+      const sortedShifts = [...shifts].sort(
+        (a, b) => Number(a.shift_no) - Number(b.shift_no)
+      );
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+      if (!firstShift || !lastShift) return { from: null, to: null };
+      const fromDateStr = getDateByDayOffset(selectedStr, firstShift.start_day);
+      const toDateStr = getDateByDayOffset(selectedStr, lastShift.end_day);
+      const fromStr = `${fromDateStr}T${firstShift.start_time}`;
+      const toStr = `${toDateStr}T${lastShift.end_time}`;
+      return {
+        from: new Date(fromStr).getTime(),
+        to: new Date(toStr).getTime(),
+      };
+    }
+    const shiftData = shifts.find((s) => String(s.shift_no) === normalizedShift);
+    if (!shiftData) return { from: null, to: null };
+    const { start_time, end_time, start_day, end_day } = shiftData;
+    const fromDateStr = getDateByDayOffset(selectedStr, start_day);
+    const toDateStr = getDateByDayOffset(selectedStr, end_day);
+    const fromStr = `${fromDateStr}T${start_time}`;
+    const toStr = `${toDateStr}T${end_time}`;
+    return {
+      fromEpoch: new Date(fromStr).getTime(),
+      toEpoch: new Date(toStr).getTime(),
+    };
+  }
+    
   const downtimereason = async () => {
     if (!selectedDeviceId || !selectedShift || !selectedDate) return;
 
-    const { fromEpoch, toEpoch } = getEpochFromShift2(selectedShift, selectedDate, shifts);
+    // const { fromEpoch, toEpoch } = getEpochFromShift2(selectedShift, selectedDate, shifts);
+    const { fromEpoch, toEpoch } = getShiftTimes(shifts, selectedShift, selectedDate);
     console.log(fromEpoch, toEpoch, 'from and to time')
+
     if (!fromEpoch || !toEpoch) return;
 
     const fromTime = fromEpoch;
