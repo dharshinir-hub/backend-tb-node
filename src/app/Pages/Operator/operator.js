@@ -23,6 +23,7 @@ import { CustomDaySelect } from '../Inputfield/inputfield';
 import CircularProgress from '../../Shared/Pages/circularprogress/circularprogress';
 import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogress';
 import { useLocation } from 'react-router-dom';
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
@@ -71,7 +72,9 @@ function Operator() {
             return window._env_.MARKS_CUSTOMER_ID;
         } else if (location.pathname === "/makino_operator_av5tc") {
             return window._env_.MAKINO_CUSTOMER_ID;
-        } else {
+        } else if (location.pathname === "/gplast_operator_awe6tc") {
+            return CUSTOMER_IDS.GPLAST;
+        }  else {
             const customerIdStr = localStorage.getItem('CustomerID');
             try {
                 return JSON.parse(customerIdStr);
@@ -1067,7 +1070,8 @@ function Operator() {
             location.pathname !== "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" &&
             location.pathname !== "/smc_operator_bf9tz" &&
             location.pathname !== "/marks_operator_ch8st" &&
-            location.pathname !== "/makino_operator_av5tc" 
+            location.pathname !== "/makino_operator_av5tc" &&
+            location.pathname !== "/gplast_operator_awe6tc"
         ) {
             return;
         }
