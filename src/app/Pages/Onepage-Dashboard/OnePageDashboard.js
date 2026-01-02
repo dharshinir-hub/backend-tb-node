@@ -539,7 +539,7 @@ export default function OnePageDashboard() {
                     flexWrap: 'wrap',
                     gap: '16px'
                 }}>
-                    <h4 style={{ margin: 0 }}><b>One Page Dashboard</b></h4>
+                    <h4 style={{ margin: 0 }}><b>KPI Dashboard</b></h4>
 
                     <div style={{
                         display: 'flex',
@@ -619,7 +619,7 @@ export default function OnePageDashboard() {
                             border: 'none',
                             display: 'block'
                         }}
-                        title="Grafana One Page Dashboard - Main"
+                        title="Grafana KPI Dashboard - Main"
                         allowFullScreen
                     />
                 ) : (

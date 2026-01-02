@@ -4,7 +4,7 @@ import { Button, Navbar } from 'react-bootstrap';
 import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import {
   BiSolidDashboard, BiTimeFive, BiChip, BiBarChartAlt2,
-  BiBarChart,BiPulse ,BiSolidExtension, 
+  BiBarChart, BiPulse, BiSolidExtension,
   BiDetail
 } from "react-icons/bi";
 import { FiActivity } from 'react-icons/fi';
@@ -13,7 +13,7 @@ import {
   MdList, MdManageAccounts, MdPrecisionManufacturing, MdAssignmentTurnedIn, MdAssessment, MdTrendingUp, MdMoreVert, MdLock
 } from "react-icons/md";
 import { AiTwotoneProfile } from "react-icons/ai";
-import { FaCogs } from 'react-icons/fa';
+import { FaChartBar, FaCogs } from 'react-icons/fa';
 import { Tooltip, Menu, MenuItem, IconButton } from '@mui/material';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import logo from '../../assets/yantraimage.png';
@@ -44,6 +44,7 @@ export default function PersistentDrawerLeft({ children }) {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [operationOpen, setOperationOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -115,14 +116,14 @@ export default function PersistentDrawerLeft({ children }) {
   //       { path: "/operator-details", name: "Allocation", icon: <MdAssignmentTurnedIn /> },
   //     ]
   //   },
-    // {
-    //   name: "Analytics",
-    //   icon: <BiChip />,
-    //   children: [
-    //     { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
-    //     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
-    //   ]
-    // },
+  // {
+  //   name: "Analytics",
+  //   icon: <BiChip />,
+  //   children: [
+  //     { path: "/Alarm", name: "Alarms", icon: <BiChip /> },
+  //     { path: "/CurrentShift", name: "Current Shift Details", icon: <BiTimeFive /> },
+  //   ]
+  // },
   //   {
   //     name: "Master",
   //     icon: <MdList />,
@@ -147,7 +148,7 @@ export default function PersistentDrawerLeft({ children }) {
         icon: <BiSolidDashboard />,
         children: [
           { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
-          { path: "/one-page-dashboard", name: "One Page", icon: <BiDetail  /> },
+          { path: "/kpi-dashboard", name: "KPI", icon: <FaChartBar /> },
           { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
         ],
@@ -156,9 +157,15 @@ export default function PersistentDrawerLeft({ children }) {
         name: "Analytics",
         icon: <BiBarChart />,
         children: [
-        { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
-          { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> },
-          { path: "/leaderboard", name: "LeaderBoard", icon: <FaCogs size={18} /> }
+          { path: "/analytics", name: "Operation", icon: <TbLayoutGrid size={20} /> },
+          { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
+        ]
+      },
+      {
+        name: "Leaderboard",
+        icon: <BiBarChartAlt2 />,
+        children: [
+          { path: "/operator-leaderboard", name: "Operator", icon: <TbLayoutGrid size={20} /> }
 
         ]
       },
@@ -283,7 +290,7 @@ export default function PersistentDrawerLeft({ children }) {
           <img className="Logo" src={logo} alt="Logo" />
           <span style={{ fontWeight: '500', fontSize: '20px' }}></span>
           <div className="rightsidecontents">
-          <NotificationBell />
+            <NotificationBell />
             <span className="person" style={{
               backgroundColor: 'black',
               color: 'white',
@@ -301,12 +308,11 @@ export default function PersistentDrawerLeft({ children }) {
               <h6>{username}</h6>
               <p>{formattedUser}</p>
             </div>
-             <Tooltip title="Log-out">
+            <Tooltip title="Log-out">
               <label className="circles-icon" onClick={handleLogout} style={{ cursor: 'pointer' }}>
                 <MdPowerSettingsNew />
               </label>
             </Tooltip>
-            
             {/* <IconButton onClick={handleClick} size="large">
               <MdMoreVert />
             </IconButton>
@@ -366,8 +372,8 @@ export default function PersistentDrawerLeft({ children }) {
               item.name === "Dashboard" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
                 item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
                   item.name === "Analytics" ? renderDropdown(item, analyticsOpen, setAnalyticsOpen) :
-
-                    null
+                    item.name === "Leaderboard" ? renderDropdown(item, leaderboardOpen, setLeaderboardOpen) :
+                      null
           ) : (
             <NavLink
               to={item.path}

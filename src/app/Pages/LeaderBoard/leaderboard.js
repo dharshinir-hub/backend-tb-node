@@ -5,38 +5,86 @@ import {
   telemetrykeydata,
 } from "../../Services/app/companyservice";
 
+import { FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import dayjs from "dayjs";
+
+// 🟢 Get Current Shift
+function getCurrentShift(shifts) {
+  if (!Array.isArray(shifts) || shifts.length === 0) return null;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  for (const s of shifts) {
+    const [fromH, fromM] = s.start_time.split(":").map(Number);
+    const [toH, toM] = s.end_time.split(":").map(Number);
+
+    const fromMinutes = fromH * 60 + fromM;
+    const toMinutes = toH * 60 + toM;
+
+    // normal or overnight
+    if (
+      (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
+      (fromMinutes > toMinutes &&
+        (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
+    ) {
+      return String(s.shift_no);
+    }
+  }
+
+  return String(shifts[0].shift_no);
+}
+
+// 🟢 Get Shift Times
+function getShiftTimes(shifts, selectedShift, selectedDate) {
+  if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate)
+    return { from: null, to: null };
+
+  const selectedStr = dayjs(selectedDate).format("YYYY-MM-DD");
+  const getDateByDayOffset = (baseDate, dayValue) =>
+    dayjs(baseDate).add(Number(dayValue) - 1, "day").format("YYYY-MM-DD");
+
+  if (selectedShift === "allShift") {
+    const sortedShifts = [...shifts].sort(
+      (a, b) => Number(a.shift_no) - Number(b.shift_no)
+    );
+    const firstShift = sortedShifts[0];
+    const lastShift = sortedShifts[sortedShifts.length - 1];
+    const fromStr = `${getDateByDayOffset(selectedStr, firstShift.start_day)}T${firstShift.start_time}`;
+    const toStr = `${getDateByDayOffset(selectedStr, lastShift.end_day)}T${lastShift.end_time}`;
+    return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
+  }
+
+  const shiftData = shifts.find((s) => String(s.shift_no) === String(selectedShift));
+  if (!shiftData) return { from: null, to: null };
+
+  const fromStr = `${getDateByDayOffset(selectedStr, shiftData.start_day)}T${shiftData.start_time}`;
+  const toStr = `${getDateByDayOffset(selectedStr, shiftData.end_day)}T${shiftData.end_time}`;
+  return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
+}
+
 export default function LeaderBoard() {
   const [devices, setDevices] = useState([]);
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
   const [shifts, setShifts] = useState([]);
+  const [selectedDevice, setSelectedDevice] = useState("all");
+  const [selectedShift, setSelectedShift] = useState("allShift");
+  const [selectedDate, setSelectedDate] = useState(dayjs());
   const [from, setFrom] = useState(null);
   const [to, setTo] = useState(null);
-  const [shiftNo, setShiftNo] = useState(null);
-  const [selectedDevice, setSelectedDevice] = useState([]);
-  const [finalResult, setFinalResult] = useState([]);
-  const [topOperators, setTopOperators] = useState([]);
-
   const [telemetryData, setTelemetryData] = useState({
     totalParts: {},
     targetParts: {},
     operator: {},
     component: {},
   });
+  const [finalResult, setFinalResult] = useState([]);
 
   const customerId = localStorage.getItem("CustomerID");
 
-  // ================= Fetch Shifts ====================
-  const fetchShifts = async () => {
-    try {
-      const result = await customerbasedshift(customerId, "allShift");
-      const data = result[0]?.value || [];
-      setShifts(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // ================= Fetch Devices ====================
+  // =================== Fetch Devices ===================
   const fetchDevices = async () => {
     try {
       const result = await customerbaseddevices(customerId, 100, 0);
@@ -53,96 +101,48 @@ export default function LeaderBoard() {
     }
   };
 
+  // =================== Fetch Shifts ===================
+  const fetchShifts = async () => {
+    try {
+      const result = await customerbasedshift(customerId, "allShift");
+      const data = result[0]?.value || [];
+      setShifts(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchDevices();
     fetchShifts();
   }, []);
 
-  // ============== Get Current Shift ==================
+  // Auto-select current shift after shifts are loaded
   useEffect(() => {
-    if (!Array.isArray(shifts) || shifts.length === 0) return;
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    let activeShift = shifts[0];
-
-    for (const s of shifts) {
-      const [fromH, fromM] = s.start_time.split(":").map(Number);
-      const [toH, toM] = s.end_time.split(":").map(Number);
-      const fromMinutes = fromH * 60 + fromM;
-      const toMinutes = toH * 60 + toM;
-
-      if (
-        (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
-        (fromMinutes > toMinutes &&
-          (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
-      ) {
-        activeShift = s;
-        break;
-      }
+    if (shifts.length > 0) {
+      const currentShift = getCurrentShift(shifts);
+      setSelectedShift(currentShift);
     }
-
-    const [startH, startM] = activeShift.start_time.split(":").map(Number);
-    const [endH, endM] = activeShift.end_time.split(":").map(Number);
-
-    const startDate = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      startH,
-      startM
-    );
-
-    let endDate = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      endH,
-      endM
-    );
-
-    if (endDate <= startDate) endDate.setDate(endDate.getDate() + 1);
-
-    setFrom(startDate.valueOf());
-    setTo(endDate.valueOf());
-    setShiftNo(String(activeShift.shift_no));
   }, [shifts]);
 
-  // Auto select all devices
+  // =================== Calculate from/to based on shift & date ===================
   useEffect(() => {
-    if (devices.length > 0) {
-      const allDeviceIds = devices.map((d) => d.id.id);
-      setSelectedDevice(allDeviceIds);
-    }
-  }, [devices]);
+    if (!selectedShift || !selectedDate || !shifts.length) return;
+    const { from, to } = getShiftTimes(shifts, selectedShift, selectedDate);
+    setFrom(from);
+    setTo(to);
+  }, [selectedShift, selectedDate, shifts]);
 
-const parseTelemetryValues = (data, key) => {
-  return (data?.[key] || [])
-    .map((p) => {
-      try {
-        // If JSON → parse
-        if (typeof p.value === "string" && p.value.startsWith("{")) {
-          const parsed = JSON.parse(p.value);
-          return { ts: p.ts, ...parsed };
-        }
-
-        // If number or simple value
-        return { ts: p.ts, value: Number(p.value) || p.value };
-      } catch {
-        return null;
-      }
-    })
-    .filter((v) => v !== null);
-};
-
-
-  // =================== Fetch Telemetry =====================
+  // =================== Fetch Telemetry ===================
   const fetchTelemetryData = async () => {
-    if (!from || !to || !selectedDevice?.length) return;
+    if (!from || !to) return;
+
+    const devicesToFetch =
+      selectedDevice === "all" ? devices.map((d) => d.id.id) : [selectedDevice];
 
     try {
       const results = await Promise.all(
-        selectedDevice.map(async (deviceId) => {
+        devicesToFetch.map(async (deviceId) => {
           const data = await telemetrykeydata(
             deviceId,
             "DEVICE",
@@ -151,23 +151,31 @@ const parseTelemetryValues = (data, key) => {
             to
           );
 
+          const parseTelemetryValues = (arr) =>
+            (arr || [])
+              .map((p) => {
+                try {
+                  if (typeof p.value === "string" && p.value.startsWith("{")) {
+                    return { ts: p.ts, ...JSON.parse(p.value) };
+                  }
+                  return { ts: p.ts, value: Number(p.value) || p.value };
+                } catch {
+                  return null;
+                }
+              })
+              .filter(Boolean);
+
           return {
             name: deviceNameIdJson[deviceId] || "Unknown Device",
-            totalparts: parseTelemetryValues(data, "totalparts"),
-            targetparts: parseTelemetryValues(data, "targetparts"),
-            operator: parseTelemetryValues(data, "live_operator"),
-            component: parseTelemetryValues(data, "live_component"),
+            totalparts: parseTelemetryValues(data.totalparts),
+            targetparts: parseTelemetryValues(data.targetparts),
+            operator: parseTelemetryValues(data.live_operator),
+            component: parseTelemetryValues(data.live_component),
           };
         })
       );
 
-      const merged = {
-        totalParts: {},
-        targetParts: {},
-        operator: {},
-        component: {},
-      };
-
+      const merged = { totalParts: {}, targetParts: {}, operator: {}, component: {} };
       results.forEach((r) => {
         merged.totalParts[r.name] = r.totalparts;
         merged.targetParts[r.name] = r.targetparts;
@@ -178,304 +186,155 @@ const parseTelemetryValues = (data, key) => {
       setTelemetryData(merged);
     } catch (err) {
       console.error("❌ Telemetry Fetch Failed", err);
-      setTelemetryData({
-        totalParts: {},
-        targetParts: {},
-        operator: {},
-        component: {},
-      });
     }
   };
 
   useEffect(() => {
-    if (selectedDevice && from && to) fetchTelemetryData();
-  }, [selectedDevice, from, to]);
+    if (from && to) fetchTelemetryData();
+  }, [from, to, selectedDevice]);
 
-  // ================= Final Result ======================
-const processFinalData = (telemetry) => {
-  if (!telemetry) return;
+  // =================== Process Final Operator Data ===================
+  const processFinalData = (telemetry) => {
+    const operatorMap = {};
 
-  const operatorMap = {}; // key = operator code
+    Object.keys(telemetry.operator).forEach((machine) => {
+      const operators = telemetry.operator[machine] || [];
+      const total = telemetry.totalParts[machine] || [];
+      const target = telemetry.targetParts[machine] || [];
 
-  // Loop through each machine
-  Object.keys(telemetry.operator).forEach((machine) => {
-    const operators = telemetry.operator[machine] || [];
-    const total = telemetry.totalParts[machine] || [];
-    const target = telemetry.targetParts[machine] || [];
+      operators.forEach((op) => {
+        const start = Number(op?.start_time || op?.ts);
+        const end = op?.end_time && op.end_time !== "-" ? Number(op.end_time) : Date.now();
 
-    operators.forEach((op) => {
-      const start = Number(op?.start_time || op?.ts);
-      const end =
-        op?.end_time && op.end_time !== "-" 
-          ? Number(op.end_time)
-          : Date.now();
+        const totalRange = total.filter((t) => Number(t.ts) >= start && Number(t.ts) <= end);
+        const latestTotal = totalRange.length
+          ? totalRange.reduce((a, b) => (Number(a.ts) > Number(b.ts) ? a : b))
+          : null;
 
-      // Find latest total parts in the operator time range
-      const totalRange = total.filter(
-        (t) => Number(t.ts) >= start && Number(t.ts) <= end
-      );
-      const latestTotal = totalRange.length
-        ? totalRange.reduce((a, b) =>
-            Number(a.ts) > Number(b.ts) ? a : b
-          )
-        : null;
+        const targetRange = target.filter((t) => Number(t.ts) >= start && Number(t.ts) <= end);
+        const latestTarget = targetRange.length
+          ? targetRange.reduce((a, b) => (Number(a.ts) > Number(b.ts) ? a : b))
+          : null;
 
-      // Find latest target parts in the operator time range
-      const targetRange = target.filter(
-        (t) => Number(t.ts) >= start && Number(t.ts) <= end
-      );
-      const latestTarget = targetRange.length
-        ? targetRange.reduce((a, b) =>
-            Number(a.ts) > Number(b.ts) ? a : b
-          )
-        : null;
+        const totalParts = latestTotal?.totalshots ?? latestTotal?.goodparts ?? 0;
+        const targetParts = Number(latestTarget?.value ?? latestTarget?.target ?? 0);
 
-      const totalParts = latestTotal?.totalshots ?? latestTotal?.goodparts ?? 0;
-      const targetParts = Number(latestTarget?.value ?? latestTarget?.target ?? 0);
+        const code = op?.code || op?.name || `unknown-${op?.ts}`;
+        if (!operatorMap[code]) {
+          operatorMap[code] = {
+            operator: op?.name || "Unknown",
+            operatorCode: code,
+            totalParts: 0,
+            targetParts: 0,
+            machines: new Set(),
+          };
+        }
 
-      // Merge by operator code
-      const code = op?.code || op?.name || `unknown-${op?.ts}`;
-
-      if (!operatorMap[code]) {
-        operatorMap[code] = {
-          operator: op?.name || "Unknown",
-          operatorCode: code,
-          totalParts: 0,
-          targetParts: 0,
-          machines: new Set(), // ✅ keep track of machines
-        };
-      }
-
-      // Sum totalParts and targetParts for same code
-      operatorMap[code].totalParts += totalParts;
-      operatorMap[code].targetParts += targetParts;
-
-      // Add machine name to the set
-      operatorMap[code].machines.add(machine);
+        operatorMap[code].totalParts += totalParts;
+        operatorMap[code].targetParts += targetParts;
+        operatorMap[code].machines.add(machine);
+      });
     });
-  });
 
-  // Convert map to array, calculate percent, and convert machines set to array
-  const final = Object.values(operatorMap)
-    .map((op) => ({
-      ...op,
-      machines: Array.from(op.machines), // ✅ convert Set to array
-      percent:
-        op.targetParts > 0
-          ? Number(((op.totalParts / op.targetParts) * 100).toFixed(2))
-          : 0,
-    }))
-    .sort((a, b) => b.percent - a.percent) // descending
-    .map((op, index) => ({
-      ...op,
-      top: `Top ${index + 1}`,
-    }));
+    // Convert Map to Array, Sort, and assign Top 3 permanently
+    let final = Object.values(operatorMap)
+      .map((op) => ({
+        ...op,
+        machines: Array.from(op.machines),
+        percent: op.targetParts > 0 ? Number(((op.totalParts / op.targetParts) * 100).toFixed(2)) : 0,
+      }))
+      .sort((a, b) => b.percent - a.percent)
+      .map((op, index) => ({
+        ...op,
+        top: index === 0 ? "Top 1" : index === 1 ? "Top 2" : index === 2 ? "Top 3" : null,
+      }));
 
-  console.log("✅ FINAL RESULT MERGED BY OPERATOR CODE WITH MACHINES ===>", final);
-  setFinalResult(final);
-};
-
-
-
-// Get only Top 3 operators based on the 'top' field
-// Filter only Top 1, 2, 3 and assign border color
-const top3Operators = finalResult
-  .filter((op) => ["Top 1", "Top 2", "Top 3"].includes(op.top))
-  .map((op) => {
-    let border = "#000"; // default border if something goes wrong
-
-    if (op.top === "Top 1") border = "gold";
-    else if (op.top === "Top 2") border = "silver";
-    else if (op.top === "Top 3") border = "#cd7f32"; // bronze
-
-    return {
-      ...op,
-      border,
-    };
-  });
-
-console.log("🏆 FILTERED TOP 3 OPERATORS WITH BORDER ===>", top3Operators);
-
-
-
+    // Only keep top 3
+    setFinalResult(final.filter((op) => op.top));
+  };
 
   useEffect(() => {
     if (telemetryData) processFinalData(telemetryData);
   }, [telemetryData]);
 
-  
-
-  console.log("All Shifts:", shifts);
-  console.log("telemetrydata", telemetryData);
-  console.log("finalResult", finalResult);
-  console.log("Top Operators:", top3Operators);
-  console.log('from', from);
-  console.log('to', to);
-  console.log('selectedDevice', selectedDevice);
-
+  // =================== Render ===================
   return (
-    <div
-      className="leaderboard-container"
-      style={{
-        padding: "20px",
-        minHeight: "100vh",
-        backgroundColor: "#f5f5f5",
-        marginTop: "10px",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          position: "relative",
-          width: "100%",
-          backgroundColor: "darkorange",
-          padding: "16px 20px",
-          color: "white",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          borderRadius: "6px 6px 0 0",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            left: "20px",
-            fontSize: "20px",
-            fontWeight: "700",
-            padding: "8px",
-            borderRadius: "6px",
-            color: "#fff",
-          }}
-        >
-          Shift: {shiftNo}
-        </span>
+    <div style={{ padding: "20px", minHeight: "100vh", backgroundColor: "white" }}>
+      {/* Selectors */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px', flexWrap: 'wrap' }} className='company-dashboard'>
+        <h4><b>Operator Leaderboard</b></h4>
+         <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap", marginBottom: "20px" }}>
+        {/* Machine */}
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>Machines</InputLabel>
+          <Select value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)}>
+            <MenuItem value="all">All Machines</MenuItem>
+            {devices.map((d) => (
+              <MenuItem key={d.id.id} value={d.id.id}>{d.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-        <h1 style={{ margin: 0, fontSize: "30px", textAlign: "center", fontWeight: "500",
- }}>
-          High Performance LeaderBoard
-        </h1>
+        {/* Shift */}
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>Shifts</InputLabel>
+          <Select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)}>
+            {/* <MenuItem value="allShift">All Shifts</MenuItem> */}
+            {shifts.map((s) => (
+              <MenuItem key={s.shift_no} value={s.shift_no}>Shift {s.shift_no}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-   <div style={{
-  position: "absolute",
-  right: "20px",
-  display: "flex",
-  alignItems: "center",
-  gap: "6px"
-}}>
-  <select
-    value={
-      selectedDevice.length === devices.length
-        ? "all"
-        : selectedDevice[0]
-    }
-    onChange={(e) => {
-      const value = e.target.value;
-      if (value === "all") {
-        const allDeviceIds = devices.map((d) => d.id.id);
-        setSelectedDevice(allDeviceIds);
-      } else {
-        setSelectedDevice([value]);
-      }
-    }}
-    style={{
-      padding: "8px",
-      border: "none",
-      borderBottom: "2px solid white",   // bottom border only
-      background: "transparent",
-      fontSize: "16px",
-      color: "white",                     // white text
-      outline: "none",
-      WebkitAppearance: "none",
-      MozAppearance: "none",
-      cursor: "pointer",
-    }}
-  >
-    <option value="all" style={{ color: "black" }}>All Machines</option>
-    {devices.map((d) => (
-      <option key={d.id.id} value={d.id.id} style={{ color: "black" }}>
-        {d.name}
-      </option>
-    ))}
-  </select>
-
-</div>
-
-
+        {/* Date */}
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
+          <DatePicker
+            label="Select Date"
+            value={selectedDate}
+            onChange={(newValue) => setSelectedDate(newValue)}
+            maxDate={dayjs()}
+            slotProps={{ textField: { size: "small", sx: { minWidth: 160 } } }}
+          />
+        </LocalizationProvider>
       </div>
+        </div>
+     
 
       {/* Top 3 Operators */}
-    <div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    marginTop: "50px",
-    width: "100%",
-    gap: "40px",
-  }}
->
-  {top3Operators.map((op) => {
-    const dataForIframe = {
-      name: op.operator,
-      latestTotalParts: op.totalParts,
-      latestTargetParts: op.targetParts,
-      percent: op.percent,
-      top: op.top,
-    };
+      <div style={{ display: "flex", gap: "40px", marginTop: "50px" }}>
+        {finalResult.map((op) => {
+          let border = "#000";
+          if (op.top === "Top 1") border = "#F4C430";
+          else if (op.top === "Top 2") border = "#B0B0B0";
+          else if (op.top === "Top 3") border = "#B87333";
 
-    const encodedData = encodeURIComponent(JSON.stringify(dataForIframe));
-    const borderColor = op.border || "#000";
+          const dataForIframe = {
+            name: op.operator,
+            latestTotalParts: op.totalParts,
+            latestTargetParts: op.targetParts,
+            percent: op.percent,
+            top: op.top,
+          };
+          const encodedData = encodeURIComponent(JSON.stringify(dataForIframe));
 
-    return (
-      <div key={op.operatorCode} style={{ flex: 1 }}>
-        {/* Card Wrapper */}
-        <div
-          style={{
-            borderRadius: "14px",
-            overflow: "hidden",
-            border: `6px solid ${borderColor}`,
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              background: borderColor,
-              color: "white",
-              padding: "10px",
-              textAlign: "center",
-              fontWeight: "bold",
-              fontSize: "20px",
-            }}
-          >
-       {op.top === "Top 1"
-  ? "TOP 1 PERFORMER"
-  : op.top === "Top 2"
-  ? "TOP 2 PERFORMER"
-  : "TOP 3 PERFORMER"}
-
-
-          </div>
-
-          {/* Iframe */}
-          <iframe
-            title={`TOP ${op.top.split(" ")[1]} PERFORMER`}
-
-            src={`http://smart.yantra24x7.com:9097/d/ff8qtt015bg8wc/new-dashboard?orgId=1&refresh=5s&theme=light&kiosk&var-data=${encodedData}`}
-            style={{
-              width: "100%",
-              height: "560px",
-              border: "none",
-            }}
-          />
-        </div>
+          return (
+            <div key={op.operatorCode} style={{ flex: 1 }}>
+              <div style={{ borderRadius: "14px", overflow: "hidden", border: `6px solid ${border}` }}>
+                <div style={{ background: border, padding: "10px", textAlign: "center", fontWeight: "bold", fontSize: "24px" }}>
+                  {op.top === "Top 1" && <>🥇 TOP 1</>}
+                  {op.top === "Top 2" && <>🥈 TOP 2</>}
+                  {op.top === "Top 3" && <>🥉 TOP 3</>}
+                </div>
+                <iframe
+                  title={`TOP ${op.top.split(" ")[1]}`}
+                  src={`http://smart.yantra24x7.com:9097/d/ff8qtt015bg8wc/new-dashboard?orgId=1&refresh=5s&theme=light&kiosk&var-data=${encodedData}`}
+                  style={{ width: "100%", height: "660px", border: "none" }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
-    );
-  })}
-</div>
-
     </div>
   );
 }

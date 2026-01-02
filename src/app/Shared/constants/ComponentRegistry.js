@@ -32,6 +32,6 @@ export const COMPONENT_REGISTRY = {
   "machines-group": MachineGroup,
   "notification-center": NotificationCenter,
   "reports": MachineReport,
-  "leaderboard": LeaderBoard,
-  "one-page-dashboard" : OnePageDashboard
+  "operator-leaderboard": LeaderBoard,
+  "kpi-dashboard" : OnePageDashboard
 };
