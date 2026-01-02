@@ -14,6 +14,7 @@ import MachineGroup from '../../Pages/Machinegroup/machinegroup';
 import NotificationCenter from '../../Pages/NotificationCenter/notificationcenter';
 import MachineReport from '../../Pages/Reports/report';
 import LeaderBoard from '../../Pages/LeaderBoard/leaderboard';
+import OnePageDashboard from '../../Pages/Onepage-Dashboard/OnePageDashboard';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -31,6 +32,6 @@ export const COMPONENT_REGISTRY = {
   "machines-group": MachineGroup,
   "notification-center": NotificationCenter,
   "reports": MachineReport,
-  "leaderboard": LeaderBoard
-
+  "leaderboard": LeaderBoard,
+  "one-page-dashboard" : OnePageDashboard
 };

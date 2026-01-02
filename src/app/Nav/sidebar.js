@@ -4,7 +4,8 @@ import { Button, Navbar } from 'react-bootstrap';
 import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import {
   BiSolidDashboard, BiTimeFive, BiChip, BiBarChartAlt2,
-  BiBarChart,BiPulse ,BiSolidExtension 
+  BiBarChart,BiPulse ,BiSolidExtension, 
+  BiDetail
 } from "react-icons/bi";
 import { FiActivity } from 'react-icons/fi';
 import {
@@ -146,6 +147,7 @@ export default function PersistentDrawerLeft({ children }) {
         icon: <BiSolidDashboard />,
         children: [
           { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
+          { path: "/one-page-dashboard", name: "One Page", icon: <BiDetail  /> },
           { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
         ],

@@ -35,7 +35,8 @@ const Layout = () => {
     location.pathname === '/partwise-cycletime' ||
     location.pathname === '/machines-group' ||
     location.pathname === '/leaderboard' ||
-    location.pathname ===  '/notification-center';
+    location.pathname === '/notification-center' ||
+    location.pathname === '/one-page-dashboard';
   return (
     <>
       {showSidebar && <Sidebar />} {/* Conditionally render the Sidebar */}
