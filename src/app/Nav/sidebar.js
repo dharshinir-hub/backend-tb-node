@@ -155,7 +155,9 @@ export default function PersistentDrawerLeft({ children }) {
         icon: <BiBarChart />,
         children: [
         { path: "/analytics", name: "Operation", icon: <TbLayoutGrid  size={20} /> },
-          { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> }
+          { path: "/production-analysis", name: "Component", icon: <FaCogs size={18} /> },
+          { path: "/leaderboard", name: "LeaderBoard", icon: <FaCogs size={18} /> }
+
         ]
       },
       { path: "/reports", name: "Reports", icon: <MdAssessment /> },

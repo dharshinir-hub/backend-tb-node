@@ -13,6 +13,7 @@ import NewAnalytics from '../../Pages/New-Analytics/new-analytics';
 import MachineGroup from '../../Pages/Machinegroup/machinegroup';
 import NotificationCenter from '../../Pages/NotificationCenter/notificationcenter';
 import MachineReport from '../../Pages/Reports/report';
+import LeaderBoard from '../../Pages/LeaderBoard/leaderboard';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -29,5 +30,7 @@ export const COMPONENT_REGISTRY = {
   "analytics": NewAnalytics,
   "machines-group": MachineGroup,
   "notification-center": NotificationCenter,
-  "reports": MachineReport
+  "reports": MachineReport,
+  "leaderboard": LeaderBoard
+
 };

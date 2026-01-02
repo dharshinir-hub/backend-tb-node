@@ -34,6 +34,7 @@ const Layout = () => {
     location.pathname === '/inprogressoee' ||
     location.pathname === '/partwise-cycletime' ||
     location.pathname === '/machines-group' ||
+    location.pathname === '/leaderboard' ||
     location.pathname ===  '/notification-center';
   return (
     <>
