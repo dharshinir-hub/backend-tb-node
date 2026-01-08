@@ -38,6 +38,7 @@ import Summary from "./app/Pages/CycleTime/summary";
 import PartCycleTime from './app/Pages/CycleTime/partcycletime';
 import InprogressOee from './app/Pages/CycleTime/inprogressoee';
 import MachineGroup from './app/Pages/Machinegroup/machinegroup';
+import OeeTv from './app/Pages/Oee-tv/oeetv';
 
 // Import other components for your routes
 
@@ -64,6 +65,7 @@ const AppRoutes = () => {
       <Route path="/gplast_operator_awe6tc" element={<Operator />} />
       <Route path="/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp" element={< Oee />} />
       <Route path="/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp" element={< Oee />} />
+      <Route path="/pmi-oee-dashboard" element={< OeeTv />} />
       <Route path="/o" element={< Oee />} />
       <Route
         path="/operator"

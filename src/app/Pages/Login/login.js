@@ -33,7 +33,12 @@ function LoginForm() {
         localStorage.setItem("customerTitle",  "PMI GLOBAL");
         tenantLogin()
         navigate("/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp");
-      } else if (data.username === 'marks_tv@yantra24x7.com' && data.password === 'markstv') {
+      } else if (data.username === 'pmi_tv2@yantra24x7.com' && data.password === 'pmitv2') {
+        localStorage.setItem("customerTitle",  "PMI GLOBAL");
+        tenantLogin()
+        navigate("/pmi-oee-dashboard");
+      }
+       else if (data.username === 'marks_tv@yantra24x7.com' && data.password === 'markstv') {
         localStorage.setItem("customerTitle", "MARKS");
         tenantLogin()
         navigate("/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp");
