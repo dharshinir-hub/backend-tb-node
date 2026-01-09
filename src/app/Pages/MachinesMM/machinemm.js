@@ -283,7 +283,6 @@ export default function MachineDashboard() {
         "historicalbaseline",
         "live_component",
         "machine_status",
-        "machine_Status",
         "total_duration",
         "auto_duration",
         "live_reason",
@@ -408,10 +407,23 @@ export default function MachineDashboard() {
             resultsDurations[machine.id.id] = { run, idle, disconnect, alarm, setting, total };
 
             /** ---------------- Machine_Status (latest display) ---------------- **/
-            const statusValues = data?.machine_Status || [];
+            const statusValues = data?.machine_status || [];
             if (statusValues.length) {
               const latestPoint = statusValues.reduce((max, p) => p.ts > max.ts ? p : max);
-              let status = typeof latestPoint.value === "string" ? latestPoint.value : String(latestPoint.value);
+              let statusCode = Number(latestPoint.value);
+              let statusText = "";
+              if ([0, 1, 2].includes(statusCode)) {
+                statusText = "Idle";
+              } else if (statusCode === 3) {
+                statusText = "Running";
+              } else if ([4, 5].includes(statusCode)) {
+                statusText = "Alarm";
+              } else if (statusCode === 100) {
+                statusText = "Disconnected";
+              } else {
+                statusText = "Unknown";
+              }
+              let status = statusText;
               resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status };
             } else {
               resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status: "No Data" };
