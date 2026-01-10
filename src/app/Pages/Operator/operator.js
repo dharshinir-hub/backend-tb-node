@@ -338,43 +338,47 @@ function Operator() {
         const toTime = toEpoch;
 
         try {
-            // Fetch machine status
             const machineStatusResponse = await telemetrykeydata(deviceId, "DEVICE", "machine_status", fromTime, toTime);
             const machineData = machineStatusResponse?.machine_status || [];
 
-            // Sort and transform machine status
             const sortedData = [...machineData].sort((a, b) => Number(a.ts) - Number(b.ts));
             const transformedData = sortedData
                 .filter(item => item.ts && item.value !== undefined)
-                .map(item => ({ ts: item.ts, value: item.value }));
+                .map(item => ({ ts: item.ts, value: Number(item.value) }));
+            const IDLE_START_CODES = [0, 1, 2];
+            const IDLE_END_CODES = [3, 4, 5, 100];
 
-            // Extract idle segments (0,1,2 -> Idle; 3 -> Run)
-            const extractStartEndFromOneToThree = (data) => {
+            const extractIdleSegments = (data) => {
                 const result = [];
                 let recording = false;
                 let segment = { start: null, value: null };
 
                 for (let i = 0; i < data.length; i++) {
                     const current = data[i];
-                    const numericValue = Number(current.value);
+                    const val = current.value;
 
-                    if (!recording && [0, 1, 2].includes(numericValue)) {
+                    if (!recording && IDLE_START_CODES.includes(val)) {
                         segment.start = current.ts;
-                        segment.value = numericValue;
+                        segment.value = val;
                         recording = true;
                     }
 
-                    if (recording && numericValue === 3) {
+                    if (recording && IDLE_END_CODES.includes(val)) {
                         segment.end = current.ts;
                         const duration = Math.floor((segment.end - segment.start) / 1000);
-
-                        result.push({ start: segment.start, end: segment.end, duration, value: segment.value, status: "IDLE" });
+                        result.push({
+                            start: segment.start,
+                            end: segment.end,
+                            duration,
+                            value: segment.value,
+                            status: "IDLE",
+                        });
                         recording = false;
                         segment = { start: null, value: null };
                     }
 
-                    if (recording && [0, 1, 2].includes(numericValue)) {
-                        segment.value = numericValue;
+                    if (recording && IDLE_START_CODES.includes(val)) {
+                        segment.value = val;
                     }
                 }
 
@@ -384,30 +388,29 @@ function Operator() {
                     const safeEnd = Math.min(toTime, now, lastKnownTs);
                     segment.end = safeEnd;
                     const duration = Math.floor((segment.end - segment.start) / 1000);
-
                     result.push({
                         start: segment.start,
                         end: segment.end,
                         duration,
                         value: segment.value,
-                        status: "IDLE"
+                        status: "IDLE",
                     });
                 }
 
-                return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: "NO_DATA" }];
+                return result.length > 0
+                    ? result
+                    : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: "NO_DATA" }];
             };
 
-            // Apply downtime threshold
             const key = "downtime_threasold";
             const results = await Deviceattributeget(deviceId, key);
             let filteredResult = [];
             if (results && results.length > 0) {
                 const downtime = results[0].value;
-                const result = extractStartEndFromOneToThree(transformedData);
-                filteredResult = result.filter(entry => entry.duration > downtime);
+                const extracted = extractIdleSegments(transformedData);
+                filteredResult = extracted.filter(entry => entry.duration > downtime);
             }
 
-            // Fetch live reasons
             const response = await telemetrykeydata(deviceId, "DEVICE", "live_reason", fromEpoch, toEpoch);
             if (response?.live_reason?.length > 0) {
                 const parsedLiveReasons = response.live_reason
@@ -417,11 +420,9 @@ function Operator() {
                     })
                     .filter(Boolean);
 
-                // Make a copy to track unused reasons
                 const unusedLiveReasons = [...parsedLiveReasons];
 
                 filteredResult = filteredResult.map(item => {
-                    // Only assign a reason if the idle segment truly overlaps the live_reason
                     const index = unusedLiveReasons.findIndex(reason => {
                         const reasonStart = Number(reason.idle_start);
                         const reasonEnd = reason.idle_end && reason.idle_end !== 0 ? Number(reason.idle_end) : reasonStart;
@@ -431,7 +432,7 @@ function Operator() {
                     let reasonName = "";
                     if (index !== -1) {
                         reasonName = unusedLiveReasons[index].name;
-                        unusedLiveReasons.splice(index, 1); // mark as used
+                        unusedLiveReasons.splice(index, 1);
                     }
 
                     return { ...item, reasonselected: reasonName || item.reasonselected || "" };
@@ -439,13 +440,11 @@ function Operator() {
             }
 
             return filteredResult;
-
         } catch (error) {
             console.error("Error fetching downtime data:", error);
             return [];
         }
     };
-
 
     const [firstMachineActive, setFirstMachineActive] = useState(null);
 
@@ -742,23 +741,15 @@ function Operator() {
                 const data = await fetchTelemetry(deviceId);
                 let machineStatusArray = data?.machine_status || [];
                 if (!machineStatusArray.length) return;
-                machineStatusArray = machineStatusArray
-                    .slice()
-                    .sort((a, b) => b.ts - a.ts);
+                machineStatusArray = machineStatusArray.slice().sort((a, b) => b.ts - a.ts);
                 const latestSample = machineStatusArray[0];
                 const latestValue = String(latestSample?.value ?? "").trim();
-                const latestStatusText = statusText(
-                    parseInt(latestValue || "0", 10)
-                ).toLowerCase();
-                console.log(
-                    "[refreshData] latestValue:",
-                    latestValue,
-                    "latestStatus:",
-                    latestStatusText
-                );
-                const response = await getMachineLock("DEVICE", deviceId, {
-                    keys: "lock_status",
-                });
+                const latestStatus = parseInt(latestValue || "0", 10);
+                const IDLE_START_CODES = ["0", "1", "2"];
+                const IDLE_END_CODES = ["3", "4", "5", "100"];
+                const latestStatusText = statusText(latestStatus).toLowerCase();
+                console.log("[refreshData] latestValue:", latestValue, "latestStatus:", latestStatusText);
+                const response = await getMachineLock("DEVICE", deviceId, { keys: "lock_status" });
                 const lockValue = response?.lock_status?.[0]?.value || "";
                 const locked = String(lockValue).toLowerCase() === "locked";
                 if (!locked && isLockedRef.current) {
@@ -773,19 +764,15 @@ function Operator() {
                     for (let i = 0; i < machineStatusArray.length - 1; i++) {
                         const current = machineStatusArray[i];
                         const next = machineStatusArray[i + 1];
-                        if (String(next.value) === "3" && ["0", "1", "2", "5"].includes(String(current.value))) {
+                        if (IDLE_END_CODES.includes(String(next.value)) && IDLE_START_CODES.includes(String(current.value))) {
                             lastIdleOrAlarm = current;
                             break;
                         }
                     }
                     if (!lastIdleOrAlarm) {
-                        lastIdleOrAlarm = machineStatusArray.find(item =>
-                            ["0", "1", "2", "5"].includes(String(item.value))
-                        );
+                        lastIdleOrAlarm = machineStatusArray.find(item => IDLE_START_CODES.includes(String(item.value)));
                     }
-                    const idleStart = lastIdleOrAlarm
-                        ? lastIdleOrAlarm.ts
-                        : dayjs().valueOf();
+                    const idleStart = lastIdleOrAlarm ? lastIdleOrAlarm.ts : dayjs().valueOf();
                     lockedIdleStartRef.current = idleStart;
                     console.log("[LOCKED_IDLE START] at", idleStart);
                     let previousReason = null;
@@ -793,7 +780,7 @@ function Operator() {
                     if (savedReason) {
                         try {
                             previousReason = JSON.parse(savedReason);
-                        } catch (e) {
+                        } catch {
                             previousReason = null;
                         }
                     }
@@ -817,33 +804,19 @@ function Operator() {
                 }
                 const prevStatus = prevStatusRef.current;
                 if (prevStatus !== latestStatusText) {
-                    console.log(
-                        `[refreshData] status changed ${prevStatus} -> ${latestStatusText}`
-                    );
+                    console.log(`[refreshData] status changed ${prevStatus} -> ${latestStatusText}`);
                 }
-                if (
-                    latestStatusText === "running" &&
+                if (IDLE_END_CODES.includes(String(latestStatus)) &&
                     lockedIdleStartRef.current &&
-                    activeReasonRef.current
-                ) {
-                    const runningEvent =
-                        machineStatusArray.find(
-                            item =>
-                                String(item.value) === "3" &&
-                                item.ts >= lockedIdleStartRef.current
-                        ) || latestSample;
-                    if (runningEvent) {
-                        const idleEndTime = runningEvent.ts;
-                        const duration = Math.floor(
-                            (idleEndTime - lockedIdleStartRef.current) / 1000
-                        );
-                        const parsedShifts = generateShiftInstances(lockedIdleStartRef.current,
-                            idleEndTime, shifts);
-                        const segments = splitIdleByShifts(
-                            lockedIdleStartRef.current,
-                            idleEndTime,
-                            parsedShifts
-                        );
+                    activeReasonRef.current) {
+                    const endEvent = machineStatusArray.find(
+                        item => IDLE_END_CODES.includes(String(item.value)) && item.ts >= lockedIdleStartRef.current
+                    ) || latestSample;
+                    if (endEvent) {
+                        const idleEndTime = endEvent.ts;
+                        const duration = Math.floor((idleEndTime - lockedIdleStartRef.current) / 1000);
+                        const parsedShifts = generateShiftInstances(lockedIdleStartRef.current, idleEndTime, shifts);
+                        const segments = splitIdleByShifts(lockedIdleStartRef.current, idleEndTime, parsedShifts);
                         for (const seg of segments) {
                             const payload = {
                                 ts: seg.start,
@@ -866,32 +839,7 @@ function Operator() {
                             }
                         }
 
-                        // console.log(
-                        //     "[LOCKED_IDLE END] closing at",
-                        //     idleEndTime,
-                        //     "duration(s):",
-                        //     duration
-                        // );
-                        // const payload = {
-                        //     ts: idleEndTime,
-                        //     values: {
-                        //         live_reason: {
-                        //             name: activeReasonRef.current.reason,
-                        //             code: activeReasonRef.current.code || "",
-                        //             mode: activeReasonRef.current.mode || "",
-                        //             category: activeReasonRef.current.category || "",
-                        //             idle_start: lockedIdleStartRef.current,
-                        //             idle_end: idleEndTime,
-                        //             idle_duration: duration,
-                        //         },
-                        //     },
-                        // };
-                        // try {
-                        //     await operatorTelemetry("DEVICE", deviceId, payload);
-                        // } catch (err) {
-                        //     console.error("Error submitting locked idle end:", err);
-                        // }
-
+                        console.log("[LOCKED_IDLE END] at", idleEndTime, "duration:", duration, "sec");
                         lockedIdleStartRef.current = null;
                         activeReasonRef.current = null;
                         isLockedRef.current = false;

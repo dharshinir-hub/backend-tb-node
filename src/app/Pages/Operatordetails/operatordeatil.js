@@ -1464,36 +1464,36 @@ const OperatorDetails = () => {
               const result = [];
               let recording = false;
               let segment = { start: null, value: null };
+              const IDLE_START_CODES = [0, 1, 2];
+              const IDLE_END_CODES = [3, 4, 5, 100];
 
               for (let i = 0; i < data.length; i++) {
                 const current = data[i];
                 const numericValue = Number(current.value);
 
-                if (!recording && (numericValue === 0 || numericValue === 1 || numericValue === 2)) {
+                if (!recording && IDLE_START_CODES.includes(numericValue)) {
                   segment.start = current.ts;
                   segment.value = numericValue;
                   recording = true;
                 }
 
-                if (recording && numericValue === 3) {
+                if (recording && IDLE_END_CODES.includes(numericValue)) {
                   segment.end = current.ts;
-                  const startTime = new Date(segment.start);
-                  const endTime = new Date(segment.end);
-                  const duration = Math.floor((endTime - startTime) / 1000);
+                  const duration = Math.floor((segment.end - segment.start) / 1000);
 
                   result.push({
                     start: segment.start,
                     end: segment.end,
-                    duration: duration,
+                    duration,
                     value: segment.value,
-                    status: 'IDLE'
+                    status: 'IDLE',
                   });
 
                   recording = false;
                   segment = { start: null, value: null };
                 }
 
-                if (recording && (numericValue === 0 || numericValue === 1 || numericValue === 2)) {
+                if (recording && IDLE_START_CODES.includes(numericValue)) {
                   segment.value = numericValue;
                 }
               }
@@ -1501,20 +1501,19 @@ const OperatorDetails = () => {
               if (recording) {
                 const now = Date.now();
                 segment.end = Math.min(toTime, now);
-                const startTime = new Date(segment.start);
-                const endTime = new Date(segment.end);
-                const duration = Math.floor((endTime - startTime) / 1000);
+                const duration = Math.floor((segment.end - segment.start) / 1000);
                 result.push({
                   start: segment.start,
                   end: segment.end,
-                  duration: duration,
+                  duration,
                   value: segment.value,
-                  status: 'IDLE'
+                  status: 'IDLE',
                 });
               }
 
-
-              return result.length > 0 ? result : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: 'NO_DATA' }];
+              return result.length > 0
+                ? result
+                : [{ start: fromTime, end: toTime, duration: 0, value: 0, status: 'NO_DATA' }];
             };
             let downtime;
             const key = 'downtime_threasold';
