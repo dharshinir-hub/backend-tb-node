@@ -144,6 +144,7 @@ handleNavigationAfterLogin(role, pageList);
     navigate("/operator");
   } else {
     const menuOrder = [
+      "kpi-dashboard",
       "company",
       "machinemm",
       "deviceoee",
