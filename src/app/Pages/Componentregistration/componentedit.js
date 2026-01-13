@@ -139,7 +139,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
     drawingcode: '',
     cycle_time: null,
     handling_time: null,
-    setupTime: null
+    setupTime: null,
+    item_code: '',
+    process_name: '',
   }), []);
   const handleTimeChange = (name, value) => {
     setShiftForm((prevShiftForm) => ({
@@ -247,8 +249,11 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
         drawingcode: data.drawingcode,
         cycle_time: cycle_time,
         handling_time: handling_time,
-        setupTime: setupTime
-
+        setupTime: setupTime,
+         ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+          item_code: data.item_code,
+          process_name: data.process_name,
+        }),
       };
 
       // Update the existing shift in the array with the new data.
@@ -331,6 +336,8 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
           factor: dialogData.factor || '',
           jobcard: dialogData.jobcard || '',
           drawingcode: dialogData.drawingcode || '',
+          item_code: dialogData.item_code || '',
+          process_name: dialogData.process_name || '',
         };
 
         // Find the correct module value if shiftsmodule is already loaded
@@ -629,6 +636,69 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
 
 
 
+                {cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && (
+                  <>
+                    <div className={`form_field ${errors.item_code ? 'error-outline' : ''}`}>
+                      <TextField
+                        {...register("item_code", {
+                          required: "Item Code is required",
+                          maxLength: {
+                            value: 100,
+                            message: "Maximum length is 100 characters",
+                          },
+                        })}
+                        label="Item Code"
+                        type="text"
+                        name="item_code"
+                        disabled
+                        value={shiftForm.item_code || ""}
+                        onChange={handleFormChange}
+                        error={!!errors.item_code}
+                        InputLabelProps={{
+                          required: true,
+                          sx: {
+                            color: "black",
+                            "&.Mui-focused": { color: "orange" },
+                          },
+                        }}
+                        inputProps={{ maxLength: 100 }}
+                        fullWidth
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            "& fieldset": { borderColor: "black" },
+                            "&:hover fieldset": { borderColor: "black" },
+                            "&.Mui-focused fieldset": { borderColor: "orange" },
+                            "& .MuiOutlinedInput-input": { color: "black" },
+                            "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
+                            "&::placeholder": { color: "black", opacity: 1 },
+                          },
+                        }}
+                      />
+                      {errors.item_code && <div className="mat-error">{errors.item_code.message}</div>}
+                    </div>
+                    <div className={`form_field ${errors.process_name ? "error-outline" : ""}`}>
+                      <CustomDaySelect
+                        {...register("process_name", { required: "Process Name is required" })}
+                        onBlur={() => trigger("process_name")}
+                        name="process_name"
+                        value={shiftForm.process_name || ""}
+                        onChange={handleFormChange}
+                        label="Process Name"
+                        required={true}
+                        options={[
+                          { value: "CASTING-DCD", label: "CASTING-DCD" },
+                          { value: "TRIMMING-DCD", label: "TRIMMING-DCD" },
+                          { value: "TURNING-PMD", label: "TURNING-PMD" },
+                          { value: "MILLING-PMD", label: "MILLING-PMD" },
+                        ]}
+                        error={!!errors.process_name}
+                      />
+                      {errors.process_name && (
+                        <div className="mat-error">{errors.process_name.message}</div>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 <div className={`form_field  ${errors.factorval ? 'error-outline' : ''}`}>
                   <TextField

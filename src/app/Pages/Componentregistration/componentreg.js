@@ -233,6 +233,8 @@ const ComponentRegistration = () => {
                                     <TableCell>Component Name</TableCell>
                                     <TableCell>Component Number</TableCell>
                                     {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell>Operation Type</TableCell>)}
+                                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Item Code</TableCell>)}
+                                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Process Name</TableCell>)}
                                     {/* <TableCell>Route Card</TableCell> */}
                                     {/* <TableCell>Drawing Code</TableCell> */}
                                     {/* <TableCell>Mould Name</TableCell> */}
@@ -255,6 +257,12 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_number || '---'}
                                             </TableCell>
+                                               {(cleanCustomerId(customerId)  === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row?.item_code || '---'}
+                                            </TableCell>)}
+                                              {(cleanCustomerId(customerId)  === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row?.process_name || '---'}
+                                            </TableCell>)}
                                             {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.operation_type || '---'}
                                             </TableCell>)}

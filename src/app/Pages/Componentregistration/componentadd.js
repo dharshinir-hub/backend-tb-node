@@ -54,7 +54,9 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
     drawingcode: '',
     cycle_time: dayjs('00:00:00', 'HH:mm:ss'),
     handling_time: dayjs('00:00:00', 'HH:mm:ss'),
-    setupTime: dayjs('00:00:00', 'HH:mm:ss')
+    setupTime: dayjs('00:00:00', 'HH:mm:ss'),
+    item_code: '',
+    process_name: '',
   }), []);
 
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
@@ -155,6 +157,10 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
         cycle_time: safeFormat(data.cycle_time),
         handling_time: safeFormat(data.handling_time),
         setupTime: safeFormat(data.setupTime),
+        ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+          item_code: data.item_code,
+          process_name: data.process_name,
+        }),
       };
 
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
@@ -169,6 +175,20 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
         handleClose();
         Swal.fire("Duplicate entry", "Component Number already exists", "error");
         return;
+      }
+      if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+        const duplicateItemCode = existingShifts.find(
+          (shift) => {
+            const existingCode = (shift.item_code || '').trim().toLowerCase();
+            const newCode = (data.item_code || '').trim().toLowerCase();
+            return existingCode && newCode && existingCode === newCode;
+          }
+        );
+        if (duplicateItemCode) {
+          handleClose();
+          Swal.fire("Duplicate entry", "Item Code already exists", "error");
+          return;
+        }
       }
 
       existingShifts.push(currentShiftData);
@@ -473,6 +493,85 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
 
 
 
+                {cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && (
+                  <>
+                    <div className={`form_field ${errors.item_code ? 'error-outline' : ''}`}>
+                      <TextField
+                        {...register("item_code", {
+                          required: "Item Code is required",
+                          maxLength: {
+                            value: 100,
+                            message: "Maximum length is 100 characters"
+                          },
+                        })}
+                        label="Item Code"
+                        type="text"
+                        name="item_code"
+                        value={shiftForm.item_code || ""}
+                        onChange={handleFormChange}
+                        error={!!errors.item_code}
+                        InputLabelProps={{
+                          required: true,
+                          sx: {
+                            color: "black",
+                            "&.Mui-focused": {
+                              color: "orange",
+                            },
+                          },
+                        }}
+                        inputProps={{ maxLength: 100 }}
+                        fullWidth
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            "& fieldset": {
+                              borderColor: "black",
+                            },
+                            "&:hover fieldset": {
+                              borderColor: "black",
+                            },
+                            "&.Mui-focused fieldset": {
+                              borderColor: "orange",
+                            },
+                            "& .MuiOutlinedInput-input": {
+                              color: "black",
+                            },
+                            "&.Mui-focused .MuiOutlinedInput-input": {
+                              caretColor: "orange",
+                            },
+                            "&::placeholder": {
+                              color: "black",
+                              opacity: 1,
+                            },
+                          },
+                        }}
+                      />
+                      {errors.item_code && (
+                        <div className="mat-error">{errors.item_code.message}</div>
+                      )}
+                    </div>
+                    <div className={`form_field ${errors.process_name ? "error-outline" : ""}`}>
+                      <CustomDaySelect
+                        {...register("process_name", { required: "Process Name is required" })}
+                        onBlur={() => trigger("process_name")}
+                        name="process_name"
+                        value={shiftForm.process_name || ""}
+                        onChange={handleFormChange}
+                        label="Process Name"
+                        required={true}
+                        options={[
+                          { value: "CASTING-DCD", label: "CASTING-DCD" },
+                          { value: "TRIMMING-DCD", label: "TRIMMING-DCD" },
+                          { value: "TURNING-PMD", label: "TURNING-PMD" },
+                          { value: "MILLING-PMD", label: "MILLING-PMD" },
+                        ]}
+                        error={!!errors.process_name}
+                      />
+                      {errors.process_name && (
+                        <div className="mat-error">{errors.process_name.message}</div>
+                      )}
+                    </div>
+                  </>
+                )}
                 <div className={`form_field  ${errors.factorval ? 'error-outline' : ''}`}>
                   <TextField
                     {...register("factorval", {

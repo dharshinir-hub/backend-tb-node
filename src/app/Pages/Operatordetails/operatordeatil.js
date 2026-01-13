@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dayjs from 'dayjs';
 import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -78,6 +78,7 @@ const OperatorDetails = () => {
   const [selectedOperatorId, setSelectedOperatorId] = useState('');
   const [operatorName, setOperatorName] = useState('');
   const [savingComponent, setSavingComponent] = useState(false);
+  const [selectedProcess, setSelectedProcess] = useState('');
   const [timeErrors, setTimeErrors] = useState({
     startTime: '',
     endTime: ''
@@ -678,6 +679,7 @@ const OperatorDetails = () => {
   const operatorvaluechange1 = async (shiftValue) => {
     try {
       setSelectedShift(shiftValue);
+      setSelectedProcess('');
       const { fromEpoch, toEpoch } = getEpochFromShift(shiftValue, selectedDate);
       setEpochRange({ from: fromEpoch, to: toEpoch });
 
@@ -686,7 +688,8 @@ const OperatorDetails = () => {
       const allComponents = operatorData[0]?.value || [];
       setcomponentslist(allComponents);
       const componentOptions = allComponents.map(comp => ({
-        id: comp.id,
+        id: comp.id, 
+        process_name: comp.process_name ? comp.process_name : null,
         value: comp.component_name,
         label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
           ? `${comp.component_number} - ${comp.component_name.length > 15 ? comp.component_name.slice(0, 15) + '...' : comp.component_name}${comp.operation_type ? ` (${comp.operation_type})` : ''}`
@@ -888,6 +891,7 @@ const OperatorDetails = () => {
   };
   const handleOpenEditDialog1 = async (devicename, deviceid) => {
     setTimeErrors({ startTime: '', endTime: '' });
+    setSelectedProcess('');
     setLoading(true);
     const key1 = 'allShift';
     try {
@@ -927,6 +931,7 @@ const OperatorDetails = () => {
         const componentOptions = allComponents.map(comp => ({
           id: comp.id,
           value: comp.component_name,
+          process_name: comp.process_name ? comp.process_name : null,
           label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
             ? `${comp.component_number} - ${comp.component_name.length > 15 ? comp.component_name.slice(0, 15) + '...' : comp.component_name}${comp.operation_type ? ` (${comp.operation_type})` : ''}`
             : `${comp.component_number} - ${comp.component_name}`
@@ -2220,6 +2225,8 @@ const OperatorDetails = () => {
     try {
       const componentName = component.component_name;
       const componentNumber = component.component_number || null;
+      const itemCode = component.item_code || null;
+      const processName = component.process_name || null;
       const cycleTime = component.cycle_time || null;
       const handlingTime = component.handling_time || null;
       const setupTime = component.setupTime || null;
@@ -2428,6 +2435,10 @@ const OperatorDetails = () => {
                 setup_time: setupTime,
                 factorval: factorValue,
                 factor: factors,
+                ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                  item_code: itemCode,
+                  process_name: processName,
+                }),
               },
             },
           };
@@ -2479,6 +2490,10 @@ const OperatorDetails = () => {
               setup_time: setupTime,
               factorval: factorValue,
               factor: factors,
+              ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                item_code: itemCode,
+                process_name: processName,
+              }),
             },
           },
         };
@@ -2630,6 +2645,16 @@ const OperatorDetails = () => {
     return false;
   };
 
+  const filteredComponents = useMemo(() => {
+    if (!selectedProcess) return components;
+    console.log(components, 'components')
+    return components.filter(
+      comp =>
+        comp.process_name &&
+        comp.process_name.toLowerCase() === selectedProcess.toLowerCase()
+    );
+  }, [components, selectedProcess]);
+
   const getShiftBoundaries = (shift, baseDate) => {
     if (!shift) return { shiftStart: null, shiftEnd: null };
     const startDay = parseInt(shift.start_day);
@@ -2682,6 +2707,11 @@ const OperatorDetails = () => {
   };
 
   const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
+
+  const dialogWidth = useMemo(() => {
+    return cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST ? '900px' : '700px';
+  }, [customerId]);
+
   return (
     <div className="pages">
       <div className="pagecontents">
@@ -3092,8 +3122,8 @@ const OperatorDetails = () => {
         disableBackdropClick={savingComponent}
         sx={{
           '& .MuiDialog-paper': {
-            width: '700px',
-            maxWidth: '700px'
+            width: dialogWidth,
+            maxWidth: dialogWidth
           }
         }}
       >
@@ -3150,6 +3180,27 @@ const OperatorDetails = () => {
               error={!componentselected}
               ref={customDaySelectRef}
             /> */}
+            {cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && (
+              <CustomDaySelect
+                name="process"
+                sx={{
+                  width: '100%',
+                }}
+                value={selectedProcess}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedProcess(value);
+                }}
+                label="Select Process"
+                required
+                options={[
+                  { value: 'CASTING-DCD', label: 'CASTING-DCD' },
+                  { value: 'TRIMMING-DCD', label: 'TRIMMING-DCD' },
+                  { value: 'TURNING-PMD', label: 'TURNING-PMD' },
+                  { value: 'MILLING-PMD', label: 'MILLING-PMD' },
+                ]}
+              />
+            )}
             <Autocomplete
               sx={{
                 width: '100%',
@@ -3159,7 +3210,7 @@ const OperatorDetails = () => {
                 },
                 '& .MuiInputLabel-root.Mui-focused': { color: 'orange' },
               }}
-              options={components}
+              options={filteredComponents}
               getOptionLabel={(option) => option.label}
               value={components.find(c => c.id === selectedComponentId) || null}
               onChange={(event, newValue) => {
@@ -3171,10 +3222,7 @@ const OperatorDetails = () => {
                   setSelectedComponentId('');
                 }
               }}
-              isOptionEqualToValue={(option, value) => {
-                if (!option || !value) return false;
-                return option.id === value.id;
-              }}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
               renderInput={(params) => (
                 <TextField
                   {...params}
