@@ -206,7 +206,35 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
       // Assuming 'datasource' is an array containing existing shift data.
       // If 'datasource' is not an array or is undefined, initialize as an empty array.
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
+      const normalize = (val) => (val || '').trim().toLowerCase();
+      const newCompNumber = normalize(data.component_number);
+      const newCompName = normalize(data.component_name);
+      const newItemCode = normalize(data.item_code);
+      const newProcessName = normalize(data.process_name);
+      if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+        const duplicate = existingShifts.find((shift) => {
+          const compNumber = normalize(shift.component_number);
+          const compName = normalize(shift.component_name);
+          const itemCode = normalize(shift.item_code);
+          const processName = normalize(shift.process_name);
+          return (
+            compNumber === newCompNumber &&
+            compName === newCompName &&
+            itemCode &&
+            newItemCode &&
+            itemCode === newItemCode &&
+            processName &&
+            newProcessName &&
+            processName === newProcessName
+          );
+        });
 
+        if (duplicate) {
+          handleClose();
+          Swal.fire("Duplicate entry", "Component with same Item Code and Process Name already exists", "error");
+          return;
+        }
+      }
       let existingShiftIndex = -1;
       let existingIdStructure = null; // To preserve the original ID structure (e.g., { $oid: "..." } or string)
 
