@@ -164,29 +164,41 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
       };
 
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
-
-      const duplicateNumber = existingShifts.find(
-        (shift) =>
-          shift.component_number.trim().toLowerCase() ===
-          data.component_number.trim().toLowerCase()
-      );
-
-      if (duplicateNumber) {
-        handleClose();
-        Swal.fire("Duplicate entry", "Component Number already exists", "error");
-        return;
-      }
+      const normalize = (val) => (val || '').trim().toLowerCase();
+      const newCompNumber = normalize(data.component_number);
+      const newCompName = normalize(data.component_name);
+      const newItemCode = normalize(data.item_code);
+      const newProcessName = normalize(data.process_name);
       if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
-        const duplicateItemCode = existingShifts.find(
-          (shift) => {
-            const existingCode = (shift.item_code || '').trim().toLowerCase();
-            const newCode = (data.item_code || '').trim().toLowerCase();
-            return existingCode && newCode && existingCode === newCode;
-          }
-        );
-        if (duplicateItemCode) {
+        const duplicate = existingShifts.find((shift) => {
+          const compNumber = normalize(shift.component_number);
+          const compName = normalize(shift.component_name);
+          const itemCode = normalize(shift.item_code);
+          const processName = normalize(shift.process_name);
+          return (
+            compNumber === newCompNumber &&
+            compName === newCompName &&
+            itemCode &&
+            newItemCode &&
+            itemCode === newItemCode &&
+            processName &&
+            newProcessName &&
+            processName === newProcessName
+          );
+        });
+
+        if (duplicate) {
           handleClose();
-          Swal.fire("Duplicate entry", "Item Code already exists", "error");
+          Swal.fire("Duplicate entry", "Component with same Item Code and Process Name already exists", "error");
+          return;
+        }
+      } else {
+        const duplicateNumber = existingShifts.find(
+          (shift) => normalize(shift.component_number) === newCompNumber
+        );
+        if (duplicateNumber) {
+          handleClose();
+          Swal.fire("Duplicate entry", "Component Number already exists", "error");
           return;
         }
       }
