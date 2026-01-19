@@ -523,8 +523,13 @@ useEffect(() => {
       Object.keys(shiftWiseData[machineId]).forEach((dateKey) => {
         const shifts = shiftWiseData[machineId][dateKey];
         const shiftValues = Object.values(shifts);
-        const avg =
-          shiftValues.reduce((sum, v) => sum + v, 0) / shiftValues.length;
+        const nonZeroValues = shiftValues.filter(v => v !== 0 && v !== null && v !== undefined);
+        if (nonZeroValues.length === 0) {
+          averages[machineId][dateKey] = 0;
+          return;
+        }
+        const sum = nonZeroValues.reduce((sum, v) => sum + v, 0);
+        const avg = sum / nonZeroValues.length;
         averages[machineId][dateKey] = Math.round(avg);
       });
     });
