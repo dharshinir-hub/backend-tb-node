@@ -142,6 +142,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
       }
       const safeFormat = (v) => dayjs(v).format("HH:mm:ss");
       const id = Math.random().toString(36).substr(2, 9);
+      const isGplast = cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
 
       const currentShiftData = {
         id,
@@ -164,41 +165,37 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
       };
 
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
-      const normalize = (val) => (val || '').trim().toLowerCase();
-      const newCompNumber = normalize(data.component_number);
-      const newCompName = normalize(data.component_name);
-      const newItemCode = normalize(data.item_code);
-      const newProcessName = normalize(data.process_name);
-      if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+      const normalize = (val) => (val || "").trim().toLowerCase();
+      if (isGplast) {
         const duplicate = existingShifts.find((shift) => {
-          const compNumber = normalize(shift.component_number);
-          const compName = normalize(shift.component_name);
-          const itemCode = normalize(shift.item_code);
-          const processName = normalize(shift.process_name);
           return (
-            compNumber === newCompNumber &&
-            compName === newCompName &&
-            itemCode &&
-            newItemCode &&
-            itemCode === newItemCode &&
-            processName &&
-            newProcessName &&
-            processName === newProcessName
+            normalize(shift.component_name) === normalize(data.component_name) &&
+            normalize(shift.item_code) === normalize(data.item_code) &&
+            normalize(shift.process_name) === normalize(data.process_name)
           );
         });
 
         if (duplicate) {
           handleClose();
-          Swal.fire("Duplicate entry", "Component with same Item Code and Process Name already exists", "error");
+          Swal.fire(
+            "Duplicate entry",
+            "Component with same Item Code and Process Name already exists",
+            "error"
+          );
           return;
         }
       } else {
         const duplicateNumber = existingShifts.find(
-          (shift) => normalize(shift.component_number) === newCompNumber
+          (shift) =>
+            normalize(shift.component_number) === normalize(data.component_number)
         );
         if (duplicateNumber) {
           handleClose();
-          Swal.fire("Duplicate entry", "Component Number already exists", "error");
+          Swal.fire(
+            "Duplicate entry",
+            "Component Number already exists",
+            "error"
+          );
           return;
         }
       }
@@ -296,63 +293,62 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   />
                   {errors.component_name && <div className="mat-error">{errors.component_name.message}</div>}
                 </div>
-
-                {/* Component Number Field */}
-                <div className={`form_field ${errors.component_number ? 'error-outline' : ''}`}>
-                  <TextField
-                    {...register("component_number", {
-                      required: "Component Number is required",
-                      maxLength: {
-                        value: 100,
-                        message: "Maximum length is 100 characters"
-                      }
-                    })}
-                    label="Component Number"
-                    type="text"
-                    name="component_number"
-                    value={shiftForm.component_number}
-                    onChange={handleFormChange}
-                    error={!!errors.component_number}
-                    InputLabelProps={{
-                      required: true,
-                      sx: {
-                        color: 'black',
-                        '&.Mui-focused': {
-                          color: 'orange',
-                        },
-                      },
-                    }}
-                    inputProps={{ maxLength: 100 }}
-                    fullWidth
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        '& fieldset': {
-                          borderColor: 'black',
-                        },
-                        '&:hover fieldset': {
-                          borderColor: 'black',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: 'orange',
-                        },
-                        '& .MuiOutlinedInput-input': {
+                {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (
+                  <div className={`form_field ${errors.component_number ? 'error-outline' : ''}`}>
+                    <TextField
+                      {...register("component_number", {
+                        required: "Component Number is required",
+                        maxLength: {
+                          value: 100,
+                          message: "Maximum length is 100 characters"
+                        }
+                      })}
+                      label="Component Number"
+                      type="text"
+                      name="component_number"
+                      value={shiftForm.component_number}
+                      onChange={handleFormChange}
+                      error={!!errors.component_number}
+                      InputLabelProps={{
+                        required: true,
+                        sx: {
                           color: 'black',
+                          '&.Mui-focused': {
+                            color: 'orange',
+                          },
                         },
-                        '&.Mui-focused .MuiOutlinedInput-input': {
-                          caretColor: 'orange',
+                      }}
+                      inputProps={{ maxLength: 100 }}
+                      fullWidth
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          '& fieldset': {
+                            borderColor: 'black',
+                          },
+                          '&:hover fieldset': {
+                            borderColor: 'black',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: 'orange',
+                          },
+                          '& .MuiOutlinedInput-input': {
+                            color: 'black',
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-input': {
+                            caretColor: 'orange',
+                          },
+                          '&::placeholder': {
+                            color: 'black',
+                            opacity: 1,
+                          },
                         },
-                        '&::placeholder': {
-                          color: 'black',
-                          opacity: 1,
-                        },
-                      },
-                    }}
-                  />
-                  {errors.component_number && (
-                    <div className="mat-error">{errors.component_number.message}</div>
-                  )}
-                </div>
-
+                      }}
+                    />
+                    {errors.component_number && (
+                      <div className="mat-error">{errors.component_number.message}</div>
+                    )}
+                  </div>
+                )}
                 {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (
                   <div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
                     <CustomDaySelect

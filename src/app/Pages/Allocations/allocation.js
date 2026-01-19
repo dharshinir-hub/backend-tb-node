@@ -34,6 +34,7 @@ import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 // Function to convert seconds to HH:mm:ss format
 import VisibilityIcon from '@mui/icons-material/Visibility'; // 👁️ icon from MUI
 import { useNavigate } from 'react-router-dom';
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 const formatSecondsToTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return 'Not set';
@@ -897,8 +898,20 @@ const Allocation = () => {
             const cycle_time=operator ? operator.cycle_time : null;;
             const handling_time= operator ? operator.handling_time : null;
             const setupTime= operator ? operator.setupTime : null;
+            const item_code = operator ? operator.item_code : null;
+            const process_name = operator ? operator.process_name : null;
+            const isGplast = cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
             const key2 = {
-                "component_name":componentselected,"component_id":component_number,"cycle_time":cycle_time,"handling_time":handling_time,"setup_time":setupTime,"component_start_time":Date.now(),
+              component_name: componentselected,
+              component_id: component_number,
+              cycle_time,
+              handling_time,
+              setup_time: setupTime,
+              component_start_time: Date.now(),
+              ...(isGplast && {
+                item_code: item_code,
+                process_name: process_name,
+              }),
             };
             const key = {                
                 live_component: JSON.stringify(key2), // Stringify the object to avoid key conflicts

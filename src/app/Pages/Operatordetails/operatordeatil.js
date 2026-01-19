@@ -693,7 +693,7 @@ const OperatorDetails = () => {
         value: comp.component_name,
         label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
           ? `${comp.component_number} - ${comp.component_name.length > 15 ? comp.component_name.slice(0, 15) + '...' : comp.component_name}${comp.operation_type ? ` (${comp.operation_type})` : ''}`
-          : `${comp.component_number} - ${comp.component_name}`
+          : cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST ? comp.component_name :  `${comp.component_number} - ${comp.component_name}`
       }));
       setcomponents(componentOptions);
       const key2 = 'live_component';
@@ -932,10 +932,10 @@ const OperatorDetails = () => {
           id: comp.id,
           value: comp.component_name,
           process_name: comp.process_name ? comp.process_name : null,
-          label: cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
-            ? `${comp.component_number} - ${comp.component_name.length > 15 ? comp.component_name.slice(0, 15) + '...' : comp.component_name}${comp.operation_type ? ` (${comp.operation_type})` : ''}`
-            : `${comp.component_number} - ${comp.component_name}`
-        }));
+          label:  cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
+          ? `${comp.component_number} - ${comp.component_name.length > 15 ? comp.component_name.slice(0, 15) + '...' : comp.component_name}${comp.operation_type ? ` (${comp.operation_type})` : ''}`
+          : cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST ? comp.component_name :  `${comp.component_number} - ${comp.component_name}`
+      }));
         setcomponents(componentOptions);
 
         setSelectedDeviceId(deviceid);

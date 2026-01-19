@@ -29,7 +29,7 @@ const ComponentRegistration = () => {
     const filteredDatasource = useMemo(() => {
         return datasource.filter(row =>
             row.component_name?.toLowerCase().includes(searchText.toLowerCase()) ||
-            row.component_number?.toLowerCase().includes(searchText.toLowerCase())
+            row?.component_number?.toLowerCase().includes(searchText.toLowerCase())
         );
     }, [datasource, searchText]);
     // Handlers for Add Shift dialog
@@ -231,7 +231,7 @@ const ComponentRegistration = () => {
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Component Name</TableCell>
-                                    <TableCell>Component Number</TableCell>
+                                     {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (<TableCell>Component Number</TableCell>)}
                                     {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell>Operation Type</TableCell>)}
                                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Item Code</TableCell>)}
                                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Process Name</TableCell>)}
@@ -254,9 +254,9 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_name || '---'}
                                             </TableCell>
-                                            <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                             {(cleanCustomerId(customerId)  != CUSTOMER_IDS.GPLAST) && ( <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_number || '---'}
-                                            </TableCell>
+                                            </TableCell>)}
                                                {(cleanCustomerId(customerId)  === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row?.item_code || '---'}
                                             </TableCell>)}
