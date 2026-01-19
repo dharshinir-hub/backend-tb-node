@@ -710,6 +710,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                         {...register("process_name", { required: "Process Name is required" })}
                         onBlur={() => trigger("process_name")}
                         name="process_name"
+                        disabled
                         value={shiftForm.process_name || ""}
                         onChange={handleFormChange}
                         label="Process Name"
