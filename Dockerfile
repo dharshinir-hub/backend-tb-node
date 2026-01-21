@@ -22,6 +22,6 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN apk add --no-cache gettext
 
 # Generate runtime env-config.js then start Nginx
-CMD ["/bin/sh", "-c", "envsubst < /usr/share/nginx/html/env-config.template.js > /usr/share/nginx/html/env-config.js && nginx -g 'daemon off;'"]
+CMD ["nginx", "-g", "daemon off;"]
 
 EXPOSE 80
