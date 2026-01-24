@@ -79,6 +79,7 @@ const OperatorDetails = () => {
   const [operatorName, setOperatorName] = useState('');
   const [savingComponent, setSavingComponent] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState('');
+  const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
   const [timeErrors, setTimeErrors] = useState({
     startTime: '',
     endTime: ''
@@ -94,6 +95,7 @@ const OperatorDetails = () => {
     component: '',
     supervisor: ''
   });
+  const [processGroupOptions, setProcessGroupOptions] = useState([]);
 
   useEffect(() => {
     if (openEditDialog || openEditDialog1 || OpenEditDialog4) {
@@ -901,7 +903,25 @@ const OperatorDetails = () => {
       setOperatorName('');
     }
   };
+  const fetchProcessGroups = async () => {
+    const key = 'processgroups';
+    try {
+      const data = await customerbasedshift(customerId, key);
+      const allProcessGroups = data[0]?.value || [];
+      const mappedGroups = allProcessGroups.map((item) => ({
+        value: item.groupName,
+        label: item.groupName,
+      }));
+      setProcessGroupOptions(mappedGroups);
+    } catch (error) {
+      console.error("Error fetching reason groups:", error);
+      setProcessGroupOptions([]);
+    }
+  };
   const handleOpenEditDialog1 = async (devicename, deviceid) => {
+    if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+      await fetchProcessGroups();
+    }
     setTimeErrors({ startTime: '', endTime: '' });
     setSelectedProcess('');
     setLoading(true);
@@ -1007,7 +1027,8 @@ const OperatorDetails = () => {
         setreasonslist(allShifts);
         const reasons = allShifts.map(shift => ({
           value: shift.reason,
-          label: shift.reason
+          label: shift.reason,
+          group: shift.group || null
         }));
         setreasons(reasons);
         setSelectedDeviceId(deviceid);
@@ -1418,7 +1439,7 @@ const OperatorDetails = () => {
     
   const downtimereason = async () => {
     if (!selectedDeviceId || !selectedShift || !selectedDate) return;
-
+        await fetchReasonGroups()
     // const { fromEpoch, toEpoch } = getEpochFromShift2(selectedShift, selectedDate, shifts);
     const { fromEpoch, toEpoch } = getShiftTimes(shifts, selectedShift, selectedDate);
     console.log(fromEpoch, toEpoch, 'from and to time')
@@ -1604,7 +1625,9 @@ const OperatorDetails = () => {
                     );
                     return {
                       ...item,
-                      reasonselected: matched?.name || item.reasonselected || ''
+                      reasonselected: matched?.name || item.reasonselected || '',
+                      groupselected: matched?.group || "all"
+
                     };
                   });
                 });
@@ -1708,6 +1731,16 @@ const OperatorDetails = () => {
       return updatedResults;
     });
   };
+  
+  const handleGroupChange = (index, selectedGroup) => {
+    setfilteredResult(prev => {
+      const updated = [...prev];
+      updated[index].groupselected = selectedGroup;
+      updated[index].reasonselected = "";
+      return updated;
+    });
+  };
+
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
@@ -1831,6 +1864,29 @@ const OperatorDetails = () => {
       initialLoad.current = false;
     }
   };
+
+      const fetchReasonGroups = async () => {
+          const key = "reasongroups";
+          try {
+              const data = await customerbasedshift(customerId, key);
+              const allReasonGroups = Array.isArray(data?.[0]?.value)
+                  ? data[0].value
+                  : [];
+              const mappedGroups = [
+                  { value: "all", label: "All Groups" },
+                  ...allReasonGroups.map(item => ({
+                      value: item.groupName || item.name || "",
+                      label: item.groupName || item.name || "",
+                  })),
+              ];
+              setReasonGroupOptions(mappedGroups);
+              return mappedGroups;
+          } catch (error) {
+              console.error("❌ Error fetching reason groups:", error);
+              setReasonGroupOptions([{ value: "", label: "All Groups" }]);
+              return [{ value: "", label: "All Groups" }];
+          }
+      };
 
   useEffect(() => {
     if (devices.length > 0) {
@@ -2620,6 +2676,7 @@ const OperatorDetails = () => {
               name: item.reasonselected,
               code: code,
               mode: mode,
+              group: item.groupselected || null,
               category: category,
               idle_start: item.start,
               idle_end: item.end,
@@ -3217,12 +3274,7 @@ const OperatorDetails = () => {
                 }}
                 label="Select Process"
                 required
-                options={[
-                  { value: 'CASTING-DCD', label: 'CASTING-DCD' },
-                  { value: 'TRIMMING-DCD', label: 'TRIMMING-DCD' },
-                  { value: 'TURNING-PMD', label: 'TURNING-PMD' },
-                  { value: 'MILLING-PMD', label: 'MILLING-PMD' },
-                ]}
+                options={processGroupOptions}
               />
             )}
             <Autocomplete
@@ -3409,6 +3461,8 @@ const OperatorDetails = () => {
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>End Time (IST)</th>
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Duration</th>
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Status</th>
+                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
+
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Reason</th>
                   </tr>
                 </thead>
@@ -3419,6 +3473,16 @@ const OperatorDetails = () => {
                       <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatEpochToIST(item.end)}</td>
                       <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatDuration(item.duration)}</td>
                       <td style={{ border: '1px solid #ccc', padding: '8px' }}>{item.status}</td>
+                      {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (
+                        <td>
+                          <CustomDaySelect
+                            name={`groupselected-${index}`}
+                            value={item.groupselected || "all"}
+                            onChange={(e) => handleGroupChange(index, e.target.value)}
+                            label="Select Group"
+                            options={reasonGroupOptions}
+                          />
+                        </td>)}
                       <td>
                         <CustomDaySelect
                           name={`reasonselected-${index}`}
@@ -3426,8 +3490,11 @@ const OperatorDetails = () => {
                           onChange={(e) => handleReasonChange(index, e.target.value)}
                           label="Select Reason"
                           required={true}
-                          options={reasons}
-                          error={!item.reasonselected}
+                          options={
+                            reasons.filter(r =>
+                              !item.groupselected || item.groupselected === "all" || r.group === item.groupselected
+                            )
+                          } error={!item.reasonselected}
                         />
                       </td>
                     </tr>

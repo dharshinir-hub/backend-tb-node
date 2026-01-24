@@ -15,6 +15,8 @@ import NotificationCenter from '../../Pages/NotificationCenter/notificationcente
 import MachineReport from '../../Pages/Reports/report';
 import LeaderBoard from '../../Pages/LeaderBoard/leaderboard';
 import OnePageDashboard from '../../Pages/Onepage-Dashboard/OnePageDashboard';
+import ReasonGroup from '../../Pages/Reasongroup/reasongroup';
+import GroupRegistration from '../../Pages/Groupregistration/groupregistration';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -33,5 +35,7 @@ export const COMPONENT_REGISTRY = {
   "notification-center": NotificationCenter,
   "reports": MachineReport,
   "operator-leaderboard": LeaderBoard,
-  "kpi-dashboard" : OnePageDashboard
+  "kpi-dashboard" : OnePageDashboard,
+  "reason-group" : ReasonGroup,
+  "group": GroupRegistration
 };

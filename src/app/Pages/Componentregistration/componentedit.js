@@ -14,7 +14,7 @@ import { useForm } from 'react-hook-form';
 import { CustomDaySelect, convertTo24Hour } from '../Inputfield/inputfield';
 import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
-import { shiftadd } from '../../Services/app/masterservice';
+import { customerbasedshift, shiftadd } from '../../Services/app/masterservice';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 import { cleanCustomerId } from '../../Services/app/operatorservice';
 
@@ -127,6 +127,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
     setValue(name, value); // Update the form state in react-hook-form
     trigger(name); // Trigger validation for this field
   };
+  const [processGroupOptions, setProcessGroupOptions] = useState([]);
   const defaultShiftForm = useMemo(() => ({
     component_name: '',
     component_number: '',
@@ -332,6 +333,23 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
       Swal.fire('Error submitting shift data: ' + error.message);
     }
   };
+
+  const fetchProcessGroups = async () => {
+    const key = 'processgroups';
+    try {
+      const data = await customerbasedshift(customerId, key);
+      const allProcessGroups = data[0]?.value || [];
+      const mappedGroups = allProcessGroups.map((item) => ({
+        value: item.groupName,
+        label: item.groupName,
+      }));
+      setProcessGroupOptions(mappedGroups);
+    } catch (error) {
+      console.error("Error fetching reason groups:", error);
+      setProcessGroupOptions([]);
+    }
+  };
+
   useEffect(() => {
     // Initialize shiftsmodule when component mounts
     const fallbackOptions = [
@@ -346,7 +364,9 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
       reset(defaultShiftForm);
       setShiftForm(defaultShiftForm);
     } else {
-
+      if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+        fetchProcessGroups();
+      }
       if (dialogData) {
 
         // Convert 24-hour time strings to Dayjs objects for 12-hour display
@@ -716,12 +736,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                         onChange={handleFormChange}
                         label="Process Name"
                         required={true}
-                        options={[
-                          { value: "CASTING-DCD", label: "CASTING-DCD" },
-                          { value: "TRIMMING-DCD", label: "TRIMMING-DCD" },
-                          { value: "TURNING-PMD", label: "TURNING-PMD" },
-                          { value: "MILLING-PMD", label: "MILLING-PMD" },
-                        ]}
+                        options={processGroupOptions}
                         error={!!errors.process_name}
                       />
                       {errors.process_name && (

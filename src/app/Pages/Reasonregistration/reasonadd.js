@@ -15,6 +15,9 @@ import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
+import Autocomplete from '@mui/material/Autocomplete';
+import { cleanCustomerId, customerbasedshift } from '../../Services/app/operatorservice';
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId }) {
   console.log('datasource', datasource);
@@ -33,10 +36,34 @@ export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCoun
     reason: '',
     // code: '',
     mode: '',
-    category: ''
+    category: '',
+    group: ''
   }), []);
 
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
+  const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
+  
+  useEffect(() => {
+    if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+      fetchReasonGroups();
+    }
+  }, []);
+
+  const fetchReasonGroups = async () => {
+    const key = 'reasongroups';
+    try {
+      const data = await customerbasedshift(customerId, key);
+      const allReasonGroups = data[0]?.value || [];
+      const mappedGroups = allReasonGroups.map((item) => ({
+        value: item.groupName,
+        label: item.groupName,
+      }));
+      setReasonGroupOptions(mappedGroups);
+    } catch (error) {
+      console.error("Error fetching reason groups:", error);
+      setReasonGroupOptions([]);
+    }
+  };
 
   useEffect(() => {
     const fallbackOptions = [
@@ -56,7 +83,9 @@ export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCoun
     if (!open) {
       reset(defaultShiftForm);
     } else {
-      setShiftForm(defaultShiftForm);
+      if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+        fetchReasonGroups();
+      } setShiftForm(defaultShiftForm);
     }
   }, [open, reset, defaultShiftForm]);
 
@@ -83,7 +112,8 @@ const onSubmit = async (data) => {
       reason: shiftForm.reason?.trim(),
       code: String(autoCode),
       mode: shiftForm.mode,
-      category: shiftForm.category
+      category: shiftForm.category,
+      group: shiftForm.group || null,
     };
     const isDuplicate = existingReasons.some(item =>
       item.reason?.trim().toLowerCase() === reasonData.reason.toLowerCase()
@@ -150,14 +180,14 @@ const onSubmit = async (data) => {
                   <TextField
                     inputRef={componentNameRef}
                     {...register("reason", {
-                      required: "Reason is required",
+                      required: "Reason Name is required",
                       maxLength: {
                         value: 100,
                         message: "Maximum length is 100 characters"
                       }
                     })}
                     onBlur={() => trigger('reason')}
-                    label="Reason"
+                    label="Reason Name"
                     type="text"
                     name="reason"
                     value={shiftForm.reason}
@@ -288,6 +318,45 @@ const onSubmit = async (data) => {
                   />
                   {errors.category && <div className="mat-error">Category is required</div>}
                 </div>
+                {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (
+                  <div className="form_field">
+                    <Autocomplete
+                      options={reasonGroupOptions}
+                      getOptionLabel={(option) => option.label}
+                      value={
+                        reasonGroupOptions.find((opt) => opt.value === shiftForm.group) || null
+                      }
+                      onChange={(event, newValue) => {
+                        const value = newValue ? newValue.value : '';
+                        setShiftForm({ ...shiftForm, group: value });
+                        setValue('group', value);
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Select Reason Group"
+                          variant="outlined"
+                          fullWidth
+                          InputLabelProps={{
+                            sx: {
+                              color: 'black',
+                              '&.Mui-focused': { color: 'orange' },
+                            },
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              '& fieldset': { borderColor: 'black' },
+                              '&:hover fieldset': { borderColor: 'black' },
+                              '&.Mui-focused fieldset': { borderColor: 'orange' },
+                              '& .MuiOutlinedInput-input': { color: 'black' },
+                              '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+                            },
+                          }}
+                        />
+                      )}
+                    />
+                  </div>
+                )}
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>

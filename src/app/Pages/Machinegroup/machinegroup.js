@@ -10,7 +10,7 @@ import MachineGroupEdit from './machinegroupedit';
 import { shiftadd } from '../../Services/app/masterservice';
 import Swal from 'sweetalert2';
 
-const MachineGroup = () => {
+const MachineGroup = ({IsInGroupReg = false}) => {
   const [machineGroups, setMachineGroups] = useState([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [dialogOpenCount, setDialogOpenCount] = useState(0);
@@ -123,11 +123,15 @@ const MachineGroup = () => {
   };
 
   return (
-    <div className="pages">
+    <div className="pages" style={{
+      paddingBlockStart: IsInGroupReg ? '0px' : '40px',
+    }}>
       <div className="pagecontents">
-        <div className="left-labels">
+        <div className="left-labels"  style={{
+      padding: IsInGroupReg ? '0 2rem 1rem 0' : '1rem 2rem 1rem 0',
+    }}>
           <div className="shift-content-1">
-            <h5>Machine Group List</h5>
+            {IsInGroupReg ? (<h6>Create New</h6>) : (<h5>Machine Group List</h5>)}
             <div className="add_new">
               <Tooltip title="Add Machine Group">
                 <IconButton className="circle" onClick={handleOpenAddDialog}>

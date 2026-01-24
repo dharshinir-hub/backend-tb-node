@@ -3,10 +3,12 @@ import logo from '../../../assets/yantraimage.png';
 import { FaRegClock, FaRegCalendarAlt } from "react-icons/fa";
 import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import Swal from 'sweetalert2';
-import { customerbaseddevices, customerbasedshift, Deviceattributeget, Downtimeadd1, getCustomerUsers, getFirstMachineActive, getMachineLock, operatorTelemetry, telemetrykeydata } from '../../Services/app/operatorservice'
+import { customerbaseddevices, customerbasedshift, Deviceattributeget, Downtimeadd1, getCustomerUsers, getFirstMachineActive, getMachineLock, operatorTelemetry, telemetrykeydata } from '../../Services/app/operatorservice';
+import ReactDOMClient from 'react-dom/client';
+
 import {
     FormControl,
     Select,
@@ -16,6 +18,8 @@ import {
     DialogContent,
     DialogActions,
     Button,
+    Autocomplete,
+    TextField,
 } from "@mui/material";
 import { ROLE_OPERATOR } from '../../Shared/constants/role'
 import { getOperatorDetails, Loginapi, startTokenAutoRefresh } from '../../Services/app/loginservice';
@@ -24,6 +28,7 @@ import CircularProgress from '../../Shared/Pages/circularprogress/circularprogre
 import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogress';
 import { useLocation } from 'react-router-dom';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
+import { cleanCustomerId } from '../../Services/app/masterservice';
 
 function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
@@ -62,6 +67,7 @@ function Operator() {
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
     const customerId1 = localStorage.getItem('CustomerID');
+    const isSwalOpenRef = useRef(false);
 
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
@@ -331,9 +337,33 @@ function Operator() {
         return null;
     };
 
+    const fetchReasonGroups = async () => {
+        const key = "reasongroups";
+        try {
+            const customerId = getCustomerId();
+            const data = await customerbasedshift(customerId, key);
+            const allReasonGroups = Array.isArray(data?.[0]?.value)
+                ? data[0].value
+                : [];
+            const mappedGroups = [
+                { value: "all", label: "All Groups" },
+                ...allReasonGroups.map(item => ({
+                    value: item.groupName || item.name || "",
+                    label: item.groupName || item.name || "",
+                })),
+            ];
+            setReasonGroupOptions(mappedGroups);
+            return mappedGroups;
+        } catch (error) {
+            console.error("❌ Error fetching reason groups:", error);
+            setReasonGroupOptions([{ value: "", label: "All Groups" }]);
+            return [{ value: "", label: "All Groups" }];
+        }
+    };
+
     const downtimereason = async ({ shiftNo, selectedDate, fromEpoch, toEpoch, deviceId }) => {
         if (!deviceId || !shiftNo || !selectedDate || !fromEpoch || !toEpoch) return [];
-
+        await fetchReasonGroups()
         const fromTime = fromEpoch;
         const toTime = toEpoch;
 
@@ -428,17 +458,27 @@ function Operator() {
                         const reasonEnd = reason.idle_end && reason.idle_end !== 0 ? Number(reason.idle_end) : reasonStart;
                         return reasonStart <= item.end && reasonEnd >= item.start;
                     });
-
                     let reasonName = "";
+                    let reasonGroup = "";
                     if (index !== -1) {
                         reasonName = unusedLiveReasons[index].name;
+                        const matchedReason = reasonsList2.find(
+                            r =>
+                                r.reason?.toLowerCase() === reasonName?.toLowerCase() ||
+                                r.code?.toString() === unusedLiveReasons[index].code?.toString()
+                        );
+                        reasonGroup = matchedReason?.group || "all";
                         unusedLiveReasons.splice(index, 1);
                     }
 
-                    return { ...item, reasonselected: reasonName || item.reasonselected || "" };
+                    return {
+                        ...item,
+                        groupselected: reasonGroup,
+                        reasonselected: reasonName || item.reasonselected || ""
+                    };
                 });
-            }
 
+            }
             return filteredResult;
         } catch (error) {
             console.error("Error fetching downtime data:", error);
@@ -446,6 +486,14 @@ function Operator() {
         }
     };
 
+    const handleGroupChange = (index, selectedGroup) => {
+        setfilteredResult(prev => {
+            const updated = [...prev];
+            updated[index].groupselected = selectedGroup;
+            updated[index].reasonselected = "";
+            return updated;
+        });
+    };
     const [firstMachineActive, setFirstMachineActive] = useState(null);
 
     useEffect(() => {
@@ -515,7 +563,7 @@ function Operator() {
             ]);
             const allReasons = reasonsData[0]?.value || [];
             setreasonslist(allReasons);
-            setreasons(allReasons.map(r => ({ value: r.reason, label: r.reason })));
+            setreasons(allReasons.map(r => ({ value: r.reason, label: r.reason, group: r.group || "" })));
             const allShifts = shiftsData[0]?.value || [];
             setShifts(allShifts);
             const options = allShifts.map(shift => ({
@@ -641,6 +689,8 @@ function Operator() {
     }
 
     useEffect(() => {
+        const customerId = getCustomerId();
+        if(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) return;
         if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
         const deviceId = deviceNameIdJson[selectedMachine];
         const openReasonSwal = (idleStart, reasonsList2, previousReason = null) => {
@@ -843,6 +893,271 @@ function Operator() {
                         lockedIdleStartRef.current = null;
                         activeReasonRef.current = null;
                         isLockedRef.current = false;
+                        localStorage.removeItem("lockedIdleStartTime");
+                        localStorage.removeItem("activeReason");
+                    }
+                }
+
+                prevStatusRef.current = latestStatusText;
+            } catch (err) {
+                console.error("Error refreshing telemetry/lock:", err);
+            }
+        };
+        refreshData(true);
+        const interval = setInterval(() => refreshData(false), 5000);
+        return () => clearInterval(interval);
+    }, [selectedMachine, deviceNameIdJson, reasonsList2]);
+
+    const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
+    useEffect(() => {
+        const customerId = getCustomerId();
+        if(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) return;
+        if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
+        const deviceId = deviceNameIdJson[selectedMachine];
+        const openReasonSwal = (idleStart, reasonsList2, previousReason = null) => {
+            if (isSwalOpenRef.current) return;
+            isSwalOpenRef.current = true;
+            const uniqueGroups = Array.from(
+                new Set(reasonsList2.map(r => r.group).filter(g => g && g.trim() !== ""))
+            );
+            const hasGroups = uniqueGroups.length > 0;
+            const allGroups = hasGroups
+                ? [{ label: "All Groups", value: "all" }, ...uniqueGroups.map(g => ({ label: g, value: g }))]
+                : [];
+            const defaultGroup =
+                previousReason && previousReason.group && uniqueGroups.includes(previousReason.group)
+                    ? previousReason.group
+                    : "all";
+            const selectedReasonRef = { current: previousReason };
+            const SwalContent = () => {
+                const [group, setGroup] = React.useState(defaultGroup);
+                const [reason, setReason] = React.useState(selectedReasonRef.current);
+                const filteredReasons = React.useMemo(() => {
+                    return group === "all" ? reasonsList2 : reasonsList2.filter(r => r.group === group);
+                }, [group]);
+                React.useEffect(() => {
+                    selectedReasonRef.current = reason;
+                }, [reason]);
+                return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, textAlign: "left", minHeight: 150 }}>
+                        <p>Machine has been locked due to downhold threshold reached.</p>
+
+                        {hasGroups && (
+                            <>
+                                <label>Select Group:</label>
+                                <Autocomplete
+                                    options={allGroups}
+                                    value={allGroups.find(g => g.value === group)}
+                                    onChange={(_, newValue) => {
+                                        setGroup(newValue?.value || "all");
+                                        setReason(null);
+                                    }}
+                                    getOptionLabel={(opt) => opt?.label || ""}
+                                    renderInput={(params) => (
+                                        <TextField {...params} label="Group" variant="outlined" size="small" />
+                                    )}
+                                />
+                            </>
+                        )}
+
+                        <label>Select Reason:</label>
+                        <Autocomplete
+                            options={filteredReasons}
+                            value={reason}
+                            onChange={(_, newValue) => setReason(newValue)}
+                            getOptionLabel={(opt) => opt?.reason || ""}
+                            renderInput={(params) => (
+                                <TextField {...params} label="Reason" variant="outlined" size="small" />
+                            )}
+                        />
+                    </div>
+                );
+            };
+
+            Swal.fire({
+                icon: "info",
+                title: "Machine Locked",
+                html: '<div id="swal-root"></div>',
+                showConfirmButton: true,
+                confirmButtonText: "Submit",
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => {
+                    const container = document.getElementById("swal-root");
+                    if (container) {
+                        ReactDOMClient.createRoot(container).render(<SwalContent />);
+                    }
+                },
+                preConfirm: () => {
+                    if (!selectedReasonRef.current) {
+                        Swal.showValidationMessage("Please select a reason");
+                        return false;
+                    }
+                    return selectedReasonRef.current;
+                },
+            }).then((result) => {
+                if (result.isConfirmed && result.value) {
+                    const selectedReason = result.value;
+                    activeReasonRef.current = selectedReason;
+                    localStorage.setItem("lockedIdleStartTime", idleStart);
+                    localStorage.setItem("activeReason", JSON.stringify(selectedReason));
+
+                    Swal.fire({
+                        icon: "question",
+                        title: "Confirm Submission",
+                        text: `You selected: ${selectedReason.reason}. Do you want to confirm?`,
+                        showCancelButton: true,
+                        confirmButtonText: "Yes, Submit",
+                        cancelButtonText: "No, Go Back",
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                    }).then(async (confirmResult) => {
+                        isSwalOpenRef.current = false;
+                        if (confirmResult.isConfirmed) {
+                            const payload = {
+                                ts: idleStart,
+                                values: {
+                                    live_reason: {
+                                        name: selectedReason.reason,
+                                        code: selectedReason.code || "",
+                                        mode: selectedReason.mode || "",
+                                        category: selectedReason.category || "",
+                                        group: selectedReason.group || null,
+                                        idle_start: idleStart,
+                                        idle_end: 0,
+                                        idle_duration: 0,
+                                    },
+                                },
+                            };
+                            try {
+                                await operatorTelemetry("DEVICE", deviceId, payload);
+                                await operatorTelemetry("DEVICE", deviceId, { lock_status: "unlocked" });
+                                isLockedRef.current = false;
+                                Swal.fire({
+                                    icon: "success",
+                                    title: "Submitted!",
+                                    text: "Reason submitted successfully.",
+                                    timer: 1500,
+                                    showConfirmButton: false,
+                                });
+                            } catch (err) {
+                                Swal.fire({
+                                    icon: "error",
+                                    title: "Error",
+                                    text: "Failed to submit reason. Please try again.",
+                                });
+                            }
+                        } else {
+                            openReasonSwal(idleStart, reasonsList2, selectedReason);
+                        }
+                    });
+                } else {
+                    isSwalOpenRef.current = false;
+                }
+            });
+        };
+        const refreshData = async (checkRestore = false) => {
+            try {
+                const data = await fetchTelemetry(deviceId);
+                let machineStatusArray = data?.machine_status || [];
+                if (!machineStatusArray.length) return;
+                machineStatusArray = machineStatusArray.slice().sort((a, b) => b.ts - a.ts);
+                const latestSample = machineStatusArray[0];
+                const latestValue = String(latestSample?.value ?? "").trim();
+                const latestStatus = parseInt(latestValue || "0", 10);
+                const IDLE_START_CODES = ["0", "1", "2"];
+                const IDLE_END_CODES = ["3", "4", "5", "100"];
+                const latestStatusText = statusText(latestStatus).toLowerCase();
+                const response = await getMachineLock("DEVICE", deviceId, { keys: "lock_status" });
+                const lockValue = response?.lock_status?.[0]?.value || "";
+                const locked = String(lockValue).toLowerCase() === "locked";
+                if (!locked && isLockedRef.current) {
+                    console.log("[refreshData] unlocking");
+                    isLockedRef.current = false;
+                    isSwalOpenRef.current = false;
+                    Swal.close();
+                }
+                if (locked && !isLockedRef.current && !isSwalOpenRef.current) {
+                    isLockedRef.current = true;
+                    let lastIdleOrAlarm = null;
+                    for (let i = 0; i < machineStatusArray.length - 1; i++) {
+                        const current = machineStatusArray[i];
+                        const next = machineStatusArray[i + 1];
+                        if (IDLE_END_CODES.includes(String(next.value)) && IDLE_START_CODES.includes(String(current.value))) {
+                            lastIdleOrAlarm = current;
+                            break;
+                        }
+                    }
+                    if (!lastIdleOrAlarm) {
+                        lastIdleOrAlarm = machineStatusArray.find(item => IDLE_START_CODES.includes(String(item.value)));
+                    }
+                    const idleStart = lastIdleOrAlarm ? lastIdleOrAlarm.ts : dayjs().valueOf();
+                    lockedIdleStartRef.current = idleStart;
+                    let previousReason = null;
+                    const savedReason = localStorage.getItem("activeReason");
+                    if (savedReason) {
+                        try {
+                            previousReason = JSON.parse(savedReason);
+                        } catch {
+                            previousReason = null;
+                        }
+                    }
+                    openReasonSwal(idleStart, reasonsList2, previousReason);
+                }
+                if (checkRestore && locked && !isSwalOpenRef.current) {
+                    const savedIdleStart = localStorage.getItem("lockedIdleStartTime");
+                    const savedReason = localStorage.getItem("activeReason");
+                    if (savedIdleStart && savedReason) {
+                        try {
+                            const parsedReason = JSON.parse(savedReason);
+                            lockedIdleStartRef.current = parseInt(savedIdleStart, 10);
+                            activeReasonRef.current = parsedReason;
+                            isLockedRef.current = true;
+                            openReasonSwal(lockedIdleStartRef.current, reasonsList2, parsedReason);
+                        } catch (e) {
+                            console.error("Failed to restore reason:", e);
+                        }
+                    }
+                }
+                if (
+                    IDLE_END_CODES.includes(String(latestStatus)) &&
+                    lockedIdleStartRef.current &&
+                    activeReasonRef.current
+                ) {
+                    const endEvent =
+                        machineStatusArray.find(
+                            item => IDLE_END_CODES.includes(String(item.value)) && item.ts >= lockedIdleStartRef.current
+                        ) || latestSample;
+                    if (endEvent) {
+                        const idleEndTime = endEvent.ts;
+                        const parsedShifts = generateShiftInstances(lockedIdleStartRef.current, idleEndTime, shifts);
+                        const segments = splitIdleByShifts(lockedIdleStartRef.current, idleEndTime, parsedShifts);
+                        for (const seg of segments) {
+                            const payload = {
+                                ts: seg.start,
+                                values: {
+                                    live_reason: {
+                                        name: activeReasonRef.current.reason,
+                                        code: activeReasonRef.current.code || "",
+                                        mode: activeReasonRef.current.mode || "",
+                                        category: activeReasonRef.current.category || "",
+                                        group: activeReasonRef.current.group || null,
+                                        idle_start: seg.start,
+                                        idle_end: seg.end,
+                                        idle_duration: Math.floor((seg.end - seg.start) / 1000),
+                                    },
+                                },
+                            };
+                            try {
+                                await operatorTelemetry("DEVICE", deviceId, payload);
+                            } catch (err) {
+                                console.error("Error submitting locked idle segment:", err);
+                            }
+                        }
+                        lockedIdleStartRef.current = null;
+                        activeReasonRef.current = null;
+                        isLockedRef.current = false;
+                        isSwalOpenRef.current = false;
                         localStorage.removeItem("lockedIdleStartTime");
                         localStorage.removeItem("activeReason");
                     }
@@ -1412,6 +1727,9 @@ function Operator() {
                                     <col style={{ width: '20%' }} />
                                     <col style={{ width: '12%' }} />
                                     <col style={{ width: '12%' }} />
+                                    {(getCustomerId() === CUSTOMER_IDS.GPLAST) && (
+                                        <col style={{ width: '12%' }} />
+                                    )}
                                     <col style={{ width: '36%' }} />
                                 </colgroup>
                                 <thead>
@@ -1420,6 +1738,7 @@ function Operator() {
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>End Time (IST)</th>
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>Duration</th>
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>Status</th>
+                                        {(getCustomerId() === CUSTOMER_IDS.GPLAST) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>Reason</th>
                                     </tr>
                                 </thead>
@@ -1430,15 +1749,28 @@ function Operator() {
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatEpochToIST(item.end)}</td>
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatDuration(item.duration)}</td>
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{item.status}</td>
-                                            <td style={{ border: '1px solid #ccc', padding: '8px' }}>
+                                            {(getCustomerId() === CUSTOMER_IDS.GPLAST) && (
+                                                <td>
+                                                    <CustomDaySelect
+                                                        name={`groupselected-${index}`}
+                                                        value={item.groupselected || "all"}
+                                                        onChange={(e) => handleGroupChange(index, e.target.value)}
+                                                        label="Select Group"
+                                                        options={reasonGroupOptions}
+                                                    />
+                                                </td>)}
+                                            <td>
                                                 <CustomDaySelect
                                                     name={`reasonselected-${index}`}
-                                                    value={item.reasonselected || ''}
+                                                    value={item.reasonselected || ""}
                                                     onChange={(e) => handleReasonChange(index, e.target.value)}
                                                     label="Select Reason"
-                                                    required={true}
-                                                    options={formattedReasons}
-                                                    error={!item.reasonselected}
+                                                    required
+                                                    options={
+                                                        formattedReasons.filter(r =>
+                                                            !item.groupselected || item.groupselected === "all" || r.group === item.groupselected
+                                                        )
+                                                    }
                                                 />
                                             </td>
                                         </tr>

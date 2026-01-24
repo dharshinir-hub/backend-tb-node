@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Tooltip, IconButton } from '@mui/material';
+import { Tooltip, IconButton, FormControl, InputLabel, Select, MenuItem, Chip, Autocomplete, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -8,6 +8,8 @@ import { customerbasedshift, shiftadd } from '../../Services/app/masterservice';
 import Swal from 'sweetalert2';
 import ReasonAdd from './reasonadd';
 import ReasonEdit from './reasonedit';
+import { cleanCustomerId } from '../../Services/app/operatorservice';
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 const ReasonRegistration = () => {
     // Dialog state
@@ -15,10 +17,46 @@ const ReasonRegistration = () => {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editDialogData, setEditDialogData] = useState(null);
     const [dialogOpenCount, setDialogOpenCount] = useState(0);
+    const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
 
     // Data source for reasons
     const [datasource, setDatasource] = useState([]);
     const customerId = localStorage.getItem('CustomerID');
+    const [filteredDataSource, setFilteredDataSource] = useState([]);
+    const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
+
+    useEffect(() => {
+        if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+            fetchReasonGroups();
+        }
+    }, []);
+
+       useEffect(() => {
+        if (selectedGroupFilter === 'all') {
+            setFilteredDataSource(datasource);
+        } else {
+            const filtered = datasource.filter(item => 
+                item.group === selectedGroupFilter
+            );
+            setFilteredDataSource(filtered);
+        }
+    }, [datasource, selectedGroupFilter]);
+
+    const fetchReasonGroups = async () => {
+        const key = 'reasongroups';
+        try {
+            const data = await customerbasedshift(customerId, key);
+            const allReasonGroups = data[0]?.value || [];
+            const mappedGroups = allReasonGroups.map((item) => ({
+                value: item.groupName,
+                label: item.groupName,
+            }));
+            setReasonGroupOptions(mappedGroups);
+        } catch (error) {
+            console.error("Error fetching reason groups:", error);
+            setReasonGroupOptions([]);
+        }
+    };
 
     // Open/close handlers for Add dialog
     const handleOpenAddDialog = () => {
@@ -112,16 +150,22 @@ const ReasonRegistration = () => {
             .then(async (data) => {
                 const allReasons = data[0]?.value || [];
                 setDatasource(allReasons);
+                setFilteredDataSource(allReasons); 
             })
             .catch(error => {
                 console.error("Error fetching reasons:", error);
                 setDatasource([]);
+                setFilteredDataSource([]);
             });
     };
 
     useEffect(() => {
         getShifts();
     }, []);
+
+    const handleFilterChange = (event) => {
+        setSelectedGroupFilter(event.target.value);
+    };
 
     return (
         <div className="pages">
@@ -137,12 +181,56 @@ const ReasonRegistration = () => {
                             </Tooltip>
                         </div>
                     </div>
+                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            marginBottom: '20px',
+                            alignItems: 'center'
+                        }}>
+                            <Autocomplete
+                                id="filter-group-autocomplete"
+                                options={[{ label: 'All Groups', value: 'all' }, ...reasonGroupOptions]}
+                                getOptionLabel={(option) => option.label}
+                                value={
+                                    reasonGroupOptions.find((opt) => opt.value === selectedGroupFilter) ||
+                                    (selectedGroupFilter === 'all' ? { label: 'All Groups', value: 'all' } : null)
+                                }
+                                onChange={(event, newValue) => {
+                                    const value = newValue ? newValue.value : 'all';
+                                    handleFilterChange({ target: { value } });
+                                }}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="Filter by Group"
+                                        variant="outlined"
+                                        InputLabelProps={{
+                                            sx: {
+                                                color: 'black',
+                                                '&.Mui-focused': { color: 'orange' },
+                                            },
+                                        }}
+                                        sx={{
+                                            minWidth: 300,
+                                            '& .MuiOutlinedInput-root': {
+                                                '& fieldset': { borderColor: 'black' },
+                                                '&:hover fieldset': { borderColor: 'black' },
+                                                '&.Mui-focused fieldset': { borderColor: 'orange' },
+                                                '& .MuiOutlinedInput-input': { color: 'black' },
+                                                '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
+                                            },
+                                        }}
+                                    />
+                                )}
+                            />
+                        </div>
+                    )}
                 </div>
-
                 {/* Dynamically render each reason as a card-like item */}
                 <div className="idle_reason_list">
-                    {Array.isArray(datasource) && datasource.length > 0 ? (
-                        datasource
+                    {Array.isArray(filteredDataSource) && filteredDataSource.length > 0 ? (
+                        filteredDataSource
                             .slice() // Create a shallow copy to avoid mutating state
                             .sort((a, b) => {
                                 // Ensure codes are treated as numbers for correct sorting
@@ -162,6 +250,14 @@ const ReasonRegistration = () => {
                                             <span className="icon-text">{item.code}</span>
                                         </div>
                                         <h3 className="reason-text">{item.reason}</h3>
+                                        {item?.group && (
+                                            <Chip
+                                                label={item.group}
+                                                size="small"
+                                                variant="outlined"
+                                                className="group-chip"
+                                            />
+                                        )}
                                         <div className="user_action">
                                             <ul>
                                                 <li>
