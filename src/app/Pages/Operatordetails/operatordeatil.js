@@ -695,13 +695,16 @@ const OperatorDetails = () => {
           cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH ||
             cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
             ? `${comp.component_number} - ${comp.component_name.length > 15
-              ? comp.component_name.slice(0, 15) + '...'
+              ? comp.component_name.slice(0, 15) + "..."
               : comp.component_name
-            }${comp.operation_type ? ` (${comp.operation_type})` : ''}`
+            }${comp.operation_type ? ` (${comp.operation_type})` : ""}`
             : cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST
-              ? comp.item_code
-                ? `${comp.component_name} - ${comp.item_code}`
-                : comp.component_name
+              ? (() => {
+                let label = comp.component_name || "";
+                if (comp.item_code) label += ` - ${comp.item_code}`;
+                if (comp.operation_number) label += ` (${comp.operation_number})`;
+                return label.trim();
+              })()
               : `${comp.component_number} - ${comp.component_name}`
       }));
       setcomponents(componentOptions);
@@ -945,15 +948,18 @@ const OperatorDetails = () => {
           cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH ||
             cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
             ? `${comp.component_number} - ${comp.component_name.length > 15
-              ? comp.component_name.slice(0, 15) + '...'
+              ? comp.component_name.slice(0, 15) + "..."
               : comp.component_name
-            }${comp.operation_type ? ` (${comp.operation_type})` : ''}`
+            }${comp.operation_type ? ` (${comp.operation_type})` : ""}`
             : cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST
-              ? comp.item_code
-                ? `${comp.component_name} - ${comp.item_code}`
-                : comp.component_name
+              ? (() => {
+                let label = comp.component_name || "";
+                if (comp.item_code) label += ` - ${comp.item_code}`;
+                if (comp.operation_number) label += ` (${comp.operation_number})`;
+                return label.trim();
+              })()
               : `${comp.component_number} - ${comp.component_name}`
-      }));
+        }));
         setcomponents(componentOptions);
 
         setSelectedDeviceId(deviceid);

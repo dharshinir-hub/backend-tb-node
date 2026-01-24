@@ -235,6 +235,7 @@ const ComponentRegistration = () => {
                                     {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell>Operation Type</TableCell>)}
                                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Item Code</TableCell>)}
                                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Process Name</TableCell>)}
+                                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Operation Number</TableCell>)}
                                     {/* <TableCell>Route Card</TableCell> */}
                                     {/* <TableCell>Drawing Code</TableCell> */}
                                     {/* <TableCell>Mould Name</TableCell> */}
@@ -262,6 +263,9 @@ const ComponentRegistration = () => {
                                             </TableCell>)}
                                               {(cleanCustomerId(customerId)  === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row?.process_name || '---'}
+                                            </TableCell>)}
+                                               {(cleanCustomerId(customerId)  === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                {row?.operation_number || '---'}
                                             </TableCell>)}
                                             {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.operation_type || '---'}

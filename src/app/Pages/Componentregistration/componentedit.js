@@ -220,7 +220,8 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
           return (
             normalize(shift.component_name) === normalize(data.component_name) &&
             normalize(shift.item_code) === normalize(data.item_code) &&
-            normalize(shift.process_name) === normalize(data.process_name)
+            normalize(shift.process_name) === normalize(data.process_name) &&
+            normalize(shift.operation_number) === normalize(data.operation_number)
           );
         });
 
@@ -726,6 +727,43 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                       {errors.process_name && (
                         <div className="mat-error">{errors.process_name.message}</div>
                       )}
+                    </div>
+                      <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>
+                      <TextField
+                        {...register("operation_number", {
+                          required: "Operation Number is required",
+                          maxLength: {
+                            value: 100,
+                            message: "Maximum length is 100 characters",
+                          },
+                        })}
+                        label="Operation Number"
+                        type="text"
+                        name="operation_number"
+                        value={shiftForm.operation_number || ""}
+                        onChange={handleFormChange}
+                        error={!!errors.operation_number}
+                        InputLabelProps={{
+                          required: true,
+                          sx: {
+                            color: "black",
+                            "&.Mui-focused": { color: "orange" },
+                          },
+                        }}
+                        inputProps={{ maxLength: 100 }}
+                        fullWidth
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            "& fieldset": { borderColor: "black" },
+                            "&:hover fieldset": { borderColor: "black" },
+                            "&.Mui-focused fieldset": { borderColor: "orange" },
+                            "& .MuiOutlinedInput-input": { color: "black" },
+                            "&.Mui-focused .MuiOutlinedInput-input": { caretColor: "orange" },
+                            "&::placeholder": { color: "black", opacity: 1 },
+                          },
+                        }}
+                      />
+                      {errors.operation_number && <div className="mat-error">{errors.operation_number.message}</div>}
                     </div>
                   </>
                 )}
