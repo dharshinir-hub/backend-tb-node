@@ -24,15 +24,22 @@ import GridViewIcon from '@mui/icons-material/GridView';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { saveAs } from 'file-saver';
+import { getAverageUtilizationForRange } from "../../Shared/utils/utilizationCalculations";
 
 // Constants
 const ANALYSIS_TYPES = {
     LIVE_ALARM: "live_alarm",
     LIVE_REASON: "live_reason",
-    OEE: "oee"
+    OEE: "oee",
+    UTILIZATION: "utilization"
 };
 
 const OEE_VIEW_TYPES = {
+    FISCAL: "fiscal",
+    DAYS: "days"
+};
+
+const UTILIZATION_VIEW_TYPES = {
     FISCAL: "fiscal",
     DAYS: "days"
 };
@@ -75,6 +82,19 @@ const COLUMN_DEFINITIONS = {
         { field: 'date', headerName: 'Date', width: 100 },
         { field: 'machine_name', headerName: 'Machine', width: 130 },
         { field: 'oee_value', headerName: 'OEE', width: 90 },
+        { field: 'shift_number', headerName: 'Shift', width: 70 },
+        { field: 'operator_name', headerName: 'Operator', width: 130 },
+        { field: 'operator_code', headerName: 'Op Code', width: 90 },
+        { field: 'component_name', headerName: 'Component', width: 130 },
+        { field: 'component_code', headerName: 'Comp Code', width: 90 },
+        { field: 'timestamp', headerName: 'Time', width: 140 },
+        { field: 'shift_start_time', headerName: 'Shift Start', width: 110 },
+        { field: 'shift_end_time', headerName: 'Shift End', width: 110 },
+    ],
+     [ANALYSIS_TYPES.UTILIZATION]: [
+        { field: 'date', headerName: 'Date', width: 100 },
+        { field: 'machine_name', headerName: 'Machine', width: 130 },
+        { field: 'utilization_value', headerName: 'Utilization', width: 90 },
         { field: 'shift_number', headerName: 'Shift', width: 70 },
         { field: 'operator_name', headerName: 'Operator', width: 130 },
         { field: 'operator_code', headerName: 'Op Code', width: 90 },
@@ -452,9 +472,10 @@ const mapDataToOeeDays = (data, shifts, fromDate, toDate) => {
                 if (shift.isOvernight) {
                     shiftEnd = shiftEnd.add(1, 'day');
                 }
+                const adjustedShiftEnd = shiftEnd.subtract(1, 'millisecond');
                 const shiftOeeValues = sortedOee.filter(oee => {
                     const ts = Number(oee.ts);
-                    return ts >= shiftStart.valueOf() && ts <= shiftEnd.valueOf();
+                    return ts >= shiftStart.valueOf() && ts <= adjustedShiftEnd.valueOf();
                 });
                 if (shiftOeeValues.length === 0) return;
                 const lastOee = shiftOeeValues[shiftOeeValues.length - 1];
@@ -484,6 +505,145 @@ const mapDataToOeeDays = (data, shifts, fromDate, toDate) => {
                     timestamp: new Date(ts).toLocaleString(),
                     shift_start_time: shift.start_time,
                     shift_end_time: shift.end_time
+                });
+            });
+            currentDate = currentDate.add(1, 'day');
+        }
+    });
+    return results;
+};
+
+const mapDataToUtilizationFiscal = (data) => {
+    const results = [];
+
+    Object.keys(data).forEach(machineId => {
+        const machine = data[machineId];
+        const utilizationValues = machine.utilizationValues || [];
+        
+        if (!Array.isArray(utilizationValues) || utilizationValues.length === 0) return;
+        
+        const groupedByDate = {};
+        utilizationValues.forEach(util => {
+            const dateObj = new Date(Number(util.ts));
+            const date = `${String(dateObj.getDate()).padStart(2, "0")}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${dateObj.getFullYear()}`;
+            
+            if (!groupedByDate[date]) {
+                groupedByDate[date] = {
+                    values: [],
+                    sum: 0,
+                    count: 0,
+                };
+            }
+            
+            const utilData = util.value ? JSON.parse(util.value) : { utilization: 0, runningTime: 0, availableTime: 0 };
+            groupedByDate[date].values.push(Number(utilData.utilization || 0));
+            groupedByDate[date].sum += Number(utilData.utilization || 0);
+            groupedByDate[date].count++;
+        });
+        
+        Object.keys(groupedByDate).forEach(date => {
+            const dataForDate = groupedByDate[date];
+            const avgUtilization = dataForDate.count > 0 ? dataForDate.sum / dataForDate.count : 0;
+            
+            results.push({
+                date,
+                machine_name: machine.machineName || machineId,
+                utilization_value: Math.round(avgUtilization * 100) / 100,
+                shift_number: "All",
+                operator_name: "-",
+                operator_code: "-",
+                component_name: "-",
+                component_code: "-",
+                timestamp: date,
+                shift_start_time: "-",
+                shift_end_time: "-",
+            });
+        });
+    });
+    
+    return results;
+};
+
+const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
+    debugger
+    console.log(data, shifts, fromDate, toDate , 'info')
+    const now = Date.now();
+    const results = [];
+    const parsedShifts = shifts.map(shift => {
+        const [sH, sM] = shift.start_time.split(":").map(Number);
+        const [eH, eM] = shift.end_time.split(":").map(Number);
+        const startMinutes = sH * 60 + sM;
+        const endMinutes = eH * 60 + eM;
+        return {
+            ...shift,
+            startMinutes,
+            endMinutes,
+            isOvernight: endMinutes <= startMinutes
+        };
+    });
+    
+    Object.keys(data).forEach(machineId => {
+        const machine = data[machineId];
+        const operatorValues = machine.operatorValues || [];
+        const componentValues = machine.componentValues || [];
+        const utilizationValues = machine.utilizationValues || [];
+        console.log(utilizationValues, 'utlization')
+        if (!Array.isArray(utilizationValues) || utilizationValues.length === 0) return;
+        
+        const sortedUtilization = [...utilizationValues].sort((a, b) => Number(a.ts) - Number(b.ts));
+        
+        const startDateObj = dayjs(fromDate).startOf('day');
+        const endDateObj = dayjs(toDate).endOf('day');
+        let currentDate = startDateObj;
+        
+        while (currentDate <= endDateObj) {
+            const dateString = currentDate.format("DD-MM-YYYY");
+            parsedShifts.forEach(shift => {
+                const [sH, sM] = shift.start_time.split(":").map(Number);
+                const [eH, eM] = shift.end_time.split(":").map(Number);
+                let shiftStart = dayjs(currentDate).hour(sH).minute(sM).second(0).millisecond(0);
+                let shiftEnd = dayjs(currentDate).hour(eH).minute(eM).second(0).millisecond(0);
+                
+                if (shift.isOvernight) {
+                    shiftEnd = shiftEnd.add(1, 'day');
+                }
+                const adjustedShiftEnd = shiftEnd.subtract(1, 'millisecond');
+                const shiftUtilizationValues = sortedUtilization.filter(util => {
+                    return util.ts >= shiftStart.valueOf() && util.ts <= adjustedShiftEnd.valueOf();
+                });
+                
+                if (shiftUtilizationValues.length === 0) return;
+                
+                // Get the latest utilization value for the shift
+                const lastUtilization = shiftUtilizationValues[shiftUtilizationValues.length - 1];
+                const ts = Number(lastUtilization.ts);
+                const utilData = lastUtilization.value || null;
+                const operator = operatorValues.find(op => {
+                    const opStart = Number(op.value?.start_time);
+                    let opEnd = Number(op.value?.end_time);
+                    if (!opEnd || isNaN(opEnd) || opEnd === 0) opEnd = now;
+                    return ts >= opStart && ts <= opEnd;
+                });
+                
+                const component = componentValues.find(cmp => {
+                    const cmpStart = Number(cmp.value?.start_time);
+                    let cmpEnd = Number(cmp.value?.end_time);
+                    if (!cmpEnd || isNaN(cmpEnd) || cmpEnd === 0) cmpEnd = now;
+                    return ts >= cmpStart && ts <= cmpEnd;
+                });
+                
+                results.push({
+                    date: dateString,
+                    machine_name: machine.machineName || machineId,
+                    utilization_value: Number(utilData || 0),
+                    shift_number: shift.shift_no,
+                    operator_name: operator?.value?.name || "NO OPERATOR",
+                    operator_code: operator?.value?.code || "-",
+                    component_name: component?.value?.name || "NO ROUTECARD",
+                    component_code: component?.value?.code || "-",
+                    timestamp: new Date(ts).toLocaleString(),
+                    shift_start_time: shift.start_time,
+                    shift_end_time: shift.end_time,
                 });
             });
             currentDate = currentDate.add(1, 'day');
@@ -523,21 +683,29 @@ export default function NewAnalytics() {
     const [toTime, setToTime] = useState(null);
     const [from, setFrom] = useState(null);
     const [to, setTo] = useState(null);
-    const [avgOeeData, setAvgOeeData] = useState({});
-    const [oeeFiscalUrl, setOeeFiscalUrl] = useState("");
-    const [oeeDaysUrl, setOeeDaysUrl] = useState("");
-    const [oeeGrafanaUrl, setOeeGrafanaUrl] = useState("");
-    const [oeeViewType, setOeeViewType] = useState(OEE_VIEW_TYPES.FISCAL);
     const [isLoading, setIsLoading] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [tableData, setTableData] = useState([]);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(25);
     const [viewType, setViewType] = useState("grafana"); // Default to Grafana view
+    const [hasGeneratedData, setHasGeneratedData] = useState(false);
+    const [avgOeeData, setAvgOeeData] = useState({});
+    const [oeeFiscalUrl, setOeeFiscalUrl] = useState("");
+    const [oeeDaysUrl, setOeeDaysUrl] = useState("");
+    const [oeeGrafanaUrl, setOeeGrafanaUrl] = useState("");
+    const [oeeViewType, setOeeViewType] = useState(OEE_VIEW_TYPES.FISCAL);
     const [oeeDaysTableData, setOeeDaysTableData] = useState([]);
     const [oeeDaysPage, setOeeDaysPage] = useState(0);
     const [oeeDaysRowsPerPage, setOeeDaysRowsPerPage] = useState(25);
-    const [hasGeneratedData, setHasGeneratedData] = useState(false);
+    const [avgUtilizationData, setAvgUtilizationData] = useState({});
+    const [utilizationFiscalUrl, setUtilizationFiscalUrl] = useState("");
+    const [utilizationDaysUrl, setUtilizationDaysUrl] = useState("");
+    const [utilizationGrafanaUrl, setUtilizationGrafanaUrl] = useState("");
+    const [utilizationViewType, setUtilizationViewType] = useState(UTILIZATION_VIEW_TYPES.FISCAL);
+    const [utilizationDaysTableData, setUtilizationDaysTableData] = useState([]);
+    const [utilizationDaysPage, setUtilizationDaysPage] = useState(0);
+    const [utilizationDaysRowsPerPage, setUtilizationDaysRowsPerPage] = useState(25);
     
     // Memoized values
     const isShiftDisabled = useMemo(() => 
@@ -563,36 +731,74 @@ export default function NewAnalytics() {
                 oeeDaysPage * oeeDaysRowsPerPage + oeeDaysRowsPerPage
             );
         }
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
+            return utilizationDaysTableData.slice(
+                utilizationDaysPage * utilizationDaysRowsPerPage, 
+                utilizationDaysPage * utilizationDaysRowsPerPage + utilizationDaysRowsPerPage
+            );
+        }
         return tableData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-    }, [analysisType, oeeViewType, tableData, oeeDaysTableData, page, rowsPerPage, oeeDaysPage, oeeDaysRowsPerPage]);
+    }, [
+        analysisType, 
+        oeeViewType, 
+        utilizationViewType, 
+        tableData, 
+        oeeDaysTableData, 
+        utilizationDaysTableData,
+        page, 
+        rowsPerPage, 
+        oeeDaysPage, 
+        oeeDaysRowsPerPage,
+        utilizationDaysPage,
+        utilizationDaysRowsPerPage
+    ]);
 
-    const currentPage = useMemo(() => 
-        (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) ? oeeDaysPage : page,
-        [analysisType, oeeViewType, oeeDaysPage, page]
-    );
+    const currentPage = useMemo(() => {
+        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
+            return oeeDaysPage;
+        }
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
+            return utilizationDaysPage;
+        }
+        return page;
+    }, [analysisType, oeeViewType, utilizationViewType, oeeDaysPage, utilizationDaysPage, page]);
 
-    const currentRowsPerPage = useMemo(() => 
-        (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) ? oeeDaysRowsPerPage : rowsPerPage,
-        [analysisType, oeeViewType, oeeDaysRowsPerPage, rowsPerPage]
-    );
+    const currentRowsPerPage = useMemo(() => {
+        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
+            return oeeDaysRowsPerPage;
+        }
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
+            return utilizationDaysRowsPerPage;
+        }
+        return rowsPerPage;
+    }, [analysisType, oeeViewType, utilizationViewType, oeeDaysRowsPerPage, utilizationDaysRowsPerPage, rowsPerPage]);
 
-    const currentDataLength = useMemo(() => 
-        (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) ? oeeDaysTableData.length : tableData.length,
-        [analysisType, oeeViewType, tableData, oeeDaysTableData]
-    );
+    const currentDataLength = useMemo(() => {
+        if (analysisType === ANALYSIS_TYPES.OEE) {
+            return oeeViewType === OEE_VIEW_TYPES.DAYS ? oeeDaysTableData.length : tableData.length;
+        }
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
+            return utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? utilizationDaysTableData.length : tableData.length;
+        }
+        return tableData.length;
+    }, [analysisType, oeeViewType, utilizationViewType, tableData, oeeDaysTableData, utilizationDaysTableData]);
 
     const hasData = useMemo(() => {
         if (analysisType === ANALYSIS_TYPES.OEE) {
             return oeeViewType === OEE_VIEW_TYPES.DAYS ? oeeDaysTableData.length > 0 : tableData.length > 0;
         }
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
+            return utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? utilizationDaysTableData.length > 0 : tableData.length > 0;
+        }
         return tableData.length > 0;
-    }, [analysisType, oeeViewType, tableData, oeeDaysTableData]);
+    }, [analysisType, oeeViewType, utilizationViewType, tableData, oeeDaysTableData, utilizationDaysTableData]);
 
     const getReportTitle = useMemo(() => {
         switch(analysisType) {
             case ANALYSIS_TYPES.LIVE_ALARM: return 'Alarm Report';
             case ANALYSIS_TYPES.LIVE_REASON: return 'Downtime Report';
             case ANALYSIS_TYPES.OEE: return 'OEE Analysis';
+            case ANALYSIS_TYPES.UTILIZATION: return 'Utilization Analysis';
             default: return 'Analytics Report';
         }
     }, [analysisType]);
@@ -624,10 +830,13 @@ export default function NewAnalytics() {
         }
     }, [isInitialLoad, shifts, from, to, selectedMachines]);
 
-    // Reset OEE view type when switching away from OEE analysis
+    // Reset view types when switching analysis types
     useEffect(() => {
         if (analysisType !== ANALYSIS_TYPES.OEE) {
             setOeeViewType(OEE_VIEW_TYPES.FISCAL);
+        }
+        if (analysisType !== ANALYSIS_TYPES.UTILIZATION) {
+            setUtilizationViewType(UTILIZATION_VIEW_TYPES.FISCAL);
         }
     }, [analysisType]);
 
@@ -731,8 +940,39 @@ export default function NewAnalytics() {
         return { avgData: renamedData, oeeData, fiscalTableData, daysTableData };
     }, [selectedMachines, shifts, from, to, fromDate, toDate, deviceNameID, getDeviceObjectsForMachines]);
 
+    const processUtilizationData = useCallback(async () => {
+        const machinesForUrl = selectedMachines;
+        const devicesToProcessFromMachines = getDeviceObjectsForMachines(machinesForUrl);
+
+        if (devicesToProcessFromMachines.length === 0) {
+            console.log("No devices to process for Utilization data");
+            return { avgData: {}, utilData: {}, fiscalTableData: [], daysTableData: [] };
+        }
+
+        const { avgData, utilData } = await getAverageUtilizationForRange(
+            devicesToProcessFromMachines,
+            shifts,
+            from,
+            to
+        );
+        const idToNameMap = Object.fromEntries(
+            deviceNameID.map(d => [d.id, d.name])
+        );
+        const renamedData = Object.fromEntries(
+            Object.entries(avgData).map(([id, value]) => [
+                idToNameMap[id] || id,
+                value
+            ])
+        );
+
+        const fiscalTableData = mapDataToUtilizationFiscal(utilData);
+        const daysTableData = mapDataToUtilizationDays(utilData, shifts, fromDate, toDate);
+        
+        return { avgData: renamedData, utilData, fiscalTableData, daysTableData };
+    }, [selectedMachines, shifts, from, to, fromDate, toDate, deviceNameID, getDeviceObjectsForMachines]);
+
     const updateGrafanaURL = useCallback((type = analysisType, machines = selectedMachines) => {
-        if (type === ANALYSIS_TYPES.OEE) return;
+        if (type === ANALYSIS_TYPES.OEE || type === ANALYSIS_TYPES.UTILIZATION) return;
 
         try {
             const machineParam = machines.join(",");
@@ -770,14 +1010,43 @@ export default function NewAnalytics() {
 
         const avgOeeJson = encodeURIComponent(JSON.stringify(deviceWiseData));
 
-        const fiscalUrl = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${avgOeeJson}&var-machines=${encodeURIComponent(machinesParam)}&kiosk&theme=light&refresh=20s`;
+        const fiscalUrl = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${avgOeeJson}&var-machines=${encodeURIComponent(machinesParam)}&var-type=OEE&kiosk&theme=light&refresh=20s`;
 
-        const daysUrl = `${GRAFANA_URL}d/af88m3yq4cu80e/analytics-dashboard-oee-day-wise-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgOeeJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&kiosk&theme=light&refresh=20s`;
+        const daysUrl = `${GRAFANA_URL}d/af88m3yq4cu80e/analytics-dashboard-oee-day-wise-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgOeeJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&var-type=OEE&kiosk&theme=light&refresh=20s`;
 
         setOeeFiscalUrl(fiscalUrl);
         setOeeDaysUrl(daysUrl);
         setOeeGrafanaUrl(oeeViewType === OEE_VIEW_TYPES.FISCAL ? fiscalUrl : daysUrl);
     }, [selectedMachines, newToken, customerId, from, to, oeeViewType]);
+
+    const generateUtilizationGrafanaUrls = useCallback(async (avgUtilizationData) => {
+        const machinesParam = selectedMachines.join(",");
+        const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
+        const cleanedId = cleanCustomerId(customerId);
+        const entityType = "CUSTOMER";
+        const baseUrl = window._env_.SERVER_URL;
+        const GRAFANA_URL = window._env_.GRAFANA_URL;
+
+        const deviceWiseData = Object.fromEntries(
+            Object.entries(avgUtilizationData).map(([deviceId, deviceData]) => {
+                const formatted = Object.entries(deviceData).map(([date, value]) => ({
+                    date,
+                    value,
+                }));
+                return [deviceId, formatted];
+            })
+        );
+
+        const avgUtilizationJson = encodeURIComponent(JSON.stringify(deviceWiseData));
+
+        const fiscalUrl = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${avgUtilizationJson}&var-machines=${encodeURIComponent(machinesParam)}&var-type=Utilization&kiosk&theme=light&refresh=20s`;
+
+        const daysUrl = `${GRAFANA_URL}d/af88m3yq4cu80e/analytics-dashboard-oee-day-wise-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgUtilizationJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&var-type=Utilization&kiosk&theme=light&refresh=20s`;
+
+        setUtilizationFiscalUrl(fiscalUrl);
+        setUtilizationDaysUrl(daysUrl);
+        setUtilizationGrafanaUrl(utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? fiscalUrl : daysUrl);
+    }, [selectedMachines, newToken, customerId, from, to, utilizationViewType]);
 
     const handleGenerateReport = async () => {
         setIsLoading(true);
@@ -796,10 +1065,25 @@ export default function NewAnalytics() {
                 if (viewType === "grafana") {
                     await generateOeeGrafanaUrls(avgData);
                 }
+            } else if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
+                const { avgData, fiscalTableData, daysTableData } = await processUtilizationData();
+                setAvgUtilizationData(avgData);
+                setTableData(fiscalTableData);
+                setUtilizationDaysTableData(daysTableData);
+                
+                // Reset pagination for both tables
+                setPage(0);
+                setUtilizationDaysPage(0);
+                
+                // Generate Grafana URLs only if in Grafana view
+                if (viewType === "grafana") {
+                    await generateUtilizationGrafanaUrls(avgData);
+                }
             } else {
                 const tableDataResults = await processAlarmData();
                 setTableData(tableDataResults);
                 setOeeDaysTableData([]);
+                setUtilizationDaysTableData([]);
                 setPage(0);
                 
                 // Generate Grafana URL only if in Grafana view
@@ -825,12 +1109,16 @@ export default function NewAnalytics() {
         if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
             dataToExport = oeeDaysTableData;
             typeName = 'OEE_Days';
+        } else if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
+            dataToExport = utilizationDaysTableData;
+            typeName = 'Utilization_Days';
         } else {
             dataToExport = tableData;
             const typeMap = {
                 [ANALYSIS_TYPES.LIVE_ALARM]: 'Alarm',
                 [ANALYSIS_TYPES.LIVE_REASON]: 'Downtime',
-                [ANALYSIS_TYPES.OEE]: 'OEE_Fiscal'
+                [ANALYSIS_TYPES.OEE]: 'OEE_Fiscal',
+                [ANALYSIS_TYPES.UTILIZATION]: 'Utilization_Fiscal'
             };
             typeName = typeMap[analysisType] || 'Report';
         }
@@ -861,6 +1149,8 @@ export default function NewAnalytics() {
         if (newViewType === "grafana" && hasData) {
             if (analysisType === ANALYSIS_TYPES.OEE) {
                 generateOeeGrafanaUrls(avgOeeData);
+            } else if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
+                generateUtilizationGrafanaUrls(avgUtilizationData);
             } else {
                 updateGrafanaURL();
             }
@@ -874,11 +1164,14 @@ export default function NewAnalytics() {
         // Reset pagination when changing analysis type
         setPage(0);
         setOeeDaysPage(0);
+        setUtilizationDaysPage(0);
     };
 
     const handleChangePage = (event, newPage) => {
         if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
             setOeeDaysPage(newPage);
+        } else if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
+            setUtilizationDaysPage(newPage);
         } else {
             setPage(newPage);
         }
@@ -889,6 +1182,9 @@ export default function NewAnalytics() {
         if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
             setOeeDaysRowsPerPage(newRowsPerPage);
             setOeeDaysPage(0);
+        } else if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
+            setUtilizationDaysRowsPerPage(newRowsPerPage);
+            setUtilizationDaysPage(0);
         } else {
             setRowsPerPage(newRowsPerPage);
             setPage(0);
@@ -899,6 +1195,8 @@ export default function NewAnalytics() {
     const getCurrentIframeUrl = () => {
         if (analysisType === ANALYSIS_TYPES.OEE) {
             return oeeGrafanaUrl;
+        } else if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
+            return utilizationGrafanaUrl;
         }
         return grafanaUrl;
     };
@@ -917,6 +1215,23 @@ export default function NewAnalytics() {
             setOeeGrafanaUrl(oeeFiscalUrl);
         } else if (type === OEE_VIEW_TYPES.DAYS && oeeDaysUrl) {
             setOeeGrafanaUrl(oeeDaysUrl);
+        }
+    };
+
+    // Handle Utilization view type change
+    const handleUtilizationViewTypeChange = (type) => {
+        setUtilizationViewType(type);
+        // Reset pagination when switching Utilization view type
+        if (type === UTILIZATION_VIEW_TYPES.DAYS) {
+            setUtilizationDaysPage(0);
+        } else {
+            setPage(0);
+        }
+        
+        if (type === UTILIZATION_VIEW_TYPES.FISCAL && utilizationFiscalUrl) {
+            setUtilizationGrafanaUrl(utilizationFiscalUrl);
+        } else if (type === UTILIZATION_VIEW_TYPES.DAYS && utilizationDaysUrl) {
+            setUtilizationGrafanaUrl(utilizationDaysUrl);
         }
     };
 
@@ -946,7 +1261,7 @@ export default function NewAnalytics() {
                 <Toolbar disableGutters sx={{ justifyContent: 'space-between', minHeight: '48px !important' }}>
                    
 
-                    {/* Right side: OEE View Toggle and View Toggle (only show when data has been generated) */}
+                    {/* Right side: OEE/Utilization View Toggle and View Toggle (only show when data has been generated) */}
                     {hasGeneratedData && hasData && (
                         <Stack direction="row" spacing={2} alignItems="center">
                       
@@ -998,7 +1313,8 @@ export default function NewAnalytics() {
                                     Table
                                 </Button>
                             </Stack>
-                                  {/* OEE View Type Toggle - Only show when OEE is selected */}
+                            
+                            {/* OEE View Type Toggle - Only show when OEE is selected */}
                             {analysisType === ANALYSIS_TYPES.OEE && (
                                 <Stack direction="row" spacing={1} alignItems="center">
                                     <Typography variant="body2" color="#86868b" sx={{ fontSize: '13px' }}>
@@ -1035,6 +1351,49 @@ export default function NewAnalytics() {
                                             height: 28,
                                             '&:hover': {
                                                 backgroundColor: oeeViewType === OEE_VIEW_TYPES.DAYS ? '#007AFF' : alpha('#007AFF', 0.08),
+                                            }
+                                        }}
+                                    />
+                                </Stack>
+                            )}
+
+                            {/* Utilization View Type Toggle - Only show when Utilization is selected */}
+                            {analysisType === ANALYSIS_TYPES.UTILIZATION && (
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    <Typography variant="body2" color="#86868b" sx={{ fontSize: '13px' }}>
+                                        Utilization View:
+                                    </Typography>
+                                    <Chip
+                                        label="Fiscal"
+                                        size="small"
+                                        onClick={() => handleUtilizationViewTypeChange(UTILIZATION_VIEW_TYPES.FISCAL)}
+                                        sx={{
+                                            borderRadius: '15px',
+                                            backgroundColor: utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? '#007AFF' : 'transparent',
+                                            color: utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? '#ffffff' : '#1d1d1f',
+                                            border: '1px solid',
+                                            borderColor: utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? '#007AFF' : 'rgba(0, 0, 0, 0.12)',
+                                            fontSize: '12px',
+                                            height: 28,
+                                            '&:hover': {
+                                                backgroundColor: utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? '#007AFF' : alpha('#007AFF', 0.08),
+                                            }
+                                        }}
+                                    />
+                                    <Chip
+                                        label="Days"
+                                        size="small"
+                                        onClick={() => handleUtilizationViewTypeChange(UTILIZATION_VIEW_TYPES.DAYS)}
+                                        sx={{
+                                            borderRadius: '15px',
+                                            backgroundColor: utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? '#007AFF' : 'transparent',
+                                            color: utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? '#ffffff' : '#1d1d1f',
+                                            border: '1px solid',
+                                            borderColor: utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? '#007AFF' : 'rgba(0, 0, 0, 0.12)',
+                                            fontSize: '12px',
+                                            height: 28,
+                                            '&:hover': {
+                                                backgroundColor: utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? '#007AFF' : alpha('#007AFF', 0.08),
                                             }
                                         }}
                                     />
@@ -1151,6 +1510,7 @@ export default function NewAnalytics() {
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_ALARM}>Alarm</MenuItem>
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_REASON}>Downtime</MenuItem>
                                 <MenuItem value={ANALYSIS_TYPES.OEE}>OEE</MenuItem>
+                                <MenuItem value={ANALYSIS_TYPES.UTILIZATION}>Utilization</MenuItem>
                             </Select>
                         </FormControl>
 
@@ -1352,6 +1712,21 @@ export default function NewAnalytics() {
                                                     ({oeeViewType === OEE_VIEW_TYPES.FISCAL ? 'Fiscal View' : 'Days View'})
                                                 </Typography>
                                             )}
+                                            {analysisType === ANALYSIS_TYPES.UTILIZATION && (
+                                                <Typography 
+                                                    component="span" 
+                                                    variant="body2" 
+                                                    color="#86868b" 
+                                                    sx={{ 
+                                                        fontSize: '14px',
+                                                        ml: 2,
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center'
+                                                    }}
+                                                >
+                                                    ({utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? 'Fiscal View' : 'Days View'})
+                                                </Typography>
+                                            )}
                                         </Typography>
                                         <Typography variant="body2" color="#86868b" sx={{ fontSize: '13px' }}>
                                             {currentDataLength} records • Page {currentPage + 1} of {Math.ceil(currentDataLength / currentRowsPerPage)}
@@ -1388,7 +1763,7 @@ export default function NewAnalytics() {
                                         <TableBody>
                                             {paginatedData.map((row, index) => (
                                                 <TableRowMemo
-                                                    key={`${row.machine_name}_${row.date}_${row.shift_number || ''}_${index}_${oeeViewType}`}
+                                                    key={`${row.machine_name}_${row.date}_${row.shift_number || ''}_${index}_${analysisType}_${oeeViewType || utilizationViewType}`}
                                                     row={row}
                                                     columns={currentColumns}
                                                     index={index}

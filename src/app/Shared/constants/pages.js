@@ -1,5 +1,6 @@
 
 export const PAGE_LIST = [
+    { label: "KPI Dashboard", value: "kpi-dashboard" },
     { label: "Company", value: "company" },
     { label: "Machine MM", value: "machinemm" },
     { label: "Device OEE", value: "deviceoee" },
@@ -11,6 +12,7 @@ export const PAGE_LIST = [
     { label: "Machine Group", value: "machines-group" },
     { label: "Shift Registration", value: "shift-registration" },
     { label: "User Registration", value: "user-registration" },
+    { label: "Group Registration", value: "group" },
     { label: "Component Registration", value: "component-registration" },
     { label: "Reason Registration", value: "reason-registration" },
 ];
