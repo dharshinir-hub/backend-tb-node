@@ -55,6 +55,7 @@ const OperatorDetails = () => {
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [selectedShift, setSelectedShift] = useState('');
   const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [endDate, setEndDate] = useState(dayjs());
   const [operatorselected, setselectedoperator] = useState('');
   const [epochRange, setEpochRange] = useState({ from: null, to: null });
   const [shiftOptions, setShiftOptions] = useState([]);
@@ -97,6 +98,7 @@ const OperatorDetails = () => {
   });
   const [processGroupOptions, setProcessGroupOptions] = useState([]);
 
+
   useEffect(() => {
     if (openEditDialog || openEditDialog1 || OpenEditDialog4) {
       const dateError = validateDate(selectedDate);
@@ -119,7 +121,7 @@ const OperatorDetails = () => {
       });
     }
   }, [startTime, endTime, selectedDate, selectedShift, openEditDialog, openEditDialog1, OpenEditDialog4]);
-  // Add date validation function
+
   const validateDate = (date) => {
     if (!date || !date.isValid()) {
       return 'Invalid date format';
@@ -472,11 +474,11 @@ const OperatorDetails = () => {
             existingEnd: new Date(existingEnd),
             operator: parsed.name
           });
-          return true; // Conflict found
+          return true;
         }
       }
 
-      return false; // No conflicts
+      return false;
     } catch (error) {
       console.error('Error checking overlap:', error);
       return false;
@@ -527,9 +529,19 @@ const OperatorDetails = () => {
   //     await validateAndCheckOverlap(startTime, value);
   //   }
   // };
+
+  const cancelComponentModal = () => {
+    setOpenEditDialog1(false);
+    setEndDate(dayjs());
+  }
+
   const handleDateChange = (newValue) => {
     const dayjsVal = dayjs(newValue);
     setSelectedDate(dayjsVal);
+
+    if (!endDate || dayjs(dayjsVal).isAfter(dayjs(endDate))) {
+      setEndDate(dayjsVal);
+    }
 
     // Recalculate epoch range when date changes
     if (selectedShift && shifts.length > 0) {
@@ -601,7 +613,17 @@ const OperatorDetails = () => {
     handleShiftChange(selectedShift, dayjsVal);
   };
 
+  const handleEndDate = (newValue) => {
+    const dayjsVal = dayjs(newValue);
+    setEndDate(dayjsVal);
+    if (selectedDate && endDate && dayjsVal.isBefore(selectedDate, 'day')) {
+      setSelectedDate(dayjsVal);
+    }
+
+  };
+
   const handleShiftChange = (shiftValue, dateParam) => {
+
     const now = dayjs();
     const selectedDateLocal = dateParam || selectedDate;
     const isToday = selectedDateLocal.isSame(now, 'day');
@@ -690,7 +712,7 @@ const OperatorDetails = () => {
       const allComponents = operatorData[0]?.value || [];
       setcomponentslist(allComponents);
       const componentOptions = allComponents.map(comp => ({
-        id: comp.id, 
+        id: comp.id,
         process_name: comp.process_name ? comp.process_name : null,
         value: comp.component_name,
         label:
@@ -823,7 +845,7 @@ const OperatorDetails = () => {
       }
       if (options.length > 0) {
         const defaultShift = options[0].value;
-         setSelectedDate(now);
+        setSelectedDate(now);
         const selectedShiftNo = currentShiftData
           ? currentShiftData.shift_no
           : fallbackShiftData?.shift_no;
@@ -930,11 +952,16 @@ const OperatorDetails = () => {
       const shiftData = await customerbasedshift(customerId, key1);
       const allShifts = shiftData[0]?.value || [];
       setShifts(allShifts);
-      const options = allShifts.map((shift) => ({
-        value: shift.shift_no,
-        label: `Shift${shift.shift_no}`,
-      }));
+      const options = [
+        { value: 'ALL', label: 'All Shifts' },
+        ...allShifts.map((shift) => ({
+          value: shift.shift_no,
+          label: `Shift ${shift.shift_no}`,
+        })),
+      ];
+
       setShiftOptions(options);
+
       const now = dayjs();
       const currentShiftData = getCurrentShift(allShifts, now);
       const fallbackShiftData = allShifts[0];
@@ -965,20 +992,20 @@ const OperatorDetails = () => {
           value: comp.component_name,
           process_name: comp.process_name ? comp.process_name : null,
           label:
-          cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH ||
-            cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
-            ? `${comp.component_number} - ${comp.component_name.length > 15
-              ? comp.component_name.slice(0, 15) + "..."
-              : comp.component_name
-            }${comp.operation_type ? ` (${comp.operation_type})` : ""}`
-            : cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST
-              ? (() => {
-                let label = comp.component_name || "";
-                if (comp.item_code) label += ` - ${comp.item_code}`;
-                if (comp.operation_number) label += ` (${comp.operation_number})`;
-                return label.trim();
-              })()
-              : `${comp.component_number} - ${comp.component_name}`
+            cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH ||
+              cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
+              ? `${comp.component_number} - ${comp.component_name.length > 15
+                ? comp.component_name.slice(0, 15) + "..."
+                : comp.component_name
+              }${comp.operation_type ? ` (${comp.operation_type})` : ""}`
+              : cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST
+                ? (() => {
+                  let label = comp.component_name || "";
+                  if (comp.item_code) label += ` - ${comp.item_code}`;
+                  if (comp.operation_number) label += ` (${comp.operation_number})`;
+                  return label.trim();
+                })()
+                : `${comp.component_number} - ${comp.component_name}`
         }));
         setcomponents(componentOptions);
 
@@ -1097,10 +1124,10 @@ const OperatorDetails = () => {
     if (options.length > 0) {
       const defaultShift = options[0].value;
       setSelectedDate(now);
-        const selectedShiftNo = currentShiftData
-          ? currentShiftData.shift_no
-          : fallbackShiftData?.shift_no;
-        setSelectedShift(selectedShiftNo);
+      const selectedShiftNo = currentShiftData
+        ? currentShiftData.shift_no
+        : fallbackShiftData?.shift_no;
+      setSelectedShift(selectedShiftNo);
       setfilteredResult([]); // (Optional) clear table
 
       // Calculate initial epoch range for current date and first shift
@@ -1436,10 +1463,10 @@ const OperatorDetails = () => {
       toEpoch: new Date(toStr).getTime(),
     };
   }
-    
+
   const downtimereason = async () => {
     if (!selectedDeviceId || !selectedShift || !selectedDate) return;
-        await fetchReasonGroups()
+    await fetchReasonGroups()
     // const { fromEpoch, toEpoch } = getEpochFromShift2(selectedShift, selectedDate, shifts);
     const { fromEpoch, toEpoch } = getShiftTimes(shifts, selectedShift, selectedDate);
     console.log(fromEpoch, toEpoch, 'from and to time')
@@ -1731,7 +1758,7 @@ const OperatorDetails = () => {
       return updatedResults;
     });
   };
-  
+
   const handleGroupChange = (index, selectedGroup) => {
     setfilteredResult(prev => {
       const updated = [...prev];
@@ -1865,28 +1892,28 @@ const OperatorDetails = () => {
     }
   };
 
-      const fetchReasonGroups = async () => {
-          const key = "reasongroups";
-          try {
-              const data = await customerbasedshift(customerId, key);
-              const allReasonGroups = Array.isArray(data?.[0]?.value)
-                  ? data[0].value
-                  : [];
-              const mappedGroups = [
-                  { value: "all", label: "All Groups" },
-                  ...allReasonGroups.map(item => ({
-                      value: item.groupName || item.name || "",
-                      label: item.groupName || item.name || "",
-                  })),
-              ];
-              setReasonGroupOptions(mappedGroups);
-              return mappedGroups;
-          } catch (error) {
-              console.error("❌ Error fetching reason groups:", error);
-              setReasonGroupOptions([{ value: "", label: "All Groups" }]);
-              return [{ value: "", label: "All Groups" }];
-          }
-      };
+  const fetchReasonGroups = async () => {
+    const key = "reasongroups";
+    try {
+      const data = await customerbasedshift(customerId, key);
+      const allReasonGroups = Array.isArray(data?.[0]?.value)
+        ? data[0].value
+        : [];
+      const mappedGroups = [
+        { value: "all", label: "All Groups" },
+        ...allReasonGroups.map(item => ({
+          value: item.groupName || item.name || "",
+          label: item.groupName || item.name || "",
+        })),
+      ];
+      setReasonGroupOptions(mappedGroups);
+      return mappedGroups;
+    } catch (error) {
+      console.error("❌ Error fetching reason groups:", error);
+      setReasonGroupOptions([{ value: "", label: "All Groups" }]);
+      return [{ value: "", label: "All Groups" }];
+    }
+  };
 
   useEffect(() => {
     if (devices.length > 0) {
@@ -2251,8 +2278,21 @@ const OperatorDetails = () => {
       setOpenEditDialog(false);
     }
   };
+
+  const getAllShiftBounds = (shifts) => {
+    if (!shifts || shifts.length === 0) return null;
+
+    const sorted = [...shifts].sort((a, b) => a.shift_no - b.shift_no);
+
+    return {
+      start_time: sorted[0].start_time,                 // First shift start
+      end_time: sorted[sorted.length - 1].end_time,     // Last shift end
+    };
+  };
+
+
   const handleSaveThreshold1 = async () => {
- 
+
     if (savingComponent) {
       return;
     }
@@ -2260,6 +2300,9 @@ const OperatorDetails = () => {
       Swal.fire('Error', 'Invalid date format. Please select a valid date.', 'error');
       return;
     }
+    // if (selectedDate && endDate && endDate.isBefore(selectedDate, 'day')) {
+    //   setSelectedDate(endDate);
+    // }
 
     if (startTime && !startTime.isValid()) {
       Swal.fire('Error', 'Invalid start time format. Please select a valid time.', 'error');
@@ -2282,16 +2325,21 @@ const OperatorDetails = () => {
       return;
     }
 
-    if (!selectedDeviceId || !selectedShift || !selectedDate || !selectedComponentId) {
+    if (!selectedDeviceId || !selectedShift || !selectedDate || !endDate || !selectedComponentId) {
       Swal.fire('Error', 'Please fill all required fields.', 'error');
       return;
     }
 
-    const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
-    if (!selectedShiftData) {
+
+    const selectedShiftData = selectedShift !== 'ALL'
+      ? shifts.find(shift => shift.shift_no == selectedShift)
+      : null;
+
+    if (selectedShift !== 'ALL' && !selectedShiftData) {
       Swal.fire('Error', 'Selected shift not found.', 'error');
       return;
     }
+
 
     const component = componentslist.find(comp => comp.id === selectedComponentId);
     if (!component) {
@@ -2299,10 +2347,17 @@ const OperatorDetails = () => {
       return;
     }
 
+    if (!Array.isArray(shifts) || shifts.length === 0) {
+      Swal.fire('Error', 'Shift data not loaded yet. Please try again.', 'error');
+      return;
+    }
+
+
     // Set saving state
     setSavingComponent(true);
 
     try {
+      // -------------------- COMPONENT DATA --------------------
       const componentName = component.component_name;
       const componentNumber = component.component_number || null;
       const itemCode = component.item_code || null;
@@ -2313,119 +2368,273 @@ const OperatorDetails = () => {
       const factorValue = component.factorval || null;
       const factors = component.factor || null;
 
-      const fromDateTime = getAdjustedDateTime(startTime, selectedDate, selectedShiftData);
-      const toDateTime = getAdjustedDateTime(endTime, selectedDate, selectedShiftData);
+      // -------------------- COMMON TIME VARS --------------------
+      const today = dayjs().startOf('day');
+      const now = dayjs();
 
-      if (!fromDateTime || !toDateTime) {
-        Swal.fire('Error', 'Invalid time selection. Please check start and end times.', 'error');
-        return;
-      }
+      let currentDate = selectedDate.startOf('day');
+      const finalDate = endDate.startOf('day');
+      const allOverlaps = [];
 
-      const fromEpoch = fromDateTime.valueOf();
-      const toEpoch = toDateTime.valueOf();
+      // =========================================================
+      // INITIAL SAVE LOOP
+      // =========================================================
+      while (currentDate.isBefore(finalDate, 'day') || currentDate.isSame(finalDate, 'day')) {
+        // -------------------- ALL SHIFTS --------------------
+        if (selectedShift === 'ALL') {
 
-      if (fromEpoch >= toEpoch) {
-        Swal.fire('Error', 'Start time must be before end time.', 'error');
-        return;
-      }
+          for (const shift of shifts) {
 
-      const durations = Math.floor((toEpoch - fromEpoch) / 1000);
-      const shiftEpoch = getEpochFromShift(selectedShift, selectedDate);
-      const fromtime = shiftEpoch.fromEpoch;
-      const totime = shiftEpoch.toEpoch;
+            const shiftStart = dayjs(shift.start_time, ["HH:mm:ss", "HH:mm"]);
+            const shiftEnd = dayjs(shift.end_time, ["HH:mm:ss", "HH:mm"]);
 
-      if (!fromtime || !totime) {
-        Swal.fire('Error', 'Unable to determine shift boundaries.', 'error');
-        return;
-      }
+            const shiftStartDT = getAdjustedDateTime(shiftStart, currentDate, shift);
+            const shiftEndDT = getAdjustedDateTime(shiftEnd, currentDate, shift);
+            if (!shiftStartDT || !shiftEndDT) continue;
 
-      // Check for overlapping entries within the shift period
-      const response = await telemetrykeydata(
-        selectedDeviceId,
-        'DEVICE',
-        'live_component',
-        fromtime,
-        totime
-      );
+            let effectiveStartTime;
+            let effectiveEndTime;
 
-      const existingEntries = response?.live_component || [];
-      const overlapping = [];
+            if (currentDate.isSame(today, 'day')) {
 
-      for (const item of existingEntries) {
-        if (!item?.value) continue;
-        let parsed;
-        try {
-          parsed = JSON.parse(item.value);
-        } catch {
-          continue;
+              if (shiftEndDT.isBefore(now)) continue;
+
+              if (shiftStartDT.isBefore(now) && shiftEndDT.isAfter(now)) {
+                effectiveStartTime = now;
+                effectiveEndTime = shiftEnd;
+              }
+
+              if (shiftStartDT.isAfter(now)) {
+                effectiveStartTime = shiftStart;
+                effectiveEndTime = shiftEnd;
+              }
+
+            } else {
+              effectiveStartTime = shiftStart;
+              effectiveEndTime = shiftEnd;
+            }
+
+            const fromDT = getAdjustedDateTime(effectiveStartTime, currentDate, shift);
+            const toDT = getAdjustedDateTime(effectiveEndTime, currentDate, shift);
+            if (!fromDT || !toDT) continue;
+
+            const fromEpoch = fromDT.valueOf();
+            const toEpoch = toDT.valueOf();
+            if (fromEpoch >= toEpoch) continue;
+
+            const duration = Math.floor((toEpoch - fromEpoch) / 1000);
+            const { fromEpoch: shiftFrom, toEpoch: shiftTo } =
+              getEpochFromShift(shift.shift_no, currentDate);
+
+            const response = await telemetrykeydata(
+              selectedDeviceId,
+              'DEVICE',
+              'live_component',
+              shiftFrom,
+              shiftTo
+            );
+
+            const existingEntries = response?.live_component || [];
+            const overlaps = [];
+
+            for (const item of existingEntries) {
+              if (!item?.value) continue;
+              let parsed;
+              try { parsed = JSON.parse(item.value); } catch { continue; }
+
+              const existStart = parsed.start_time || item.ts;
+              const existEnd = parsed.end_time || (existStart + (parsed.duration || 0) * 1000);
+
+              if (fromEpoch < existEnd && existStart < toEpoch) {
+                overlaps.push({
+                  parsed,
+                  existingStart: existStart,
+                  existingEnd: existEnd, newStart: fromEpoch,
+                  newEnd: toEpoch,
+
+                  date: currentDate.format('DD-MM-YYYY')
+                });
+              }
+            }
+
+            if (overlaps.length) {
+              allOverlaps.push(...overlaps);
+            } else {
+              const key = {
+                ts: fromEpoch,
+                values: {
+                  live_component: {
+                    name: componentName,
+                    code: componentNumber,
+                    start_time: fromEpoch,
+                    end_time: toEpoch,
+                    duration,
+                    cycle_time: cycleTime,
+                    handling_time: handlingTime,
+                    setup_time: setupTime,
+                    factorval: factorValue,
+                    factor: factors,
+                    ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                      item_code: itemCode,
+                      process_name: processName
+                    })
+                  }
+                }
+              };
+              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+            }
+          }
         }
-        const existingStart = parsed.start_time || item.ts;
-        const existingEnd = parsed.end_time || (existingStart + (parsed.duration || 0) * 1000);
-        const isOverlapping = fromEpoch < existingEnd && existingStart < toEpoch;
-        if (isOverlapping) {
-          overlapping.push({ item, parsed, existingStart, existingEnd });
+
+        // -------------------- SINGLE SHIFT --------------------
+        else {
+          const isToday = currentDate.isSame(today, 'day');
+          const currentShift = getCurrentShift(shifts, now);
+          const isCurrentShift = currentShift?.shift_no === selectedShift;
+
+          let effectiveStartTime;
+          let effectiveEndTime;
+
+          if (isToday) {
+            effectiveStartTime = dayjs(startTime, ["HH:mm:ss", "HH:mm"]);
+            effectiveEndTime = dayjs(endTime, ["HH:mm:ss", "HH:mm"]);
+          } else if (isCurrentShift && selectedDate.isSame(today, 'day')) {
+            effectiveStartTime = dayjs(selectedShiftData.start_time, ["HH:mm:ss", "HH:mm"]);
+            effectiveEndTime = dayjs(selectedShiftData.end_time, ["HH:mm:ss", "HH:mm"]);
+          } else {
+            effectiveStartTime = dayjs(startTime, ["HH:mm:ss", "HH:mm"]);
+            effectiveEndTime = dayjs(endTime, ["HH:mm:ss", "HH:mm"]);
+          }
+
+          const fromDT = getAdjustedDateTime(effectiveStartTime, currentDate, selectedShiftData);
+          const toDT = getAdjustedDateTime(effectiveEndTime, currentDate, selectedShiftData);
+          if (!fromDT || !toDT) {
+            currentDate = currentDate.add(1, 'day');
+            continue;
+          }
+
+          const fromEpoch = fromDT.valueOf();
+          const toEpoch = toDT.valueOf();
+          if (fromEpoch < toEpoch) {
+
+            const duration = Math.floor((toEpoch - fromEpoch) / 1000);
+            const { fromEpoch: shiftFrom, toEpoch: shiftTo } =
+              getEpochFromShift(selectedShift, currentDate);
+
+            const response = await telemetrykeydata(
+              selectedDeviceId,
+              'DEVICE',
+              'live_component',
+              shiftFrom,
+              shiftTo
+            );
+
+            const existingEntries = response?.live_component || [];
+            const overlaps = [];
+
+            for (const item of existingEntries) {
+              if (!item?.value) continue;
+              let parsed;
+              try { parsed = JSON.parse(item.value); } catch { continue; }
+
+              const existStart = parsed.start_time || item.ts;
+              const existEnd = parsed.end_time || (existStart + (parsed.duration || 0) * 1000);
+
+              if (fromEpoch < existEnd && existStart < toEpoch) {
+                overlaps.push({
+                  parsed,
+                  existingStart: existStart,
+                  existingEnd: existEnd,
+                  date: currentDate.format('DD-MM-YYYY'),
+                  newStart: fromEpoch,
+                  newEnd: toEpoch,
+                });
+              }
+            }
+
+            if (overlaps.length) {
+              allOverlaps.push(...overlaps);
+            } else {
+              const key = {
+                ts: fromEpoch,
+                values: {
+                  live_component: {
+                    name: componentName,
+                    code: componentNumber,
+                    start_time: fromEpoch,
+                    end_time: toEpoch,
+                    duration,
+                    cycle_time: cycleTime,
+                    handling_time: handlingTime,
+                    setup_time: setupTime,
+                    factorval: factorValue,
+                    factor: factors,
+                    ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                      item_code: itemCode,
+                      process_name: processName
+                    })
+                  }
+                }
+              };
+              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+            }
+          }
         }
+
+        currentDate = currentDate.add(1, 'day');
       }
 
-      // If there are overlaps, show confirmation dialog
-      if (overlapping.length > 0) {
-        // Close the main dialog first
+      // =========================================================
+      // OVERWRITE FLOW (UNCHANGED LOGIC)
+      // =========================================================
+      if (allOverlaps.length) {
         setOpenEditDialog1(false);
 
-        const overlapDetails = overlapping.map(overlap => {
-          const existingComponent = overlap.parsed.name || 'Unknown';
-          const conflictStart = dayjs(overlap.existingStart).format('DD-MM-YYYY HH:mm:ss');
-          const conflictEnd = dayjs(overlap.existingEnd).format('DD-MM-YYYY HH:mm:ss');
-          return `"<strong>${existingComponent}</strong>" between <strong>${conflictStart}</strong> and <strong>${conflictEnd}</strong>.`;
-        }).join('<br>');
+        const details = allOverlaps.map(o =>
+          `"<strong>${o.parsed.name || 'Unknown'}</strong>" (${o.date}) between
+       <strong>${dayjs(o.existingStart).format('DD-MM-YYYY HH:mm:ss')}</strong>
+       and
+       <strong>${dayjs(o.existingEnd).format('DD-MM-YYYY HH:mm:ss')}</strong>`
+        ).join('<br>');
 
-        // Show confirmation dialog for overwrite
-        const result1 = await Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          html: `Time overlaps with existing component ${overlapDetails}`,
+        const result = await Swal.fire({
+          icon: 'warning',
+          title: 'Overlapping Components Detected',
+          html: details + '<br><br>Do you want to overwrite them?',
           showCancelButton: true,
-          confirmButtonText: 'Overwrite',
+          confirmButtonText: 'Yes, Overwrite',
           cancelButtonText: 'No, Cancel',
-          backdrop: true,
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          allowEnterKey: false
+          width: 700,
+          allowOutsideClick: false
         });
 
-        if (!result1.isConfirmed) {
-          console.log("User cancelled overwrite.");
+        if (!result.isConfirmed) {
           setSavingComponent(false);
           return;
         }
 
-        // Show second confirmation
-        const result2 = await Swal.fire({
-          title: 'Confirm Overwrite',
-          text: 'Do you want to overwrite the existing component allocation with the new changes?',
-          icon: 'question',
-          showCancelButton: true,
-          confirmButtonText: 'Yes, Save',
-          cancelButtonText: 'No, Cancel',
-          backdrop: true,
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          allowEnterKey: false
-        });
+        for (const o of allOverlaps) {
+          const {
+            parsed,
+            existingStart,
+            existingEnd,
+            newStart,
+            newEnd
+          } = o;
 
-        if (!result2.isConfirmed) {
-          console.log("User cancelled save.");
-          setSavingComponent(false);
-          return;
-        }
+          // 1️⃣ Delete original
+          await DowntimeaddDelete(
+            'DEVICE',
+            selectedDeviceId,
+            'live_component',
+            existingStart,
+            existingEnd
+          );
 
-        // Handle the overlap cases
-        for (const overlap of overlapping) {
-          const { parsed, existingStart, existingEnd } = overlap;
-          if (fromEpoch > existingStart && toEpoch < existingEnd) {
-            const leftDuration = Math.floor((fromEpoch - existingStart) / 1000);
-            const rightDuration = Math.floor((existingEnd - toEpoch) / 1000);
-            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
+          // 2️⃣ LEFT PART (existingStart → newStart)
+          if (existingStart < newStart) {
+            const leftDuration = Math.floor((newStart - existingStart) / 1000);
+
             if (leftDuration > 0) {
               const leftKey = {
                 ts: existingStart,
@@ -2433,188 +2642,198 @@ const OperatorDetails = () => {
                   live_component: {
                     ...parsed,
                     start_time: existingStart,
-                    end_time: fromEpoch,
+                    end_time: newStart,
                     duration: leftDuration,
                   },
                 },
               };
+
               await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', leftKey);
             }
+          }
+
+          // 3️⃣ RIGHT PART (newEnd → existingEnd)
+          if (newEnd < existingEnd) {
+            const rightDuration = Math.floor((existingEnd - newEnd) / 1000);
+
             if (rightDuration > 0) {
               const rightKey = {
-                ts: toEpoch,
+                ts: newEnd,
                 values: {
                   live_component: {
                     ...parsed,
-                    start_time: toEpoch,
+                    start_time: newEnd,
                     end_time: existingEnd,
                     duration: rightDuration,
                   },
                 },
               };
+
               await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', rightKey);
             }
           }
-          else if (fromEpoch <= existingStart && toEpoch > existingStart && toEpoch < existingEnd) {
-            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-            const newStart = toEpoch;
-            const newDuration = Math.floor((existingEnd - newStart) / 1000);
-            if (newDuration > 0) {
-              const updatedKey = {
-                ts: newStart,
-                values: {
-                  live_component: {
-                    ...parsed,
-                    start_time: newStart,
-                    end_time: existingEnd,
-                    duration: newDuration,
-                  },
-                },
-              };
-              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-            }
-          }
-          else if (fromEpoch > existingStart && fromEpoch < existingEnd && toEpoch >= existingEnd) {
-            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-            const newEnd = fromEpoch;
-            const newDuration = Math.floor((newEnd - existingStart) / 1000);
-            if (newDuration > 0) {
-              const updatedKey = {
-                ts: existingStart,
-                values: {
-                  live_component: {
-                    ...parsed,
-                    start_time: existingStart,
-                    end_time: newEnd,
-                    duration: newDuration,
-                  },
-                },
-              };
-              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', updatedKey);
-            }
-          }
-          else if (fromEpoch <= existingStart && toEpoch >= existingEnd) {
-            await DowntimeaddDelete('DEVICE', selectedDeviceId, 'live_component', existingStart, existingEnd);
-          }
         }
 
-        // Save the new component assignment after handling overlaps
-        try {
-          const now = Date.now();
-          const key = {
-            ts: fromEpoch || now,
-            values: {
-              live_component: {
-                name: componentName,
-                code: componentNumber,
-                start_time: fromEpoch,
-                end_time: toEpoch,
-                duration: durations,
-                cycle_time: cycleTime,
-                handling_time: handlingTime,
-                setup_time: setupTime,
-                factorval: factorValue,
-                factor: factors,
-                ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
-                  item_code: itemCode,
-                  process_name: processName,
-                }),
+
+        // 🔁 Re-run same save logic
+        currentDate = selectedDate.startOf('day');
+        while (currentDate.isBefore(finalDate, 'day') || currentDate.isSame(finalDate, 'day')) {
+          let effectiveStartTime, effectiveEndTime;
+
+          const now = dayjs();
+          const isToday = currentDate.isSame(today, 'day');
+          const currentShift = getCurrentShift(shifts, now);
+          const isCurrentShift = currentShift?.shift_no === selectedShift;
+          if (selectedShift === 'ALL') {
+
+            const today = dayjs().startOf('day');
+            const now = dayjs();
+
+            for (const shift of shifts) {
+
+              let effectiveStartTime;
+              let effectiveEndTime;
+
+              const shiftStart = dayjs(shift.start_time, ["HH:mm:ss", "HH:mm"]);
+              const shiftEnd = dayjs(shift.end_time, ["HH:mm:ss", "HH:mm"]);
+
+              const shiftStartDT = getAdjustedDateTime(shiftStart, currentDate, shift);
+              const shiftEndDT = getAdjustedDateTime(shiftEnd, currentDate, shift);
+
+              if (!shiftStartDT || !shiftEndDT) continue;
+
+              // 🟢 TODAY logic
+              if (currentDate.isSame(today, 'day')) {
+
+                // ❌ past shift → skip
+                if (shiftEndDT.isBefore(now)) {
+                  continue;
+                }
+
+                // 🔵 current shift
+                if (shiftStartDT.isBefore(now) && shiftEndDT.isAfter(now)) {
+                  effectiveStartTime = now;
+                  effectiveEndTime = shiftEnd;
+                }
+
+                // 🟣 future shift (today)
+                if (shiftStartDT.isAfter(now)) {
+                  effectiveStartTime = shiftStart;
+                  effectiveEndTime = shiftEnd;
+                }
+
+              }
+              // 🟢 Future dates → full shift
+              else {
+                effectiveStartTime = shiftStart;
+                effectiveEndTime = shiftEnd;
+              }
+              const fromDateTime = getAdjustedDateTime(effectiveStartTime, currentDate, shift);
+              const toDateTime = getAdjustedDateTime(effectiveEndTime, currentDate, shift);
+
+              if (!fromDateTime || !toDateTime) continue;
+
+              const fromEpoch = fromDateTime.valueOf();
+              const toEpoch = toDateTime.valueOf();
+              if (fromEpoch >= toEpoch) continue;
+
+              const durations = Math.floor((toEpoch - fromEpoch) / 1000);
+              const key = {
+                ts: fromEpoch || now,
+                values: {
+                  live_component: {
+                    name: componentName,
+                    code: componentNumber,
+                    start_time: fromEpoch,
+                    end_time: toEpoch,
+                    duration: durations,
+                    cycle_time: cycleTime,
+                    handling_time: handlingTime,
+                    setup_time: setupTime,
+                    factorval: factorValue,
+                    factor: factors,
+                    ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                      item_code: itemCode,
+                      process_name: processName,
+                    }),
+                  },
+                },
+              };
+              await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+            }
+          } else {
+            // Single shift re-save logic (same as before)
+            if (isToday) {
+              effectiveStartTime = dayjs(startTime, ["HH:mm:ss", "HH:mm"]);
+              effectiveEndTime = dayjs(endTime, ["HH:mm:ss", "HH:mm"]);
+            } else if (isCurrentShift && selectedDate.isSame(today, 'day')) {
+              effectiveStartTime = dayjs(selectedShiftData.start_time, ["HH:mm:ss", "HH:mm"]);
+              effectiveEndTime = dayjs(selectedShiftData.end_time, ["HH:mm:ss", "HH:mm"]);
+            } else {
+              effectiveStartTime = dayjs(startTime, ["HH:mm:ss", "HH:mm"]);
+              effectiveEndTime = dayjs(endTime, ["HH:mm:ss", "HH:mm"]);
+            }
+
+            const fromDateTime = getAdjustedDateTime(effectiveStartTime, currentDate, selectedShiftData);
+            const toDateTime = getAdjustedDateTime(effectiveEndTime, currentDate, selectedShiftData);
+
+            if (!fromDateTime || !toDateTime) {
+              currentDate = currentDate.add(1, 'day');
+              continue;
+            }
+
+            const fromEpoch = fromDateTime.valueOf();
+            const toEpoch = toDateTime.valueOf();
+            const durations = Math.floor((toEpoch - fromEpoch) / 1000);
+
+            const key = {
+              ts: fromEpoch || now,
+              values: {
+                live_component: {
+                  name: componentName,
+                  code: componentNumber,
+                  start_time: fromEpoch,
+                  end_time: toEpoch,
+                  duration: durations,
+                  cycle_time: cycleTime,
+                  handling_time: handlingTime,
+                  setup_time: setupTime,
+                  factorval: factorValue,
+                  factor: factors,
+                  ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                    item_code: itemCode,
+                    process_name: processName,
+                  }),
+                },
               },
-            },
-          };
+            };
+            await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+          }
 
-          await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-          setDeviceThresholds(prev => ({
-            ...prev,
-            [selectedDeviceId.id || selectedDeviceId]: componentName,
-          }));
-
-          Swal.fire({
-            title: 'Success',
-            text: 'Component assigned successfully.',
-            icon: 'success',
-            backdrop: true,
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            allowEnterKey: false
-          });
-
-          setTimeout(() => {
-            handleSubmit();
-          }, 2000);
-
-          return;
-        } catch (error) {
-          console.error('Error saving component:', error);
-          Swal.fire('Error', 'Failed to assign component.', 'error');
-          return;
-        } finally {
-          setSavingComponent(false);
+          currentDate = currentDate.add(1, 'day');
         }
       }
 
-      // ✅ Proceed to save if no overlap
-      try {
-        const now = Date.now();
-        const key = {
-          ts: fromEpoch || now,
-          values: {
-            live_component: {
-              name: componentName,
-              code: componentNumber,
-              start_time: fromEpoch,
-              end_time: toEpoch,
-              duration: durations,
-              cycle_time: cycleTime,
-              handling_time: handlingTime,
-              setup_time: setupTime,
-              factorval: factorValue,
-              factor: factors,
-              ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
-                item_code: itemCode,
-                process_name: processName,
-              }),
-            },
-          },
-        };
+      Swal.fire({
+        title: 'Success',
+        text: 'Component assigned successfully for all selected dates.',
+        icon: 'success',
+        allowOutsideClick: false
+      });
 
-        console.log(key, 'payload for component');
-
-        // Uncomment when ready to save
-        await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
-        setDeviceThresholds(prev => ({
-          ...prev,
-          [selectedDeviceId.id || selectedDeviceId]: componentName,
-        }));
-
-        Swal.fire({
-          title: 'Success',
-          text: 'Component assigned successfully.',
-          icon: 'success',
-          backdrop: true,
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          allowEnterKey: false
-        });
-
-        setTimeout(() => {
-          handleSubmit();
-        }, 2000);
-
-      } catch (error) {
-        console.error('Error saving component:', error);
-        Swal.fire('Error', 'Failed to assign component.', 'error');
-      } finally {
-        setSavingComponent(false);
-        handleCloseComponentDialog();
-      }
+      setTimeout(() => handleSubmit(), 2000);
 
     } catch (error) {
-      console.error('Error in component assignment:', error);
-      Swal.fire('Error', 'An error occurred while assigning component.', 'error');
+      console.error('Error assigning component:', error);
+      Swal.fire('Error', 'An error occurred while assigning the component.', 'error');
       setSavingComponent(false);
     }
+    finally {
+      setSavingComponent(false);
+      handleCloseComponentDialog();
+    }
   };
+
   const handleCloseComponentDialog = () => {
     setOpenEditDialog1(false);
     setselectedcomponent('');
@@ -2767,7 +2986,7 @@ const OperatorDetails = () => {
       .set('hour', timeValue.hour())
       .set('minute', timeValue.minute())
       .set('second', timeValue.second())
-      .set('millisecond', 0); 
+      .set('millisecond', 0);
     const { shiftStart, shiftEnd } = getShiftBoundaries(shift, selectedDate);
     if (startDay > 1 && endDay > 1) {
       datetime = datetime.add(startDay - 1, 'day');
@@ -2790,8 +3009,45 @@ const OperatorDetails = () => {
   const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
 
   const dialogWidth = useMemo(() => {
-    return cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST ? '900px' : '700px';
+    return cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST ? '1000px' : '800px';
   }, [customerId]);
+
+  const isEndDateBeforeStart =
+    selectedDate &&
+    endDate &&
+    selectedDate.isValid() &&
+    endDate.isValid() &&
+    endDate.isBefore(selectedDate, 'day');
+
+  const isOvernightShift = (shift) => {
+    if (!shift) return false;
+    const start = dayjs(shift.start_time, 'HH:mm:ss');
+    const end = dayjs(shift.end_time, 'HH:mm:ss');
+    return start.isAfter(end);
+  };
+
+
+  const shouldDisableTime = (value, view) => {
+    if (!selectedShiftData) return false;
+
+    const time = dayjs(value);
+    const start = dayjs(selectedShiftData.start_time, 'HH:mm:ss');
+    const end = dayjs(selectedShiftData.end_time, 'HH:mm:ss');
+
+    if (!isOvernightShift(selectedShiftData)) {
+      return !time.isBetween(start, end, null, '[]');
+    }
+
+    return !(
+      time.isSame(start) ||
+      time.isAfter(start) ||
+      time.isBefore(end) ||
+      time.isSame(end)
+    );
+  };
+
+
+
 
   return (
     <div className="pages">
@@ -3218,7 +3474,7 @@ const OperatorDetails = () => {
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <CustomDateSelect
                 name="selectedDate"
-                label="Select Date"
+                label="Start Date"
                 required
                 value={selectedDate}
                 onChange={(e) => {
@@ -3226,8 +3482,7 @@ const OperatorDetails = () => {
                   handleOperatorChange1(e);
                 }}
                 format="DD-MM-YYYY"
-                minDate={dayjs()} // ✅ Allows today
-                maxDate={dayjs().add(7, 'day')} // ✅ Allows up to 7 days from today
+                minDate={dayjs()}
                 slotProps={{
                   textField: {
                     sx: {
@@ -3239,6 +3494,34 @@ const OperatorDetails = () => {
                 }}
               />
             </LocalizationProvider>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <CustomDateSelect
+                name="endDate"
+                label="End Date"
+                required
+                value={endDate}
+                onChange={(e) => {
+                  handleEndDate(e);
+                }}
+                format="DD-MM-YYYY"
+                minDate={dayjs()} // allows today
+                slotProps={{
+                  textField: {
+                    sx: { width: '100%' },
+
+                    error:
+                      (endDate && !endDate.isValid()),
+
+                    helperText:
+                      endDate && !endDate.isValid()
+                        ? 'Invalid date format'
+                        : '',
+                  },
+                }}
+              />
+            </LocalizationProvider>
+
+
             <CustomDaySelect
               name="shift_no"
               value={selectedShift}
@@ -3314,93 +3597,116 @@ const OperatorDetails = () => {
             />
           </div>
           <br></br>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px' }}>
-            <FormControl fullWidth error={!!timeErrors.startTime}>
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <DesktopTimePicker
-                  label="Start Time *"
-                  value={startTime}
-                  onChange={handleStartTimeChange1}
-                  views={['hours', 'minutes', 'seconds']}
-                  openTo="hours"
-                  format="hh:mm:ss A"
-                  minTime={
-                    selectedShiftData && !isOvernight(selectedShiftData)
-                      ? dayjs().isSame(selectedDate, 'day')
-                        ? dayjs()
-                        : dayjs(selectedShiftData.start_time, 'HH:mm:ss')
-                      : undefined
-                  }
-                  maxTime={
-                    selectedShiftData && !isOvernight(selectedShiftData)
-                      ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
-                      : undefined
-                  }
-                  slotProps={{
-                    textField: {
-                      error: !!timeErrors.startTime,
-                      sx: {
-                        '& fieldset': { borderColor: timeErrors.startTime ? 'red' : 'black' },
-                        '&:hover fieldset': { borderColor: timeErrors.startTime ? 'red' : 'black' },
-                        '&.Mui-focused fieldset': { borderColor: timeErrors.startTime ? 'red' : 'orange' },
-                      }
-                    }
-                  }}
-                />
-              </LocalizationProvider>
-              <FormHelperText>
-                {timeErrors.startTime || " "}
-              </FormHelperText>
-            </FormControl>
+          {selectedShift !== 'ALL' && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                marginLeft: '10px'
+              }}
+            >
+              <FormControl fullWidth error={!!timeErrors.startTime}>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DesktopTimePicker
+                    label="Start Time *"
+                    value={startTime}
+                    onChange={handleStartTimeChange1}
+                    views={['hours', 'minutes', 'seconds']}
+                    openTo="hours"
+                    format="hh:mm:ss A"
+                    shouldDisableTime={shouldDisableTime}
 
-            <FormControl fullWidth error={!!timeErrors.endTime}>
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <DesktopTimePicker
-                  label="End Time *"
-                  value={endTime}
-                  onChange={handleEndTimeChange1}
-                  views={['hours', 'minutes', 'seconds']}
-                  openTo="hours"
-                  format="hh:mm:ss A"
-                  minTime={startTime || (
-                    selectedShiftData && !isOvernight(selectedShiftData)
-                      ? dayjs().isSame(selectedDate, 'day')
-                        ? dayjs()
-                        : dayjs(selectedShiftData.start_time, 'HH:mm:ss')
-                      : undefined
-                  )}
-                  maxTime={
-                    selectedShiftData && !isOvernight(selectedShiftData)
-                      ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
-                      : undefined
-                  }
-                  slotProps={{
-                    textField: {
-                      error: !!timeErrors.endTime,
-                      sx: {
-                        '& fieldset': { borderColor: timeErrors.endTime ? 'red' : 'black' },
-                        '&:hover fieldset': { borderColor: timeErrors.endTime ? 'red' : 'black' },
-                        '&.Mui-focused fieldset': { borderColor: timeErrors.endTime ? 'red' : 'orange' },
+                    // minTime={
+                    //   selectedShiftData && !isOvernight(selectedShiftData)
+                    //     ? dayjs().isSame(selectedDate, 'day')
+                    //       ? dayjs()
+                    //       : dayjs(selectedShiftData.start_time, 'HH:mm:ss')
+                    //     : undefined
+                    // }
+                    // maxTime={
+                    //   selectedShiftData && !isOvernight(selectedShiftData)
+                    //     ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
+                    //     : undefined
+                    // }
+                    slotProps={{
+                      textField: {
+                        error: !!timeErrors.startTime,
+                        sx: {
+                          '& fieldset': {
+                            borderColor: timeErrors.startTime ? 'red' : 'black'
+                          },
+                          '&:hover fieldset': {
+                            borderColor: timeErrors.startTime ? 'red' : 'black'
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: timeErrors.startTime ? 'red' : 'orange'
+                          }
+                        }
                       }
-                    }
-                  }}
-                />
-              </LocalizationProvider>
-              <FormHelperText>
-                {timeErrors.endTime || " "}
-              </FormHelperText>
-            </FormControl>
-          </div>
+                    }}
+                  />
+                </LocalizationProvider>
+                <FormHelperText>{timeErrors.startTime || ' '}</FormHelperText>
+              </FormControl>
+
+              <FormControl fullWidth error={!!timeErrors.endTime}>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DesktopTimePicker
+                    label="End Time *"
+                    value={endTime}
+                    onChange={handleEndTimeChange1}
+                    views={['hours', 'minutes', 'seconds']}
+                    openTo="hours"
+                    format="hh:mm:ss A"
+                    shouldDisableTime={shouldDisableTime}
+
+                    // minTime={
+                    //   startTime ||
+                    //   (selectedShiftData && !isOvernight(selectedShiftData)
+                    //     ? dayjs().isSame(selectedDate, 'day')
+                    //       ? dayjs()
+                    //       : dayjs(selectedShiftData.start_time, 'HH:mm:ss')
+                    //     : undefined)
+                    // }
+                    // maxTime={
+                    //   selectedShiftData && !isOvernight(selectedShiftData)
+                    //     ? dayjs(selectedShiftData.end_time, 'HH:mm:ss')
+                    //     : undefined
+                    // }
+                    slotProps={{
+                      textField: {
+                        error: !!timeErrors.endTime,
+                        sx: {
+                          '& fieldset': {
+                            borderColor: timeErrors.endTime ? 'red' : 'black'
+                          },
+                          '&:hover fieldset': {
+                            borderColor: timeErrors.endTime ? 'red' : 'black'
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: timeErrors.endTime ? 'red' : 'orange'
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </LocalizationProvider>
+                <FormHelperText>{timeErrors.endTime || ' '}</FormHelperText>
+              </FormControl>
+            </div>
+          )}
+
         </DialogContent>
         <DialogActions>
-          <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff4444' }} onClick={() => setOpenEditDialog1(false)}>Cancel</Button>
+          <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff4444' }} onClick={() => cancelComponentModal()}>Cancel</Button>
           <Button
             type="submit"
             variant="contained"
             className="filter_btn btn_orange"
             sx={{ backgroundColor: '#ff9800' }}
             onClick={handleSaveThreshold1}
-            disabled={savingComponent || !selectedComponentId || !startTime || !endTime || timeErrors.startTime || timeErrors.endTime || !selectedDate?.isValid()}
+            disabled={savingComponent || !selectedComponentId || !startTime || !endTime || timeErrors.startTime || timeErrors.endTime || !selectedDate?.isValid() || !endDate?.isValid()}
           >
             {savingComponent ? 'Saving...' : 'Save'}
           </Button>
@@ -3461,7 +3767,7 @@ const OperatorDetails = () => {
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>End Time (IST)</th>
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Duration</th>
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Status</th>
-                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
+                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
 
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Reason</th>
                   </tr>
