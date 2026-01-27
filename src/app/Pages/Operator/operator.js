@@ -78,6 +78,8 @@ function Operator() {
             return window._env_.MARKS_CUSTOMER_ID;
         } else if (location.pathname === "/makino_operator_av5tc") {
             return window._env_.MAKINO_CUSTOMER_ID;
+        } else if (location.pathname === "/demo_operator_av3tc") {
+            return CUSTOMER_IDS.DEMO;
         } else if (location.pathname === "/gplast_operator_awe6tc") {
             return CUSTOMER_IDS.GPLAST;
         }  else {
@@ -1334,7 +1336,8 @@ function Operator() {
             location.pathname !== "/smc_operator_bf9tz" &&
             location.pathname !== "/marks_operator_ch8st" &&
             location.pathname !== "/makino_operator_av5tc" &&
-            location.pathname !== "/gplast_operator_awe6tc"
+            location.pathname !== "/gplast_operator_awe6tc" &&
+            location.pathname !== "/demo_operator_av3tc"
         ) {
             return;
         }

@@ -63,6 +63,7 @@ const AppRoutes = () => {
       <Route path="/marks_operator_ch8st" element={<Operator />} />
       <Route path="/makino_operator_av5tc" element={<Operator />} />
       <Route path="/gplast_operator_awe6tc" element={<Operator />} />
+      <Route path="/demo_operator_av3tc" element={<Operator />} />
       <Route path="/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp" element={< Oee />} />
       <Route path="/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp" element={< Oee />} />
       <Route path="/pmi-oee-dashboard" element={< OeeTv />} />
