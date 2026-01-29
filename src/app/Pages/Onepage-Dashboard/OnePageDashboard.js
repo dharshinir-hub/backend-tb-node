@@ -321,7 +321,8 @@ export default function OnePageDashboard() {
         promises.push(
             (async () => {
                 const keys = ["oee"];
-                const machinePromises = devices.map(async (machine) => {
+                const selectedMachinesObj = getDeviceObjectsForMachines(selectedMachines);
+                const machinePromises = selectedMachinesObj.map(async (machine) => {
                     const oeeValues = [];
 
                     for (const shiftRange of shiftTimeRanges) {
