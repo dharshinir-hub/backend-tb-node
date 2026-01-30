@@ -545,6 +545,19 @@ export default function OnePageDashboard() {
     }, [fetchAllDashboardData, generateGrafanaUrls]);
 
     useEffect(() => {
+        const currentShift = getCurrentShift(shifts);
+        const isCurrentShift = currentShift === selectedShift;
+        const isToday = selectedDate.isSame(dayjs(), "day");
+        let intervalId = null;
+        if ((isToday && isCurrentShift) || (isToday && selectedShift === "allshift")) {
+            intervalId = setInterval(() => {
+                if (document.visibilityState === "visible") handleSubmit();
+            }, 60 * 5000);
+        }
+        return () => clearInterval(intervalId);
+    }, [handleSubmit, selectedShift, selectedDate, shifts]);
+
+    useEffect(() => {
         const readyToFetch =
             customerId &&
             selectedShift !== null &&
