@@ -65,7 +65,7 @@ export default function MachineReport() {
     part: [
       "S.no", "Date", "Shift", "Machine Name", "Component Name", "Operator Name","Total Parts",
       "Actual Parts", "Start Time", "End Time", "Run Time", "Idle/Stop Time",
-      "Machine OFF Time", "Duration"
+      "Machine OFF Time", "Duration", "Remarks"
     ],
     idle_reason: [
       "S.no", "Date", "Shift", "Machine Name",
@@ -77,7 +77,7 @@ export default function MachineReport() {
   };
 
   const formatWithFallback = (value, fallback = "---") =>
-    value === null || value === undefined ? fallback : value;
+    value === null || value === undefined || value?.length === 0 ? fallback : value;
 
   const formatTimeWithFallback = (value, fallback = "0:00:00") =>
     value === null || value === undefined ? fallback : formatTime(value);
@@ -151,6 +151,7 @@ export default function MachineReport() {
       { key: "idle_time", formatter: row => formatTimeWithFallback(row.idle_time) },
       { key: "stop_time", formatter: row => formatTimeWithFallback(row.stop_time) },
       { key: "duration", formatter: row => formatTimeWithFallback(row.duration) },
+      { key: "remark", formatter: row => formatWithFallback(row.remark) },
     ],
     idle_reason: [
       { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
@@ -986,7 +987,7 @@ export default function MachineReport() {
                           const rawData = col.formatter(row, index);
                           const displayData = rawData !== null && rawData !== undefined ? String(rawData) : "---";
                           const fullData = Array.isArray(row[col.key]) ? row[col.key].join(" | ") : row[col.key] || "---";
-                          return ['component_name', 'operator_name', 'component_number', 'machine_name', 'component_id'].includes(col.key) ? (
+                          return ['component_name', 'operator_name', 'component_number', 'machine_name', 'component_id', 'remark'].includes(col.key) ? (
                             <Tooltip title={fullData}>
                               <span>{displayData}</span>
                             </Tooltip>
