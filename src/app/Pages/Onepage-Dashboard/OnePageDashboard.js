@@ -321,7 +321,8 @@ export default function OnePageDashboard() {
         promises.push(
             (async () => {
                 const keys = ["oee"];
-                const machinePromises = devices.map(async (machine) => {
+                const selectedMachinesObj = getDeviceObjectsForMachines(selectedMachines);
+                const machinePromises = selectedMachinesObj.map(async (machine) => {
                     const oeeValues = [];
 
                     for (const shiftRange of shiftTimeRanges) {
@@ -542,6 +543,19 @@ export default function OnePageDashboard() {
             setMainGrafanaUrl(mainUrl);
         }
     }, [fetchAllDashboardData, generateGrafanaUrls]);
+
+    useEffect(() => {
+        const currentShift = getCurrentShift(shifts);
+        const isCurrentShift = currentShift === selectedShift;
+        const isToday = selectedDate.isSame(dayjs(), "day");
+        let intervalId = null;
+        if ((isToday && isCurrentShift) || (isToday && selectedShift === "allshift")) {
+            intervalId = setInterval(() => {
+                if (document.visibilityState === "visible") handleSubmit();
+            }, 60 * 5000);
+        }
+        return () => clearInterval(intervalId);
+    }, [handleSubmit, selectedShift, selectedDate, shifts]);
 
     useEffect(() => {
         const readyToFetch =
