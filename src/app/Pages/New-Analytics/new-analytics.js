@@ -981,9 +981,14 @@ export default function NewAnalytics() {
             const baseUrl = window._env_.SERVER_URL;
             const GRAFANA_URL = window._env_.GRAFANA_URL;
             const entityType = "CUSTOMER";
-
-            const url = `${GRAFANA_URL}d/af88lwhpkj08wd/analytics-downtime-alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
-            
+            const fromDateStr = dayjs(fromDate).format("YYYY-MM-DD");
+            const toDateStr = dayjs(toDate).format("YYYY-MM-DD");
+            const shiftParam =
+                selectedShift && selectedShift !== "all"
+                    ? selectedShift
+                    : shifts.map(s => s.shift_no).join(",");
+            const reporturl = `${window._env_.SERVER_URL2}report/idle_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000000000000`;
+            const url = type === 'live_reason'? `${GRAFANA_URL}d/afbprll75uwaoa/analytics-downtime-report-based?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&kiosk&theme=light&refresh=20s` : `${GRAFANA_URL}d/af88lwhpkj08wd/analytics-downtime-alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
             setGrafanaUrl(url);
         } catch (error) {
             console.error("Error updating Grafana URL:", error);
@@ -1510,7 +1515,9 @@ export default function NewAnalytics() {
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_ALARM}>Alarm</MenuItem>
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_REASON}>Downtime</MenuItem>
                                 <MenuItem value={ANALYSIS_TYPES.OEE}>OEE</MenuItem>
-                                <MenuItem value={ANALYSIS_TYPES.UTILIZATION}>Utilization</MenuItem>
+                                {cleanCustomerId(customerId) != window._env_.SMC_CUSTOMER_ID && (
+                                    <MenuItem value={ANALYSIS_TYPES.UTILIZATION}>Utilization</MenuItem>
+                                )}
                             </Select>
                         </FormControl>
 

@@ -281,15 +281,40 @@ export default function MachineGroupEdit({
                       />
                       <ListItemText primary="All" />
                     </MenuItem>
-                    {machines.map((machine) => (
-                      <MenuItem key={machine.id} value={machine.name}>
-                        <Checkbox
-                          checked={field.value.includes(machine.name)}
-                          sx={{ '&.Mui-checked': { color: '#f47803ff' } }}
-                        />
-                        <ListItemText primary={machine.name} />
-                      </MenuItem>
-                    ))}
+
+                    {/* 🔹 Machine Options */}
+                    {machines.map((machine) => {
+                      const allocatedGroup = datasource.find(
+                        (grp) =>
+                          grp.name !== dialogData?.name &&
+                          Array.isArray(grp.machines) &&
+                          grp.machines.includes(machine.name)
+                      );
+
+                      const isAllocated = !!allocatedGroup;
+                      const displayName = isAllocated
+                        ? `${machine.name} (allocated to ${allocatedGroup.name})`
+                        : machine.name;
+
+                      return (
+                        <MenuItem
+                          key={machine.id}
+                          value={machine.name}
+                          disabled={isAllocated}
+                          sx={{
+                            opacity: isAllocated ? 0.6 : 1,
+                            fontStyle: isAllocated ? 'italic' : 'normal',
+                          }}
+                        >
+                          <Checkbox
+                            checked={field.value.includes(machine.name)}
+                            disabled={isAllocated}
+                            sx={{ '&.Mui-checked': { color: '#f47803ff' } }}
+                          />
+                          <ListItemText primary={displayName} />
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                   {errors.machines && (
                     <FormHelperText>{errors.machines.message}</FormHelperText>
