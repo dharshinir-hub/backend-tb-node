@@ -55,13 +55,7 @@ const buildShiftWindows = (fromEpoch, toEpoch) => {
 
 
   const shiftWindows = buildShiftWindows(fromEpoch, toEpoch);
-  shiftWindows.forEach((w) =>
-    console.log(
-      `  ▶️ Shift ${w.shiftNo}: ${dayjs(w.from).format("MMM DD HH:mm")} → ${dayjs(
-        w.to
-      ).format("MMM DD HH:mm")}`
-    )
-  );
+ 
 
   /** 🧠 Cache + fetch once per machine */
   async function getTelemetryCached(deviceId, from, to) {
@@ -69,13 +63,6 @@ const buildShiftWindows = (fromEpoch, toEpoch) => {
     if (telemetryCache.has(key)) return telemetryCache.get(key);
 
     const data = await telemetrykeydata(deviceId, "DEVICE", telemetryKeys, from, to);
-
-    if (data) {
-      console.log(`   ↳ targetparts: ${data.targetparts?.length || 0}, totalparts: ${data.totalparts?.length || 0}`);
-    } else {
-      console.warn(`   ⚠️ No telemetry data for ${deviceId}`);
-    }
-
     telemetryCache.set(key, data);
     return data;
   }
@@ -114,7 +101,6 @@ const buildShiftWindows = (fromEpoch, toEpoch) => {
       if (latestTotal?.value) {
         try {
           const parsed = JSON.parse(latestTotal.value);
-          console.log(parsed , 'parsed')
           shotsVal = parsed.totalshots || 0;
         } catch (e) {
           console.error(`Error parsing totalparts for ${machineId}`, e);

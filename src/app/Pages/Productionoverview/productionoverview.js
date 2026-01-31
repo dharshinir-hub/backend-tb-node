@@ -80,7 +80,7 @@ export default function ProductionOverview() {
 
             return {
                 from: getShiftDateTime(dayjs().startOf("year"), sorted[0], "start"),
-                to: getShiftDateTime(dayjs(), sorted[sorted.length - 1], "end")
+                to: dayjs().valueOf()
             };
         },
         [getShiftDateTime]
@@ -161,7 +161,7 @@ export default function ProductionOverview() {
 
         setIframeUrl(url);
     }, [data.summary, data.monthWise, avgPerformance]);
-
+    console.log('data', data)
     return (
         <Box>
             <Box display="flex" justifyContent="space-between" flexWrap="wrap" gap={2} pt={6} pr={3}>
