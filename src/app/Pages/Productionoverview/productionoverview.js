@@ -172,7 +172,7 @@ export default function ProductionOverview() {
                 >
                     Production Overview
                 </Typography>
-                
+
                 <Box display="flex" gap={2} flexWrap="wrap">
                     {showMachineGroupsDropdown && (
                         <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -257,16 +257,44 @@ export default function ProductionOverview() {
                 </Box>
             </Box>
 
-            <Box mt={2} height="calc(100vh - 180px)">
-                {iframeUrl && (
+            <Box
+                mt={2}
+                height="calc(100vh - 180px)"
+                sx={{
+                    background: '#fff',
+                    overflow: 'hidden',
+                }}
+            >
+                {iframeUrl ? (
                     <iframe
                         src={iframeUrl}
                         title="Production Metrics"
                         width="100%"
                         height="100%"
+                        style={{
+                            border: 'none',
+                            display: 'block',
+                        }}
+                        allowFullScreen
                     />
+                ) : (
+                    <Box
+                        sx={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#f8f9fa',
+                            color: '#6c757d',
+                            fontSize: '14px',
+                        }}
+                    >
+                        Loading production dashboard...
+                    </Box>
                 )}
             </Box>
+
         </Box>
     );
 }
