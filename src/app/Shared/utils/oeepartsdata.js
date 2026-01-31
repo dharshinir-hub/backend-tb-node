@@ -28,34 +28,43 @@ export async function fetchPartsShiftWiseByDate({
       ? arr.reduce((a, b) => (a.ts > b.ts ? a : b))
       : null;
 
-/** 🔹 Build all shift windows between fromEpoch–toEpoch */
-const buildShiftWindows = (fromEpoch, toEpoch) => {
-  const windows = [];
-  let current = new Date(fromEpoch);
+  /** 🔹 Build all shift windows between fromEpoch–toEpoch */
+  const buildShiftWindows = (fromEpoch, toEpoch) => {
+    const windows = [];
+    let current = new Date(fromEpoch);
 
-  while (current.getTime() < toEpoch) {
-    for (const s of shifts) {
-      const { from, to } = getShiftTimes(shifts, String(s.shift_no), current);
-      if (!from || !to) continue;
-      if (to < fromEpoch || from > toEpoch) continue;
+    while (current.getTime() < toEpoch) {
 
-      const adjustedTo = Math.min(to - 1, toEpoch);
+      // 🔥 Production base date (VERY IMPORTANT)
+      const productionDate = dayjs(current).format("YYYY-MM-DD");
 
-      windows.push({
-        shiftNo: String(s.shift_no),
-        from: Math.max(from, fromEpoch),
-        to: adjustedTo,
-      });
+      for (const s of shifts) {
+        const { from, to } = getShiftTimes(shifts, String(s.shift_no), current);
+        if (!from || !to) continue;
+
+        if (to < fromEpoch || from > toEpoch) continue;
+
+        const adjustedTo = Math.min(to - 1, toEpoch);
+
+        windows.push({
+          shiftNo: String(s.shift_no),
+          from: Math.max(from, fromEpoch),
+          to: adjustedTo,
+
+          // ✅ Store production date instead of calendar timestamp date
+          productionDate,
+        });
+      }
+
+      current.setDate(current.getDate() + 1);
     }
-    current.setDate(current.getDate() + 1);
-  }
 
-  return windows.sort((a, b) => a.from - b.from);
-};
+    return windows.sort((a, b) => a.from - b.from);
+  };
 
 
   const shiftWindows = buildShiftWindows(fromEpoch, toEpoch);
- 
+
 
   /** 🧠 Cache + fetch once per machine */
   async function getTelemetryCached(deviceId, from, to) {
@@ -112,11 +121,12 @@ const buildShiftWindows = (fromEpoch, toEpoch) => {
     }
 
     results.push({
-      date: dayjs(from).format("YYYY-MM-DD"),
+      date: window.productionDate,
       shift: shiftNo,
       target: totalTarget,
       totalshots: totalShots,
     });
+
   }
   console.log("🏁 Final Shift-Wise Results:", results);
   return results;

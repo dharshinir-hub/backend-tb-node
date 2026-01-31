@@ -77,14 +77,25 @@ export default function ProductionOverview() {
             const sorted = [...shiftList].sort(
                 (a, b) => Number(a.shift_no) - Number(b.shift_no)
             );
+            const from = getShiftDateTime(dayjs().startOf("year"), sorted[0], "start");
+            const now = dayjs();
+            let currentShift = sorted[sorted.length - 1];
+            for (let shift of sorted) {
+                const shiftStart = getShiftDateTime(now, shift, "start");
+                const shiftEnd = getShiftDateTime(now, shift, "end");
+                if (now.valueOf() >= shiftStart && now.valueOf() <= shiftEnd) {
+                    currentShift = shift;
+                    break;
+                }
+            }
 
-            return {
-                from: getShiftDateTime(dayjs().startOf("year"), sorted[0], "start"),
-                to: dayjs().valueOf()
-            };
+            let to = getShiftDateTime(now, currentShift, "end");
+            to = dayjs(to).second(0).millisecond(0).valueOf();
+            return { from, to };
         },
         [getShiftDateTime]
     );
+
 
     const getShiftTimes = useCallback((shifts, shiftNo, date) => {
         if (!shifts.length || !date) return { from: null, to: null };
@@ -121,25 +132,28 @@ export default function ProductionOverview() {
         setRangeFrom(from);
         setRangeTo(to);
     }, [shifts, getYearRange]);
-
+    console.log('from', rangeFrom, 'to', rangeTo)
+    
     useEffect(() => {
         if (!selectedDeviceIds.length || !rangeFrom || !rangeTo) return;
 
-        getPartsReport({
-            machineIds: selectedDeviceIds,
-            shifts,
-            fromEpoch: rangeFrom,
-            toEpoch: rangeTo,
-            getShiftTimes
-        }).then((res) =>
-            setData({
-                ShiftData: res.shiftData,
-                summary: res.summary,
-                dayWise: res.dayWise,
-                monthWise: res.monthWise
-            })
-        );
+            getPartsReport({
+                machineIds: selectedDeviceIds,
+                shifts,
+                fromEpoch: rangeFrom,
+                toEpoch: rangeTo,
+                getShiftTimes
+            }).then((res) =>
+                setData({
+                    ShiftData: res.shiftData,
+                    summary: res.summary,
+                    dayWise: res.dayWise,
+                    monthWise: res.monthWise
+                })
+            );
+            
     }, [selectedDeviceIds, rangeFrom, rangeTo, shifts, getShiftTimes]);
+
 
     useEffect(() => {
         if (!data.summary) return;
