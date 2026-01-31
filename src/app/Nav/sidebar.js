@@ -7,6 +7,7 @@ import {
   BiBarChart, BiPulse, BiSolidExtension,
   BiDetail
 } from "react-icons/bi";
+import { AiOutlineStock } from "react-icons/ai";
 import { FiActivity } from 'react-icons/fi';
 import {
   MdPowerSettingsNew, MdInsertInvitation, MdMarkunreadMailbox, MdAccountCircle,
@@ -148,6 +149,7 @@ export default function PersistentDrawerLeft({ children }) {
         icon: <BiSolidDashboard />,
         children: [
           { path: "/kpi-dashboard", name: "KPI", icon: <FaChartBar /> },
+          { path: "/production-overview", name: "Metrics", icon: <AiOutlineStock style={{ fontSize: "26px",color:"black" }} /> },
           { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
           { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
