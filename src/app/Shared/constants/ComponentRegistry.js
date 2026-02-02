@@ -26,7 +26,7 @@ export const COMPONENT_REGISTRY = {
   "user-registration": UserRegistration,
   "reason-registration": ReasonRegistration,
   "machines": MachineList,
-  "company": Company,
+  // "company": Company,
   "operator-details": OperatorDetails,
   "machinemm": GrafanaEmbed,
   "deviceoee": NewDeviceOee,

@@ -514,10 +514,16 @@ export default function OnePageDashboard() {
         };
 
         console.log(grafanaData, 'overallShiftData');
-
+        const fromDateStr = dayjs(selectedDate).format("YYYY-MM-DD");
+        const toDateStr = dayjs(selectedDate).format("YYYY-MM-DD");
+        const shiftParam =
+            selectedShift && selectedShift !== "allshift"
+                ? selectedShift
+                : shifts.map(s => s.shift_no).join(",");
         const encodedData = encodeURIComponent(JSON.stringify(grafanaData));
-
-        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${adjustedDuration}&var-url=${baseUrl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
+        const reporturl = `${window._env_.SERVER_URL2}report/idle_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000000000000`;
+        console.log(reporturl, 'reporturl');
+        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${adjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
 
         return { mainUrl };
     }, [customerId, token, selectedDevice, selectedShift, shifts, selectedDate, devices, getShiftTimes, selectedMachines]);

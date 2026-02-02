@@ -10,7 +10,7 @@ const Layout = () => {
     location.pathname === '/shift-registration' ||
     location.pathname === '/component-registration' ||
     location.pathname === '/reason-registration' ||
-    location.pathname === '/company' ||
+    // location.pathname === '/company' ||
     location.pathname === '/CurrentShift' ||
     location.pathname === '/analytics' ||
     location.pathname === '/machines' ||

@@ -1,7 +1,7 @@
 
 export const PAGE_LIST = [
     { label: "KPI Dashboard", value: "kpi-dashboard" },
-    { label: "Company", value: "company" },
+    // { label: "Company", value: "company" },
     { label: "Machine MM", value: "machinemm" },
     { label: "Device OEE", value: "deviceoee" },
     // { label: "Operation Analytics", value: "analytics" },
