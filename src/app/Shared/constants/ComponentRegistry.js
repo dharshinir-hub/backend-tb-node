@@ -38,6 +38,6 @@ export const COMPONENT_REGISTRY = {
   "operator-leaderboard": LeaderBoard,
   "kpi-dashboard" : OnePageDashboard,
   "reason-group" : ReasonGroup,
-  "production-overview" : ProductionOverview
-
+  "production-overview" : ProductionOverview,
+  "group" : GroupRegistration
 };
