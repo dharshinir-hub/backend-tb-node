@@ -4,7 +4,7 @@ export const PAGE_LIST = [
     // { label: "Company", value: "company" },
     { label: "Machine MM", value: "machinemm" },
     { label: "Device OEE", value: "deviceoee" },
-    // { label: "Operation Analytics", value: "analytics" },
+    { label: "Operation Analytics", value: "analytics" },
     // { label: "Component Analytics", value: "production-analysis" },
     { label: "Reports", value: "reports" },
     { label: "Operator Details", value: "operator-details" },
