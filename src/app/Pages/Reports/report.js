@@ -118,8 +118,8 @@ export default function MachineReport() {
       { key: "actual", formatter: row => formatWithFallback(row.actual) },
       { key: "reject", formatter: row => formatWithFallback(row.reject) },
       { key: "rework", formatter: row => formatWithFallback(row.rework) },
-      { key: "efficiency", formatter: row => formatWithFallback(row.efficiency) },
-      { key: "run", formatter: row => formatWithFallback(row.run) },
+      { key: "efficiency", formatter: row => formatNumberSmart(row.efficiency) },
+      { key: "run", formatter: row => formatNumberSmart(row.run) },
       { key: "run_time", formatter: row => formatTimeWithFallback(row.run_time) },
       { key: "idle_time", formatter: row => formatTimeWithFallback(row.idle_time) },
       { key: "alarm_time", formatter: row => formatTimeWithFallback(row.alarm_time) },
@@ -131,10 +131,10 @@ export default function MachineReport() {
       { key: "date", formatter: row => formatWithFallback(formatDate(row.date)) },
       { key: "shift_num", formatter: row => formatWithFallback(row.shift_num) },
       { key: "machine_name", formatter: row => formatWithFallback(row.machine_name) },
-      { key: "availability", formatter: row => formatWithFallback(row.availability) },
-      { key: "performance", formatter: row => formatWithFallback(row.performance) },
+      { key: "availability", formatter: row => formatNumberSmart(row.availability) },
+      { key: "performance", formatter: row => formatNumberSmart(row.performance) },
       { key: "quality", formatter: row => formatWithFallback(row.quality) },
-      { key: "oee", formatter: row => formatWithFallback(row.oee) },
+      { key: "oee", formatter: row => formatNumberSmart(row.oee) },
     ],
     part: [
       { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
@@ -193,6 +193,13 @@ export default function MachineReport() {
     endDate: false,
     dateRange: false
   })
+
+  const formatNumberSmart = (value) => {
+  if (value === null || value === undefined || value === "") return "---";
+  const num = Number(value);
+  if (isNaN(num)) return value;
+  return Number.isInteger(num) ? num : Number(num.toFixed(2));
+};
 
   useEffect(() => {
     const fetchData = async () => {
