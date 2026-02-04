@@ -25,6 +25,7 @@ import TableChartIcon from '@mui/icons-material/TableChart';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { saveAs } from 'file-saver';
 import { getAverageUtilizationForRange } from "../../Shared/utils/utilizationCalculations";
+import { CUSTOMER_IDS } from "../../Shared/constants/ids";
 
 // Constants
 const ANALYSIS_TYPES = {
@@ -676,7 +677,10 @@ export default function NewAnalytics() {
     const [shifts, setShifts] = useState([]);
     const [fromDate, setFromDate] = useState(dayjs().subtract(7, 'day'));
     const [toDate, setToDate] = useState(dayjs());
-    const [analysisType, setAnalysisType] = useState(ANALYSIS_TYPES.LIVE_ALARM);
+    const isGPLAST = cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
+    const [analysisType, setAnalysisType] = useState(
+        isGPLAST ? ANALYSIS_TYPES.LIVE_REASON : ANALYSIS_TYPES.LIVE_ALARM
+    );
     const [grafanaUrl, setGrafanaUrl] = useState("");
     const [selectedShift, setSelectedShift] = useState("all");
     const [fromTime, setFromTime] = useState(null);
@@ -1512,7 +1516,9 @@ export default function NewAnalytics() {
                                     }
                                 }}
                             >
+                                 {cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST && (
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_ALARM}>Alarm</MenuItem>
+                                )}
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_REASON}>Downtime</MenuItem>
                                 <MenuItem value={ANALYSIS_TYPES.OEE}>OEE</MenuItem>
                                 {cleanCustomerId(customerId) != window._env_.SMC_CUSTOMER_ID && (
