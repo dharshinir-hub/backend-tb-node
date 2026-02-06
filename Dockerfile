@@ -1,22 +1,20 @@
-# Stage 1: Build the React app
-FROM node:20.11.0 AS build
-
+# Stage 1: Build React app
+FROM node:18-alpine AS build
 WORKDIR /app
-
 COPY package*.json ./
-RUN npm install --force
-
+RUN npm install
 COPY . .
 RUN npm run build
 
-# Stage 2: Serve the React app with Nginx
-FROM nginx:1.17.1-alpine
-
-# ✅ Correct path for React build output
+# Stage 2: Serve with Nginx
+FROM nginx:alpine
 COPY --from=build /app/build /usr/share/nginx/html
 
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Expose port
 EXPOSE 80
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
 
+# Start Nginx directly
+CMD ["nginx", "-g", "daemon off;"]
