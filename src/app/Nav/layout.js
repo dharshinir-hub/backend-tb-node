@@ -38,7 +38,8 @@ const Layout = () => {
     location.pathname === '/notification-center' ||
     location.pathname === '/kpi-dashboard' || 
     location.pathname === '/group' ||
-    location.pathname === '/production-overview' ;
+    location.pathname === '/production-overview' ||
+    location.pathname === '/settings';
 
   return (
     <>

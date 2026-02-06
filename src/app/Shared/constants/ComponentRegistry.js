@@ -18,6 +18,7 @@ import OnePageDashboard from '../../Pages/Onepage-Dashboard/OnePageDashboard';
 import ReasonGroup from '../../Pages/Reasongroup/reasongroup';
 import GroupRegistration from '../../Pages/Groupregistration/groupregistration';
 import ProductionOverview from '../../Pages/Productionoverview/productionoverview';
+import Settings from '../../Pages/Settings/settings';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -39,5 +40,6 @@ export const COMPONENT_REGISTRY = {
   "kpi-dashboard" : OnePageDashboard,
   "reason-group" : ReasonGroup,
   "production-overview" : ProductionOverview,
-  "group" : GroupRegistration
+  "group" : GroupRegistration,
+  "settings" : Settings
 };

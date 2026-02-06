@@ -28,7 +28,7 @@ import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
 import { stopTokenAutoRefresh } from '../Services/app/loginservice';
 import { UserDetailsContext } from '../Shared/context/UserDetailsContext';
-import { TbChecklist, TbFolders, TbLayoutGrid } from "react-icons/tb";
+import { TbChecklist, TbFolders, TbLayoutGrid, TbSettings } from "react-icons/tb";
 import ChangePasswordCard from '../Nav/changepassword';
 import NotificationBell from '../Pages/NotificationBell/notificationBell';
 import { RiNotificationBadgeLine } from "react-icons/ri";
@@ -189,6 +189,7 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/component-registration", name: "Component", icon: <MdMarkunreadMailbox /> },
           { path: "/reason-registration", name: "Reason", icon: <TbChecklist /> },
           { path: "/group", name: "Group", icon: <TbFolders /> },
+          { path: "/settings", name: "Settings", icon: <TbSettings /> },
         ],
       },
       { path: "/notification-center", name: "Notification Center", icon: <RiNotificationBadgeLine /> },

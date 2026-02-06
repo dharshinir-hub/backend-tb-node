@@ -73,15 +73,27 @@ useEffect(() => {
       size: 16
     };
 
+    const emojiStyle = {
+      fontSize: '14px',
+      verticalAlign: 'middle',
+      color: iconColor,
+    };
+
     switch (iconConfig.icon) {
       case 'warning':
         return <FaExclamationTriangle {...iconProps} />;
+      case 'error_outline':
+        return <span style={emojiStyle}>🔌</span>;
       case 'error':
         return <FaExclamationCircle {...iconProps} />;
       case 'info':
         return <FaInfoCircle {...iconProps} />;
-          case 'check':
+      case 'check':
         return <FaCheck {...iconProps} />;
+      case 'notifications_active':
+        return <span style={emojiStyle}>🚨</span>;
+      case 'mdi:pause-octagon':
+        return <span style={emojiStyle}>⏱️</span>;
       default:
         return <FaInfoCircle {...iconProps} />;
     }
