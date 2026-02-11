@@ -273,6 +273,21 @@ function Operator() {
                     return {};
                 }
             };
+            const getLatestWithTs = (key, isJson = false) => {
+                const arr = filteredData[key];
+                if (!Array.isArray(arr) || arr.length === 0) return isJson ? {} : null;
+                const value = arr[0];
+                if (!isJson) return value;
+                try {
+                    return {
+                        ts: value.ts,
+                        value: JSON.parse(value.value)
+                    };
+                } catch (err) {
+                    console.error(`Error parsing JSON for key: ${key}`, err);
+                    return { ts: value.ts, value: null };
+                }
+            };
             const machineStatusArray = filteredData.machine_status || [];
             const latestStatusCode = parseInt(machineStatusArray[0]?.value || 0, 10);
             const machineStatus = statusText(latestStatusCode);
@@ -296,21 +311,22 @@ function Operator() {
             const liveComponent = getLatest("live_component", true);
             const jobName = liveComponent.name || "Route card not assigned";
             const jobCode = liveComponent.code || "";
-            const liveOperator = getLatest("live_operator", true);
-            const liveOperatorCode = liveOperator?.code || null;
+            const liveOperator = getLatestWithTs("live_operator", true);
+            const liveOperatorCode = liveOperator?.value?.code || null;
             setTelemetry({
                 machineStatus,
                 machineColor: statusColor,
                 firstActive,
                 targetParts,
-                totalShots: totalshots,
+                totalShots: goodparts,
                 goodParts: goodparts,
                 scrap,
                 ncr,
                 jobName,
                 jobCode,
                 liveComponent,
-                liveOperator: liveOperatorCode,
+                liveOperatorCode,
+                liveOperator
             });
             return filteredData;
         } catch (err) {
@@ -1230,19 +1246,19 @@ function Operator() {
 
     useEffect(() => {
         if (!operators.length) return;
-        if (!telemetry.liveOperator) {
+        if (!telemetry.liveOperatorCode) {
             setSelectedOperator("");
             return;
         }
         const found = operators.find(
-            op => String(op.id) === String(telemetry.liveOperator)
+            op => String(op.id) === String(telemetry.liveOperatorCode)
         );
         if (found) {
             setSelectedOperator(found.id);
         } else {
             setSelectedOperator("");
         }
-    }, [telemetry.liveOperator, operators]);
+    }, [telemetry.liveOperatorCode, operators]);
 
     const cancelreason = async () => {
         setopenDownTimeModal(false);
@@ -1392,18 +1408,25 @@ function Operator() {
             const deviceId = deviceNameIdJson[selectedMachine];
             const startTime = dayjs().valueOf();
             const operatorName = operators.find(res => res.id == pendingOperator)?.name;
-            const previousOperator = JSON.parse(localStorage.getItem('operator_details'));
-            if (previousOperator) {
-                const updatedPrevOperator = {
-                    ...previousOperator,
-                    end_time: startTime,
-                    duration: Math.floor((startTime - previousOperator.start_time) / 1000)
-                };
-                const prevPayload = {
-                    ts: dayjs().valueOf(),
-                    values: { live_operator: updatedPrevOperator }
-                };
-                await operatorTelemetry('DEVICE', deviceId, prevPayload);
+            const previousOperatorData =
+                telemetry.liveOperator && Object.keys(telemetry.liveOperator).length > 0
+                    ? telemetry.liveOperator
+                    : JSON.parse(localStorage.getItem('operator_details'));
+            if (previousOperatorData) {
+                const prevValue = previousOperatorData.value || previousOperatorData; 
+                const prevTs = previousOperatorData.ts || dayjs().valueOf();
+                if (prevValue.start_time) {
+                    const updatedPrevOperator = {
+                        ...prevValue,
+                        end_time: startTime,
+                        duration: Math.floor((startTime - prevValue.start_time) / 1000)
+                    };
+                    const prevPayload = {
+                        ts: prevTs,
+                        values: { live_operator: updatedPrevOperator }
+                    };
+                    await operatorTelemetry('DEVICE', deviceId, prevPayload);
+                }
             }
             const payload = {
                 ts: dayjs().valueOf(),
@@ -1412,13 +1435,14 @@ function Operator() {
                         name: operatorName,
                         code: pendingOperator,
                         start_time: startTime,
-                        end_time: "-",
+                        end_time: 0,
                         duration: 0
                     }
                 }
             };
             await operatorTelemetry('DEVICE', deviceId, payload);
-            localStorage.setItem('operator_details', JSON.stringify(payload.values.live_operator));
+            const payload2 = { ts: payload.ts, value: payload.values.live_operator };
+            localStorage.setItem('operator_details', JSON.stringify(payload2));
         } catch (err) {
             console.error('operator api failure', err);
         }
