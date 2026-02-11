@@ -404,11 +404,11 @@ export default function Metrics() {
         };
         fetchTelemetryData();
 
-        //    const interval = setInterval(() => {
-        //     fetchTelemetryData();
-        // }, 60 * 1000);
+           const interval = setInterval(() => {
+            fetchTelemetryData();
+        }, 60 * 1000);
 
-        // return () => clearInterval(interval);
+        return () => clearInterval(interval);
     }, [JSON.stringify(shifts), from, to]);
 
     console.log('telemetry data', telemetryData);
