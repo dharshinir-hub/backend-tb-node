@@ -209,7 +209,7 @@ export default function Metrics() {
     const [statusFilter, setStatusFilter] = useState({
         Idle: true,
         Running: true,
-        Disconnect: true,
+        Disconnected: true,
         Alarm: true,
     });
 
@@ -573,7 +573,7 @@ export default function Metrics() {
     console.log('selected group', selectedGroup)
 
     return (
-        <div style={{ backgroundColor: "#f6f4f4", minHeight: "130vh", width: "100%" }}>
+        <div style={{ backgroundColor: "#f6f4f4", minHeight: "100vh", width: "100%" }}>
             <div style={{ padding: "40px 32px 22px", backgroundColor: "#fff", marginBottom: "20px" }}>
                 <h4 style={{ margin: 0, fontWeight: 600 }}>Production Metrics</h4>
                 <div style={{ marginTop: "6px", fontSize: "13px", color: "#09090a" }}>
