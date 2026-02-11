@@ -19,6 +19,7 @@ import ReasonGroup from '../../Pages/Reasongroup/reasongroup';
 import GroupRegistration from '../../Pages/Groupregistration/groupregistration';
 import ProductionOverview from '../../Pages/Productionoverview/productionoverview';
 import Settings from '../../Pages/Settings/settings';
+import Metrics from '../../Pages/Metrics/metrics';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -41,5 +42,7 @@ export const COMPONENT_REGISTRY = {
   "reason-group" : ReasonGroup,
   "production-overview" : ProductionOverview,
   "group" : GroupRegistration,
-  "settings" : Settings
+  "settings" : Settings,
+  "production-metrics" : Metrics
+
 };

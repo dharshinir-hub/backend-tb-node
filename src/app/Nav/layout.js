@@ -39,7 +39,8 @@ const Layout = () => {
     location.pathname === '/kpi-dashboard' || 
     location.pathname === '/group' ||
     location.pathname === '/production-overview' ||
-    location.pathname === '/settings';
+    location.pathname === '/settings' ||
+    location.pathname === '/production-metrics'; 
 
   return (
     <>

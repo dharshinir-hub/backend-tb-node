@@ -32,6 +32,11 @@ import { TbChecklist, TbFolders, TbLayoutGrid, TbSettings } from "react-icons/tb
 import ChangePasswordCard from '../Nav/changepassword';
 import NotificationBell from '../Pages/NotificationBell/notificationBell';
 import { RiNotificationBadgeLine } from "react-icons/ri";
+import { TbChartHistogram } from "react-icons/tb";
+import { BsGraphUp,BsJustify  } from "react-icons/bs";
+import { BsKanban, BsList  } from "react-icons/bs";
+import { BiAlignRight } from "react-icons/bi";
+import { FaChartSimple } from "react-icons/fa6";
 
 
 
@@ -149,11 +154,18 @@ export default function PersistentDrawerLeft({ children }) {
         icon: <BiSolidDashboard />,
         children: [
           { path: "/kpi-dashboard", name: "KPI", icon: <FaChartBar /> },
-          { path: "/production-overview", name: "Metrics", icon: <AiOutlineStock style={{ fontSize: "26px",color:"black" }} /> },
           // { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
           { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
         ],
+      },
+      {
+        name: "Production",
+        icon: <BsList  style={{ fontSize: "20px", color: "black" }}/>,
+        children: [
+          { path: "/production-overview", name: "Overview", icon: <BsKanban  style={{ fontSize: "20px", color: "black" }} /> },
+          { path: "/production-metrics", name: "Metrics", icon: <BsGraphUp style={{ fontSize: "20px", color: "black" }} /> }
+        ]
       },
       {
         name: "Analytics",
@@ -374,6 +386,8 @@ export default function PersistentDrawerLeft({ children }) {
           item.children ? (
             item.name === "Master" ? renderDropdown(item, masterOpen, setMasterOpen) :
               item.name === "Dashboard" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
+                            item.name === "Production" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
+
                 item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
                   item.name === "Analytics" ? renderDropdown(item, analyticsOpen, setAnalyticsOpen) :
                     item.name === "Leaderboard" ? renderDropdown(item, leaderboardOpen, setLeaderboardOpen) :
