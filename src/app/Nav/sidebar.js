@@ -50,6 +50,7 @@ export default function PersistentDrawerLeft({ children }) {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [operationOpen, setOperationOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [productionOpen, setProductionOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -386,7 +387,7 @@ export default function PersistentDrawerLeft({ children }) {
           item.children ? (
             item.name === "Master" ? renderDropdown(item, masterOpen, setMasterOpen) :
               item.name === "Dashboard" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
-                            item.name === "Production" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
+                            item.name === "Production" ? renderDropdown(item, productionOpen, setProductionOpen) :
 
                 item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
                   item.name === "Analytics" ? renderDropdown(item, analyticsOpen, setAnalyticsOpen) :
