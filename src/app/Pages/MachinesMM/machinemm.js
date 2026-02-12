@@ -262,246 +262,246 @@ export default function MachineDashboard() {
     };
   }, [JSON.stringify(filteredDevices), from, to, selectedShift, activeTab]);
 
-    const fetchAllMachineData = async () => {
-      if (!from || !to || filteredDevices.length === 0) return;
-      const resultsUtilization = {};
-      const resultsBaseline = {};
-      const resultsLiveComponent = {};
-      const resultsDurations = {};
-      const resultsMachineStatuses = {};
-      const resultsMachineStatusTimes = {};
-      const resultsLiveReason = {};
-      const resultsLockStatus = {};
+  const fetchAllMachineData = async () => {
+    if (!from || !to || filteredDevices.length === 0) return;
+    const resultsUtilization = {};
+    const resultsBaseline = {};
+    const resultsLiveComponent = {};
+    const resultsDurations = {};
+    const resultsMachineStatuses = {};
+    const resultsMachineStatusTimes = {};
+    const resultsLiveReason = {};
+    const resultsLockStatus = {};
 
-      const shiftNo =
-        typeof selectedShift === "string"
-          ? selectedShift.replace("Shift ", "")
-          : String(selectedShift ?? "");
-      const currentShiftNo = getCurrentShift(shifts);
-      const allKeys = [
-        "utilization",
-        "historicalbaseline",
-        "live_component",
-        "machine_status",
-        "total_duration",
-        "auto_duration",
-        "live_reason",
-        "operations"
-      ];
+    const shiftNo =
+      typeof selectedShift === "string"
+        ? selectedShift.replace("Shift ", "")
+        : String(selectedShift ?? "");
+    const currentShiftNo = getCurrentShift(shifts);
+    const allKeys = [
+      "utilization",
+      "historicalbaseline",
+      "live_component",
+      "machine_status",
+      "total_duration",
+      "auto_duration",
+      "live_reason",
+      "operations"
+    ];
 
-      await Promise.all(
-        filteredDevices.map(async (machine) => {
-          try {
-            const data = await telemetrykeydata(machine.id.id, "DEVICE", allKeys, from, to);
+    await Promise.all(
+      filteredDevices.map(async (machine) => {
+        try {
+          const data = await telemetrykeydata(machine.id.id, "DEVICE", allKeys, from, to);
 
-            /** ---------------- Hour Utilization ---------------- **/
+          /** ---------------- Hour Utilization ---------------- **/
 
-            //  const utilValues = data?.hour_utilization || [];
-            // if (utilValues.length) {
-            //   const hourlyGroups = {};
-            //   utilValues.forEach((point) => {
-            //     const date = new Date(point.ts);
-            //     const hourKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), 0, 0, 0).toISOString();
-            //     if (!hourlyGroups[hourKey]) hourlyGroups[hourKey] = [];
-            //     hourlyGroups[hourKey].push(point);
-            //   });
-            //   const hourlyLatest = Object.entries(hourlyGroups).map(([hour, points]) => {
-            //     const latestPoint = points.reduce((latest, point) => new Date(point.ts) > new Date(latest.ts) ? point : latest);
-            //     return { hour, value: Number(latestPoint.value) || 0, timestamp: latestPoint.ts };
-            //   });
-            //   const avgUtil = hourlyLatest.reduce((sum, o) => sum + o.value, 0) / hourlyLatest.length;
-            //   resultsUtilization[machine.id.id] = { utilization: Math.round(avgUtil) };
-            // } else {
-            //   resultsUtilization[machine.id.id] = { utilization: 0 };
-            // }
+          //  const utilValues = data?.hour_utilization || [];
+          // if (utilValues.length) {
+          //   const hourlyGroups = {};
+          //   utilValues.forEach((point) => {
+          //     const date = new Date(point.ts);
+          //     const hourKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), 0, 0, 0).toISOString();
+          //     if (!hourlyGroups[hourKey]) hourlyGroups[hourKey] = [];
+          //     hourlyGroups[hourKey].push(point);
+          //   });
+          //   const hourlyLatest = Object.entries(hourlyGroups).map(([hour, points]) => {
+          //     const latestPoint = points.reduce((latest, point) => new Date(point.ts) > new Date(latest.ts) ? point : latest);
+          //     return { hour, value: Number(latestPoint.value) || 0, timestamp: latestPoint.ts };
+          //   });
+          //   const avgUtil = hourlyLatest.reduce((sum, o) => sum + o.value, 0) / hourlyLatest.length;
+          //   resultsUtilization[machine.id.id] = { utilization: Math.round(avgUtil) };
+          // } else {
+          //   resultsUtilization[machine.id.id] = { utilization: 0 };
+          // }
 
-            /** ---------------- Shift Utilization ---------------- **/
-            const values = data?.utilization || [];
-            if (!Array.isArray(values) || values.length === 0) {
-              resultsUtilization[machine.id.id] = { utilization: 0 };
-            } else {
-              try {
-                const latestPoint = values.reduce((latest, point) =>
-                  new Date(point.ts) > new Date(latest.ts) ? point : latest
-                );
-                console.log(`Latest utilization point for ${machine.name}:`, latestPoint);
-                let utilizationValue = Number(latestPoint.value);
-                if (!isNaN(utilizationValue)) {
-                  utilizationValue = parseFloat(utilizationValue);
-                } else {
-                  utilizationValue = 0;
-                }
-                resultsUtilization[machine.id.id] = { utilization: utilizationValue };
-              } catch (error) {
-                resultsUtilization[machine.id.id] = { utilization: 0 };
-              }
-            }
-
-
-            /** ---------------- Historical Baseline ---------------- **/
-            const baselineValues = data?.historicalbaseline || [];
-            if (baselineValues.length) {
-              const latestPoint = baselineValues.reduce((max, p) => p.ts > max.ts ? p : max);
-              let utilizationBaseline = 0;
-              if (latestPoint?.value) {
-                const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
-                utilizationBaseline = parseFloat(parsed?.utilization ?? 0);
-              }
-              resultsBaseline[machine.id.id] = { utilizationBaseline: parseFloat(utilizationBaseline.toFixed(1)) };
-            } else {
-              resultsBaseline[machine.id.id] = { utilizationBaseline: 0 };
-            }
-
-            /** ---------------- Live Component ---------------- **/
-            // const liveValues = data?.live_component || [];
-            // if (liveValues.length) {
-            //   const now = Date.now();
-            //   const comps = liveValues.map(p => {
-            //     const val = typeof p.value === "string" ? JSON.parse(p.value) : p.value;
-            //     return { ...val, ts: p.ts, start: val.start_time || p.ts, end: val.end_time || p.ts };
-            //   });
-            //   let current =
-            //     comps.find(c => now >= c.start && now <= c.end) ||
-            //     comps.filter(c => c.end < now).sort((a, b) => b.end - a.end)[0] ||
-            //     comps.sort((a, b) => a.start - b.start)[0];
-            //   resultsLiveComponent[machine.id.id] = { componentName: current?.name ?? null };
-            // } else {
-            //   resultsLiveComponent[machine.id.id] = { componentName: null };
-            // }
-
-           /** ---------------- operations  ---------------- **/
-            const operationValues = data?.operations || [];
-            let firstValue = null;
-            if (operationValues.length > 0) {
-              let raw = operationValues[0].value;
-              try {
-                firstValue = typeof raw === "string" ? JSON.parse(raw) : raw;
-                if (Array.isArray(firstValue)) firstValue = firstValue[0] || null;
-              } catch (e) {
-                firstValue = null;
-              }
-            }
-            let opName = firstValue?.operation_name?.trim() || null;
-            resultsLiveComponent[machine.id.id] =
-              opName && opName.toLowerCase() !== "no operations"
-                ? { componentName: opName }
-                : { componentName: null };
-
-            /** ---------------- Total / Auto Durations ---------------- **/
-            const totalValues = data?.total_duration || [];
-            const totalObj = totalValues[0] ? (typeof totalValues[0].value === "string" ? JSON.parse(totalValues[0].value) : totalValues[0].value) : {};
-            let autoObj = {};
-            const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
-
-            if (shiftNo === currentShiftNo && isToday) {
-              const autoValues = data?.auto_duration || [];
-              autoObj = autoValues[0] ? (typeof autoValues[0].value === "string" ? JSON.parse(autoValues[0].value) : autoValues[0].value) : {};
-            }
-            const run = Math.round((totalObj.total_run_duration || 0) + (autoObj.total_run_duration || 0));
-            const idle = Math.round((totalObj.total_idle_duration || 0) + (autoObj.total_idle_duration || 0));
-            const disconnect = Math.round((totalObj.total_disconnect_duration || 0) + (autoObj.total_disconnect_duration || 0));
-            const alarm = Math.round((totalObj.total_alarm_duration || 0) + (autoObj.total_alarm_duration || 0));
-            const setting = Math.round((totalObj.total_setting_duration || 0) + (autoObj.total_setting_duration || 0));
-            const total = run + idle + disconnect + alarm + setting;
-
-            resultsDurations[machine.id.id] = { run, idle, disconnect, alarm, setting, total };
-
-            /** ---------------- Machine_Status (latest display) ---------------- **/
-            const statusValues = data?.machine_status || [];
-            if (statusValues.length) {
-              const latestPoint = statusValues.reduce((max, p) => p.ts > max.ts ? p : max);
-              let statusCode = Number(latestPoint.value);
-              let statusText = "";
-              if ([0, 1, 2].includes(statusCode)) {
-                statusText = "Idle";
-              } else if (statusCode === 3) {
-                statusText = "Running";
-              } else if ([4, 5].includes(statusCode)) {
-                statusText = "Alarm";
-              } else if (statusCode === 100) {
-                statusText = "Disconnected";
-              } else {
-                statusText = "Unknown";
-              }
-              let status = statusText;
-              resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status };
-            } else {
-              resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status: "No Data" };
-            }
-
-            /** ---------------- machine_status (last "3" timestamp) ---------------- **/
-            const status3Values = data?.machine_status || [];
-            const lastValue = [...status3Values].reverse().find(p => p.value === "3");
-            resultsMachineStatusTimes[machine.id.id] = { lastTs: lastValue?.ts ?? null };
-
-            let liveReasonData = null;
-            const shiftReason = data?.live_reason?.[0]?.value
-              ? JSON.parse(data.live_reason[0].value)
-              : null;
-            if (shiftReason) {
-              liveReasonData = shiftReason;
-            } else {
-              const totalDurations = resultsDurations[machine.id.id] || {};
-
-              if (totalDurations.idle > 0) {
-                try {
-                  const latestData = await telemetrylatestdata(machine.id.id, "DEVICE", "live_reason,lock_status");
-                  const latestReasonRaw = latestData?.live_reason?.[0]?.value;
-                  const latestReason = latestReasonRaw ? JSON.parse(latestReasonRaw) : null;
-                  const latestReasonTime = latestData?.live_reason?.[0]?.ts;
-                  console.log(latestReason, currentTime, 'lastest reason and selected shift end')
-                  if (latestReason && latestReason.idle_end === 0 && latestReasonTime < currentTime) {
-                    liveReasonData = latestReason;
-                  }
-                } catch (err) {
-                  console.error("Error fetching latest live_reason for", machine.name, err);
-                  liveReasonData = null;
-                }
-              }
-            }
-
-            resultsLiveReason[machine.id.id] = { liveReason: liveReasonData };
-
-            // try {
-            //   const latestData = await telemetrylatestdata(machine.id.id, "DEVICE", "live_reason,lock_status");
-            //   const liveReasonData = latestData?.live_reason?.[0]?.value
-            //     ? JSON.parse(latestData.live_reason[0].value)
-            //     : null;
-            //   resultsLiveReason[machine.id.id] = { liveReason: liveReasonData };
-            //   const lockValue = latestData?.lock_status?.[0]?.value || "";
-            //   const locked = String(lockValue).toLowerCase() === "locked";
-            //   resultsLockStatus[machine.id.id] = { lockStatus: lockValue };
-
-            // } catch (err) {
-            //   console.error("Error fetching live_reason for", machine.name, err);
-            //   resultsLiveReason[machine.id.id] = { liveReason: null };
-            //   resultsLockStatus[machine.id.id] = { lockStatus: null };
-
-            // }
-          } catch (error) {
-            console.error("Error fetching data for", machine.name, error);
-            // resultsIdleRun[machine.id.id] = null;
-            resultsLiveReason[machine.id.id] = { liveReason: null };
+          /** ---------------- Shift Utilization ---------------- **/
+          const values = data?.utilization || [];
+          if (!Array.isArray(values) || values.length === 0) {
             resultsUtilization[machine.id.id] = { utilization: 0 };
-            resultsBaseline[machine.id.id] = { utilizationBaseline: 0 };
-            resultsLiveComponent[machine.id.id] = { componentName: null };
-            resultsDurations[machine.id.id] = { run: 0, idle: 0, disconnect: 0, alarm: 0, setting: 0, total: 0 };
-            resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status: "Error" };
-            resultsMachineStatusTimes[machine.id.id] = { lastTs: null };
+          } else {
+            try {
+              const latestPoint = values.reduce((latest, point) =>
+                new Date(point.ts) > new Date(latest.ts) ? point : latest
+              );
+              console.log(`Latest utilization point for ${machine.name}:`, latestPoint);
+              let utilizationValue = Number(latestPoint.value);
+              if (!isNaN(utilizationValue)) {
+                utilizationValue = parseFloat(utilizationValue);
+              } else {
+                utilizationValue = 0;
+              }
+              resultsUtilization[machine.id.id] = { utilization: utilizationValue };
+            } catch (error) {
+              resultsUtilization[machine.id.id] = { utilization: 0 };
+            }
           }
-        })
-      );
-      // setLatestIdleRunDuration(resultsIdleRun);
-      setMachineUtilization(resultsUtilization);
-      setUtilizationBaseline(resultsBaseline);
-      setLiveComponent(resultsLiveComponent);
-      setMachineDurations(resultsDurations);
-      setMachineStatuses(resultsMachineStatuses);
-      setMachineStatusTimes(resultsMachineStatusTimes);
-      setLiveReason(resultsLiveReason);
-      setLockStatus(resultsLockStatus);
-      console.log(resultsLiveReason, 'result live reason and lock')
-    };
+
+
+          /** ---------------- Historical Baseline ---------------- **/
+          const baselineValues = data?.historicalbaseline || [];
+          if (baselineValues.length) {
+            const latestPoint = baselineValues.reduce((max, p) => p.ts > max.ts ? p : max);
+            let utilizationBaseline = 0;
+            if (latestPoint?.value) {
+              const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
+              utilizationBaseline = parseFloat(parsed?.utilization ?? 0);
+            }
+            resultsBaseline[machine.id.id] = { utilizationBaseline: parseFloat(utilizationBaseline.toFixed(1)) };
+          } else {
+            resultsBaseline[machine.id.id] = { utilizationBaseline: 0 };
+          }
+
+          /** ---------------- Live Component ---------------- **/
+          // const liveValues = data?.live_component || [];
+          // if (liveValues.length) {
+          //   const now = Date.now();
+          //   const comps = liveValues.map(p => {
+          //     const val = typeof p.value === "string" ? JSON.parse(p.value) : p.value;
+          //     return { ...val, ts: p.ts, start: val.start_time || p.ts, end: val.end_time || p.ts };
+          //   });
+          //   let current =
+          //     comps.find(c => now >= c.start && now <= c.end) ||
+          //     comps.filter(c => c.end < now).sort((a, b) => b.end - a.end)[0] ||
+          //     comps.sort((a, b) => a.start - b.start)[0];
+          //   resultsLiveComponent[machine.id.id] = { componentName: current?.name ?? null };
+          // } else {
+          //   resultsLiveComponent[machine.id.id] = { componentName: null };
+          // }
+
+          /** ---------------- operations  ---------------- **/
+          const operationValues = data?.operations || [];
+          let firstValue = null;
+          if (operationValues.length > 0) {
+            let raw = operationValues[0].value;
+            try {
+              firstValue = typeof raw === "string" ? JSON.parse(raw) : raw;
+              if (Array.isArray(firstValue)) firstValue = firstValue[0] || null;
+            } catch (e) {
+              firstValue = null;
+            }
+          }
+          let opName = firstValue?.operation_name?.trim() || null;
+          resultsLiveComponent[machine.id.id] =
+            opName && opName.toLowerCase() !== "no operations"
+              ? { componentName: opName }
+              : { componentName: null };
+
+          /** ---------------- Total / Auto Durations ---------------- **/
+          const totalValues = data?.total_duration || [];
+          const totalObj = totalValues[0] ? (typeof totalValues[0].value === "string" ? JSON.parse(totalValues[0].value) : totalValues[0].value) : {};
+          let autoObj = {};
+          const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
+
+          if (shiftNo === currentShiftNo && isToday) {
+            const autoValues = data?.auto_duration || [];
+            autoObj = autoValues[0] ? (typeof autoValues[0].value === "string" ? JSON.parse(autoValues[0].value) : autoValues[0].value) : {};
+          }
+          const run = Math.round((totalObj.total_run_duration || 0) + (autoObj.total_run_duration || 0));
+          const idle = Math.round((totalObj.total_idle_duration || 0) + (autoObj.total_idle_duration || 0));
+          const disconnect = Math.round((totalObj.total_disconnect_duration || 0) + (autoObj.total_disconnect_duration || 0));
+          const alarm = Math.round((totalObj.total_alarm_duration || 0) + (autoObj.total_alarm_duration || 0));
+          const setting = Math.round((totalObj.total_setting_duration || 0) + (autoObj.total_setting_duration || 0));
+          const total = run + idle + disconnect + alarm + setting;
+
+          resultsDurations[machine.id.id] = { run, idle, disconnect, alarm, setting, total };
+
+          /** ---------------- Machine_Status (latest display) ---------------- **/
+          const statusValues = data?.machine_status || [];
+          if (statusValues.length) {
+            const latestPoint = statusValues.reduce((max, p) => p.ts > max.ts ? p : max);
+            let statusCode = Number(latestPoint.value);
+            let statusText = "";
+            if ([0, 1, 2].includes(statusCode)) {
+              statusText = "Idle";
+            } else if (statusCode === 3) {
+              statusText = "Running";
+            } else if ([4, 5].includes(statusCode)) {
+              statusText = "Alarm";
+            } else if (statusCode === 100) {
+              statusText = "Disconnected";
+            } else {
+              statusText = "Unknown";
+            }
+            let status = statusText;
+            resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status };
+          } else {
+            resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status: "No Data" };
+          }
+
+          /** ---------------- machine_status (last "3" timestamp) ---------------- **/
+          const status3Values = data?.machine_status || [];
+          const lastValue = [...status3Values].reverse().find(p => p.value === "3");
+          resultsMachineStatusTimes[machine.id.id] = { lastTs: lastValue?.ts ?? null };
+
+          let liveReasonData = null;
+          const shiftReason = data?.live_reason?.[0]?.value
+            ? JSON.parse(data.live_reason[0].value)
+            : null;
+          if (shiftReason) {
+            liveReasonData = shiftReason;
+          } else {
+            const totalDurations = resultsDurations[machine.id.id] || {};
+
+            if (totalDurations.idle > 0) {
+              try {
+                const latestData = await telemetrylatestdata(machine.id.id, "DEVICE", "live_reason,lock_status");
+                const latestReasonRaw = latestData?.live_reason?.[0]?.value;
+                const latestReason = latestReasonRaw ? JSON.parse(latestReasonRaw) : null;
+                const latestReasonTime = latestData?.live_reason?.[0]?.ts;
+                console.log(latestReason, currentTime, 'lastest reason and selected shift end')
+                if (latestReason && latestReason.idle_end === 0 && latestReasonTime < currentTime) {
+                  liveReasonData = latestReason;
+                }
+              } catch (err) {
+                console.error("Error fetching latest live_reason for", machine.name, err);
+                liveReasonData = null;
+              }
+            }
+          }
+
+          resultsLiveReason[machine.id.id] = { liveReason: liveReasonData };
+
+          // try {
+          //   const latestData = await telemetrylatestdata(machine.id.id, "DEVICE", "live_reason,lock_status");
+          //   const liveReasonData = latestData?.live_reason?.[0]?.value
+          //     ? JSON.parse(latestData.live_reason[0].value)
+          //     : null;
+          //   resultsLiveReason[machine.id.id] = { liveReason: liveReasonData };
+          //   const lockValue = latestData?.lock_status?.[0]?.value || "";
+          //   const locked = String(lockValue).toLowerCase() === "locked";
+          //   resultsLockStatus[machine.id.id] = { lockStatus: lockValue };
+
+          // } catch (err) {
+          //   console.error("Error fetching live_reason for", machine.name, err);
+          //   resultsLiveReason[machine.id.id] = { liveReason: null };
+          //   resultsLockStatus[machine.id.id] = { lockStatus: null };
+
+          // }
+        } catch (error) {
+          console.error("Error fetching data for", machine.name, error);
+          // resultsIdleRun[machine.id.id] = null;
+          resultsLiveReason[machine.id.id] = { liveReason: null };
+          resultsUtilization[machine.id.id] = { utilization: 0 };
+          resultsBaseline[machine.id.id] = { utilizationBaseline: 0 };
+          resultsLiveComponent[machine.id.id] = { componentName: null };
+          resultsDurations[machine.id.id] = { run: 0, idle: 0, disconnect: 0, alarm: 0, setting: 0, total: 0 };
+          resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status: "Error" };
+          resultsMachineStatusTimes[machine.id.id] = { lastTs: null };
+        }
+      })
+    );
+    // setLatestIdleRunDuration(resultsIdleRun);
+    setMachineUtilization(resultsUtilization);
+    setUtilizationBaseline(resultsBaseline);
+    setLiveComponent(resultsLiveComponent);
+    setMachineDurations(resultsDurations);
+    setMachineStatuses(resultsMachineStatuses);
+    setMachineStatusTimes(resultsMachineStatusTimes);
+    setLiveReason(resultsLiveReason);
+    setLockStatus(resultsLockStatus);
+    console.log(resultsLiveReason, 'result live reason and lock')
+  };
 
 
   /*state for dropdown selection */
@@ -772,12 +772,14 @@ export default function MachineDashboard() {
     const machineId = machine.id?.id;
     const machineName = encodeURIComponent(machine.name || "");
     const baseUrls = {
-      overview: `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1`,
+      overview:
+        cleanCustomerId(customerId) === window._env_.CUSTOMER_ID
+          ? `${window._env_.GRAFANA_URL}d/cfd0ph9cvebcwb/mm-production-utilization-2-pmi?orgId=1` : `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1`,
 
- timeline:
-    cleanCustomerId(customerId) === window._env_.CUSTOMER_ID
-      ? `${window._env_.GRAFANA_URL}d/efd0klgyy83y8d/valve-c-56-timeline-dup-copy2?orgId=1&from=${from}&to=${currentTime}`
-      : `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${currentTime}`,
+      timeline:
+        cleanCustomerId(customerId) === window._env_.CUSTOMER_ID
+          ? `${window._env_.GRAFANA_URL}d/efd0klgyy83y8d/valve-c-56-timeline-dup-copy2?orgId=1&from=${from}&to=${currentTime}`
+          : `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${currentTime}`,
 
       diagnostics: `http://example.com/diagnostics`,
 
