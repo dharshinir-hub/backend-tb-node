@@ -771,7 +771,6 @@ export default function MachineDashboard() {
 
     const machineId = machine.id?.id;
     const machineName = encodeURIComponent(machine.name || "");
-debugger
     const baseUrls = {
       overview: `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1`,
 
