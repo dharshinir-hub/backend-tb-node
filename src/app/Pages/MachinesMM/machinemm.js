@@ -771,13 +771,17 @@ export default function MachineDashboard() {
 
     const machineId = machine.id?.id;
     const machineName = encodeURIComponent(machine.name || "");
-
+debugger
     const baseUrls = {
       overview: `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1`,
 
-      timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${currentTime}`,
+ timeline:
+    cleanCustomerId(customerId) === window._env_.CUSTOMER_ID
+      ? `${window._env_.GRAFANA_URL}d/efd0klgyy83y8d/valve-c-56-timeline-dup-copy2?orgId=1&from=${from}&to=${currentTime}`
+      : `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${currentTime}`,
 
       diagnostics: `http://example.com/diagnostics`,
+
       toolMonitoring: `${window._env_.GRAFANA_URL}d/da065e50-263c-43e5-8a19-610e8c09820c/main-screen-valve-c-56-tool-monitoring`,
     };
 

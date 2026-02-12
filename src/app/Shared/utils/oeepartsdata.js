@@ -18,8 +18,9 @@ export async function fetchPartsShiftWiseByDate({
     to: dayjs(toEpoch).format("YYYY-MM-DD HH:mm:ss"),
   });
 
+  // ✅ Added utilization
+  const telemetryKeys = ["targetparts", "totalparts", "utilization"];
 
-  const telemetryKeys = ["targetparts", "totalparts"];
   const telemetryCache = new Map();
   const results = [];
 
@@ -28,14 +29,12 @@ export async function fetchPartsShiftWiseByDate({
       ? arr.reduce((a, b) => (a.ts > b.ts ? a : b))
       : null;
 
-  /** 🔹 Build all shift windows between fromEpoch–toEpoch */
+  /** 🔹 Build shift windows */
   const buildShiftWindows = (fromEpoch, toEpoch) => {
     const windows = [];
     let current = new Date(fromEpoch);
 
     while (current.getTime() < toEpoch) {
-
-      // 🔥 Production base date (VERY IMPORTANT)
       const productionDate = dayjs(current).format("YYYY-MM-DD");
 
       for (const s of shifts) {
@@ -50,8 +49,6 @@ export async function fetchPartsShiftWiseByDate({
           shiftNo: String(s.shift_no),
           from: Math.max(from, fromEpoch),
           to: adjustedTo,
-
-          // ✅ Store production date instead of calendar timestamp date
           productionDate,
         });
       }
@@ -62,16 +59,21 @@ export async function fetchPartsShiftWiseByDate({
     return windows.sort((a, b) => a.from - b.from);
   };
 
-
   const shiftWindows = buildShiftWindows(fromEpoch, toEpoch);
 
-
-  /** 🧠 Cache + fetch once per machine */
+  /** Cache telemetry */
   async function getTelemetryCached(deviceId, from, to) {
     const key = `${deviceId}_${from}_${to}`;
     if (telemetryCache.has(key)) return telemetryCache.get(key);
 
-    const data = await telemetrykeydata(deviceId, "DEVICE", telemetryKeys, from, to);
+    const data = await telemetrykeydata(
+      deviceId,
+      "DEVICE",
+      telemetryKeys,
+      from,
+      to
+    );
+
     telemetryCache.set(key, data);
     return data;
   }
@@ -84,50 +86,78 @@ export async function fetchPartsShiftWiseByDate({
     })
   );
 
+  /** 🔹 Shift-wise aggregation */
+/** 🔹 Shift-wise aggregation */
+for (const window of shiftWindows) {
+  const { shiftNo, from, to } = window;
 
-  for (const window of shiftWindows) {
-    const { shiftNo, from, to } = window;
-    let totalTarget = 0;
-    let totalShots = 0;
+  let totalTarget = 0;
+  let totalShots = 0;
 
-    for (const machineId of machineIds) {
-      const machineData = telemetryMap.get(machineId);
-      if (!machineData) continue;
+  let utilSum = 0;
+  let utilCount = 0;
 
-      const targetPoints = (machineData?.targetparts || []).filter(
-        (p) => p.ts >= from && p.ts <= to
-      );
-      const totalPoints = (machineData?.totalparts || []).filter(
-        (p) => p.ts >= from && p.ts <= to
-      );
+  for (const machineId of machineIds) {
+    const machineData = telemetryMap.get(machineId);
+    if (!machineData) continue;
 
-      const latestTarget = getLatest(targetPoints);
-      const latestTotal = getLatest(totalPoints);
+    const targetPoints = (machineData?.targetparts || []).filter(
+      (p) => p.ts >= from && p.ts <= to
+    );
 
-      const targetVal = latestTarget ? parseFloat(latestTarget.value) || 0 : 0;
-      let shotsVal = 0;
+    const totalPoints = (machineData?.totalparts || []).filter(
+      (p) => p.ts >= from && p.ts <= to
+    );
 
-      if (latestTotal?.value) {
-        try {
-          const parsed = JSON.parse(latestTotal.value);
-          shotsVal = parsed.totalshots || 0;
-        } catch (e) {
-          console.error(`Error parsing totalparts for ${machineId}`, e);
-        }
+    const utilizationPoints = (machineData?.utilization || []).filter(
+      (p) => p.ts >= from && p.ts <= to
+    );
+
+    const latestTarget = getLatest(targetPoints);
+    const latestTotal = getLatest(totalPoints);
+    const latestUtil = getLatest(utilizationPoints);
+
+    const targetVal = latestTarget
+      ? parseFloat(latestTarget.value) || 0
+      : 0;
+
+    let shotsVal = 0;
+
+    if (latestTotal?.value) {
+      try {
+        const parsed = JSON.parse(latestTotal.value);
+        shotsVal = parsed.totalshots || 0;
+      } catch (e) {
+        console.error(`Error parsing totalparts for ${machineId}`, e);
       }
-
-      totalTarget += targetVal;
-      totalShots += shotsVal;
     }
 
-    results.push({
-      date: window.productionDate,
-      shift: shiftNo,
-      target: totalTarget,
-      totalshots: totalShots,
-    });
+    const utilVal = latestUtil
+      ? parseFloat(latestUtil.value)
+      : null;
 
+    totalTarget += targetVal;
+    totalShots += shotsVal;
+
+    if (utilVal !== null && !isNaN(utilVal)) {
+      utilSum += utilVal;
+      utilCount++;
+    }
   }
+
+  const avgUtilization =
+    utilCount > 0 ? utilSum / utilCount : 0;
+
+  results.push({
+    date: window.productionDate,
+    shift: shiftNo,
+    target: totalTarget,
+    totalshots: totalShots,
+    utilization: avgUtilization,
+  });
+}
+
+
   console.log("🏁 Final Shift-Wise Results:", results);
   return results;
 }
@@ -201,19 +231,51 @@ export function getDayWiseData(data = []) {
 
 export function getMonthWiseData(data = []) {
   const grouped = {};
+
   data.forEach((d) => {
     const month = dayjs(d.date).format("YYYY-MM");
-    if (!grouped[month]) grouped[month] = { target: 0, total: 0 };
-    grouped[month].target += d.target;
-    grouped[month].total += d.totalshots;
+
+    if (!grouped[month]) {
+      grouped[month] = {
+        target: 0,
+        total: 0,
+        utilSum: 0,
+        utilCount: 0,
+      };
+    }
+
+    grouped[month].target += d.target || 0;
+    grouped[month].total += d.totalshots || 0;
+
+    if (d.utilization !== undefined && d.utilization !== null) {
+      grouped[month].utilSum += Number(d.utilization) || 0;
+      grouped[month].utilCount++;
+    }
   });
+
   return Object.keys(grouped)
     .sort()
     .map((month) => {
-      const { target, total } = grouped[month];
+      const { target, total, utilSum, utilCount } = grouped[month];
+
       const difference = total - target;
-      const performance = target ? Math.round((total / target) * 100) : 0;
-      return { month, target, total, difference, performance };
+      const performance = target
+        ? Math.round((total / target) * 100)
+        : 0;
+
+ const utilization =
+  utilCount > 0
+    ? Number((utilSum / utilCount).toFixed(1))
+    : 0;
+
+      return {
+        month,
+        target,
+        total,
+        difference,
+        performance,
+        utilization, // monthly avg
+      };
     });
 }
 

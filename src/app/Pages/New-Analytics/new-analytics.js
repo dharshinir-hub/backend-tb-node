@@ -15,7 +15,7 @@ import dayjs from "dayjs";
 import "./new-analytics.css";
 import {
     cleanCustomerId,
-    customerbasedshift
+    customerbasedshift, telemetrykeydata
 } from "../../Services/app/operatorservice";
 import { getAverageOEEForRange, fetchAlarmDowntimeData } from "../../Shared/utils/oeeCalculations";
 import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
@@ -26,13 +26,15 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import { saveAs } from 'file-saver';
 import { getAverageUtilizationForRange } from "../../Shared/utils/utilizationCalculations";
 import { CUSTOMER_IDS } from "../../Shared/constants/ids";
+import { getPartsReport } from "../../Shared/utils/oeepartsdata";
 
 // Constants
 const ANALYSIS_TYPES = {
     LIVE_ALARM: "live_alarm",
     LIVE_REASON: "live_reason",
     OEE: "oee",
-    UTILIZATION: "utilization"
+    UTILIZATION: "utilization",
+    PARTS: "Parts"
 };
 
 const OEE_VIEW_TYPES = {
@@ -92,7 +94,7 @@ const COLUMN_DEFINITIONS = {
         { field: 'shift_start_time', headerName: 'Shift Start', width: 110 },
         { field: 'shift_end_time', headerName: 'Shift End', width: 110 },
     ],
-     [ANALYSIS_TYPES.UTILIZATION]: [
+    [ANALYSIS_TYPES.UTILIZATION]: [
         { field: 'date', headerName: 'Date', width: 100 },
         { field: 'machine_name', headerName: 'Machine', width: 130 },
         { field: 'utilization_value', headerName: 'Utilization', width: 90 },
@@ -104,6 +106,13 @@ const COLUMN_DEFINITIONS = {
         { field: 'timestamp', headerName: 'Time', width: 140 },
         { field: 'shift_start_time', headerName: 'Shift Start', width: 110 },
         { field: 'shift_end_time', headerName: 'Shift End', width: 110 },
+    ],
+    [ANALYSIS_TYPES.PARTS]: [
+        { field: 'date', headerName: 'Date', width: 110 },
+        { field: 'target', headerName: 'Target Parts', width: 130 },
+        { field: 'total', headerName: 'Actual Parts', width: 130 },
+        { field: 'difference', headerName: 'Difference', width: 110 },
+        { field: 'performance', headerName: 'Performance (%)', width: 140 },
     ]
 };
 
@@ -112,7 +121,7 @@ const TableRowMemo = ({ row, columns, index }) => (
     <TableRow
         sx={{
             backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
-            '&:hover': { 
+            '&:hover': {
                 backgroundColor: alpha('#1976d2', 0.04),
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             },
@@ -120,7 +129,7 @@ const TableRowMemo = ({ row, columns, index }) => (
         }}
     >
         {columns.map((column) => (
-            <TableCell 
+            <TableCell
                 key={`${row.id || row.machine_name}_${column.field}`}
                 sx={{
                     padding: '12px 16px',
@@ -128,11 +137,11 @@ const TableRowMemo = ({ row, columns, index }) => (
                     fontSize: '13px',
                     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif',
                     color: '#1d1d1f',
-                    '&:first-of-type': { 
+                    '&:first-of-type': {
                         borderLeft: 'none',
                         paddingLeft: '24px',
                     },
-                    '&:last-child': { 
+                    '&:last-child': {
                         paddingRight: '24px',
                     }
                 }}
@@ -382,22 +391,22 @@ const mapDataToOperator = (data, type, shifts) => {
 // Separate OEE data processing functions for Fiscal and Days
 const mapDataToOeeFiscal = (data) => {
     const results = [];
-    
+
     Object.keys(data).forEach(machineId => {
         const machine = data[machineId];
         const oeeValues = machine.oeeValues || [];
-        
+
         if (!Array.isArray(oeeValues) || oeeValues.length === 0) return;
-        
+
         // For fiscal view, we want aggregated data
         const sortedOee = [...oeeValues].sort((a, b) => Number(a.ts) - Number(b.ts));
-        
+
         // Group by date
         const groupedByDate = {};
         sortedOee.forEach(oee => {
             const dateObj = new Date(Number(oee.ts));
             const date = `${String(dateObj.getDate()).padStart(2, "0")}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${dateObj.getFullYear()}`;
-            
+
             if (!groupedByDate[date]) {
                 groupedByDate[date] = {
                     values: [],
@@ -405,17 +414,17 @@ const mapDataToOeeFiscal = (data) => {
                     count: 0
                 };
             }
-            
+
             groupedByDate[date].values.push(Number(oee.value));
             groupedByDate[date].sum += Number(oee.value);
             groupedByDate[date].count++;
         });
-        
+
         // Calculate averages for each date
         Object.keys(groupedByDate).forEach(date => {
             const dataForDate = groupedByDate[date];
             const avgOee = dataForDate.count > 0 ? dataForDate.sum / dataForDate.count : 0;
-            
+
             results.push({
                 date,
                 machine_name: machine.machineName || machineId,
@@ -431,7 +440,7 @@ const mapDataToOeeFiscal = (data) => {
             });
         });
     });
-    
+
     return results;
 };
 
@@ -450,7 +459,7 @@ const mapDataToOeeDays = (data, shifts, fromDate, toDate) => {
             isOvernight: endMinutes <= startMinutes
         };
     });
-    
+
     Object.keys(data).forEach(machineId => {
         const machine = data[machineId];
         const operatorValues = machine.operatorValues || [];
@@ -458,11 +467,11 @@ const mapDataToOeeDays = (data, shifts, fromDate, toDate) => {
         const oeeValues = machine.oeeValues || [];
         if (!Array.isArray(oeeValues) || oeeValues.length === 0) return;
         const sortedOee = [...oeeValues].sort((a, b) => Number(a.ts) - Number(b.ts));
-        
+
         const startDateObj = dayjs(fromDate).startOf('day');
         const endDateObj = dayjs(toDate).endOf('day');
         let currentDate = startDateObj;
-        
+
         while (currentDate <= endDateObj) {
             const dateString = currentDate.format("DD-MM-YYYY");
             parsedShifts.forEach(shift => {
@@ -520,14 +529,14 @@ const mapDataToUtilizationFiscal = (data) => {
     Object.keys(data).forEach(machineId => {
         const machine = data[machineId];
         const utilizationValues = machine.utilizationValues || [];
-        
+
         if (!Array.isArray(utilizationValues) || utilizationValues.length === 0) return;
-        
+
         const groupedByDate = {};
         utilizationValues.forEach(util => {
             const dateObj = new Date(Number(util.ts));
             const date = `${String(dateObj.getDate()).padStart(2, "0")}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${dateObj.getFullYear()}`;
-            
+
             if (!groupedByDate[date]) {
                 groupedByDate[date] = {
                     values: [],
@@ -535,17 +544,17 @@ const mapDataToUtilizationFiscal = (data) => {
                     count: 0,
                 };
             }
-            
+
             const utilData = util.value ? JSON.parse(util.value) : { utilization: 0, runningTime: 0, availableTime: 0 };
             groupedByDate[date].values.push(Number(utilData.utilization || 0));
             groupedByDate[date].sum += Number(utilData.utilization || 0);
             groupedByDate[date].count++;
         });
-        
+
         Object.keys(groupedByDate).forEach(date => {
             const dataForDate = groupedByDate[date];
             const avgUtilization = dataForDate.count > 0 ? dataForDate.sum / dataForDate.count : 0;
-            
+
             results.push({
                 date,
                 machine_name: machine.machineName || machineId,
@@ -561,13 +570,12 @@ const mapDataToUtilizationFiscal = (data) => {
             });
         });
     });
-    
+
     return results;
 };
 
 const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
-    debugger
-    console.log(data, shifts, fromDate, toDate , 'info')
+    console.log(data, shifts, fromDate, toDate, 'info')
     const now = Date.now();
     const results = [];
     const parsedShifts = shifts.map(shift => {
@@ -582,7 +590,7 @@ const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
             isOvernight: endMinutes <= startMinutes
         };
     });
-    
+
     Object.keys(data).forEach(machineId => {
         const machine = data[machineId];
         const operatorValues = machine.operatorValues || [];
@@ -590,13 +598,13 @@ const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
         const utilizationValues = machine.utilizationValues || [];
         console.log(utilizationValues, 'utlization')
         if (!Array.isArray(utilizationValues) || utilizationValues.length === 0) return;
-        
+
         const sortedUtilization = [...utilizationValues].sort((a, b) => Number(a.ts) - Number(b.ts));
-        
+
         const startDateObj = dayjs(fromDate).startOf('day');
         const endDateObj = dayjs(toDate).endOf('day');
         let currentDate = startDateObj;
-        
+
         while (currentDate <= endDateObj) {
             const dateString = currentDate.format("DD-MM-YYYY");
             parsedShifts.forEach(shift => {
@@ -604,7 +612,7 @@ const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
                 const [eH, eM] = shift.end_time.split(":").map(Number);
                 let shiftStart = dayjs(currentDate).hour(sH).minute(sM).second(0).millisecond(0);
                 let shiftEnd = dayjs(currentDate).hour(eH).minute(eM).second(0).millisecond(0);
-                
+
                 if (shift.isOvernight) {
                     shiftEnd = shiftEnd.add(1, 'day');
                 }
@@ -612,9 +620,9 @@ const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
                 const shiftUtilizationValues = sortedUtilization.filter(util => {
                     return util.ts >= shiftStart.valueOf() && util.ts <= adjustedShiftEnd.valueOf();
                 });
-                
+
                 if (shiftUtilizationValues.length === 0) return;
-                
+
                 // Get the latest utilization value for the shift
                 const lastUtilization = shiftUtilizationValues[shiftUtilizationValues.length - 1];
                 const ts = Number(lastUtilization.ts);
@@ -625,14 +633,14 @@ const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
                     if (!opEnd || isNaN(opEnd) || opEnd === 0) opEnd = now;
                     return ts >= opStart && ts <= opEnd;
                 });
-                
+
                 const component = componentValues.find(cmp => {
                     const cmpStart = Number(cmp.value?.start_time);
                     let cmpEnd = Number(cmp.value?.end_time);
                     if (!cmpEnd || isNaN(cmpEnd) || cmpEnd === 0) cmpEnd = now;
                     return ts >= cmpStart && ts <= cmpEnd;
                 });
-                
+
                 results.push({
                     date: dateString,
                     machine_name: machine.machineName || machineId,
@@ -657,7 +665,7 @@ const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
 export default function NewAnalytics() {
     const customerId = localStorage.getItem("CustomerID");
     const newToken = localStorage.getItem("token");
-    
+
     // Custom hooks
     const {
         devices,
@@ -678,9 +686,7 @@ export default function NewAnalytics() {
     const [fromDate, setFromDate] = useState(dayjs().subtract(7, 'day'));
     const [toDate, setToDate] = useState(dayjs());
     const isGPLAST = cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
-    const [analysisType, setAnalysisType] = useState(
-        isGPLAST ? ANALYSIS_TYPES.LIVE_REASON : ANALYSIS_TYPES.LIVE_ALARM
-    );
+    const [analysisType, setAnalysisType] = useState(ANALYSIS_TYPES.PARTS);
     const [grafanaUrl, setGrafanaUrl] = useState("");
     const [selectedShift, setSelectedShift] = useState("all");
     const [fromTime, setFromTime] = useState(null);
@@ -710,19 +716,34 @@ export default function NewAnalytics() {
     const [utilizationDaysTableData, setUtilizationDaysTableData] = useState([]);
     const [utilizationDaysPage, setUtilizationDaysPage] = useState(0);
     const [utilizationDaysRowsPerPage, setUtilizationDaysRowsPerPage] = useState(25);
-    
+    const [selectedYear, setSelectedYear] = useState(dayjs().year());
+    const [data, setData] = useState({
+        summary: null,
+        dayWise: null,
+        monthWise: null,
+        ShiftData: null
+    });
+    const [avgPerformance, setAvgPerformance] = useState([]);
+    const [iframeUrl, setIframeUrl] = useState("");
+    const [todayData, setTodayData] = useState(null);
+    const [todayFrom, setTodayFrom] = useState(null);
+    const [todayTo, setTodayTo] = useState(null);
+    const minYear = 2025;
+    const maxYear = dayjs().year();
+    const [partsViewType, setPartsViewType] = useState("day");
+
     // Memoized values
-    const isShiftDisabled = useMemo(() => 
+    const isShiftDisabled = useMemo(() =>
         !fromDate || !toDate ? true : !fromDate.isSame(toDate, "day"),
         [fromDate, toDate]
     );
-    
+
     const isRunDisabled = useMemo(() =>
         isLoading || selectedMachines.length === 0,
         [isLoading, selectedMachines.length]
     );
 
-    const currentColumns = useMemo(() => 
+    const currentColumns = useMemo(() =>
         COLUMN_DEFINITIONS[analysisType] || [],
         [analysisType]
     );
@@ -731,27 +752,27 @@ export default function NewAnalytics() {
     const paginatedData = useMemo(() => {
         if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
             return oeeDaysTableData.slice(
-                oeeDaysPage * oeeDaysRowsPerPage, 
+                oeeDaysPage * oeeDaysRowsPerPage,
                 oeeDaysPage * oeeDaysRowsPerPage + oeeDaysRowsPerPage
             );
         }
         if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
             return utilizationDaysTableData.slice(
-                utilizationDaysPage * utilizationDaysRowsPerPage, 
+                utilizationDaysPage * utilizationDaysRowsPerPage,
                 utilizationDaysPage * utilizationDaysRowsPerPage + utilizationDaysRowsPerPage
             );
         }
         return tableData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
     }, [
-        analysisType, 
-        oeeViewType, 
-        utilizationViewType, 
-        tableData, 
-        oeeDaysTableData, 
+        analysisType,
+        oeeViewType,
+        utilizationViewType,
+        tableData,
+        oeeDaysTableData,
         utilizationDaysTableData,
-        page, 
-        rowsPerPage, 
-        oeeDaysPage, 
+        page,
+        rowsPerPage,
+        oeeDaysPage,
         oeeDaysRowsPerPage,
         utilizationDaysPage,
         utilizationDaysRowsPerPage
@@ -798,11 +819,12 @@ export default function NewAnalytics() {
     }, [analysisType, oeeViewType, utilizationViewType, tableData, oeeDaysTableData, utilizationDaysTableData]);
 
     const getReportTitle = useMemo(() => {
-        switch(analysisType) {
+        switch (analysisType) {
             case ANALYSIS_TYPES.LIVE_ALARM: return 'Alarm Report';
             case ANALYSIS_TYPES.LIVE_REASON: return 'Downtime Report';
             case ANALYSIS_TYPES.OEE: return 'OEE Analysis';
             case ANALYSIS_TYPES.UTILIZATION: return 'Utilization Analysis';
+            case ANALYSIS_TYPES.PARTS: return 'TargetVsActual Analysis';
             default: return 'Analytics Report';
         }
     }, [analysisType]);
@@ -817,7 +839,7 @@ export default function NewAnalytics() {
     // Handle date/shift changes
     useEffect(() => {
         if (!fromDate || !toDate || shifts.length === 0) return;
-        
+
         if (!fromDate.isSame(toDate, "day") || selectedShift === "all") {
             setSelectedShift("all");
             handleAllShiftsTimeRange();
@@ -854,6 +876,29 @@ export default function NewAnalytics() {
             console.error("Failed to fetch shifts", err);
         }
     };
+
+    const getShiftTimes = useCallback((shifts, shiftNo, date) => {
+        if (!shifts.length || !date) return { from: null, to: null };
+
+        const base = dayjs(date).format("YYYY-MM-DD");
+        const dayOffset = (d) => dayjs(base).add(Number(d) - 1, "day").format("YYYY-MM-DD");
+
+        if (shiftNo === "allshift") {
+            const sorted = [...shifts].sort((a, b) => a.shift_no - b.shift_no);
+            return {
+                from: new Date(`${dayOffset(sorted[0].start_day)}T${sorted[0].start_time}`).getTime(),
+                to: new Date(`${dayOffset(sorted.at(-1).end_day)}T${sorted.at(-1).end_time}`).getTime()
+            };
+        }
+
+        const s = shifts.find((x) => String(x.shift_no) === String(shiftNo));
+        if (!s) return { from: null, to: null };
+
+        return {
+            from: new Date(`${dayOffset(s.start_day)}T${s.start_time}`).getTime(),
+            to: new Date(`${dayOffset(s.end_day)}T${s.end_time}`).getTime()
+        };
+    }, []);
 
     const handleAllShiftsTimeRange = () => {
         const firstShift = shifts[0];
@@ -899,6 +944,217 @@ export default function NewAnalytics() {
         setTo(toDT.valueOf());
     };
 
+    const handlePartsYearTimeRange = () => {
+        if (!shifts?.length || !selectedYear) return;
+
+        const now = dayjs();
+        const currentYear = now.year();
+
+        const firstShift = shifts[0];
+        const lastShift = shifts[shifts.length - 1];
+
+        // ---------- FROM ----------
+        const yearStart = dayjs(`${selectedYear}-01-01`);
+        const [fsH, fsM] = firstShift.start_time.split(":").map(Number);
+
+        const fromDT = yearStart
+            .hour(fsH)
+            .minute(fsM)
+            .second(0)
+            .millisecond(0);
+
+        let toDT;
+        let todayFromDT = null;
+        let todayToDT = null;
+
+        // ---------- CURRENT YEAR ----------
+        if (Number(selectedYear) === currentYear) {
+            let currentShift = shifts[0];
+
+            for (const shift of shifts) {
+                const [sh, sm] = shift.start_time.split(":").map(Number);
+                const [eh, em] = shift.end_time.split(":").map(Number);
+
+                let start = dayjs().hour(sh).minute(sm).second(0);
+                let end = dayjs().hour(eh).minute(em).second(0);
+
+                if (eh < sh || (eh === sh && em <= sm)) {
+                    end = end.add(1, "day");
+                }
+
+                if (now.isAfter(start) && now.isBefore(end)) {
+                    currentShift = shift;
+                    break;
+                }
+            }
+
+            const [endH, endM] = currentShift.end_time.split(":").map(Number);
+            const [startH, startM] =
+                currentShift.start_time.split(":").map(Number);
+
+            toDT = dayjs().hour(endH).minute(endM).second(0);
+
+            if (endH < startH || (endH === startH && endM <= startM)) {
+                toDT = toDT.add(1, "day");
+            }
+        }
+
+        // ---------- PAST YEAR ----------
+        else {
+            const yearEnd = dayjs(`${selectedYear}-12-31`);
+
+            const [endH, endM] = lastShift.end_time.split(":").map(Number);
+            const [startH, startM] =
+                lastShift.start_time.split(":").map(Number);
+
+            toDT = yearEnd.hour(endH).minute(endM).second(0);
+
+            if (endH < startH || (endH === startH && endM <= startM)) {
+                toDT = toDT.add(1, "day");
+            }
+
+            // todayFrom = current week start shift
+            const [curFsH, curFsM] =
+                firstShift.start_time.split(":").map(Number);
+
+            const weekStart = dayjs().startOf("week").add(1, "day");
+
+            todayFromDT = weekStart
+                .hour(curFsH)
+                .minute(curFsM)
+                .second(0)
+                .millisecond(0);
+
+            // todayTo = current shift end
+            let currentShift = shifts[0];
+
+            for (const shift of shifts) {
+                const [sh, sm] = shift.start_time.split(":").map(Number);
+                const [eh, em] = shift.end_time.split(":").map(Number);
+
+                let start = dayjs().hour(sh).minute(sm).second(0);
+                let end = dayjs().hour(eh).minute(em).second(0);
+
+                if (eh < sh || (eh === sh && em <= sm)) {
+                    end = end.add(1, "day");
+                }
+
+                if (now.isAfter(start) && now.isBefore(end)) {
+                    currentShift = shift;
+                    break;
+                }
+            }
+
+            const [curEndH, curEndM] =
+                currentShift.end_time.split(":").map(Number);
+            const [curStartH, curStartM] =
+                currentShift.start_time.split(":").map(Number);
+
+            todayToDT = dayjs()
+                .hour(curEndH)
+                .minute(curEndM)
+                .second(0);
+
+            if (
+                curEndH < curStartH ||
+                (curEndH === curStartH && curEndM <= curStartM)
+            ) {
+                todayToDT = todayToDT.add(1, "day");
+            }
+        }
+
+        // ---------- STATE UPDATE ----------
+        setFrom(fromDT?.valueOf() ?? null);
+        setTo(toDT?.valueOf() ?? null);
+
+        if (todayFromDT) setTodayFrom(todayFromDT.valueOf());
+        if (todayToDT) setTodayTo(todayToDT.valueOf());
+    };
+    console.log('setfrom', todayFrom, 'setto', todayTo)
+
+    useEffect(() => {
+        if (analysisType === "Parts") {
+            handlePartsYearTimeRange();
+        }
+    }, [analysisType, selectedYear]);
+
+    const selectedMachineIds = deviceNameID
+        .filter(device => selectedMachines.includes(device.name))
+        .map(device => device.id);
+    const generatePartsReport = async () => {
+        if (!selectedMachineIds.length || !from || !to) return;
+
+        setIframeUrl(""); // clear old iframe
+
+        try {
+            // ---------- YEAR DATA ----------
+            const resYear = await getPartsReport({
+                machineIds: selectedMachineIds,
+                shifts,
+                fromEpoch: from,
+                toEpoch: to,
+                getShiftTimes
+            });
+
+            const newData = {
+                ShiftData: resYear.shiftData,
+                summary: resYear.summary,
+                dayWise: resYear.dayWise,
+                monthWise: resYear.monthWise
+            };
+
+            setData(newData);
+
+            // ---------- CURRENT PERIOD DATA ----------
+            let todaySummary = null;
+
+            if (todayFrom && todayTo) {
+                const resToday = await getPartsReport({
+                    machineIds: selectedMachineIds,
+                    shifts,
+                    fromEpoch: todayFrom,
+                    toEpoch: todayTo,
+                    getShiftTimes
+                });
+
+                todaySummary = resToday.summary;
+                setTodayData(todaySummary);
+            }
+
+            // ---------- PERFORMANCE ----------
+            const perf = [
+                {
+                    today:
+                        todaySummary?.today?.performance ??
+                        newData.summary?.today?.performance ??
+                        0
+                },
+                {
+                    yesterday:
+                        todaySummary?.yesterday?.performance ??
+                        newData.summary?.yesterday?.performance ??
+                        0
+                }
+            ];
+
+            setAvgPerformance(perf);
+
+            // ---------- DASHBOARD URL ----------
+            const url =
+                `${window._env_.GRAFANA_URL}d/dfcaxb6r91jwgc/analytics-production-metrics-db?orgId=1&theme=light&kiosk=true` +
+                `&var-efficiency=${encodeURIComponent(JSON.stringify(perf))}` +
+                `&var-p_data=${encodeURIComponent(JSON.stringify(todaySummary || newData.summary))}` +
+                `&var-monthdata=${encodeURIComponent(JSON.stringify(newData.monthWise))}`;
+
+            setIframeUrl(url);
+
+        } catch (error) {
+            console.error("Parts report failed:", error);
+        }
+    };
+
+
+    console.log('data', data, 'todaydata', todayData, 'avgperformance', avgPerformance)
     // Data processing functions
     const processAlarmData = useCallback(async () => {
         const devicesToProcess = getDeviceObjectsForMachines(selectedMachines);
@@ -907,7 +1163,7 @@ export default function NewAnalytics() {
         const dataTypes = analysisType === ANALYSIS_TYPES.LIVE_ALARM
             ? ["live_alarm", "live_operator", "live_component", "lock_status"]
             : ["live_reason", "live_operator", "live_component", "lock_status"];
-        
+
         const result = await fetchAlarmDowntimeData(devicesToProcess, from, to, dataTypes);
         return mapDataToOperator(result, analysisType === ANALYSIS_TYPES.LIVE_ALARM ? "alarm" : "reason", shifts);
     }, [analysisType, from, to, selectedMachines, shifts, getDeviceObjectsForMachines]);
@@ -940,7 +1196,7 @@ export default function NewAnalytics() {
 
         const fiscalTableData = mapDataToOeeFiscal(oeeData);
         const daysTableData = mapDataToOeeDays(oeeData, shifts, fromDate, toDate);
-        
+
         return { avgData: renamedData, oeeData, fiscalTableData, daysTableData };
     }, [selectedMachines, shifts, from, to, fromDate, toDate, deviceNameID, getDeviceObjectsForMachines]);
 
@@ -971,7 +1227,7 @@ export default function NewAnalytics() {
 
         const fiscalTableData = mapDataToUtilizationFiscal(utilData);
         const daysTableData = mapDataToUtilizationDays(utilData, shifts, fromDate, toDate);
-        
+
         return { avgData: renamedData, utilData, fiscalTableData, daysTableData };
     }, [selectedMachines, shifts, from, to, fromDate, toDate, deviceNameID, getDeviceObjectsForMachines]);
 
@@ -992,7 +1248,7 @@ export default function NewAnalytics() {
                     ? selectedShift
                     : shifts.map(s => s.shift_no).join(",");
             const reporturl = `${window._env_.SERVER_URL2}report/idle_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000000000000`;
-            const url = type === 'live_reason'? `${GRAFANA_URL}d/afbprll75uwaoa/analytics-downtime-report-based?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&kiosk&theme=light&refresh=20s` : `${GRAFANA_URL}d/af88lwhpkj08wd/analytics-downtime-alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
+            const url = type === 'live_reason' ? `${GRAFANA_URL}d/afbprll75uwaoa/analytics-downtime-report-based?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&kiosk&theme=light&refresh=20s` : `${GRAFANA_URL}d/af88lwhpkj08wd/analytics-downtime-alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
             setGrafanaUrl(url);
         } catch (error) {
             console.error("Error updating Grafana URL:", error);
@@ -1057,6 +1313,17 @@ export default function NewAnalytics() {
         setUtilizationGrafanaUrl(utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? fiscalUrl : daysUrl);
     }, [selectedMachines, newToken, customerId, from, to, utilizationViewType]);
 
+    const partsTableData = useMemo(() => {
+        if (analysisType !== ANALYSIS_TYPES.PARTS) return [];
+
+        return partsViewType === "day"
+            ? data?.dayWise || []
+            : data?.monthWise || [];
+    }, [analysisType, partsViewType, data]);
+
+
+
+
     const handleGenerateReport = async () => {
         setIsLoading(true);
         try {
@@ -1065,11 +1332,11 @@ export default function NewAnalytics() {
                 setAvgOeeData(avgData);
                 setTableData(fiscalTableData);
                 setOeeDaysTableData(daysTableData);
-                
+
                 // Reset pagination for both tables
                 setPage(0);
                 setOeeDaysPage(0);
-                
+
                 // Generate Grafana URLs only if in Grafana view
                 if (viewType === "grafana") {
                     await generateOeeGrafanaUrls(avgData);
@@ -1079,28 +1346,30 @@ export default function NewAnalytics() {
                 setAvgUtilizationData(avgData);
                 setTableData(fiscalTableData);
                 setUtilizationDaysTableData(daysTableData);
-                
+
                 // Reset pagination for both tables
                 setPage(0);
                 setUtilizationDaysPage(0);
-                
+
                 // Generate Grafana URLs only if in Grafana view
                 if (viewType === "grafana") {
                     await generateUtilizationGrafanaUrls(avgData);
                 }
+            } else if (analysisType === "Parts") {
+                await generatePartsReport();
             } else {
                 const tableDataResults = await processAlarmData();
                 setTableData(tableDataResults);
                 setOeeDaysTableData([]);
                 setUtilizationDaysTableData([]);
                 setPage(0);
-                
+
                 // Generate Grafana URL only if in Grafana view
                 if (viewType === "grafana") {
                     updateGrafanaURL();
                 }
             }
-            
+
             // Set flag that data has been generated
             setHasGeneratedData(true);
         } catch (error) {
@@ -1114,7 +1383,7 @@ export default function NewAnalytics() {
     const exportToCSV = () => {
         let dataToExport;
         let typeName;
-        
+
         if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
             dataToExport = oeeDaysTableData;
             typeName = 'OEE_Days';
@@ -1131,10 +1400,10 @@ export default function NewAnalytics() {
             };
             typeName = typeMap[analysisType] || 'Report';
         }
-        
+
         const headers = currentColumns.map(col => col.headerName);
         const csvRows = [headers.join(',')];
-        
+
         dataToExport.forEach(row => {
             const values = currentColumns.map(col => {
                 const value = row[col.field] || '';
@@ -1143,7 +1412,7 @@ export default function NewAnalytics() {
             });
             csvRows.push(values.join(','));
         });
-        
+
         const csvContent = csvRows.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const filename = `${typeName}_Report_${dayjs().format('YYYY-MM-DD_HH-mm')}.csv`;
@@ -1153,7 +1422,7 @@ export default function NewAnalytics() {
     // View switch handler
     const handleViewSwitch = (newViewType) => {
         setViewType(newViewType);
-        
+
         // Only generate Grafana URL if switching to Grafana view and we have table data
         if (newViewType === "grafana" && hasData) {
             if (analysisType === ANALYSIS_TYPES.OEE) {
@@ -1206,6 +1475,8 @@ export default function NewAnalytics() {
             return oeeGrafanaUrl;
         } else if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
             return utilizationGrafanaUrl;
+        } else if (analysisType === ANALYSIS_TYPES.PARTS) {
+            return iframeUrl;
         }
         return grafanaUrl;
     };
@@ -1219,7 +1490,7 @@ export default function NewAnalytics() {
         } else {
             setPage(0);
         }
-        
+
         if (type === OEE_VIEW_TYPES.FISCAL && oeeFiscalUrl) {
             setOeeGrafanaUrl(oeeFiscalUrl);
         } else if (type === OEE_VIEW_TYPES.DAYS && oeeDaysUrl) {
@@ -1236,13 +1507,20 @@ export default function NewAnalytics() {
         } else {
             setPage(0);
         }
-        
+
         if (type === UTILIZATION_VIEW_TYPES.FISCAL && utilizationFiscalUrl) {
             setUtilizationGrafanaUrl(utilizationFiscalUrl);
         } else if (type === UTILIZATION_VIEW_TYPES.DAYS && utilizationDaysUrl) {
             setUtilizationGrafanaUrl(utilizationDaysUrl);
         }
     };
+
+
+    console.log(selectedMachineIds);
+    console.log('analysistype', analysisType)
+    console.log('from', from, 'to', to, fromTime, toTime)
+
+
 
     return (
         <Box
@@ -1255,10 +1533,10 @@ export default function NewAnalytics() {
             }}
         >
             {/* App Bar with minimalist design - All filters in single row */}
-            <AppBar 
-                position="static" 
+            <AppBar
+                position="static"
                 elevation={0}
-                sx={{ 
+                sx={{
                     backgroundColor: 'rgba(255, 255, 255, 0.8)',
                     backdropFilter: 'blur(20px)',
                     borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
@@ -1268,12 +1546,12 @@ export default function NewAnalytics() {
                 }}
             >
                 <Toolbar disableGutters sx={{ justifyContent: 'space-between', minHeight: '48px !important' }}>
-                   
+
 
                     {/* Right side: OEE/Utilization View Toggle and View Toggle (only show when data has been generated) */}
                     {hasGeneratedData && hasData && (
                         <Stack direction="row" spacing={2} alignItems="center">
-                      
+
 
                             {/* View Toggle (Dashboard/Table) */}
                             <Stack direction="row" spacing={0.5}>
@@ -1282,7 +1560,7 @@ export default function NewAnalytics() {
                                     size="small"
                                     startIcon={<GridViewIcon />}
                                     onClick={() => handleViewSwitch("grafana")}
-                                    sx={{ 
+                                    sx={{
                                         minWidth: 110,
                                         height: 32,
                                         borderRadius: '20px',
@@ -1299,30 +1577,33 @@ export default function NewAnalytics() {
                                 >
                                     Dashboard
                                 </Button>
-                                <Button
-                                    variant={viewType === "table" ? "contained" : "text"}
-                                    size="small"
-                                    startIcon={<TableChartIcon />}
-                                    onClick={() => handleViewSwitch("table")}
-                                    sx={{ 
-                                        minWidth: 110,
-                                        height: 32,
-                                        borderRadius: '20px',
-                                        backgroundColor: viewType === "table" ? '#007AFF' : 'transparent',
-                                        color: viewType === "table" ? '#ffffff' : '#1d1d1f',
-                                        textTransform: 'none',
-                                        fontSize: '13px',
-                                        fontWeight: 500,
-                                        letterSpacing: '-0.01em',
-                                        '&:hover': {
-                                            backgroundColor: viewType === "table" ? '#007AFF' : alpha('#007AFF', 0.08),
-                                        }
-                                    }}
-                                >
-                                    Table
-                                </Button>
+                                {analysisType !== "Parts" && (
+                                    <Button
+                                        variant={viewType === "table" ? "contained" : "text"}
+                                        size="small"
+                                        startIcon={<TableChartIcon />}
+                                        onClick={() => handleViewSwitch("table")}
+                                        sx={{
+                                            minWidth: 110,
+                                            height: 32,
+                                            borderRadius: '20px',
+                                            backgroundColor: viewType === "table" ? '#007AFF' : 'transparent',
+                                            color: viewType === "table" ? '#ffffff' : '#1d1d1f',
+                                            textTransform: 'none',
+                                            fontSize: '13px',
+                                            fontWeight: 500,
+                                            letterSpacing: '-0.01em',
+                                            '&:hover': {
+                                                backgroundColor: viewType === "table" ? '#007AFF' : alpha('#007AFF', 0.08),
+                                            }
+                                        }}
+                                    >
+                                        Table
+                                    </Button>
+                                )}
+
                             </Stack>
-                            
+
                             {/* OEE View Type Toggle - Only show when OEE is selected */}
                             {analysisType === ANALYSIS_TYPES.OEE && (
                                 <Stack direction="row" spacing={1} alignItems="center">
@@ -1410,7 +1691,7 @@ export default function NewAnalytics() {
                             )}
                         </Stack>
                     )}
-                     {/* Left side: All filters in a single row */}
+                    {/* Left side: All filters in a single row */}
                     <Stack direction="row" spacing={2} alignItems="center" flexWrap="nowrap">
                         {/* Machine Groups Dropdown */}
                         {showMachineGroupsDropdown && (
@@ -1464,8 +1745,8 @@ export default function NewAnalytics() {
                                 onChange={(e) => handleMachineChange(e.target.value)}
                                 label="Machines"
                                 renderValue={(selected) =>
-                                    isAllMachinesSelected ? "All Machines" : 
-                                    selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "")
+                                    isAllMachinesSelected ? "All Machines" :
+                                        selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "")
                                 }
                                 sx={{
                                     fontSize: '14px',
@@ -1516,85 +1797,93 @@ export default function NewAnalytics() {
                                     }
                                 }}
                             >
-                                 {cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST && (
-                                <MenuItem value={ANALYSIS_TYPES.LIVE_ALARM}>Alarm</MenuItem>
+                                <MenuItem value={ANALYSIS_TYPES.PARTS}>Parts</MenuItem>
+                                {cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST && (
+                                    <MenuItem value={ANALYSIS_TYPES.LIVE_ALARM}>Alarm</MenuItem>
                                 )}
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_REASON}>Downtime</MenuItem>
                                 <MenuItem value={ANALYSIS_TYPES.OEE}>OEE</MenuItem>
                                 {cleanCustomerId(customerId) != window._env_.SMC_CUSTOMER_ID && (
                                     <MenuItem value={ANALYSIS_TYPES.UTILIZATION}>Utilization</MenuItem>
+
                                 )}
+                                
                             </Select>
                         </FormControl>
 
-                        {/* Date Pickers with same styling */}
-                        <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <DatePicker
-                                label="From"
-                                value={fromDate}
-                                onChange={setFromDate}
-                                format="DD-MM-YYYY"
-                                slotProps={{
-                                    textField: { 
-                                        size: "small", 
-                                        sx: { 
-                                            minWidth: 150,
-                                            
-                                        } 
-                                    },
-                                }}
-                            />
-                        </LocalizationProvider>
+                        {/* Show Year dropdown when analysisType is Parts */}
+                        {analysisType === "Parts" ? (
+                            <FormControl size="small" sx={{ minWidth: 150 }}>
+                                <InputLabel>Year</InputLabel>
+                                <Select
+                                    value={selectedYear}
+                                    label="Year"
+                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                >
+                                    {Array.from(
+                                        { length: maxYear - minYear + 1 },
+                                        (_, i) => maxYear - i
+                                    ).map((year) => (
+                                        <MenuItem key={year} value={year}>
+                                            {year}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        ) : (
+                            <>
+                                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                    <DatePicker
+                                        label="From"
+                                        value={fromDate}
+                                        onChange={setFromDate}
+                                        format="DD-MM-YYYY"
+                                        slotProps={{
+                                            textField: {
+                                                size: "small",
+                                                sx: { minWidth: 150 }
+                                            },
+                                        }}
+                                    />
+                                </LocalizationProvider>
 
-                        <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <DatePicker
-                                label="To"
-                                value={toDate}
-                                minDate={fromDate}
-                                onChange={setToDate}
-                                format="DD-MM-YYYY"
-                                slotProps={{
-                                    textField: { 
-                                        size: "small", 
-                                        sx: { 
-                                            minWidth: 150,
-                                           
-                                        } 
-                                    },
-                                }}
-                            />
-                        </LocalizationProvider>
+                                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                    <DatePicker
+                                        label="To"
+                                        value={toDate}
+                                        minDate={fromDate}
+                                        onChange={setToDate}
+                                        format="DD-MM-YYYY"
+                                        slotProps={{
+                                            textField: {
+                                                size: "small",
+                                                sx: { minWidth: 150 }
+                                            },
+                                        }}
+                                    />
+                                </LocalizationProvider>
 
-                        <FormControl size="small" sx={{ minWidth: 140 }}>
-                            <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Shifts</InputLabel>
-                            <Select
-                                value={selectedShift}
-                                onChange={(e) => setSelectedShift(e.target.value)}
-                                disabled={isShiftDisabled}
-                                label="Shifts"
-                                sx={{
-                                    fontSize: '14px',
-                                    '& .MuiOutlinedInput-root': {
-                                        borderRadius: '10px',
-                                        border: '1px solid rgba(0, 0, 0, 0.12)',
-                                        '&:hover': {
-                                            borderColor: '#007AFF',
-                                        },
-                                        '&.Mui-focused': {
-                                            borderColor: '#007AFF',
-                                            boxShadow: '0 0 0 3px rgba(0, 122, 255, 0.1)',
-                                        }
-                                    }
-                                }}
-                            >
-                                <MenuItem value="all">All Shifts</MenuItem>
-                                {shifts.map((s) => (
-                                    <MenuItem key={s.shift_no} value={s.shift_no}>
-                                        Shift {s.shift_no}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                                <FormControl size="small" sx={{ minWidth: 140 }}>
+                                    <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>
+                                        Shifts
+                                    </InputLabel>
+                                    <Select
+                                        value={selectedShift}
+                                        onChange={(e) => setSelectedShift(e.target.value)}
+                                        disabled={isShiftDisabled}
+                                        label="Shifts"
+                                    >
+                                        <MenuItem value="all">All Shifts</MenuItem>
+                                        {shifts.map((s) => (
+                                            <MenuItem key={s.shift_no} value={s.shift_no}>
+                                                Shift {s.shift_no}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </>
+                        )}
+
 
                         <Tooltip title={isRunDisabled ? "Please select at least one machine" : ""}>
                             <span>
@@ -1603,8 +1892,8 @@ export default function NewAnalytics() {
                                     size="small"
                                     onClick={handleGenerateReport}
                                     disabled={isRunDisabled}
-                                    sx={{ 
-                                        minWidth: 140, 
+                                    sx={{
+                                        minWidth: 140,
                                         height: 36,
                                         borderRadius: '20px',
                                         backgroundColor: '#007AFF',
@@ -1651,10 +1940,10 @@ export default function NewAnalytics() {
                 <Box flexGrow={1} display="flex" flexDirection="column">
                     {/* Grafana View (Default) */}
                     {viewType === "grafana" && getCurrentIframeUrl() && (
-                        <Box 
-                            flexGrow={1} 
-                            position="relative" 
-                            px={3} 
+                        <Box
+                            flexGrow={1}
+                            position="relative"
+                            px={3}
                             pt={2}
                             pb={2}
                         >
@@ -1671,9 +1960,9 @@ export default function NewAnalytics() {
                             >
                                 <iframe
                                     src={getCurrentIframeUrl()}
-                                    style={{ 
-                                        width: "100%", 
-                                        height: "100%", 
+                                    style={{
+                                        width: "100%",
+                                        height: "100%",
                                         border: "0",
                                     }}
                                     title="Analytics Dashboard"
@@ -1685,9 +1974,9 @@ export default function NewAnalytics() {
                     {/* Table View */}
                     {viewType === "table" && hasData && (
                         <Box px={3} pt={2} pb={3} flexGrow={1}>
-                            <Paper 
-                                sx={{ 
-                                    display: 'flex', 
+                            <Paper
+                                sx={{
+                                    display: 'flex',
                                     flexDirection: 'column',
                                     borderRadius: '12px',
                                     border: '1px solid rgba(0, 0, 0, 0.08)',
@@ -1697,9 +1986,9 @@ export default function NewAnalytics() {
                                 }}
                             >
                                 {/* Table Header with minimalist design */}
-                                <Box 
-                                    sx={{ 
-                                        p: 3, 
+                                <Box
+                                    sx={{
+                                        p: 3,
                                         backgroundColor: '#ffffff',
                                         borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
                                         display: 'flex',
@@ -1711,11 +2000,11 @@ export default function NewAnalytics() {
                                         <Typography variant="h6" fontWeight={600} color="#1d1d1f">
                                             {getReportTitle}
                                             {analysisType === ANALYSIS_TYPES.OEE && (
-                                                <Typography 
-                                                    component="span" 
-                                                    variant="body2" 
-                                                    color="#86868b" 
-                                                    sx={{ 
+                                                <Typography
+                                                    component="span"
+                                                    variant="body2"
+                                                    color="#86868b"
+                                                    sx={{
                                                         fontSize: '14px',
                                                         ml: 2,
                                                         display: 'inline-flex',
@@ -1726,11 +2015,11 @@ export default function NewAnalytics() {
                                                 </Typography>
                                             )}
                                             {analysisType === ANALYSIS_TYPES.UTILIZATION && (
-                                                <Typography 
-                                                    component="span" 
-                                                    variant="body2" 
-                                                    color="#86868b" 
-                                                    sx={{ 
+                                                <Typography
+                                                    component="span"
+                                                    variant="body2"
+                                                    color="#86868b"
+                                                    sx={{
                                                         fontSize: '14px',
                                                         ml: 2,
                                                         display: 'inline-flex',
@@ -1745,13 +2034,13 @@ export default function NewAnalytics() {
                                             {currentDataLength} records • Page {currentPage + 1} of {Math.ceil(currentDataLength / currentRowsPerPage)}
                                         </Typography>
                                     </Stack>
-                                    
+
                                     <Button
                                         variant="outlined"
                                         size="small"
                                         startIcon={<DownloadIcon />}
                                         onClick={exportToCSV}
-                                        sx={{ 
+                                        sx={{
                                             borderRadius: '20px',
                                             borderColor: 'rgba(0, 0, 0, 0.12)',
                                             color: '#1d1d1f',
@@ -1785,7 +2074,7 @@ export default function NewAnalytics() {
                                         </TableBody>
                                     </Table>
                                 </TableContainer>
-                                
+
                                 <TablePagination
                                     rowsPerPageOptions={[10, 25, 50, 100]}
                                     component="div"
@@ -1795,7 +2084,7 @@ export default function NewAnalytics() {
                                     onPageChange={handleChangePage}
                                     onRowsPerPageChange={handleChangeRowsPerPage}
                                     labelRowsPerPage="Rows per page:"
-                                    labelDisplayedRows={({ from, to, count }) => 
+                                    labelDisplayedRows={({ from, to, count }) =>
                                         `${from}-${to} of ${count}`
                                     }
                                     sx={{
@@ -1816,16 +2105,16 @@ export default function NewAnalytics() {
 
                     {/* Empty States - Apple-style */}
                     {viewType === "grafana" && !getCurrentIframeUrl() && !hasGeneratedData && (
-                        <Box 
-                            display="flex" 
-                            justifyContent="center" 
-                            alignItems="center" 
+                        <Box
+                            display="flex"
+                            justifyContent="center"
+                            alignItems="center"
                             flexGrow={1}
                             px={3}
                         >
-                            <Paper sx={{ 
-                                p: 6, 
-                                textAlign: 'center', 
+                            <Paper sx={{
+                                p: 6,
+                                textAlign: 'center',
                                 borderRadius: '12px',
                                 border: '1px solid rgba(0, 0, 0, 0.08)',
                                 boxShadow: '0 4px 24px rgba(0, 0, 0, 0.04)',
@@ -1844,16 +2133,16 @@ export default function NewAnalytics() {
                     )}
 
                     {viewType === "table" && !hasData && hasGeneratedData && (
-                        <Box 
-                            display="flex" 
-                            justifyContent="center" 
-                            alignItems="center" 
+                        <Box
+                            display="flex"
+                            justifyContent="center"
+                            alignItems="center"
                             flexGrow={1}
                             px={3}
                         >
-                            <Paper sx={{ 
-                                p: 6, 
-                                textAlign: 'center', 
+                            <Paper sx={{
+                                p: 6,
+                                textAlign: 'center',
                                 borderRadius: '12px',
                                 border: '1px solid rgba(0, 0, 0, 0.08)',
                                 boxShadow: '0 4px 24px rgba(0, 0, 0, 0.04)',
