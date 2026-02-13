@@ -838,6 +838,7 @@ export default function NewAnalytics() {
 
     // Handle date/shift changes
     useEffect(() => {
+        if (analysisType === "Parts") return; 
         if (!fromDate || !toDate || shifts.length === 0) return;
 
         if (!fromDate.isSame(toDate, "day") || selectedShift === "all") {
@@ -1072,11 +1073,12 @@ export default function NewAnalytics() {
     };
     console.log('setfrom', todayFrom, 'setto', todayTo)
 
-    useEffect(() => {
-        if (analysisType === "Parts") {
-            handlePartsYearTimeRange();
-        }
-    }, [analysisType, selectedYear]);
+useEffect(() => {
+    if (analysisType === "Parts" && shifts.length) {
+        handlePartsYearTimeRange();
+    }
+}, [analysisType, selectedYear, shifts]);
+
 
     const selectedMachineIds = deviceNameID
         .filter(device => selectedMachines.includes(device.name))
