@@ -11,9 +11,8 @@ export const useMachineGroups = (customerId, singleSelect = false) => {
   const [loading, setLoading] = useState(true);
 
   const userDetails = JSON.parse(localStorage.getItem("userDetails") || "{}");
-  const groupsOnly = userDetails?.groups || [];
-  const hasGroupsAccess =
-    userDetails && userDetails.hasOwnProperty("groups") && groupsOnly.length > 0;
+  const groupsOnly = Array.isArray(userDetails?.groups) ? userDetails.groups : null;
+  const hasGroupsAccess = Array.isArray(groupsOnly) && groupsOnly.length > 0;
 
   const fetchDevices = async () => {
     try {
@@ -135,7 +134,7 @@ export const useMachineGroups = (customerId, singleSelect = false) => {
     selectedMachines.length === availableMachines.length &&
     availableMachines.length > 0;
 
-  const showMachineGroupsDropdown = hasGroupsAccess && machineGroups.length > 1;
+  const showMachineGroupsDropdown = machineGroups.length > 1;
 
   useEffect(() => {
     if (customerId) {

@@ -30,6 +30,7 @@ import {
   telemetrykeydata
 } from '../../Services/app/companyservice';
 import './machinemm.css';
+import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
 
 
 export default function MachineDashboard() {
@@ -70,8 +71,6 @@ export default function MachineDashboard() {
   const [openMachines, setOpenMachines] = useState(false);
   const [openStatus, setOpenStatus] = useState(false);
   const [shifts, setShifts] = useState([]);
-  const [devices, setDevices] = useState([]);
-  const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
   const [activeTab, setActiveTab] = useState("overview");
   const [iframeSrc, setIframeSrc] = useState("");
   const [value, setValue] = useState(0);
@@ -98,6 +97,36 @@ export default function MachineDashboard() {
 
 
   const customerId = localStorage.getItem("CustomerID");
+
+  const {
+    devices,
+    deviceNameID,
+    machineGroups,
+    availableMachines,
+    selectedMachines: groupSelectedMachines,
+    selectedGroups,
+    loading,
+    hasGroupsAccess,
+    isAllMachinesSelected,
+    showMachineGroupsDropdown,
+    handleGroupChange,
+    handleMachineChange,
+    setSelectedMachines: setGroupSelectedMachines,
+    getDeviceObjectsForMachines,
+    refreshMachineGroups
+  } = useMachineGroups(customerId);
+
+  const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
+  
+  useEffect(() => {
+    if (deviceNameID.length > 0) {
+      const nameIdMap = deviceNameID.reduce((acc, item) => {
+        acc[item.name] = item.id;
+        return acc;
+      }, {});
+      setDeviceNameIdJson(nameIdMap);
+    }
+  }, [deviceNameID]);
 
   const fetchShifts = async () => {
     try {
@@ -148,34 +177,9 @@ export default function MachineDashboard() {
     // intentionally omit selectedShift from deps so this runs once when shifts load
   }, [shifts]);
 
-
-
-
-
-
-  const fetchDevices = async () => {
-    try {
-      const result = await customerbaseddevices(customerId, 100, 0);
-      const devicesList = result.data || [];
-      setDevices(devicesList);
-
-      // Create name → id map
-      const nameIdMap = devicesList.reduce((acc, device) => {
-        acc[device.name] = device.id.id;
-        return acc;
-      }, {});
-
-      setDeviceNameIdJson(nameIdMap);
-      console.log("Device Name → ID Map:", nameIdMap);
-    } catch (err) {
-      console.error("Failed to fetch devices", err);
-    }
-  };
-
   useEffect(() => {
     if (customerId && newToken) {
       fetchShifts();
-      fetchDevices();
     }
   }, [customerId, newToken]);
 
@@ -420,8 +424,10 @@ export default function MachineDashboard() {
               statusText = "Alarm";
             } else if (statusCode === 100) {
               statusText = "Disconnected";
+            } else if ([6].includes(statusCode)) {
+              statusText = "Locked";
             } else {
-              statusText = "Unknown";
+              statusText = "Unknown"
             }
             let status = statusText;
             resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status };
@@ -1213,7 +1219,15 @@ export default function MachineDashboard() {
 
 
   useEffect(() => {
-    const filtered = devices.filter((d) => {
+    let machinesToShow = [];
+    if (groupSelectedMachines.length > 0) {
+      machinesToShow = getDeviceObjectsForMachines(
+        Array.isArray(groupSelectedMachines) ? groupSelectedMachines : [groupSelectedMachines]
+      );
+    } else {
+      machinesToShow = devices;
+    }
+    const filtered = machinesToShow.filter((d) => {
       const matchDropdown =
         selectedDevice === "all" || d.id.id === selectedDevice;
 
@@ -1234,7 +1248,7 @@ export default function MachineDashboard() {
     });
 
     setFilteredDevices(filtered);
-  }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses]);
+  }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses, groupSelectedMachines, getDeviceObjectsForMachines]);
 
   // Default tab auto-load (once)
   useEffect(() => {
@@ -1385,25 +1399,86 @@ export default function MachineDashboard() {
           paddingTop: "40px",
           borderRight: "1px solid #ddd",
           display: "flex",
-          flexDirection: "column",
+          flexDirection: "column"
         }}
       >
-        {/* Dropdown */}
-        <FormControl
-          size="small"
-          style={{ minWidth: 160, background: "#fff", marginBottom: "10px" }}
-        >
-          <InputLabel>Machines</InputLabel>
+
+        {showMachineGroupsDropdown && (
+          <FormControl size="small" sx={{ minWidth: 180,  marginBottom: "10px" }}>
+            <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machine Group</InputLabel>
+            <Select
+              multiple
+              value={selectedGroups}
+              onChange={(e) => handleGroupChange(e.target.value)}
+              label="Machine Group"
+              renderValue={(selected) => {
+                if (selected.length === machineGroups.length) return "All Groups";
+                if (selected.length === 0) return "Select Groups";
+                return selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "");
+              }}
+              sx={{
+                fontSize: '14px',
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '10px',
+                  border: '1px solid rgba(0, 0, 0, 0.12)',
+                  '&:hover': {
+                    borderColor: '#007AFF',
+                  },
+                  '&.Mui-focused': {
+                    borderColor: '#007AFF',
+                    boxShadow: '0 0 0 3px rgba(0, 122, 255, 0.1)',
+                  }
+                }
+              }}
+            >
+              <MenuItem value="all">
+                <Checkbox checked={selectedGroups.length === machineGroups.length} />
+                <ListItemText primary="All Groups" />
+              </MenuItem>
+              {machineGroups.map((g) => (
+                <MenuItem key={g.name} value={g.name}>
+                  <Checkbox checked={selectedGroups.includes(g.name)} />
+                  <ListItemText primary={g.name} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+
+        <FormControl size="small" sx={{ minWidth: 200, marginBottom: "10px" }}>
+          <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machines</InputLabel>
           <Select
-            value={selectedDevice}
-            onChange={(e) => setSelectedDevice(e.target.value)}
+            multiple
+            value={groupSelectedMachines}
+            onChange={(e) => handleMachineChange(e.target.value)}
+            label="Machines"
+            renderValue={(selected) =>
+              isAllMachinesSelected ? "All Machines" :
+                selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "")
+            }
+            sx={{
+              fontSize: '14px',
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                border: '1px solid rgba(0, 0, 0, 0.12)',
+                '&:hover': {
+                  borderColor: '#007AFF',
+                },
+                '&.Mui-focused': {
+                  borderColor: '#007AFF',
+                  boxShadow: '0 0 0 3px rgba(0, 122, 255, 0.1)',
+                }
+              }
+            }}
           >
             <MenuItem value="all">
-              All Machines ({devices.length})
+              <Checkbox checked={isAllMachinesSelected} />
+              <ListItemText primary="All Machines" />
             </MenuItem>
-            {devices.map((d) => (
-              <MenuItem key={d.id.id} value={d.id.id}>
-                {d.name}
+            {availableMachines.map((machine) => (
+              <MenuItem key={machine} value={machine}>
+                <Checkbox checked={groupSelectedMachines.includes(machine)} />
+                <ListItemText primary={machine} />
               </MenuItem>
             ))}
           </Select>
@@ -1454,7 +1529,11 @@ export default function MachineDashboard() {
 
         {/* Machine List */}
         <div style={{ overflowY: "auto", flexGrow: 1 }}>
-          {filteredDevices.length === 0 ? (
+          {loading ? (
+            <Typography variant="body2" sx={{ textAlign: "center", color: "gray", mt: 2 }}>
+              Loading machines...
+            </Typography>
+          ) : filteredDevices.length === 0 ? (
             <Typography
               variant="body2"
               sx={{ textAlign: "center", color: "gray", mt: 2 }}
@@ -1504,9 +1583,11 @@ export default function MachineDashboard() {
                           ? "#f44336"
                           : machineStatuses[machine.id.id]?.status === "Disconnected"
                             ? "#9e9e9e"
-                            : machineStatuses[machine.id.id]?.status === "Setting"
-                              ? "#81c8f5ff"
-                              : "#f44336"
+                            : machineStatuses[machine.id.id]?.status === "Locked"
+                              ? "rgb(243, 44, 130)"
+                              : machineStatuses[machine.id.id]?.status === "Setting"
+                                ? "#81c8f5ff"
+                                : "#f44336"
                       }`,
                     ...(machineStatuses[machine.id.id]?.status === "Alarm" && {
                       animation: `${blinkRedBorder} 1.5s ease-in-out infinite`,
@@ -1537,9 +1618,11 @@ export default function MachineDashboard() {
                                   ? "linear-gradient(135deg, #e53935, #b71c1c)"
                                   : machineStatuses[machine.id.id]?.status === "Disconnected"
                                     ? "#616161"
-                                    : machineStatuses[machine.id.id]?.status === "Setting"
-                                      ? "linear-gradient(135deg, #29b6f6, #0288d1)"
-                                      : "#b71c1c",
+                                    : machineStatuses[machine.id.id]?.status === "Locked"
+                                      ? "rgb(243, 44, 130)"
+                                      : machineStatuses[machine.id.id]?.status === "Setting"
+                                        ? "linear-gradient(135deg, #29b6f6, #0288d1)"
+                                        : "#b71c1c",
                         }}
                       >
                         {machineStatuses[machine.id.id]?.status ?? "Unknown"}
@@ -1565,7 +1648,9 @@ export default function MachineDashboard() {
                                       ? "#f44336"
                                       : machineStatuses[machine.id.id]?.status === "Setting"
                                         ? "#81c8f5ff"
-                                        : "#9e9e9e",
+                                        : machineStatuses[machine.id.id]?.status === "Locked"
+                                          ? "rgb(243, 44, 130)"
+                                          : "#9e9e9e",
                           }}
                         />
                         <Typography sx={{ fontSize: "0.83rem", color: "#222" }}>
@@ -1840,6 +1925,7 @@ export default function MachineDashboard() {
                 <DatePicker
                   label="Select Date"
                   value={selectedDate}
+                  disableFuture
                   onChange={(newValue) => setSelectedDate(newValue)}
                   format="DD-MM-YYYY"
                   slotProps={{
@@ -1907,36 +1993,7 @@ export default function MachineDashboard() {
           horizontal: "right",
         }}
       >
-        <div style={{ width: "250px", padding: "10px" }}>
-          {/* Machines */}
-          <div
-            onClick={() => setOpenMachines(!openMachines)}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              cursor: "pointer",
-            }}
-          >
-            <Typography variant="subtitle1">Machines</Typography>
-            {openMachines ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          </div>
-          <Collapse in={openMachines}>
-            <List>
-              {devices.map((m) => (
-                <ListItem
-                  key={m.name}
-                  dense
-                  button
-                  onClick={() => toggleMachineSelection(m.name)}
-                >
-                  <ListItemIcon>
-                    <Checkbox checked={selectedMachines.includes(m.name)} />
-                  </ListItemIcon>
-                  <ListItemText primary={m.name} />
-                </ListItem>
-              ))}
-            </List>
-          </Collapse>
+        <div style={{ width: "250px", padding: "10px" }}>       
 
           {/* Machine Status */}
           <div
