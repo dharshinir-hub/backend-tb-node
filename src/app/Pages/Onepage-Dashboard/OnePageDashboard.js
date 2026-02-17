@@ -92,6 +92,12 @@ export default function OnePageDashboard() {
         return "allshift";
     }, []);
 
+    const timeToSeconds = (timeStr = "00:00:00") => {
+        const [h = 0, m = 0, s = 0] = timeStr.split(":").map(Number);
+        return h * 3600 + m * 60 + s;
+    };
+
+
     // Memoized shift times calculation
     const getShiftTimes = useCallback((shifts, shiftNo, date) => {
         if (!Array.isArray(shifts) || shifts.length === 0 || !date) {
@@ -494,11 +500,21 @@ export default function OnePageDashboard() {
         const performanceVar = data.metrics.performance || 0;
 
         const shiftTimes = getShiftTimes(shifts, selectedShift, selectedDate);
-        const from = shiftTimes.from || Date.now() - 24 * 60 * 60 * 1000;
-        const to = shiftTimes.to || Date.now();
-        const durationInSeconds = Math.floor((to - from) / 1000);
+
+        const from = shiftTimes.from;
+        const to = shiftTimes.to;
+        let durationInSeconds = Math.floor((to - from) / 1000);
+
+        const shiftData = shifts.find(
+            s => String(s.shift_no) === String(selectedShift)
+        );
+        const breakSeconds = shiftData
+            ? timeToSeconds(shiftData.break_time)
+            : 0;
+        durationInSeconds = Math.max(0, durationInSeconds - breakSeconds);
         const adjustedDuration =
             durationInSeconds * selectedMachines.length;
+
         const baseUrl = window._env_?.SERVER_URL || '';
         const GRAFANA_URL = window._env_?.GRAFANA_URL || '';
 
