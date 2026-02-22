@@ -6,7 +6,8 @@ import {
     InputLabel,
     Button,
     Checkbox,
-    ListItemText
+    ListItemText,
+    CircularProgress
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -28,8 +29,11 @@ export default function OnePageDashboard() {
     const [shifts, setShifts] = useState([]);
     const [selectedDevice, setSelectedDevice] = useState('all');
     const [selectedShift, setSelectedShift] = useState(null);
-    const [selectedDate, setSelectedDate] = useState(dayjs());
+    const [startDate, setStartDate] = useState(dayjs());
+    const [endDate, setEndDate] = useState(dayjs());
     const [mainGrafanaUrl, setMainGrafanaUrl] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isBeforeFirstShift, setIsBeforeFirstShift] = useState(false);
     const isInitialLoad = useRef(true);
     const {
         // devices,
@@ -68,23 +72,20 @@ export default function OnePageDashboard() {
         }
     });
 
+
     // Memoized current shift calculation
     const getCurrentShift = useCallback((shifts) => {
         if (!Array.isArray(shifts) || shifts.length === 0) return "allshift";
-
         const now = new Date();
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
         for (const s of shifts) {
             const [fromH, fromM] = s.start_time.split(":").map(Number);
             const [toH, toM] = s.end_time.split(":").map(Number);
             const fromMinutes = fromH * 60 + fromM;
             const toMinutes = toH * 60 + toM;
-
             if (
                 (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
-                (fromMinutes > toMinutes &&
-                    (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
+                (fromMinutes > toMinutes && (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
             ) {
                 return String(s.shift_no);
             }
@@ -190,21 +191,23 @@ export default function OnePageDashboard() {
 
     // Consolidated data fetching
     const fetchAllDashboardData = useCallback(async () => {
-        if (!shifts.length || selectedShift === null || !customerId) return;
+        if (!shifts.length || selectedShift === null || !customerId || !startDate || !endDate) return;
 
-        const shiftTimes = getShiftTimes(shifts, selectedShift, selectedDate);
-        const from = shiftTimes.from || Date.now() - 24 * 60 * 60 * 1000;
-        const to = shiftTimes.to || Date.now();
-        if (!from || !to) return;
+        // Build all (day × shift) time ranges across the date range
+        const allRanges = [];
+        let currentDay = startDate.startOf('day');
+        const lastDay = endDate.startOf('day');
+        while (!currentDay.isAfter(lastDay)) {
+            const dayRanges = getShiftTimeRanges(shifts, selectedShift, currentDay);
+            allRanges.push(...dayRanges.filter(r => r.from && r.to));
+            currentDay = currentDay.add(1, 'day');
+        }
+        if (allRanges.length === 0) return;
 
-        const shiftTimeRanges = getShiftTimeRanges(shifts, selectedShift, selectedDate);
-        const cleanedCustomerId = cleanCustomerId(customerId);
-        const promises = [];
+        // Overall range: first shift start of startDate → last shift end of endDate
+        const overallFrom = allRanges[0].from;
+        const overallTo = allRanges[allRanges.length - 1].to;
 
-        console.log(deviceNameID, "device name list");
-        console.log(selectedMachines, "calling apis for");
-
-        const telemetryCache = new Map();
         const telemetryKeys = [
             "oee",
             "availability",
@@ -215,19 +218,41 @@ export default function OnePageDashboard() {
             "machine_status"
         ];
 
-        async function getTelemetryCached(deviceId, from, to) {
-            const cacheKey = `${deviceId}_${from}_${to}`;
-            if (telemetryCache.has(cacheKey)) {
-                return telemetryCache.get(cacheKey);
-            }
-            const data = await fetchTelemetryData(deviceId, "DEVICE", telemetryKeys, from, to);
-            telemetryCache.set(cacheKey, data);
-            return data;
-        }
-
         const selectedDeviceIds = deviceNameID
             .filter((d) => selectedMachines.includes(d.name))
             .map((d) => d.id);
+
+        console.log(deviceNameID, "device name list");
+        console.log(selectedMachines, "calling apis for");
+
+        // ONE API call per machine covering the full date range
+        const machineDataMap = new Map();
+        await Promise.all(
+            selectedDeviceIds.map(async (deviceId) => {
+                const data = await fetchTelemetryData(deviceId, "DEVICE", telemetryKeys, overallFrom, overallTo);
+                machineDataMap.set(deviceId, data);
+            })
+        );
+
+        // Filter telemetry data points to within a single shift window.
+        // shiftTo - 1 ensures the end boundary is exclusive (epochMs - 1).
+        function filterByShift(data, shiftFrom, shiftTo) {
+            if (!data) return null;
+            const result = {};
+            for (const key of Object.keys(data)) {
+                if (Array.isArray(data[key])) {
+                    result[key] = data[key].filter(point => {
+                        const ts = Number(point.ts);
+                        return ts >= shiftFrom && ts <= shiftTo - 1;
+                    });
+                } else {
+                    result[key] = data[key];
+                }
+            }
+            return result;
+        }
+
+        const promises = [];
 
         /* ------------------------------------------------------------------ */
         /* 1. Metrics Data (OEE, Availability, Performance)                   */
@@ -239,9 +264,10 @@ export default function OnePageDashboard() {
 
                 for (const deviceId of selectedDeviceIds) {
                     const values = { oee: [], availability: [], performance: [] };
+                    const rawData = machineDataMap.get(deviceId);
 
-                    for (const shiftRange of shiftTimeRanges) {
-                        const data = await getTelemetryCached(deviceId, shiftRange.from, shiftRange.to);
+                    for (const shiftRange of allRanges) {
+                        const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
                         ["oee", "availability", "performance"].forEach((key) => {
                             const latest = getLatestDataPoint(data?.[key]);
                             if (latest) {
@@ -300,8 +326,9 @@ export default function OnePageDashboard() {
                 };
 
                 for (const deviceId of selectedDeviceIds) {
-                    for (const shiftRange of shiftTimeRanges) {
-                        const data = await getTelemetryCached(deviceId, shiftRange.from, shiftRange.to);
+                    const rawData = machineDataMap.get(deviceId);
+                    for (const shiftRange of allRanges) {
+                        const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
                         const raw = data?.total_duration?.[0]?.value;
                         if (!raw) continue;
 
@@ -326,13 +353,13 @@ export default function OnePageDashboard() {
         /* ------------------------------------------------------------------ */
         promises.push(
             (async () => {
-                const keys = ["oee"];
                 const selectedMachinesObj = getDeviceObjectsForMachines(selectedMachines);
                 const machinePromises = selectedMachinesObj.map(async (machine) => {
                     const oeeValues = [];
+                    const rawData = machineDataMap.get(machine.id.id);
 
-                    for (const shiftRange of shiftTimeRanges) {
-                        const data = await getTelemetryCached(machine.id.id, shiftRange.from, shiftRange.to);
+                    for (const shiftRange of allRanges) {
+                        const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
                         const latest = getLatestDataPoint(data?.oee);
                         if (latest) {
                             const val = parseFloat(latest.value);
@@ -380,9 +407,10 @@ export default function OnePageDashboard() {
                 for (const deviceId of selectedDeviceIds) {
                     let deviceTarget = 0;
                     const deviceParts = { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0 };
+                    const rawData = machineDataMap.get(deviceId);
 
-                    for (const shiftRange of shiftTimeRanges) {
-                        const data = await getTelemetryCached(deviceId, shiftRange.from, shiftRange.to);
+                    for (const shiftRange of allRanges) {
+                        const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
 
                         const latestTarget = getLatestDataPoint(data?.targetparts);
                         if (latestTarget) {
@@ -426,11 +454,11 @@ export default function OnePageDashboard() {
                     idle: 0,
                     alarm: 0,
                     disconnect: 0,
-                    total: selectedDeviceIds.length // ✅ simpler & consistent
+                    total: selectedDeviceIds.length
                 };
 
                 for (const deviceId of selectedDeviceIds) {
-                    const data = await getTelemetryCached(deviceId, from, to);
+                    const data = machineDataMap.get(deviceId);
                     const statusData = data?.machine_status;
 
                     if (Array.isArray(statusData) && statusData.length > 0) {
@@ -468,7 +496,8 @@ export default function OnePageDashboard() {
     }, [
         shifts,
         selectedShift,
-        selectedDate,
+        startDate,
+        endDate,
         customerId,
         selectedDevice,
         devices,
@@ -499,21 +528,29 @@ export default function OnePageDashboard() {
         const availabilityVar = data.metrics.availability || 0;
         const performanceVar = data.metrics.performance || 0;
 
-        const shiftTimes = getShiftTimes(shifts, selectedShift, selectedDate);
+        const from = startDate.startOf('day').valueOf();
+        const to = endDate.endOf('day').valueOf();
 
-        const from = shiftTimes.from;
-        const to = shiftTimes.to;
-        let durationInSeconds = Math.floor((to - from) / 1000);
-
-        const shiftData = shifts.find(
-            s => String(s.shift_no) === String(selectedShift)
-        );
-        const breakSeconds = shiftData
-            ? timeToSeconds(shiftData.break_time)
-            : 0;
-        durationInSeconds = Math.max(0, durationInSeconds - breakSeconds);
-        const adjustedDuration =
-            durationInSeconds * selectedMachines.length;
+        // Calculate total adjusted duration across the date range
+        const totalDays = endDate.diff(startDate, 'day') + 1;
+        const perDayShiftSeconds = selectedShift === "allshift"
+            ? shifts.reduce((sum, s) => {
+                const singleShiftTimes = getShiftTimes(shifts, String(s.shift_no), startDate);
+                const rawSecs = singleShiftTimes.from && singleShiftTimes.to
+                    ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
+                    : 0;
+                return sum + Math.max(0, rawSecs - timeToSeconds(s.break_time || "00:00:00"));
+            }, 0)
+            : (() => {
+                const shiftData = shifts.find(s => String(s.shift_no) === String(selectedShift));
+                if (!shiftData) return 0;
+                const singleShiftTimes = getShiftTimes(shifts, selectedShift, startDate);
+                const rawSecs = singleShiftTimes.from && singleShiftTimes.to
+                    ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
+                    : 0;
+                return Math.max(0, rawSecs - timeToSeconds(shiftData.break_time || "00:00:00"));
+            })();
+        const adjustedDuration = perDayShiftSeconds * totalDays * selectedMachines.length;
 
         const baseUrl = window._env_?.SERVER_URL || '';
         const GRAFANA_URL = window._env_?.GRAFANA_URL || '';
@@ -530,8 +567,8 @@ export default function OnePageDashboard() {
         };
 
         console.log(grafanaData, 'overallShiftData');
-        const fromDateStr = dayjs(selectedDate).format("YYYY-MM-DD");
-        const toDateStr = dayjs(selectedDate).format("YYYY-MM-DD");
+        const fromDateStr = startDate.format("YYYY-MM-DD");
+        const toDateStr = endDate.format("YYYY-MM-DD");
         const shiftParam =
             selectedShift && selectedShift !== "allshift"
                 ? selectedShift
@@ -542,7 +579,7 @@ export default function OnePageDashboard() {
         const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${adjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
 
         return { mainUrl };
-    }, [customerId, token, selectedDevice, selectedShift, shifts, selectedDate, devices, getShiftTimes, selectedMachines]);
+    }, [customerId, token, selectedDevice, selectedShift, shifts, startDate, endDate, devices, getShiftTimes, selectedMachines]);
 
     // Initial data fetching
     useEffect(() => {
@@ -552,32 +589,65 @@ export default function OnePageDashboard() {
     }, [customerId, fetchShifts, fetchDevices]);
 
     useEffect(() => {
-        if (shifts.length > 0 && selectedShift === null) {
-            setSelectedShift(getCurrentShift(shifts));
+        if (shifts.length === 0 || selectedShift !== null) return;
+
+        setSelectedShift(getCurrentShift(shifts));
+
+        // If the current time is before the first shift of the day starts,
+        // default both date pickers to yesterday so the user sees real data
+        // instead of a blank screen (no shift has produced data yet today).
+        const firstShift = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no))[0];
+        if (firstShift) {
+            const [h, m] = firstShift.start_time.split(':').map(Number);
+            const now = new Date();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            const firstShiftMinutes = h * 60 + m;
+            if (currentMinutes < firstShiftMinutes) {
+                const yesterday = dayjs().subtract(1, 'day');
+                setStartDate(yesterday);
+                setEndDate(yesterday);
+            }
         }
     }, [shifts, selectedShift, getCurrentShift]);
 
+    // If the currently selected shift is a future shift (e.g. user switched date to today),
+    // auto-reset to the current shift to avoid a blank screen.
+    useEffect(() => {
+        if (!shifts.length || !selectedShift || selectedShift === 'allshift') return;
+        const isToday = startDate.isSame(dayjs(), 'day');
+        if (!isToday) return;
+        const times = getShiftTimes(shifts, selectedShift, startDate);
+        if (times.from !== null && times.from > Date.now()) {
+            setSelectedShift(getCurrentShift(shifts));
+        }
+    }, [startDate, shifts, selectedShift, getShiftTimes, getCurrentShift]);
+
     // Handle submit with all data fetching
     const handleSubmit = useCallback(async () => {
-        const data = await fetchAllDashboardData();
-        if (data) {
-            const { mainUrl } = generateGrafanaUrls(data);
-            setMainGrafanaUrl(mainUrl);
+        setIsLoading(true);
+        try {
+            const data = await fetchAllDashboardData();
+            if (data) {
+                const { mainUrl } = generateGrafanaUrls(data);
+                setMainGrafanaUrl(mainUrl);
+            }
+        } finally {
+            setIsLoading(false);
         }
     }, [fetchAllDashboardData, generateGrafanaUrls]);
 
     useEffect(() => {
         const currentShift = getCurrentShift(shifts);
         const isCurrentShift = currentShift === selectedShift;
-        const isToday = selectedDate.isSame(dayjs(), "day");
+        const isEndDateToday = endDate.isSame(dayjs(), "day");
         let intervalId = null;
-        if ((isToday && isCurrentShift) || (isToday && selectedShift === "allshift")) {
+        if (isEndDateToday && (isCurrentShift || selectedShift === "allshift")) {
             intervalId = setInterval(() => {
                 if (document.visibilityState === "visible") handleSubmit();
             }, 60 * 5000);
         }
         return () => clearInterval(intervalId);
-    }, [handleSubmit, selectedShift, selectedDate, shifts]);
+    }, [handleSubmit, selectedShift, endDate, shifts, getCurrentShift]);
 
     useEffect(() => {
         const readyToFetch =
@@ -586,7 +656,9 @@ export default function OnePageDashboard() {
             shifts.length > 0 &&
             selectedMachines.length > 0 &&
             deviceNameID.length > 0 &&
-            devices.length > 0;
+            devices.length > 0 &&
+            startDate &&
+            endDate;
 
         if (readyToFetch && isInitialLoad.current) {
             handleSubmit();
@@ -599,7 +671,8 @@ export default function OnePageDashboard() {
         selectedMachines,
         deviceNameID,
         devices,
-        selectedDate,
+        startDate,
+        endDate,
         handleSubmit
     ]);
 
@@ -614,15 +687,59 @@ export default function OnePageDashboard() {
         ))
     ], [devices]);
 
-    // Memoized shift options
-    const shiftOptions = useMemo(() => [
-        <MenuItem key="allshift" value="allshift">All Shifts</MenuItem>,
-        ...shifts.map((shift) => (
-            <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
-                {shift.shift_no}
-            </MenuItem>
-        ))
-    ], [shifts]);
+    // Drive isBeforeFirstShift state: set it on shift load and schedule a timeout
+    // that fires the exact moment the first shift starts — no page refresh needed.
+    useEffect(() => {
+        if (!shifts.length) return;
+        const firstShift = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no))[0];
+        if (!firstShift) return;
+
+        const [h, m] = firstShift.start_time.split(':').map(Number);
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const firstShiftMinutes = h * 60 + m;
+
+        if (currentMinutes < firstShiftMinutes) {
+            setIsBeforeFirstShift(true);
+
+            // ms remaining until first shift starts (account for seconds/ms already elapsed)
+            const msUntilStart =
+                ((firstShiftMinutes - currentMinutes) * 60 - now.getSeconds()) * 1000
+                - now.getMilliseconds();
+
+            const timer = setTimeout(() => {
+                setIsBeforeFirstShift(false);
+                setStartDate(dayjs());
+                setEndDate(dayjs());
+                setSelectedShift(String(firstShift.shift_no));
+            }, msUntilStart);
+
+            return () => clearTimeout(timer);
+        } else {
+            setIsBeforeFirstShift(false);
+        }
+    }, [shifts]);
+
+    // Memoized shift options — disable shifts that haven't started yet (only on today's date)
+    const shiftOptions = useMemo(() => {
+        const now = Date.now();
+        const isToday = startDate.isSame(dayjs(), 'day');
+
+        return [
+            <MenuItem key="allshift" value="allshift">All Shifts</MenuItem>,
+            ...shifts.map((shift) => {
+                const isFuture = isToday && (() => {
+                    const times = getShiftTimes(shifts, String(shift.shift_no), startDate);
+                    return times.from !== null && times.from > now;
+                })();
+                return (
+                    <MenuItem key={shift.shift_no} value={String(shift.shift_no)} disabled={isFuture}>
+                        {shift.shift_no}{isFuture ? ' (upcoming)' : ''}
+                    </MenuItem>
+                );
+            })
+        ];
+    }, [shifts, startDate, getShiftTimes]);
 
     return (
         <div style={{
@@ -749,11 +866,36 @@ export default function OnePageDashboard() {
 
                         <LocalizationProvider dateAdapter={AdapterDayjs}>
                             <DatePicker
-                                label="Select Date"
-                                value={selectedDate}
-                                onChange={setSelectedDate}
+                                label="Start Date"
+                                value={startDate}
+                                onChange={(val) => {
+                                    setStartDate(val);
+                                    // Clamp end date: must not exceed 1 month from new start or today
+                                    const maxAllowed = val.add(1, 'month').isAfter(dayjs()) ? dayjs() : val.add(1, 'month');
+                                    if (endDate.isAfter(maxAllowed)) {
+                                        setEndDate(maxAllowed);
+                                    }
+                                }}
                                 format="DD-MM-YYYY"
                                 maxDate={dayjs()}
+                                shouldDisableDate={(date) => isBeforeFirstShift && date.isSame(dayjs(), 'day')}
+                                slotProps={{
+                                    textField: {
+                                        size: "small",
+                                        sx: { minWidth: 160 }
+                                    }
+                                }}
+                            />
+                        </LocalizationProvider>
+                        <LocalizationProvider dateAdapter={AdapterDayjs}>
+                            <DatePicker
+                                label="End Date"
+                                value={endDate}
+                                onChange={(val) => setEndDate(val)}
+                                format="DD-MM-YYYY"
+                                minDate={startDate}
+                                maxDate={startDate.add(1, 'month').isAfter(dayjs()) ? dayjs() : startDate.add(1, 'month')}
+                                shouldDisableDate={(date) => isBeforeFirstShift && date.isSame(dayjs(), 'day')}
                                 slotProps={{
                                     textField: {
                                         size: "small",
@@ -766,16 +908,20 @@ export default function OnePageDashboard() {
                         <Button
                             variant="contained"
                             onClick={handleSubmit}
+                            disabled={isLoading || selectedMachines.length === 0}
                             sx={{
                                 minWidth: 120,
                                 height: 40,
                                 background: '#f47803ff',
                                 '&:hover': { background: '#e06d00ff' },
+                                '&.Mui-disabled': { background: '#f4780380' },
                                 textTransform: 'none',
-                                fontWeight: 'bold'
+                                fontWeight: 'bold',
+                                gap: '8px'
                             }}
                         >
-                            Submit
+                            {isLoading && <CircularProgress size={16} sx={{ color: '#fff' }} />}
+                            {isLoading ? 'Loading...' : 'Submit'}
                         </Button>
                     </div>
                 </div>
@@ -785,8 +931,25 @@ export default function OnePageDashboard() {
                 flex: 1,
                 overflow: 'hidden',
                 background: '#fff',
+                position: 'relative',
             }}>
-                {mainGrafanaUrl ? (
+                {isLoading ? (
+                    <div style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '16px',
+                        background: '#f8f9fa',
+                    }}>
+                        <CircularProgress size={48} sx={{ color: '#f47803' }} />
+                        <span style={{ fontSize: '14px', color: '#6c757d', fontWeight: 500 }}>
+                            Fetching dashboard data...
+                        </span>
+                    </div>
+                ) : mainGrafanaUrl ? (
                     <iframe
                         src={mainGrafanaUrl}
                         style={{
@@ -803,13 +966,18 @@ export default function OnePageDashboard() {
                         width: '100%',
                         height: '100%',
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        gap: '12px',
                         background: '#f8f9fa',
                         color: '#6c757d',
                         fontSize: '14px'
                     }}>
-                        Loading main dashboard...
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                        </svg>
+                        Select filters and click Submit to load the dashboard
                     </div>
                 )}
             </div>
