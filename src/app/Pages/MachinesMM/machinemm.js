@@ -117,7 +117,7 @@ export default function MachineDashboard() {
   } = useMachineGroups(customerId);
 
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
-  
+
   useEffect(() => {
     if (deviceNameID.length > 0) {
       const nameIdMap = deviceNameID.reduce((acc, item) => {
@@ -699,10 +699,6 @@ export default function MachineDashboard() {
   }, [shifts, selectedShift, selectedDate]);
 
 
-  useEffect(() => {
-    if (!from || !to) return;
-    handleTabClick(activeTab, selectedMachine);
-  }, [from, to]);
 
   console.log("✅ from:", from);
   console.log("✅ to:", to);
@@ -771,6 +767,7 @@ export default function MachineDashboard() {
   // Called when tab is clicked
   const handleTabClick = (tab, machine) => {
     if (!machine) return;
+    if (!from || !to || !fromTime || !toTime) return;
 
     setActiveTab(tab);
     localStorage.setItem("activeTab", tab);
@@ -1116,15 +1113,7 @@ export default function MachineDashboard() {
     return `${hrs}h ${mins}m ${secs}s`;
   }
 
-  useEffect(() => {
-    if (filteredDevices.length > 0 && !selectedMachineId) {
-      const firstMachine = filteredDevices[0];
-      setViewedMachine(firstMachine);
-      setSelectedMachineId(firstMachine.id.id);
-      setSelectedMachine(firstMachine);
-      handleTabClick(activeTab, firstMachine);
-    }
-  }, [filteredDevices, selectedMachineId, activeTab, newToken, selectedShift]);
+
 
   useEffect(() => {
     const savedDate = localStorage.getItem("selectedDate");
@@ -1250,13 +1239,22 @@ export default function MachineDashboard() {
     setFilteredDevices(filtered);
   }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses, groupSelectedMachines, getDeviceObjectsForMachines]);
 
-  // Default tab auto-load (once)
   useEffect(() => {
-    if (from && to && fromTime && toTime && selectedMachine && !autoSelected) {
+    if (!from || !to || !selectedMachine) return;
+    if (!fromTime || !toTime) return;
+
+    if (!autoSelected) {
       handleTabClick("overview", selectedMachine);
       setAutoSelected(true);
     }
-  }, [from, to, fromTime, toTime, selectedMachine, autoSelected, newToken]);
+  }, [from, to, fromTime, toTime, selectedMachine, selectedDate]);
+
+  useEffect(() => {
+    if (!from || !to || !selectedMachine) return;
+    if (!fromTime || !toTime) return;
+
+    handleTabClick(activeTab || "overview", selectedMachine);
+  }, [from, to, fromTime, toTime, selectedMachine, selectedDate, activeTab]);
 
 
 
@@ -1388,6 +1386,16 @@ export default function MachineDashboard() {
       0 0 4px rgba(244, 67, 54, 0.2);
   }
 `;
+
+  useEffect(() => {
+    if (filteredDevices.length > 0 && !selectedMachineId) {
+      const firstMachine = filteredDevices[0];
+      setViewedMachine(firstMachine);
+      setSelectedMachineId(firstMachine.id.id);
+      setSelectedMachine(firstMachine);
+    }
+  }, [filteredDevices, selectedMachineId, activeTab, newToken, selectedShift]);
+
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "20px" }}>
       {/* Left Panel */}
@@ -1962,22 +1970,30 @@ export default function MachineDashboard() {
 
         {/* Iframe */}
         <div style={{ position: "relative", flex: 1 }}>
-          <iframe
-            src={iframeSrc}
-            title="Grafana Dashboard"
-            style={{ width: "100%", height: "100%", border: "none", flexGrow: 1 }}
-          />
-          <div //0ee
-            style={{
-              position: 'absolute',
-              top: 2,
-              right: 14,
-              width: 80,
-              height: "100%",
-              backgroundColor: 'transparent',
-              zIndex: 10
-            }}
-          />
+          {iframeSrc ? (
+            <>
+              <iframe
+                src={iframeSrc}
+                title="Grafana Dashboard"
+                style={{ width: "100%", height: "100%", border: "none", flexGrow: 1 }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 14,
+                  width: 80,
+                  height: "100%",
+                  backgroundColor: 'transparent',
+                  zIndex: 10
+                }}
+              />
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: '14px' }}>
+              Loading dashboard...
+            </div>
+          )}
         </div>
       </div>
 
@@ -1993,7 +2009,7 @@ export default function MachineDashboard() {
           horizontal: "right",
         }}
       >
-        <div style={{ width: "250px", padding: "10px" }}>       
+        <div style={{ width: "250px", padding: "10px" }}>
 
           {/* Machine Status */}
           <div
