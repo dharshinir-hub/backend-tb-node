@@ -15,6 +15,9 @@ export const PAGE_LIST = [
     { label: "Group Registration", value: "group" },
     { label: "Component Registration", value: "component-registration" },
     { label: "Reason Registration", value: "reason-registration" },
+    { label: "Group", value: "group" },
+    { label: "Settings", value: "settings" },
+    { label: "Production Metrics", value: "production-metrics" },
 ];
 
     // { label: "Operator Registration", value: "operator-registration" },
