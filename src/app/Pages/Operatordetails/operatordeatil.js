@@ -97,6 +97,34 @@ const OperatorDetails = () => {
     supervisor: ''
   });
   const [processGroupOptions, setProcessGroupOptions] = useState([]);
+  const [isBeforeFirstShift, setIsBeforeFirstShift] = useState(false);
+
+  useEffect(() => {
+    if (!shifts.length) return;
+    const firstShift = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no))[0];
+    if (!firstShift) return;
+
+    const [h, m] = firstShift.start_time.split(':').map(Number);
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const firstShiftMinutes = h * 60 + m;
+
+    if (currentMinutes < firstShiftMinutes) {
+      setIsBeforeFirstShift(true);
+
+      const msUntilStart =
+        ((firstShiftMinutes - currentMinutes) * 60 - now.getSeconds()) * 1000
+        - now.getMilliseconds();
+
+      const timer = setTimeout(() => {
+        setIsBeforeFirstShift(false);
+      }, msUntilStart);
+
+      return () => clearTimeout(timer);
+    } else {
+      setIsBeforeFirstShift(false);
+    }
+  }, [shifts]);
 
 
   useEffect(() => {
@@ -126,9 +154,9 @@ const OperatorDetails = () => {
     if (!date || !date.isValid()) {
       return 'Invalid date format';
     }
-    const now = dayjs().startOf('day');
+    const minDate = isBeforeFirstShift ? dayjs().subtract(1, 'day').startOf('day') : dayjs().startOf('day');
     const maxDate = dayjs().add(7, 'day').endOf('day');
-    if (date.isBefore(now, 'day')) {
+    if (date.isBefore(minDate, 'day')) {
       return 'Date cannot be in the past.';
     }
     if (date.isAfter(maxDate)) {
@@ -832,7 +860,12 @@ const OperatorDetails = () => {
         label: `Shift${shift.shift_no}`,
       }));
       setShiftOptions(options);
+
       const now = dayjs();
+      const firstShiftLocal = [...allShifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no))[0];
+      const [h, m] = firstShiftLocal ? firstShiftLocal.start_time.split(':').map(Number) : [0, 0];
+      const isBeforeFirstShiftLocal = firstShiftLocal ? (now.hour() * 60 + now.minute() < h * 60 + m) : false;
+
       const currentShiftData = getCurrentShift(allShifts, now);
       const fallbackShiftData = allShifts[0];
       if (currentShiftData) {
@@ -845,15 +878,17 @@ const OperatorDetails = () => {
       }
       if (options.length > 0) {
         const defaultShift = options[0].value;
-        setSelectedDate(now);
-        const selectedShiftNo = currentShiftData
-          ? currentShiftData.shift_no
-          : fallbackShiftData?.shift_no;
+        const initialDate = isBeforeFirstShiftLocal ? dayjs().subtract(1, 'day') : now;
+        setSelectedDate(initialDate);
+        setEndDate(initialDate);
+        const selectedShiftNo = isBeforeFirstShiftLocal
+          ? (allShifts.length > 0 ? allShifts[allShifts.length - 1].shift_no : fallbackShiftData?.shift_no)
+          : (currentShiftData ? currentShiftData.shift_no : fallbackShiftData?.shift_no);
         setSelectedShift(selectedShiftNo);
         setfilteredResult([]); // (Optional) clear table
 
         // Calculate initial epoch range for current date and first shift
-        const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
+        const { fromEpoch, toEpoch } = getEpochFromShift(selectedShiftNo, initialDate);
         setEpochRange({ from: fromEpoch, to: toEpoch });
         console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:', dayjs());
 
@@ -963,6 +998,10 @@ const OperatorDetails = () => {
       setShiftOptions(options);
 
       const now = dayjs();
+      const firstShiftLocal = [...allShifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no))[0];
+      const [h, m] = firstShiftLocal ? firstShiftLocal.start_time.split(':').map(Number) : [0, 0];
+      const isBeforeFirstShiftLocal = firstShiftLocal ? (now.hour() * 60 + now.minute() < h * 60 + m) : false;
+
       const currentShiftData = getCurrentShift(allShifts, now);
       const fallbackShiftData = allShifts[0];
       if (currentShiftData) {
@@ -974,13 +1013,15 @@ const OperatorDetails = () => {
         setEndTime(dayjs(fallbackShiftData.end_time, 'HH:mm:ss'));
       }
       if (options.length > 0) {
-        setSelectedDate(now);
-        const selectedShiftNo = currentShiftData
-          ? currentShiftData.shift_no
-          : fallbackShiftData?.shift_no;
+        const initialDate = isBeforeFirstShiftLocal ? dayjs().subtract(1, 'day') : now;
+        setSelectedDate(initialDate);
+        setEndDate(initialDate);
+        const selectedShiftNo = isBeforeFirstShiftLocal
+          ? (allShifts.length > 0 ? allShifts[allShifts.length - 1].shift_no : fallbackShiftData?.shift_no)
+          : (currentShiftData ? currentShiftData.shift_no : fallbackShiftData?.shift_no);
         setSelectedShift(selectedShiftNo);
         setfilteredResult([]);
-        const { fromEpoch, toEpoch } = getEpochFromShift(selectedShiftNo, now);
+        const { fromEpoch, toEpoch } = getEpochFromShift(selectedShiftNo, initialDate);
         setEpochRange({ from: fromEpoch, to: toEpoch });
 
         const key = 'component';
@@ -1111,6 +1152,10 @@ const OperatorDetails = () => {
     }));
     setShiftOptions(options);
     const now = dayjs();
+    const firstShiftLocal = [...allShifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no))[0];
+    const [h, m] = firstShiftLocal ? firstShiftLocal.start_time.split(':').map(Number) : [0, 0];
+    const isBeforeFirstShiftLocal = firstShiftLocal ? (now.hour() * 60 + now.minute() < h * 60 + m) : false;
+
     const currentShiftData = getCurrentShift(allShifts, now);
     const fallbackShiftData = allShifts[0];
     if (currentShiftData) {
@@ -1122,18 +1167,19 @@ const OperatorDetails = () => {
       setEndTime(dayjs(fallbackShiftData.end_time, 'HH:mm:ss'));
     }
     if (options.length > 0) {
-      const defaultShift = options[0].value;
-      setSelectedDate(now);
-      const selectedShiftNo = currentShiftData
-        ? currentShiftData.shift_no
-        : fallbackShiftData?.shift_no;
+      const initialDate = isBeforeFirstShiftLocal ? dayjs().subtract(1, 'day') : now;
+      setSelectedDate(initialDate);
+      setEndDate(initialDate);
+      const selectedShiftNo = isBeforeFirstShiftLocal
+        ? (allShifts.length > 0 ? allShifts[allShifts.length - 1].shift_no : fallbackShiftData?.shift_no)
+        : (currentShiftData ? currentShiftData.shift_no : fallbackShiftData?.shift_no);
       setSelectedShift(selectedShiftNo);
       setfilteredResult([]); // (Optional) clear table
 
       // Calculate initial epoch range for current date and first shift
-      const { fromEpoch, toEpoch } = getEpochFromShift(defaultShift, dayjs());
+      const { fromEpoch, toEpoch } = getEpochFromShift(selectedShiftNo, initialDate);
       setEpochRange({ from: fromEpoch, to: toEpoch });
-      console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'defaultShift:', defaultShift, 'currentDate:', dayjs());
+      console.log('fromEpoch:', fromEpoch, 'toEpoch:', toEpoch, 'selectedShiftNo:', selectedShiftNo, 'initialDate:', initialDate);
 
       setfilteredResult([]);
 
@@ -3296,7 +3342,7 @@ const OperatorDetails = () => {
                   handleOperatorChange1(e);
                 }}
                 format="DD-MM-YYYY"
-                minDate={dayjs()} // ✅ Allows today
+                minDate={isBeforeFirstShift ? dayjs().subtract(1, 'day') : dayjs()} // ✅ Allows yesterday if before first shift
                 maxDate={dayjs().add(7, 'day')} // ✅ Allows up to 7 days from today
                 slotProps={{
                   textField: {
@@ -3482,7 +3528,7 @@ const OperatorDetails = () => {
                   handleOperatorChange1(e);
                 }}
                 format="DD-MM-YYYY"
-                minDate={dayjs()}
+                minDate={isBeforeFirstShift ? dayjs().subtract(1, 'day') : dayjs()}
                 slotProps={{
                   textField: {
                     sx: {
@@ -3504,7 +3550,7 @@ const OperatorDetails = () => {
                   handleEndDate(e);
                 }}
                 format="DD-MM-YYYY"
-                minDate={dayjs()} // allows today
+                minDate={isBeforeFirstShift ? dayjs().subtract(1, 'day') : dayjs()}
                 slotProps={{
                   textField: {
                     sx: { width: '100%' },
@@ -3859,7 +3905,7 @@ const OperatorDetails = () => {
                     handleOperatorChange1(e);
                   }}
                   format="DD-MM-YYYY"
-                  minDate={dayjs()}
+                  minDate={isBeforeFirstShift ? dayjs().subtract(1, 'day') : dayjs()}
                   maxDate={dayjs().add(7, 'day')}
                   slotProps={{
                     textField: {
