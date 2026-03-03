@@ -20,6 +20,7 @@ import {
 } from '../../Services/app/companyservice';
 import { telemetrykeydata } from '../../Services/app/operatorservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
+import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 export default function OnePageDashboard() {
     const customerId = localStorage.getItem('CustomerID');
@@ -531,26 +532,49 @@ export default function OnePageDashboard() {
         const from = startDate.startOf('day').valueOf();
         const to = endDate.endOf('day').valueOf();
 
-        // Calculate total adjusted duration across the date range
-        const totalDays = endDate.diff(startDate, 'day') + 1;
-        const perDayShiftSeconds = selectedShift === "allshift"
-            ? shifts.reduce((sum, s) => {
-                const singleShiftTimes = getShiftTimes(shifts, String(s.shift_no), startDate);
-                const rawSecs = singleShiftTimes.from && singleShiftTimes.to
-                    ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
-                    : 0;
-                return sum + Math.max(0, rawSecs - timeToSeconds(s.break_time || "00:00:00"));
-            }, 0)
-            : (() => {
-                const shiftData = shifts.find(s => String(s.shift_no) === String(selectedShift));
-                if (!shiftData) return 0;
-                const singleShiftTimes = getShiftTimes(shifts, selectedShift, startDate);
-                const rawSecs = singleShiftTimes.from && singleShiftTimes.to
-                    ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
-                    : 0;
-                return Math.max(0, rawSecs - timeToSeconds(shiftData.break_time || "00:00:00"));
-            })();
-        const adjustedDuration = perDayShiftSeconds * totalDays * selectedMachines.length;
+        let adjustedDuration = 0;
+
+        if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+            const shiftTimes = getShiftTimes(shifts, selectedShift, startDate);
+            const from = shiftTimes.from || Date.now() - 24 * 60 * 60 * 1000;
+            const to = shiftTimes.to || Date.now();
+            const durationInSeconds = Math.floor((to - from) / 1000);
+            adjustedDuration = durationInSeconds * selectedMachines.length;
+        } else {
+            // Calculate total adjusted duration across the date range
+            const totalDays = endDate.diff(startDate, 'day') + 1;
+
+            const perDayShiftSeconds = selectedShift === "allshift"
+                ? shifts.reduce((sum, s) => {
+                    const singleShiftTimes = getShiftTimes(shifts, String(s.shift_no), startDate);
+                    const rawSecs = singleShiftTimes.from && singleShiftTimes.to
+                        ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
+                        : 0;
+
+                    return sum + Math.max(
+                        0,
+                        rawSecs - timeToSeconds(s.break_time || "00:00:00")
+                    );
+                }, 0)
+                : (() => {
+                    const shiftData = shifts.find(
+                        s => String(s.shift_no) === String(selectedShift)
+                    );
+                    if (!shiftData) return 0;
+
+                    const singleShiftTimes = getShiftTimes(shifts, selectedShift, startDate);
+                    const rawSecs = singleShiftTimes.from && singleShiftTimes.to
+                        ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
+                        : 0;
+
+                    return Math.max(
+                        0,
+                        rawSecs - timeToSeconds(shiftData.break_time || "00:00:00")
+                    );
+                })();
+
+            adjustedDuration = perDayShiftSeconds * totalDays * selectedMachines.length;
+        }
 
         const baseUrl = window._env_?.SERVER_URL || '';
         const GRAFANA_URL = window._env_?.GRAFANA_URL || '';
