@@ -105,9 +105,15 @@ for (const window of shiftWindows) {
       (p) => p.ts >= from && p.ts <= to
     );
 
-    const totalPoints = (machineData?.totalparts || []).filter(
-      (p) => p.ts >= from && p.ts <= to
-    );
+    const totalPoints = (machineData?.totalparts || []).filter((p) => {
+      if (p.ts < from || p.ts > to) return false;
+      try {
+        const parsed = JSON.parse(p.value);
+        return parsed.totalshots > 0;
+      } catch {
+        return false;
+      }
+    });
 
     const utilizationPoints = (machineData?.utilization || []).filter(
       (p) => p.ts >= from && p.ts <= to
@@ -116,10 +122,6 @@ for (const window of shiftWindows) {
     const latestTarget = getLatest(targetPoints);
     const latestTotal = getLatest(totalPoints);
     const latestUtil = getLatest(utilizationPoints);
-
-    const targetVal = latestTarget
-      ? parseFloat(latestTarget.value) || 0
-      : 0;
 
     let shotsVal = 0;
 
@@ -131,6 +133,11 @@ for (const window of shiftWindows) {
         console.error(`Error parsing totalparts for ${machineId}`, e);
       }
     }
+
+    const targetVal =
+      latestTotal && latestTarget
+        ? parseFloat(latestTarget.value) || 0
+        : 0;
 
     const utilVal = latestUtil
       ? parseFloat(latestUtil.value)
