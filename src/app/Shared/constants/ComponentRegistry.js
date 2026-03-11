@@ -24,6 +24,8 @@ import QualityBoard from '../../Pages/QualityBoard/qualityboard';
 import BlueCard from '../../Pages/BlueCardScreen/bluecardscreen';
 import BluecardDetails from '../../Pages/BlueCardScreen/bluecarddetails';
 import BluecardReport from '../../Pages/BlueCardScreen/bluecardreport';
+import MachineStatusDashboard from '../../Pages/MachineStatusDashboard/MachineStatusDashboard';
+
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -51,6 +53,7 @@ export const COMPONENT_REGISTRY = {
   "quality" : QualityBoard,
   "bluecard": BlueCard,
   "bluecarddetails" : BluecardDetails,
-  "bluecardreport" : BluecardReport
+  "bluecardreport" : BluecardReport,
+  "machine-status": MachineStatusDashboard
 
 };

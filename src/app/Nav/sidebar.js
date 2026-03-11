@@ -166,6 +166,7 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/kpi-dashboard", name: "KPI", icon: <FaChartBar /> },
           // { path: "/company", name: "Company", icon: <BiBarChartAlt2 /> },
           { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
+          { path: "/machine-status", name: "Machine Status", icon: <BiPulse /> },
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
         ],
       },
