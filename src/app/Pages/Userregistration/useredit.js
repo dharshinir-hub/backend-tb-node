@@ -21,7 +21,7 @@ import { cleanCustomerId, createNewUser } from '../../Services/app/operatorservi
 import { ROLE_ADMIN, ROLE_MANAGER, ROLE_OPERATOR, ROLE_SUPER_ADMIN, ROLES } from '../../Shared/constants/role';
 import { useUserRole } from '../../Shared/hooks/useUserRole';
 import { useRoleOptions } from '../../Shared/hooks/useRoleOptions';
-import { PAGE_LIST } from '../../Shared/constants/pages';
+import { PAGE_LIST, QUALITY_PAGELIST } from '../../Shared/constants/pages';
 import { UserDetailsContext } from '../../Shared/context/UserDetailsContext';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { changePasswordWithUserToken, fakeLogin } from '../../Services/app/loginservice';
@@ -238,6 +238,67 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       }
     }
   }, [open, reset, defaultShiftForm, dialogData, shiftsmodule]);
+
+
+  const qualityValues = QUALITY_PAGELIST.map(p => p.value);
+
+  const filteredPageList = useMemo(() => {
+
+
+    if (
+      [ROLE_ADMIN, ROLE_SUPER_ADMIN].includes(shiftForm.mode) &&
+      cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
+    ) {
+      const merged = [...pageList, ...QUALITY_PAGELIST];
+
+      const uniquePages = merged.filter(
+        (page, index, self) =>
+          index === self.findIndex(p => p.value === page.value)
+      );
+      return uniquePages;
+    }
+    if (
+      shiftForm.mode?.toLowerCase() === "quality" &&
+      cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
+    ) {
+      return QUALITY_PAGELIST;
+    }
+    return pageList.filter(p => !qualityValues.includes(p.value));
+  }, [shiftForm.mode, pageList, customerId]);
+
+    useEffect(() => {
+      const allowedValues = filteredPageList.map(p => p.value);
+  
+      const cleaned = (shiftForm.pagelist || []).filter(v =>
+        allowedValues.includes(v)
+      );
+      if (cleaned.length !== (shiftForm.pagelist || []).length) {
+        setShiftForm(prev => ({ ...prev, pagelist: cleaned }));
+        setValue("pagelist", cleaned);
+      }
+    }, [filteredPageList]);
+
+
+useEffect(() => {
+  if (
+    shiftForm.mode?.toLowerCase() === "quality" &&
+    cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
+  ) {
+    const qualityPages = QUALITY_PAGELIST.map(p => p.value);
+
+    setShiftForm(prev => ({
+      ...prev,
+      pagelist: qualityPages
+    }));
+
+    setValue("pagelist", qualityPages);
+  } else {
+    // keep previously selected pagelist
+    setValue("pagelist", shiftForm.pagelist || []);
+  }
+
+  trigger("pagelist");
+}, [shiftForm.mode, customerId]);
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="300px" PaperProps={{ style: { backgroundColor: dialogBackgroundColor } }}>
@@ -463,7 +524,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                           const { value } = e.target;
 
                           if (value.includes("all")) {
-                            const allValues = pageList.map((p) => p.value);
+                            const allValues = filteredPageList.map((p) => p.value);
                             const isAllSelected = shiftForm.pagelist?.length === allValues.length;
                             const newValues = isAllSelected ? [] : allValues;
                             setShiftForm({ ...shiftForm, pagelist: newValues });
@@ -481,7 +542,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                         }}
                         renderValue={(selected) =>
                           (selected || [])
-                            .map((val) => pageList.find((p) => p.value === val)?.label || val)
+                            .map((val) => filteredPageList.find((p) => p.value === val)?.label || val)
                             .join(", ")
                         }
                         MenuProps={{
@@ -511,21 +572,25 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
                           },
                         }}
                       >
+                        {/* Select All option */}
                         <MenuItem value="all">
                           <Checkbox
-                            checked={shiftForm.pagelist?.length === pageList.length}
+                            checked={
+                              (shiftForm.pagelist || []).length === filteredPageList.length &&
+                              filteredPageList.length > 0
+                            }
                             sx={{ '&.Mui-checked': { color: "#f47803ff" } }}
                           />
                           <ListItemText
                             primary={
-                              shiftForm.pagelist?.length === pageList.length
+                              (shiftForm.pagelist || []).length === filteredPageList.length
                                 ? "Unselect All"
                                 : "Select All"
                             }
                           />
                         </MenuItem>
 
-                        {pageList.map((page, index) => (
+                        {filteredPageList.map((page, index) => (
                           <MenuItem key={index} value={page.value}>
                             <Checkbox
                               checked={shiftForm.pagelist?.includes(page.value)}

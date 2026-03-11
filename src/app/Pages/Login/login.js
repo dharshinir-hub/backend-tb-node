@@ -148,6 +148,9 @@ handleNavigationAfterLogin(role, pageList);
       "company",
       "machinemm",
       "deviceoee",
+      "bluecard",
+      "quality",
+      "bluecardreport",
       "reports",
       "operator-details",
       "machines",
@@ -209,6 +212,7 @@ handleNavigationAfterLogin(role, pageList);
                 <TextField
                   label="Username"
                   variant="outlined"
+                  autoFocus
                   fullWidth
                   {...register('username', {
                     required: 'Username is required'

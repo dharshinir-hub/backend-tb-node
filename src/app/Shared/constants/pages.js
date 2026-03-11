@@ -15,16 +15,12 @@ export const PAGE_LIST = [
     { label: "Group Registration", value: "group" },
     { label: "Component Registration", value: "component-registration" },
     { label: "Reason Registration", value: "reason-registration" },
-    { label: "Settings", value: "settings" },
-    { label: "Production Metrics", value: "production-metrics" },
+    { label: "Settings", value: "settings" }
 ];
 
-    // { label: "Operator Registration", value: "operator-registration" },
-
-//   { label: "Andon Dashboard", value: "andon-dashboard" },
-//   { label: "Shift", value: "shift" },
-//   { label: "Machine Card", value: "machine-card" },//   { label: "Current Shift", value: "CurrentShift" },
-//   { label: "Analytics", value: "analytics" },
-//   { label: "Allocation", value: "allocation" },
-//   { label: "Reports", value: "report" },
-//   { label: "Machine Utilization", value: "machineutilization" },
+export const QUALITY_PAGELIST = [
+    { label: "Quality Entry", value: "quality" },
+    { label: "Blue Card", value: "bluecard" },
+    { label: "Blue Card Report", value: "bluecardreport" },
+    { label: "Reports", value: "reports" },
+];

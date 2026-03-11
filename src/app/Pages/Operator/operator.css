@@ -842,6 +842,7 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
   font-family: "Poppins", sans-serif;
   text-align: center;
   line-height: 1.4;
+  padding-top: 4px;
 }
 
 /* --- Job Info --- */
@@ -966,7 +967,7 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
 /* --- Small Screens --- */
 @media (max-width: 768px) {
   .contect-section {
-    padding: 0.5rem;
+    padding: 4px 0.5rem 0.5rem;
   }
 
   .time-wrapper {
@@ -980,3 +981,27 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
   }
 }
 
+.button-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 26px;
+}
+
+/* bigger blue button */
+.blue-card-button {
+  background: #257af9;
+  color: white;
+  border: none;
+  padding: 40px 44px; /* increased size */
+  border-radius: 50px;
+  font-size: 20px; /* bigger text */
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  transition: 0.2s;
+}
+
+.blue-card-button:hover {
+  background: #2cb3f6;
+  transform: translateY(-1px);
+}

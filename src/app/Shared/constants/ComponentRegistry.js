@@ -20,6 +20,10 @@ import GroupRegistration from '../../Pages/Groupregistration/groupregistration';
 import ProductionOverview from '../../Pages/Productionoverview/productionoverview';
 import Settings from '../../Pages/Settings/settings';
 import Metrics from '../../Pages/Metrics/metrics';
+import QualityBoard from '../../Pages/QualityBoard/qualityboard';
+import BlueCard from '../../Pages/BlueCardScreen/bluecardscreen';
+import BluecardDetails from '../../Pages/BlueCardScreen/bluecarddetails';
+import BluecardReport from '../../Pages/BlueCardScreen/bluecardreport';
 
 export const COMPONENT_REGISTRY = {
   "shift-registration": ShiftRegistration,
@@ -43,6 +47,10 @@ export const COMPONENT_REGISTRY = {
   "production-overview" : ProductionOverview,
   "group" : GroupRegistration,
   "settings" : Settings,
-  "production-metrics" : Metrics
+  "production-metrics" : Metrics,
+  "quality" : QualityBoard,
+  "bluecard": BlueCard,
+  "bluecarddetails" : BluecardDetails,
+  "bluecardreport" : BluecardReport
 
 };

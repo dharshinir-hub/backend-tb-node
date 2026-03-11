@@ -28,15 +28,16 @@ import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
 import { stopTokenAutoRefresh } from '../Services/app/loginservice';
 import { UserDetailsContext } from '../Shared/context/UserDetailsContext';
-import { TbChecklist, TbFolders, TbLayoutGrid, TbSettings } from "react-icons/tb";
+import { TbChecklist, TbFolders, TbLayoutGrid, TbSettings,TbReportAnalytics  } from "react-icons/tb";
 import ChangePasswordCard from '../Nav/changepassword';
 import NotificationBell from '../Pages/NotificationBell/notificationBell';
 import { RiNotificationBadgeLine } from "react-icons/ri";
-import { TbChartHistogram } from "react-icons/tb";
-import { BsGraphUp,BsJustify  } from "react-icons/bs";
-import { BsKanban, BsList  } from "react-icons/bs";
-import { BiAlignRight } from "react-icons/bi";
-import { FaChartSimple } from "react-icons/fa6";
+import { FiCheckSquare } from "react-icons/fi";
+import { BsGraphUp, BsJustify } from "react-icons/bs";
+import { BsKanban, BsList } from "react-icons/bs";
+import { MdVerifiedUser, MdRule } from "react-icons/md";
+import { cleanCustomerId } from '../Services/app/operatorservice';
+import { CUSTOMER_IDS } from '../Shared/constants/ids';
 
 
 
@@ -51,6 +52,8 @@ export default function PersistentDrawerLeft({ children }) {
   const [operationOpen, setOperationOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [productionOpen, setProductionOpen] = useState(false);
+  const [qualityOpen, setQualityOpen] = useState(false);
+ const [ reportsOpen, setReportsOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -59,9 +62,15 @@ export default function PersistentDrawerLeft({ children }) {
   const isMobile = useMobileWidth();
   const navigate = useNavigate();
   const location = useLocation();
-
+  const customerId = localStorage.getItem("CustomerID");
+  const userRole = JSON.parse(localStorage.getItem("userDetails"));
+  const mode = userRole?.mode;
+  const normalizedMode = mode?.toLowerCase().replace(/\s+/g, "");
   const { userDetails } = useContext(UserDetailsContext);
   const [pageList, setPageList] = useState(userDetails.pageList || []);
+  const showReportChildren =
+    ["quality", "superadmin", "admin"].includes(normalizedMode) &&
+    cleanCustomerId(customerId) === CUSTOMER_IDS.PMI;
 
   useEffect(() => {
     const parsed = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
@@ -162,9 +171,9 @@ export default function PersistentDrawerLeft({ children }) {
       },
       {
         name: "Production",
-        icon: <BsList  style={{ fontSize: "20px", color: "black" }}/>,
+        icon: <BsList style={{ fontSize: "20px", color: "black" }} />,
         children: [
-          { path: "/production-overview", name: "Overview", icon: <BsKanban  style={{ fontSize: "20px", color: "black" }} /> },
+          { path: "/production-overview", name: "Overview", icon: <BsKanban style={{ fontSize: "20px", color: "black" }} /> },
           { path: "/production-metrics", name: "Metrics", icon: <BsGraphUp style={{ fontSize: "20px", color: "black" }} /> }
         ]
       },
@@ -184,7 +193,28 @@ export default function PersistentDrawerLeft({ children }) {
 
         ]
       },
-      { path: "/reports", name: "Reports", icon: <MdAssessment /> },
+      {
+        name: "Quality",
+        icon: <FiCheckSquare size={20} />,
+        children: [
+          { path: "/bluecard", name: "Blue Card Entry", icon: <MdRule /> },
+          { path: "/quality", name: "Quality Entry", icon: <MdVerifiedUser /> },
+        ]
+      },
+      ...(showReportChildren ?
+        [
+          {
+            name: "Reports",
+            icon: <TbReportAnalytics size={22} />,
+            children: [
+              { path: "/bluecardreport", name: "Blue Card Report", icon: <MdAssignmentTurnedIn /> },
+              { path: "/reports", name: "Reports", icon: <MdAssessment /> },
+            ],
+          },
+        ]
+        : [
+          { path: "/reports", name: "Reports", icon: <MdAssessment /> },
+        ]),
       {
         name: "Operation",
         icon: <AiTwotoneProfile />,
@@ -387,12 +417,13 @@ export default function PersistentDrawerLeft({ children }) {
           item.children ? (
             item.name === "Master" ? renderDropdown(item, masterOpen, setMasterOpen) :
               item.name === "Dashboard" ? renderDropdown(item, dashboardOpen, setDashboardOpen) :
-                            item.name === "Production" ? renderDropdown(item, productionOpen, setProductionOpen) :
-
-                item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
-                  item.name === "Analytics" ? renderDropdown(item, analyticsOpen, setAnalyticsOpen) :
-                    item.name === "Leaderboard" ? renderDropdown(item, leaderboardOpen, setLeaderboardOpen) :
-                      null
+                item.name === "Production" ? renderDropdown(item, productionOpen, setProductionOpen) :
+                  item.name === "Quality" ? renderDropdown(item, qualityOpen, setQualityOpen) :
+                    item.name === "Reports" ? renderDropdown(item, reportsOpen, setReportsOpen) :
+                      item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
+                        item.name === "Analytics" ? renderDropdown(item, analyticsOpen, setAnalyticsOpen) :
+                          item.name === "Leaderboard" ? renderDropdown(item, leaderboardOpen, setLeaderboardOpen) :
+                            null
           ) : (
             <NavLink
               to={item.path}
@@ -424,7 +455,7 @@ export default function PersistentDrawerLeft({ children }) {
         className="main-content"
         style={{
           paddingLeft: isOpen
-            ? '240px'
+            ? '250px'
             : '85px',
           transition: 'padding-left 0.3s ease'
         }}

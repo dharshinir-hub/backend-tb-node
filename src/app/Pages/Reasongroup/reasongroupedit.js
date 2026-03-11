@@ -5,15 +5,22 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
-import { LocalizationProvider } from '@mui/x-date-pickers';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import '../../Pages/Reasonregistration/reasonreg.css';
 import { useForm } from 'react-hook-form';
 import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
 
-export default function ReasonGroupEdit({ open, handleClose, dialogOpenCount, datasource, customerId, dialogData }) {
+export default function ReasonGroupEdit({
+    open,
+    handleClose,
+    dialogOpenCount,
+    datasource,
+    customerId,
+    dialogData,
+    groupKey = 'reasongroups',      // ✅ NEW
+    title = 'Edit Reason Group'     // ✅ NEW
+}) {
     const memoizedDatasource = useMemo(() => datasource, [datasource]);
     const memoizedDialogData = useMemo(() => dialogData, [dialogData]);
     const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
@@ -38,16 +45,18 @@ export default function ReasonGroupEdit({ open, handleClose, dialogOpenCount, da
         setValue(name, value, { shouldValidate: true });
     };
 
-    const onSubmit = async (data) => {
+    const onSubmit = async () => {
         try {
             const groupIdToEdit = memoizedDialogData?.id;
             let existingGroups = Array.isArray(memoizedDatasource) ? [...memoizedDatasource] : [];
+
             let groupIndex = -1;
             let existingIdStructure = null;
+
             if (groupIdToEdit) {
                 groupIndex = existingGroups.findIndex(item => {
-                    const itemId = typeof item.id === 'object' && item.id !== null ? item.id.$oid : item.id;
-                    const targetId = typeof groupIdToEdit === 'object' && groupIdToEdit !== null ? groupIdToEdit.$oid : groupIdToEdit;
+                    const itemId = typeof item.id === 'object' ? item.id?.$oid : item.id;
+                    const targetId = typeof groupIdToEdit === 'object' ? groupIdToEdit?.$oid : groupIdToEdit;
                     return itemId === targetId;
                 });
 
@@ -80,19 +89,17 @@ export default function ReasonGroupEdit({ open, handleClose, dialogOpenCount, da
             };
 
             existingGroups[groupIndex] = updatedGroup;
+
+            // ✅ CRITICAL FIX — dynamic key
             const updateData = {
-                reasongroups: existingGroups,
+                [groupKey]: existingGroups,
                 lastUpdateTs: Date.now()
             };
 
             const scope = 'SERVER_SCOPE';
             const response = await shiftadd(updateData, customerId, scope);
 
-            if (response.msg) {
-                Swal.fire(response.msg);
-            } else {
-                Swal.fire("Updated Successfully");
-            }
+            Swal.fire(response?.msg || 'Updated Successfully');
 
             handleClose();
             reset(defaultForm);
@@ -126,8 +133,14 @@ export default function ReasonGroupEdit({ open, handleClose, dialogOpenCount, da
     }, [formValues]);
 
     return (
-        <Dialog open={open} onClose={handleClose} fullWidth PaperProps={{ style: { backgroundColor: dialogBackgroundColor, maxWidth: "500px" } }}>
-            <DialogTitle style={{ color: 'black' }}>Edit Reason Group</DialogTitle>
+        <Dialog
+            open={open}
+            onClose={handleClose}
+            fullWidth
+            PaperProps={{ style: { backgroundColor: dialogBackgroundColor, maxWidth: "500px" } }}
+        >
+            <DialogTitle style={{ color: 'black' }}>{title}</DialogTitle>
+
             <div className="close_modal">
                 <Tooltip title="Close">
                     <IconButton aria-label="close" onClick={handleClose} style={{ backgroundColor: '#ffffff' }}>
@@ -135,54 +148,29 @@ export default function ReasonGroupEdit({ open, handleClose, dialogOpenCount, da
                     </IconButton>
                 </Tooltip>
             </div>
+
             <div className="machinedialog">
                 <form onSubmit={handleSubmit(onSubmit)} autoComplete="off">
-                    <div
-                        style={{
-                            display: 'flex',
-                            gap: '1rem',
-                            alignItems: 'stretch',
-                            margin: '1rem',
-                        }}
-                    >
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'stretch', margin: '1rem' }}>
                         <div style={{ width: "100%" }}>
                             <TextField
                                 {...register("groupName", {
                                     required: "Group Name is required",
-                                    maxLength: {
-                                        value: 100,
-                                        message: "Maximum 100 characters"
-                                    }
+                                    maxLength: { value: 100, message: "Maximum 100 characters" }
                                 })}
                                 onBlur={() => trigger('groupName')}
                                 label="Group Name"
-                                type="text"
                                 name="groupName"
                                 value={formData.groupName}
                                 onChange={handleFormChange}
                                 error={!!errors.groupName}
                                 inputProps={{ maxLength: 100 }}
-                                InputLabelProps={{
-                                    required: true,
-                                    sx: {
-                                        color: 'black',
-                                        '&.Mui-focused': { color: 'orange' },
-                                    },
-                                }}
                                 fullWidth
-                                sx={{
-                                    '& .MuiOutlinedInput-root': {
-                                        '& fieldset': { borderColor: 'black' },
-                                        '&:hover fieldset': { borderColor: 'black' },
-                                        '&.Mui-focused fieldset': { borderColor: 'orange' },
-                                        '& .MuiOutlinedInput-input': { color: 'black' },
-                                        '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                                    },
-                                }}
                             />
                             {errors.groupName && <div className="mat-error">{errors.groupName.message}</div>}
                         </div>
                     </div>
+
                     <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
                         <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning">
                             Save

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Tooltip, IconButton } from '@mui/material';
+import { Tooltip, IconButton, Dialog, DialogActions, DialogTitle, DialogContent, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ShiftAdd from './shiftadd';
 import { Card, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
@@ -10,14 +10,19 @@ import './shiftreg.css';
 import { customerbasedshift } from '../../Services/app/masterservice';
 import EditIcon from '@mui/icons-material/Edit';
 import ShiftEdit from './shiftedit';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import Swal from 'sweetalert2'; // Ensure Swal is imported
-import {shiftadd } from '../../Services/app/masterservice'; // Ensure shiftadd is imported
+import { shiftadd } from '../../Services/app/masterservice'; // Ensure shiftadd is imported
+import CloseIcon from '@mui/icons-material/Close';
 
 const ShiftRegistration = () => {
     // Separate state for Add and Edit dialogs
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editDialogData, setEditDialogData] = useState(null); // To store data for the edit dialog
+    const [openBreaksPopup, setOpenBreaksPopup] = useState(false);
+    const [selectedShiftBreaks, setSelectedShiftBreaks] = useState([]);
+    const [reasonData, setReasonData] = useState([]);
 
     // dialogOpenCount is used for background color in dialogs, tracks total open dialogs
     const [dialogOpenCount, setDialogOpenCount] = useState(0);
@@ -56,7 +61,7 @@ const ShiftRegistration = () => {
         getShifts(); // Refresh data after edit/close
     };
 
-   
+
     const deleteshift = (row) => {
         console.log("Attempting to delete row:", row);
 
@@ -80,11 +85,25 @@ const ShiftRegistration = () => {
 
                     // Filter out the shift to be deleted based on its ID
                     const updatedShifts = allShifts.filter(shift => shift.id !== row.id);
-
+                    const breakdetails = updatedShifts.flatMap(shift =>
+                        Array.isArray(shift.break_details)
+                            ? shift.break_details.map(brk => ({
+                                id: brk.id || Math.random().toString(36).substr(2, 9),
+                                start_time: brk.start_time,
+                                end_time: brk.end_time,
+                                break_time: brk.duration || brk.break_time || "00:00:00",
+                                shift_no: shift.shift_no,
+                                start_day: shift.start_day,
+                                end_day: shift.end_day,
+                                module: shift.module
+                            }))
+                            : []
+                    );
                     // Prepare the payload to send back to the API
                     // This structure aligns with how shifts are added/updated
                     const formData = {
                         allShift: updatedShifts,
+                        breakdetails: breakdetails,
                         lastUpdateTs: Date.now() // Update timestamp
                     };
 
@@ -116,36 +135,42 @@ const ShiftRegistration = () => {
     };
 
     const getShifts = async () => {
-        const key = 'allShift';
-        customerbasedshift(customerId, key)
-            .then(async (data) => {
-                const allShifts = data[0]?.value || [];
-                console.log(allShifts);
-                setDatasource(allShifts);
-            })
-            .catch(error => {
-                console.error("Error fetching shifts:", error);
-                setDatasource([]); // Set to empty array on error
-            });
+        try {
+            const [shiftRes, reasonRes] = await Promise.all([
+                customerbasedshift(customerId, 'allShift'),
+                customerbasedshift(customerId, 'reason'),
+            ]);
+
+            const allShifts = shiftRes[0]?.value || [];
+            const reasons = reasonRes[0]?.value || [];
+
+            console.log('Shifts:', allShifts);
+            console.log('Reasons:', reasons);
+
+            setDatasource(allShifts);
+            setReasonData(reasons);
+        } catch (error) {
+            console.error('Error fetching shifts or reasons:', error);
+            setDatasource([]);
+            setReasonData([]);
+        }
     };
 
-    const getTotalShiftHours = (start, end, breakTime) => {
+
+    const getTotalShiftHours = (start, end, totalBreakTime) => {
+        console.log(start, end, totalBreakTime, 'timings')
         const parseTime = (str) => {
-            const [h, m, s] = str.split(':').map(Number);
+            if (!str) str = "00:00:00";
+            const [h, m, s] = str?.split(':').map(Number);
             return h * 3600 + m * 60 + s;
         };
 
         const startSec = parseTime(start);
         const endSec = parseTime(end);
-        const breakSec = parseTime(breakTime);
+        const breakSec = parseTime(totalBreakTime);
 
         let totalSec = endSec - startSec - breakSec;
-
-        // Handle overnight shifts (e.g., 22:00 to 06:00)
-        if (totalSec < 0) {
-            totalSec += 24 * 3600;
-        }
-
+        if (totalSec < 0) totalSec += 24 * 3600;
         const hours = String(Math.floor(totalSec / 3600)).padStart(2, '0');
         const minutes = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
         const seconds = String(totalSec % 60).padStart(2, '0');
@@ -156,7 +181,13 @@ const ShiftRegistration = () => {
 
     useEffect(() => {
         getShifts();
-    },[]);
+    }, []);
+
+    const handleViewBreaks = (shift) => {
+        setSelectedShiftBreaks(shift.break_details || []);
+        setOpenBreaksPopup(true);
+    };
+
 
     return (
         <div className="pages">
@@ -171,6 +202,7 @@ const ShiftRegistration = () => {
                                 </IconButton>
                             </Tooltip>
                             <ShiftAdd
+                                reason={reasonData}
                                 open={isAddDialogOpen} // Use specific state for add dialog
                                 handleClose={handleCloseAddDialog} // Use specific close handler
                                 handleAdd={handleCloseAddDialog} // Call close handler on successful add
@@ -178,7 +210,7 @@ const ShiftRegistration = () => {
                                 datasource={datasource}
                                 customerId={customerId}
                                 setDatasource={setDatasource}
-                                // dialogData is intentionally omitted for ShiftAdd to ensure it's empty
+                            // dialogData is intentionally omitted for ShiftAdd to ensure it's empty
                             />
                         </div>
                     </div>
@@ -206,9 +238,22 @@ const ShiftRegistration = () => {
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.shift_no || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{convertTimes(`1970-01-01T${row.start_time}`) || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{convertTimes(`1970-01-01T${row.end_time}`) || '---'}</TableCell>
-                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.break_time || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
-                                            {getTotalShiftHours(row.start_time, row.end_time, row.break_time)}
+                                            {row.break_time || '---'}
+                                            {Array.isArray(row.break_details) && row.break_details.length > 0 && (
+                                                <Tooltip title="View Breaks">
+                                                    <IconButton size="small" onClick={() => handleViewBreaks(row)}>
+                                                        <VisibilityIcon sx={{ fontSize: 18, marginLeft: 0.5 }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            )}
+                                        </TableCell>
+
+                                        <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            <TableCell>
+                                                {getTotalShiftHours(row.start_time, row.end_time, row.break_time)}
+                                            </TableCell>
+
                                         </TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>{row.module || '---'}</TableCell>
                                         <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
@@ -225,7 +270,7 @@ const ShiftRegistration = () => {
                                             </Tooltip>
                                             {/* ShiftEdit component is now rendered conditionally outside the map loop */}
                                             <Tooltip title="Delete Shift">
-                                                <IconButton onClick={() => deleteshift(row,datasource)}>
+                                                <IconButton onClick={() => deleteshift(row, datasource)}>
                                                     <DeleteIcon sx={{ color: 'black' }} />
                                                 </IconButton>
                                             </Tooltip>
@@ -234,12 +279,144 @@ const ShiftRegistration = () => {
                                 ))}
                             </TableBody>
                         </Table>
+
+                        {/* Break Details Dialog */}
+                        <Dialog
+                            open={openBreaksPopup}
+                            onClose={() => setOpenBreaksPopup(false)}
+                            maxWidth="sm"
+                            fullWidth
+                            PaperProps={{ style: { backgroundColor: '#ede7e7' } }}
+                        >
+                            {/* HEADER WITH CLOSE ICON */}
+                            <DialogTitle
+                                sx={{
+                                    m: 0,
+                                    p: 2,
+                                    fontWeight: 600,
+                                    backgroundColor: '#eeebeb',
+                                }}
+                            >
+                                Break Details
+
+                                <IconButton
+                                    aria-label="close"
+                                    onClick={() => setOpenBreaksPopup(false)}
+                                    sx={{
+                                        position: 'absolute',
+                                        right: 8,
+                                        top: 8,
+                                        color: '#777',
+                                        '&:hover': {
+                                            backgroundColor: '#f2f2f2',
+                                        },
+                                    }}
+                                >
+                                    <CloseIcon />
+                                </IconButton>
+                            </DialogTitle>
+
+                            {/* TABLE CONTENT WITH 4-SIDE PADDING */}
+                            <DialogContent
+                                sx={{
+                                    p: 2, // ✅ padding on all four sides
+                                    backgroundColor: '#eeebeb',
+                                }}
+                            >
+                                <Table
+                                    size="small"
+                                    sx={{
+                                        borderCollapse: "collapse",
+                                        width: "100%",
+                                        backgroundColor: "#ffffff",
+                                    }}
+                                >
+                                    <TableHead>
+                                        <TableRow sx={{ backgroundColor: "#e5e5e5" }}>
+                                            {["Start Time", "End Time", "Duration", "Reason"].map((head) => (
+                                                <TableCell
+                                                    key={head}
+                                                    align="center"
+                                                    sx={{
+                                                        fontWeight: 700,
+                                                        fontSize: "15px",
+                                                        color: "#000",
+                                                        borderBottom: "2px solid #cfcfcf",
+                                                        padding: "14px 16px",
+                                                    }}
+                                                >
+                                                    {head}
+                                                </TableCell>
+                                            ))}
+                                        </TableRow>
+                                    </TableHead>
+
+                                    <TableBody>
+                                        {selectedShiftBreaks.map((brk, idx) => (
+                                            <TableRow
+                                                key={idx}
+                                                sx={{
+                                                    backgroundColor: idx % 2 === 0 ? "#f2f2f2" : "#eaeaea",
+                                                }}
+                                            >
+                                                <TableCell
+                                                    align="center"
+                                                    sx={{
+                                                        padding: "16px",
+                                                        fontSize: "14px",
+                                                        borderBottom: "1px solid #d6d6d6",
+                                                    }}
+                                                >
+                                                    {convertTimes(`1970-01-01T${brk.start_time}`)}
+                                                </TableCell>
+
+                                                <TableCell
+                                                    align="center"
+                                                    sx={{
+                                                        padding: "16px",
+                                                        fontSize: "14px",
+                                                        borderBottom: "1px solid #d6d6d6",
+                                                    }}
+                                                >
+                                                    {convertTimes(`1970-01-01T${brk.end_time}`)}
+                                                </TableCell>
+
+                                                <TableCell
+                                                    align="center"
+                                                    sx={{
+                                                        padding: "16px",
+                                                        fontSize: "14px",
+                                                        borderBottom: "1px solid #d6d6d6",
+                                                    }}
+                                                >
+                                                    {brk.duration || brk.break_time}
+                                                </TableCell>
+
+                                                <TableCell
+                                                    align="center"
+                                                    sx={{
+                                                        padding: "16px",
+                                                        fontSize: "14px",
+                                                        borderBottom: "1px solid #d6d6d6",
+                                                    }}
+                                                >
+                                                    {brk.reason || "---"}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </DialogContent>
+                        </Dialog>
+
+
                     </div>
                 </Card>
             </div>
             {/* Render ShiftEdit conditionally outside the table loop */}
             {isEditDialogOpen && (
                 <ShiftEdit
+                    reason={reasonData}
                     open={isEditDialogOpen} // Use specific state for edit dialog
                     handleClose={handleCloseEditDialog} // Use specific close handler
                     handleAdd={handleCloseEditDialog} // Call close handler on successful edit

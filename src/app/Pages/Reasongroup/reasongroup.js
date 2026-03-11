@@ -9,7 +9,13 @@ import Swal from 'sweetalert2';
 import ReasonGroupAdd from './reasongroupadd';
 import ReasonGroupEdit from './reasongroupedit';
 
-const ReasonGroup = ({IsInGroupReg = false}) => {
+const ReasonGroup = ({
+  IsInGroupReg = false,
+  groupKey = 'reasongroups',          // ✅ NEW
+  reasonKey = 'reason',               // ✅ NEW
+  title = 'Reason Group List',        // ✅ NEW
+  addTooltip = 'Add Reason Group'     // ✅ NEW
+}) => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editDialogData, setEditDialogData] = useState(null);
@@ -43,11 +49,18 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
     getReasonGroups();
   };
 
+  // ✅ DELETE (fully dynamic now)
   const deleteReasonGroup = async (row) => {
     try {
-      const keyReasons = 'reason';
-      const reasonsData = await customerbasedshift(customerId, keyReasons);
-      const allReasons = reasonsData[0]?.value || [];
+      const [reasonsData, qualityData] = await Promise.all([
+        customerbasedshift(customerId, 'reason'),
+        customerbasedshift(customerId, 'qualityreason'),
+      ]);
+      const allReasons = [
+        ...(reasonsData[0]?.value || []),
+        ...(qualityData[0]?.value || []),
+      ];
+
       const linkedReasons = allReasons.filter(
         (r) => r.group && r.group === row.groupName
       );
@@ -58,14 +71,15 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
           icon: 'warning',
           title: 'Cannot Delete Group',
           html: `
-          <div style="text-align: left;">
-            <p><strong>Group:</strong> ${row.groupName}</p>
-            <p>This group is still used by the following reasons:</p>
-            <div style="margin: 0.5rem 0"><p style="font-weight:semi-bold"><strong>${reasonNames}</strong></p></div>
-            
-            <p>Please move these reasons to another group before deleting this one.</p>
-          </div>
-        `,
+            <div style="text-align: left;">
+              <p><strong>Group:</strong> ${row.groupName}</p>
+              <p>This group is still used by the following reasons:</p>
+              <div style="margin: 0.5rem 0">
+                <p><strong>${reasonNames}</strong></p>
+              </div>
+              <p>Please move these reasons to another group before deleting this one.</p>
+            </div>
+          `,
           confirmButtonColor: '#f57c00',
           confirmButtonText: 'OK',
         });
@@ -84,8 +98,7 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
       }).then(async (result) => {
         if (result.isConfirmed) {
           try {
-            const keyGroups = 'reasongroups';
-            const currentData = await customerbasedshift(customerId, keyGroups);
+            const currentData = await customerbasedshift(customerId, groupKey);
             const allGroups = currentData[0]?.value || [];
 
             const updatedGroups = allGroups.filter(group => {
@@ -95,8 +108,9 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
               return group.id !== row.id;
             });
 
+            // ✅ CRITICAL FIX — dynamic key
             const formData = {
-              reasongroups: updatedGroups,
+              [groupKey]: updatedGroups,
               lastUpdateTs: Date.now()
             };
 
@@ -122,9 +136,9 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
     }
   };
 
+  // ✅ FETCH dynamic
   const getReasonGroups = async () => {
-    const key = 'reasongroups';
-    customerbasedshift(customerId, key)
+    customerbasedshift(customerId, groupKey)
       .then((data) => {
         const groups = data[0]?.value || [];
         setDatasource(groups);
@@ -137,20 +151,19 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
 
   useEffect(() => {
     getReasonGroups();
-  }, []);
+  }, [groupKey]);
 
   return (
-    <div className="pages" style={{
-      paddingBlockStart: IsInGroupReg ? '0px' : '40px',
-    }}>
+    <div className="pages" style={{ paddingBlockStart: IsInGroupReg ? '0px' : '40px' }}>
       <div className="pagecontents">
         <div className="left-labels" style={{
           padding: IsInGroupReg ? '0 2.3rem 1rem 0' : '1rem 2rem 1rem 0',
         }}>
-          <div className="shift-content" style={{gap: "0.5rem"}}>
-            {IsInGroupReg ? (<h6>Create New</h6>) : (<h5><h5>Reason Group List</h5></h5>)}
+          <div className="shift-content" style={{ gap: "0.5rem" }}>
+            {IsInGroupReg ? (<h6>Create New</h6>) : (<h5>{title}</h5>)}
+
             <div className="add_new">
-              <Tooltip title="Add Reason Group">
+              <Tooltip title={addTooltip}>
                 <IconButton className="circle" onClick={handleOpenAddDialog}>
                   <AddIcon />
                 </IconButton>
@@ -167,7 +180,7 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
               .map((item, idx) => {
                 const itemId = typeof item.id === 'object' && item.id?.$oid ? item.id.$oid : item.id || idx;
                 return (
-                  <div className="idle_reason_item" key={itemId} data-id={item.code}>
+                  <div className="idle_reason_item" key={itemId}>
                     <div className="icons">
                       <span className="icon-text">{idx + 1}</span>
                     </div>
@@ -207,6 +220,7 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
         datasource={datasource}
         customerId={customerId}
         setDatasource={setDatasource}
+        groupKey={groupKey}   // ✅ pass down
       />
 
       {isEditDialogOpen && editDialogData && (
@@ -219,6 +233,7 @@ const ReasonGroup = ({IsInGroupReg = false}) => {
           datasource={datasource}
           customerId={customerId}
           setDatasource={setDatasource}
+          groupKey={groupKey}  // ✅ pass down
         />
       )}
     </div>

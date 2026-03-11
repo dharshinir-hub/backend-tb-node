@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Tooltip, IconButton, TextField, CardActions, TablePagination } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import { Card, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
+import { Card, Button, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import classNames from 'classnames';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useEffect } from 'react';
@@ -127,18 +127,43 @@ const ComponentRegistration = () => {
     // };
 
     const getComponents = async () => {
-        const key = 'component';
-        customerbasedshift(customerId, key)
-            .then(async (data) => {
-                const allShifts = data[0]?.value || [];
-                console.log(allShifts);
-                setDatasource(allShifts);
-            })
-            .catch(error => {
-                console.error("Error fetching shifts:", error);
-                setDatasource([]); // Set to empty array on error
+        try {
+            const componentKey = "component";
+            const autoTargetKey = "autotarget";
+
+            const [componentRes, autoTargetRes] = await Promise.all([
+                customerbasedshift(customerId, componentKey),
+                customerbasedshift(customerId, autoTargetKey)
+            ]);
+
+            const components = componentRes?.[0]?.value || [];
+            const autoTargets = autoTargetRes?.[0]?.value || [];
+            console.log(autoTargets, 'autotargets')
+            const mappedJson = components.map(comp => {
+                const match = autoTargets.find(
+                    auto => auto.component_name === comp.component_name
+                );
+
+                return {
+                    ...comp,
+                    auto_target: match
+                        ? {
+                            cycle_levels: match.cycle_level || "00:00:00",
+                            handling_levels: match.handling_level || "00:00:00"
+                        }
+                        : null
+                };
             });
+
+            console.log("Mapped datasource:", mappedJson);
+            setDatasource(mappedJson);
+
+        } catch (error) {
+            console.error("Error fetching components:", error);
+            setDatasource([]);
+        }
     };
+    console.log('datasource', datasource)
 
     // const getTotalShiftHours = (start, end, breakTime) => {
     //     const parseTime = (str) => {
@@ -187,15 +212,105 @@ const ComponentRegistration = () => {
         setPage(0);
     }, [searchText]);
 
+    const timeToSeconds = (time) => {
+        if (!time) return 0;
+        const [h = 0, m = 0, s = 0] = String(time).split(":").map(Number);
+        return h * 3600 + m * 60 + s;
+    };
+
+    const secondsToTime = (sec) => {
+        if (sec === '' || sec === null || sec === undefined) return '';
+        const sign = sec < 0 ? "-" : "";
+        sec = Math.abs(sec);
+
+        const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+        const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+
+        return `${sign}${h}:${m}:${s}`;
+    };
+
+    const handleExportCSV = () => {
+        const headers = [
+            "Component Name",
+            "Component Number",
+            "Factor",
+            "Factor Value",
+            "Standard Cycle Time",
+            "Auto Cycle Time",
+            "Cycle Time Diff",
+            "Standard Handling Time",
+            "Actual Handling Time",
+            "Handling Time Diff",
+            "Setup Time"
+        ];
+
+        const rows = filteredDatasource.map(row => {
+            const cycleTime = row.cycle_time || "-";
+            const cycleLevel = row.auto_target?.cycle_levels || "-";
+            const handlingTime = row.handling_time || "-";
+            const handlingLevel = row.auto_target?.handling_levels || "-";
+
+            const diffCycle =
+                row.cycle_time && row.auto_target?.cycle_levels
+                    ? secondsToTime(
+                        timeToSeconds(row.cycle_time) -
+                        timeToSeconds(row.auto_target?.cycle_levels)
+                    )
+                    : "-";
+
+            const diffHandling =
+                row.handling_time && row.auto_target?.handling_levels
+                    ? secondsToTime(
+                        timeToSeconds(row.handling_time) -
+                        timeToSeconds(row.auto_target?.handling_levels)
+                    )
+                    : "-";
+
+            return [
+                row.component_name || "-",
+                row.component_number || "-",
+                row.factor || "-",
+                row.factorval || "-",
+                cycleTime,
+                cycleLevel,
+                diffCycle || "-",
+                handlingTime,
+                handlingLevel,
+                diffHandling || "-",
+                row.setupTime || "-"
+            ];
+        });
+
+        const csvContent = [headers, ...rows]
+            .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+            .join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "components.csv";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+    };
+
+
     return (
-        <div className="pages">
+        <div className="pages" style={{
+            paddingLeft: "10px"
+        }}>
             <div className="pagecontents">
                 <div className="left-labels">
                     <div className="shift-content">
                         <h5>Component Registration</h5>
                         <div className="add_new">
                             <Tooltip title="Add Component">
-                                <IconButton className="circle" onClick={handleOpenAddDialog}> {/* Use new handler */}
+                                <IconButton className="circle" onClick={handleOpenAddDialog}> 
                                     <AddIcon />
                                 </IconButton>
                             </Tooltip>
@@ -211,18 +326,38 @@ const ComponentRegistration = () => {
                             />
                         </div>
                     </div>
-                    <TextField
-                        label="Search Component Name or Number"
-                        type="text"
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        InputLabelProps={{
-                            sx: { color: 'black', '&.Mui-focused': { color: 'orange' } },
-                        }}
-                        sx={{
-                            minWidth: 300
-                        }}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
+                            <Button
+                                variant="outlined"
+                                onClick={handleExportCSV}
+                                sx={{
+                                    minWidth: 120,
+                                    height: 54,
+                                    borderColor: '#f47803',
+                                    color: '#f47803',
+                                    '&:hover': { borderColor: '#f47803', color: '#f47803', background: '#e9e9e9' },
+                                    textTransform: 'none',
+                                    fontSize: "16px",
+                                    fontWeight: 'bold',
+                                }}
+                            >
+                                Export CSV
+                            </Button>
+                        )}
+                        <TextField
+                            label="Search Component Name or Number"
+                            type="text"
+                            value={searchText}
+                            onChange={(e) => setSearchText(e.target.value)}
+                            InputLabelProps={{
+                                sx: { color: 'black', '&.Mui-focused': { color: 'orange' } },
+                            }}
+                            sx={{
+                                minWidth: 300
+                            }}
+                        />
+                    </div>
                 </div>
 
                 <Card className="card_sec">
@@ -231,8 +366,8 @@ const ComponentRegistration = () => {
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Component Name</TableCell>
-                                     {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (<TableCell>Component Number</TableCell>)}
-                                    {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell>Operation Type</TableCell>)}
+                                    {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (<TableCell>Component Number</TableCell>)}
+                                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (<TableCell>Operation Type</TableCell>)}
                                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Item Code</TableCell>)}
                                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Process Name</TableCell>)}
                                     {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Operation Number</TableCell>)}
@@ -242,8 +377,19 @@ const ComponentRegistration = () => {
                                     {/* <TableCell>Mould Number</TableCell> */}
                                     <TableCell>Factor</TableCell>
                                     <TableCell>Factor Value</TableCell>
-                                    <TableCell>Cycle Time</TableCell>
-                                    <TableCell>Handling Time</TableCell>
+                                    {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI ? (
+                                        <>
+                                            <TableCell>Standard Cycle Time</TableCell>
+                                            <TableCell>Actual Cycle Time</TableCell>
+                                            <TableCell>Standard Handling Time</TableCell>
+                                            <TableCell>Actual Handling Time</TableCell>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <TableCell>Cycle Time</TableCell>
+                                            <TableCell>Handling Time</TableCell>
+                                        </>
+                                    )}
                                     <TableCell>Setup Time</TableCell>
                                     <TableCell>Action</TableCell>
                                 </TableRow>
@@ -255,19 +401,19 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_name || '---'}
                                             </TableCell>
-                                             {(cleanCustomerId(customerId)  != CUSTOMER_IDS.GPLAST) && ( <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_number || '---'}
                                             </TableCell>)}
-                                               {(cleanCustomerId(customerId)  === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row?.item_code || '---'}
                                             </TableCell>)}
-                                              {(cleanCustomerId(customerId)  === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row?.process_name || '---'}
                                             </TableCell>)}
-                                               {(cleanCustomerId(customerId)  === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row?.operation_number || '---'}
                                             </TableCell>)}
-                                            {(cleanCustomerId(customerId)  === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId)  === CUSTOMER_IDS.HITECH) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.operation_type || '---'}
                                             </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
@@ -279,9 +425,17 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.cycle_time || '---'}
                                             </TableCell>
+                                            {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
+                                                <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                    {row.auto_target?.cycle_levels || '---'}
+                                                </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.handling_time || '---'}
                                             </TableCell>
+                                            {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
+                                                <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                                    {row.auto_target?.handling_levels || '---'}
+                                                </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.setupTime || '---'}
                                             </TableCell>

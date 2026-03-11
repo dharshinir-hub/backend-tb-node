@@ -1,28 +1,28 @@
-import axiosInstance from '../core/axiosconfig'; 
-  
-export const getReportShifts = async(customerName) => {
-    try {
-      const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, ''); 
-      const url = `${baseUrl}/report/shift-list/${customerName}`;
-       const response = await axiosInstance.get(url);
-       console.log('Report Shift response', response.data);
-       return response.data;
-    } catch(error) {
-      console.error('Error during report shift data:', error);
-    }
-  }
+import axiosInstance from '../core/axiosconfig';
 
-export const getReportMachineList = async(customerName) => {
-    try {
-      const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, ''); 
-      const url = `${baseUrl}/report/machine-list/${customerName}`;
-       const response = await axiosInstance.get(url);
-       console.log('Report Machine list response', response.data);
-       return response.data;
-    } catch(error) {
-      console.error('Error during report machine list data:', error);
-    }
+export const getReportShifts = async (customerName) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/report/shift-list/${customerName}`;
+    const response = await axiosInstance.get(url);
+    console.log('Report Shift response', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error during report shift data:', error);
   }
+}
+
+export const getReportMachineList = async (customerName) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/report/machine-list/${customerName}`;
+    const response = await axiosInstance.get(url);
+    console.log('Report Machine list response', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error during report machine list data:', error);
+  }
+}
 
 export const getGeneralReport = async (machine, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
   try {
@@ -101,4 +101,61 @@ export const getReportDownloadLink = async (type, machine, shiftNo, fromTime, to
   if (!endpoint) throw new Error(`Unknown report type: ${type}`);
   const url = `${baseUrl}/report/${endpoint}/${machine}/${shiftNo}/${fromTime}/${toTime}`;
   return await axiosInstance.get(url, { responseType: "blob" });
+};
+
+export const getReportGenerate = async (date) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/report/schuduletask/${date}`;
+    const response = await axiosInstance.get(url);
+    console.log('Quality API rejected', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error during report machine list data:', error);
+  }
+}
+
+export const getReportToken = async (username, password) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+    const url = `${baseUrl}/Auth/login1/${username}/${password}`;
+
+    const response = await axiosInstance.post(url);
+    const accessToken = response?.data?.accessToken;
+    if (accessToken) {
+      localStorage.setItem("reportToken", accessToken);
+    } else {
+      console.warn("accessToken not found in response");
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error("Error during report machine list data:", error);
+    throw error; 
+  }
+};
+
+export const getReportGenerate1 = async (device, date, currentshift, status) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+    const token = localStorage.getItem("reportToken");
+
+    const url =
+      `${baseUrl}/reportGenerate/ShiftPartUpdatePerMachineByDateAndShift1` +
+      `?machine_name=${encodeURIComponent(device)}` +
+      `&date=${date}` +
+      `&shift_no=${currentshift}` +
+      `&currntshift=${status}`;
+    const response = await axiosInstance.get(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    console.log("Quality API response", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Error during report machine list data:", error);
+    throw error;
+  }
 };

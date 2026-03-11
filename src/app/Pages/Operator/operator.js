@@ -1,6 +1,6 @@
 import './operator.css';
 import logo from '../../../assets/yantraimage.png';
-import { FaRegClock, FaRegCalendarAlt } from "react-icons/fa";
+import { FaRegClock, FaRegCalendarAlt, FaBell } from "react-icons/fa";
 import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
 import React, { useEffect, useRef, useState } from "react";
@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import Swal from 'sweetalert2';
 import { customerbaseddevices, customerbasedshift, Deviceattributeget, Downtimeadd1, getCustomerUsers, getFirstMachineActive, getMachineLock, operatorTelemetry, telemetrykeydata } from '../../Services/app/operatorservice';
 import ReactDOMClient from 'react-dom/client';
+import { keyframes } from "@mui/system";
 
 import {
     FormControl,
@@ -28,7 +29,8 @@ import CircularProgress from '../../Shared/Pages/circularprogress/circularprogre
 import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogress';
 import { useLocation } from 'react-router-dom';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
-import { cleanCustomerId } from '../../Services/app/masterservice';
+import { cleanCustomerId, shiftadd } from '../../Services/app/masterservice';
+import DynamicSlidingKeyboard from '../../Shared/Pages/dynamicSlidingKeyboard/dynamicSlidingKeyboard';
 
 function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
@@ -68,6 +70,24 @@ function Operator() {
     const [confirmType, setConfirmType] = useState(null);
     const customerId1 = localStorage.getItem('CustomerID');
     const isSwalOpenRef = useRef(false);
+    const [blueCardLogs, setBlueCardLogs] = useState([]);
+    const [openBlueCardConfirm, setOpenBlueCardConfirm] = useState(false);
+    const [requestPayload, setRequestPayload] = useState([]);
+    const [isBlinking, setIsBlinking] = useState(false);
+    const [blueCardText, setBlueCardText] = useState("Blue Card Push");
+    const [openBlueCardSuccess, setOpenBlueCardSuccess] = useState(false);
+    const [blueCardTimerStart, setBlueCardTimerStart] = useState(null);
+    const [blueCardElapsed, setBlueCardElapsed] = useState(0);
+    const blueCardTimerRef = useRef(null);
+    const [routeCardNo, setRouteCardNo] = useState("");
+    const isValidRouteCard = /^[a-z0-9]+$/i.test(routeCardNo);
+    const [openBlueCardResponse, setOpenBlueCardResponse] = useState(false);
+    const [blueCardResponseData, setBlueCardResponseData] = useState(null);
+    const prevRequestPayloadRef = useRef([]);
+    const [blueCardNotifications, setBlueCardNotifications] = useState([]);
+    const [showBlueCardNotif, setShowBlueCardNotif] = useState(false);
+    const prevComponentCodeRef = useRef(null);
+    const notifBellRef = useRef(null);
 
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
@@ -82,7 +102,7 @@ function Operator() {
             return CUSTOMER_IDS.DEMO;
         } else if (location.pathname === "/gplast_operator_awe6tc") {
             return CUSTOMER_IDS.GPLAST;
-        }  else {
+        } else {
             const customerIdStr = localStorage.getItem('CustomerID');
             try {
                 return JSON.parse(customerIdStr);
@@ -92,6 +112,10 @@ function Operator() {
             }
         }
     };
+    const isPMIBlueCardPage =
+        location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" ||
+        cleanCustomerId(getCustomerId()) === CUSTOMER_IDS.PMI;
+
     const fetchDevices = async () => {
         try {
             const customerId = getCustomerId();
@@ -318,7 +342,7 @@ function Operator() {
                 machineColor: statusColor,
                 firstActive,
                 targetParts,
-                totalShots: goodparts,
+                totalShots: totalshots,
                 goodParts: goodparts,
                 scrap,
                 ncr,
@@ -708,7 +732,7 @@ function Operator() {
 
     useEffect(() => {
         const customerId = getCustomerId();
-        if(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) return;
+        if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) return;
         if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
         const deviceId = deviceNameIdJson[selectedMachine];
         const openReasonSwal = (idleStart, reasonsList2, previousReason = null) => {
@@ -929,7 +953,7 @@ function Operator() {
     const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
     useEffect(() => {
         const customerId = getCustomerId();
-        if(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) return;
+        if (cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) return;
         if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
         const deviceId = deviceNameIdJson[selectedMachine];
         const openReasonSwal = (idleStart, reasonsList2, previousReason = null) => {
@@ -1376,6 +1400,26 @@ function Operator() {
         init();
     }, [location.pathname]);
 
+    // Reset blue card notifications when component changes
+    useEffect(() => {
+        const currentCode = telemetry?.liveComponent?.code || telemetry?.liveComponent?.name || null;
+        if (prevComponentCodeRef.current !== null && prevComponentCodeRef.current !== currentCode) {
+            setBlueCardNotifications([]);
+        }
+        prevComponentCodeRef.current = currentCode;
+    }, [telemetry.liveComponent]);
+
+    // Click outside handler for notification dropdown
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (notifBellRef.current && !notifBellRef.current.contains(e.target)) {
+                setShowBlueCardNotif(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     useEffect(() => {
         const interval = setInterval(() => {
             setDate(dayjs().format("DD-MM-YYYY"));
@@ -1413,7 +1457,7 @@ function Operator() {
                     ? telemetry.liveOperator
                     : JSON.parse(localStorage.getItem('operator_details'));
             if (previousOperatorData) {
-                const prevValue = previousOperatorData.value || previousOperatorData; 
+                const prevValue = previousOperatorData.value || previousOperatorData;
                 const prevTs = previousOperatorData.ts || dayjs().valueOf();
                 if (prevValue.start_time) {
                     const updatedPrevOperator = {
@@ -1556,6 +1600,338 @@ function Operator() {
         });
     };
 
+    const formatBlueCardTimer = (seconds) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    };
+
+    useEffect(() => {
+        if (!blueCardTimerStart) {
+            setBlueCardElapsed(0);
+            return;
+        }
+        const interval = setInterval(() => {
+            setBlueCardElapsed(Math.floor((Date.now() - blueCardTimerStart) / 1000));
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [blueCardTimerStart]);
+
+    const showBlueCardSuccess = () => {
+        Swal.fire({
+            title: "Success",
+            text: "Blue Card has been pushed successfully",
+            icon: "success",
+            showConfirmButton: false, // remove OK button
+            timer: 1500,               // 3 seconds
+            timerProgressBar: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            width: "500px",
+            customClass: {
+                popup: "swal-wide"
+            }
+        });
+    };
+
+
+    const handleBlueCardPush = async (routeCardNo) => {
+        if (!telemetry?.liveComponent?.name
+        ) {
+            console.warn("Blue card push skipped — missing component or shots");
+            return;
+        }
+        showBlueCardSuccess();
+
+        const operator = operators.find(
+            op => String(op.id) === String(selectedOperator)
+        );
+        const payload = {
+            job_name: telemetry.jobName || "",
+            code: telemetry.jobCode || "",
+            device_name: selectedMachine || "",
+            clicked_ts: Date.now(),
+            operator_name: operator?.name || "No Operator",
+            component_starttime: telemetry?.liveComponent?.start_time,
+            route_card_no: routeCardNo || "",
+            total_shots: telemetry.totalShots ?? 0,
+            target_parts: telemetry.targetParts ?? 0,
+            shift: currentShift?.shift_no,
+
+            status: "-",
+            progress: "request",
+        };
+
+        setBlueCardLogs(prev => [...prev, payload]);
+
+        blueCardTimerRef.current = payload.clicked_ts;
+        setBlueCardTimerStart(payload.clicked_ts);
+        setBlueCardElapsed(0);
+
+        console.log("Stored in state:", payload);
+
+        const customerId = getCustomerId();
+        const deviceId = deviceNameIdJson[selectedMachine];
+
+        const telemetryPayload = {
+            ts: payload.clicked_ts,
+            values: {
+                bluecard_push: payload
+            }
+        };
+
+        await operatorTelemetry(
+            'CUSTOMER',
+            customerId,
+            telemetryPayload
+        );
+
+        try {
+            const REQUEST_KEY = "request_payload";
+            let existingRequests = [];
+            try {
+                const existing = await customerbasedshift(customerId, REQUEST_KEY);
+                const val = existing[0]?.value;
+                existingRequests = Array.isArray(val) ? val : [];
+            } catch {
+                existingRequests = [];
+            }
+            const updatedRequests = [...existingRequests, payload];
+            await shiftadd(
+                { [REQUEST_KEY]: updatedRequests, lastUpdateTs: Date.now() },
+                customerId,
+                "SERVER_SCOPE"
+            );
+            console.log("request_payload saved:", updatedRequests);
+        } catch (err) {
+            console.error("Failed to save request_payload:", err);
+        }
+    };
+
+    useEffect(() => {
+        const fetchRequestPayload = async () => {
+            try {
+                const customerId = getCustomerId();
+                const result = await customerbasedshift(customerId, "request_payload");
+                const val = result[0]?.value;
+                setRequestPayload(Array.isArray(val) ? val : []);
+            } catch (err) {
+                console.error("request_payload fetch failed:", err);
+                setRequestPayload([]);
+            }
+        };
+
+        fetchRequestPayload();
+        const poll = setInterval(fetchRequestPayload, 5000);
+        return () => clearInterval(poll);
+    }, []);
+
+    useEffect(() => {
+        const prev = prevRequestPayloadRef.current;
+        const wasPending = prev.find(item => item.device_name === selectedMachine);
+        const isStillPending = requestPayload.find(item => item.device_name === selectedMachine);
+
+        if (wasPending && !isStillPending) {
+            const fetchResponse = async () => {
+                try {
+                    const from = wasPending.clicked_ts - 1000;
+                    const to = wasPending.clicked_ts + 1000;
+                    const data = await telemetrykeydata(
+                        cleanCustomerId(customerId1),
+                        "CUSTOMER",
+                        "bluecard_push",
+                        from,
+                        to
+                    );
+                    const entries = (data?.bluecard_push || [])
+                        .map(p => {
+                            try {
+                                return typeof p.value === "string" ? JSON.parse(p.value) : p.value;
+                            } catch { return null; }
+                        })
+                        .filter(e => e && e.device_name === wasPending.device_name && e.progress === "completed");
+
+                    if (entries.length > 0) {
+                        setBlueCardResponseData(entries[0]);
+                        setOpenBlueCardResponse(true);
+                        setBlueCardTimerStart(null);
+                        setBlueCardElapsed(0);
+                        blueCardTimerRef.current = null;
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch blue card response:", err);
+                }
+            };
+            fetchResponse();
+        }
+
+        prevRequestPayloadRef.current = requestPayload;
+    }, [requestPayload]);
+
+    useEffect(() => {
+        let blinkInterval;
+
+        const hasPending = requestPayload.some(
+            (item) => item.device_name === selectedMachine
+        );
+
+        if (hasPending) {
+            setIsBlinking(true);
+            setBlueCardText("Blue Card Pushed");
+
+            blinkInterval = setInterval(() => {
+                setIsBlinking((prev) => !prev);
+            }, 500);
+        } else {
+            setIsBlinking(false);
+            setBlueCardText("Blue Card Push");
+        }
+
+        return () => clearInterval(blinkInterval);
+    }, [requestPayload, selectedMachine]);
+
+    useEffect(() => {
+        const machineData = requestPayload.find(
+            item => item.device_name === selectedMachine
+        );
+
+        if (!machineData) {
+            setBlueCardTimerStart(null);
+            setBlueCardElapsed(0);
+            return;
+        }
+
+        const startTime = machineData.clicked_ts;
+        setBlueCardTimerStart(startTime);
+
+        const interval = setInterval(() => {
+            setBlueCardElapsed(
+                Math.floor((Date.now() - startTime) / 1000)
+            );
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [requestPayload, selectedMachine]);
+
+    const showBlueCardConfirm = () => {
+        Swal.fire({
+            html: `
+      <div style="text-align:center;padding:10px 10px;">
+        <div
+          style="
+            width:80px;
+            height:80px;
+            border-radius:50%;
+            border:4px solid #f4c7a1;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            margin:10px auto;
+            color:#f4a261;
+            font-size:40px;
+            font-weight:bold;
+          "
+        >
+          !
+        </div>
+
+        <p style="color:#000;margin-top:10px;font-size:20px;">
+          Enter the Route Card No to push the Blue Card
+        </p>
+
+        <input
+          id="routeCardInput"
+          class="swal2-input"
+          placeholder="Enter Route Card No"
+          style="margin-top:10px;"
+        />
+      </div>
+    `,
+            showCancelButton: true,
+            confirmButtonText: "Confirm",
+            cancelButtonText: "Cancel",
+            confirmButtonColor: "#f97316",
+            cancelButtonColor: "#6b7280",
+            allowOutsideClick: false,
+            width: "420px",
+
+            didOpen: () => {
+                const input = document.getElementById("routeCardInput");
+                const confirmBtn = Swal.getConfirmButton();
+
+                confirmBtn.disabled = true;
+
+                const validateInput = () => {
+                    const value = input.value.trim();
+                    const isValid = /^[a-z0-9 ]+$/i.test(value) && value.length > 0;
+                    confirmBtn.disabled = !isValid;
+                };
+
+                input.addEventListener("input", validateInput);
+                input.addEventListener("keyup", validateInput);
+            },
+
+            preConfirm: () => {
+                const value = document.getElementById("routeCardInput").value.trim();
+                return value;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                handleBlueCardPush(result.value);
+                showBlueCardSuccess();
+            }
+        });
+    };
+
+    console.log('blue card data------------', blueCardLogs)
+    console.log('selected shift', currentShift?.shift_no)
+
+    const blinkGreenBorder = keyframes`
+  0%, 100% {
+    box-shadow:
+      inset 0 4px 0 0 rgba(21,128,61,0.9),
+      inset -4px 0 0 0 rgba(21,128,61,0.9),
+      inset 0 -4px 0 0 rgba(21,128,61,0.9),
+      inset 4px 0 0 0 rgba(21,128,61,0.9),
+      0 0 14px rgba(21,128,61,0.6);
+  }
+  50% {
+    box-shadow:
+      inset 0 4px 0 0 rgba(21,128,61,0.25),
+      inset -4px 0 0 0 rgba(21,128,61,0.25),
+      inset 0 -4px 0 0 rgba(21,128,61,0.25),
+      inset 4px 0 0 0 rgba(21,128,61,0.25),
+      0 0 6px rgba(21,128,61,0.25);
+  }
+`;
+
+    /* ===== DARK RED ===== */
+    const blinkRedBorder = keyframes`
+  0%, 100% {
+    box-shadow:
+      inset 0 4px 0 0 rgba(185,28,28,0.9),
+      inset -4px 0 0 0 rgba(185,28,28,0.9),
+      inset 0 -4px 0 0 rgba(185,28,28,0.9),
+      inset 4px 0 0 0 rgba(185,28,28,0.9),
+      0 0 14px rgba(185,28,28,0.6);
+  }
+  50% {
+    box-shadow:
+      inset 0 4px 0 0 rgba(185,28,28,0.25),
+      inset -4px 0 0 0 rgba(185,28,28,0.25),
+      inset 0 -4px 0 0 rgba(185,28,28,0.25),
+      inset 4px 0 0 0 rgba(185,28,28,0.25),
+      0 0 6px rgba(185,28,28,0.25);
+  }
+`;
+
+    const totalShotsNum = Number(telemetry?.totalShots || 0);
+    const blueCardPushCount = blueCardLogs.filter(log => log.device_name === selectedMachine &&
+        log.component === telemetry.jobName).length;
+    const isBlueCardLimitReached = blueCardPushCount >= totalShotsNum && totalShotsNum != 0;
+    console.log('telemetry', telemetry)
+
     return (
         <div className="operator-screen">
             <div className="header">
@@ -1578,6 +1954,87 @@ function Operator() {
                         <p className='date-label'>Time: </p>
                         <p className='date-label'>{time}</p>
                     </div>
+
+                    {/* Blue Card Notification Bell */}
+                                        {isPMIBlueCardPage && (
+
+                    <div ref={notifBellRef} style={{ position: 'relative', marginLeft: '16px', cursor: 'pointer' }}>
+                        <div onClick={() => setShowBlueCardNotif(prev => !prev)} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <FaBell size={22} style={{ color: '#6b7280' }} />
+                            {blueCardNotifications.length > 0 && (
+                                <span style={{
+                                    position: 'absolute', top: -6, right: -6,
+                                    background: '#F99022', color: 'white',
+                                    borderRadius: '50%', width: 18, height: 18,
+                                    fontSize: 11, fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    lineHeight: 1,
+                                }}>
+                                    {blueCardNotifications.length}
+                                </span>
+                            )}
+                        </div>
+
+                        {showBlueCardNotif && (
+                            <div style={{
+                                position: 'absolute', top: '110%', right: 0, zIndex: 1100,
+                                background: 'white', border: '1px solid #e5e7eb',
+                                borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+                                minWidth: 320, maxHeight: 360, overflowY: 'auto',
+                            }}>
+                                <div style={{ padding: '10px 16px', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #f3f4f6', color: '#111827' }}>
+                                    Blue Card Responses
+                                    {telemetry?.liveComponent?.name && (
+                                        <span style={{ fontWeight: 400, fontSize: 12, color: '#6b7280', marginLeft: 8 }}>
+                                            ({telemetry.liveComponent.name})
+                                        </span>
+                                    )}
+                                </div>
+                                {blueCardNotifications.length === 0 ? (
+                                    <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+                                        No responses yet for this component
+                                    </div>
+                                ) : (
+                                    [...blueCardNotifications].reverse().map((n, i) => {
+                                        const relTime = (() => {
+                                            if (!n.receivedAt) return '';
+                                            const diff = Math.floor((Date.now() - n.receivedAt) / 1000);
+                                            if (diff < 60) return 'Just now';
+                                            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+                                            return `${Math.floor(diff / 3600)}h ago`;
+                                        })();
+                                        return (
+                                            <div key={i} style={{
+                                                padding: '10px 16px', borderBottom: '1px solid #f3f4f6',
+                                                background: i === 0 ? '#fafafa' : 'white',
+                                            }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                                                    <span style={{ fontWeight: 600, fontSize: 14, color: n.status === 'OK' ? '#16a34a' : '#dc2626' }}>
+                                                        {n.status === 'OK' ? '✓ Approved' : '✗ Rejected'} — {n.device_name || '-'}
+                                                    </span>
+                                                    <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', marginLeft: 8 }}>
+                                                        {relTime}
+                                                    </span>
+                                                </div>
+                                                {n.status === 'NOK' && n.reason && (
+                                                    <div style={{ fontSize: 12, color: '#374151', marginBottom: 2 }}>
+                                                        <strong>Reason:</strong> {Array.isArray(n.reason) ? n.reason.join(', ') : n.reason}
+                                                    </div>
+                                                )}
+                                                {n.status === 'NOK' && n.remarks && n.remarks !== '-' && (
+                                                    <div style={{ fontSize: 12, color: '#374151' }}>
+                                                        <strong>Remark:</strong> {n.remarks}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        )}
+                    </div>    
+                                        )}
+
                 </div>
             </div>
             <div className="header-2" style={{ background: telemetry.machineColor }}>
@@ -1673,7 +2130,7 @@ function Operator() {
                                         return <span style={{ color: "#f99022" }}>No operator assigned</span>;
                                     }
                                     const operator = operators.find(op => String(op.id) === String(selected));
-                                    return operator ? `${operator.id} - ${operator.name}`  : "";
+                                    return operator ? `${operator.id} - ${operator.name}` : "";
                                 }}
                                 disableUnderline
                             >
@@ -1694,6 +2151,7 @@ function Operator() {
                         <p className="job-code">{telemetry.jobCode || ""}</p>
                         <p className="job-name">{telemetry.jobName || "—"}</p>
                     </div>
+
                     <div className="time-wrapper">
                         <div className="time-item">
                             <span>Cycle Time</span>
@@ -1704,13 +2162,406 @@ function Operator() {
                             <p>{telemetry?.liveComponent?.handling_time || "00:00:00"}</p>
                         </div>
                     </div>
+
                     <div className="actual-wrapper">
                         <p className="actual-label">Actual vs Target</p>
                         <p className="actual-value">
                             {telemetry.totalShots ?? 0}/{telemetry.targetParts ?? 0}
                         </p>
                     </div>
+
+                    {/* Blue card button */}
+                    {isPMIBlueCardPage && (
+                        <div
+                            className="button-wrapper"
+                            style={{
+                                padding: "12px",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                            }}
+                        >
+                            <button
+                                className={`blue-card-button ${isBlinking ? "blink" : ""}`}
+                                style={{
+                                    fontSize: "20px",
+                                    cursor: (blueCardText === "Blue Card Pushed" || !telemetry.jobName || telemetry.jobName === "Route card not assigned")
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    opacity: (blueCardText === "Blue Card Pushed" || !telemetry.jobName || telemetry.jobName === "Route card not assigned") ? 0.7 : 1
+                                }}
+                                onClick={() => {
+                                    if (
+                                        blueCardText === "Blue Card Pushed" ||
+                                        !telemetry.jobName ||
+                                        telemetry.jobName === "Route card not assigned"
+                                    ) {
+                                        return;
+                                    }
+
+                                    // ⭐ IMPORTANT: show error when limit reached
+                                    if (isBlueCardLimitReached) {
+                                        Swal.fire({
+                                            icon: "error",
+                                            title: "Limit Reached",
+                                            text: `Blue Card can only be pushed ${telemetry.totalShots} times.`,
+                                            confirmButtonColor: "#d33",
+                                        });
+                                        return;
+                                    }
+
+                                    showBlueCardConfirm();
+                                }}
+                                disabled={
+                                    blueCardText === "Blue Card Pushed" ||
+                                    !telemetry.jobName ||
+                                    telemetry.jobName === "Route card not assigned"
+                                }
+                            >
+                                {blueCardText}
+                            </button>
+
+                            {blueCardTimerStart && (
+                                <div
+                                    style={{
+                                        marginTop: "10px",
+                                        fontSize: "16px",
+                                        fontWeight: "600",
+                                        color: "#cc5500",
+                                    }}
+                                >
+                                    Waiting Time: {formatBlueCardTimer(blueCardElapsed)}
+                                </div>
+                            )}
+                            <style jsx>{`
+  .blue-card-button {
+    position: relative;
+    padding: 12px 24px;
+    font-size: 16px;
+    border-radius: 50px; /* pill shape */
+    border: none;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    z-index: 0;
+    overflow: visible;
+  }
+
+  /* Ripple layers radiating outward */
+  .blue-card-button.blink::before,
+  .blue-card-button.blink::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background-color: rgba(0, 123, 255, 0.4);
+    z-index: -1;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.7;
+  }
+
+  /* First layer */
+  .blue-card-button.blink::before {
+    animation: pulse1 2s infinite;
+  }
+
+  /* Second layer with staggered start and longer duration */
+  .blue-card-button.blink::after {
+    animation: pulse2 3s infinite;
+  }
+
+  @keyframes pulse1 {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0.7;
+    }
+    70% {
+      transform: translate(-50%, -50%) scale(2);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2);
+      opacity: 0;
+    }
+  }
+
+  @keyframes pulse2 {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0.6;
+    }
+    70% {
+      transform: translate(-50%, -50%) scale(2.5);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2.5);
+      opacity: 0;
+    }
+  }
+`}</style>
+                        </div>
+                    )}
                 </div>
+
+                <Dialog
+                    open={openBlueCardConfirm}
+                    onClose={() => setOpenBlueCardConfirm(false)}
+                    PaperProps={{
+                        sx: {
+                            borderRadius: "8px",
+                            padding: "10px 20px",
+                            minWidth: "420px",
+                            textAlign: "center",
+                        },
+                    }}
+                >
+                    <DialogContent>
+                        <div
+                            style={{
+                                width: 80,
+                                height: 80,
+                                borderRadius: "50%",
+                                border: "4px solid #f4c7a1",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                margin: "10px auto",
+                                color: "#f4a261",
+                                fontSize: 40,
+                                fontWeight: "bold",
+                            }}
+                        >
+                            !
+                        </div>
+                        <p style={{ color: "#555", marginBottom: 20, fontSize: "20px" }}>
+                            Enter the Route Card No to push Blue Card
+                        </p>
+
+                        <div style={{ display: "flex", justifyContent: "center", gap: 12, fontSize: "14px" }}>
+                            <Button
+                                variant="contained"
+                                sx={{
+                                    backgroundColor: "#f97316",
+                                    padding: "10px 20px",
+                                    "&:hover": { backgroundColor: "#ea580c" },
+                                }}
+                                onClick={() => {
+                                    setOpenBlueCardConfirm(false);   // close confirm dialog
+                                    handleBlueCardPush();            // push data
+                                    setOpenBlueCardSuccess(true);    // open success dialog
+                                }}
+                            >
+                                Confirm
+                            </Button>
+
+                            <Button
+                                variant="contained"
+                                sx={{
+                                    backgroundColor: "#6b7280",
+                                    padding: "6px 20px",
+                                    "&:hover": { backgroundColor: "#4b5563" },
+                                }}
+                                onClick={() => setOpenBlueCardConfirm(false)}
+                            >
+                                cancel
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={openBlueCardResponse} disableEscapeKeyDown
+                    onClose={(event, reason) => {
+                        if (reason !== "backdropClick") {
+                            setOpenBlueCardResponse(false);
+                        }
+                    }}
+                    PaperProps={{
+                        sx: {
+                            borderRadius: "12px",
+                            minWidth: "380px",
+                            textAlign: "center",
+                            overflow: "hidden",
+                            background: blueCardResponseData?.status === "OK" ? "#0b9348" : "#fd3f3f",
+                        },
+                    }}
+                >
+
+                    <DialogContent
+                        sx={{
+                            padding: "28px 32px 20px",
+                            background: "#ffffff",
+                            textAlign: "center",
+
+                            borderRadius: "12px",
+                            animation:
+                                blueCardResponseData?.status === "OK"
+                                    ? `${blinkGreenBorder} 1.5s ease-in-out infinite`
+                                    : `${blinkRedBorder} 1.5s ease-in-out infinite`,
+                        }}
+                    >
+                        {/* Icon */}
+                        <div
+                            style={{
+                                width: 80,
+                                height: 80,
+                                borderRadius: "50%",
+                                background:
+                                    blueCardResponseData?.status === "OK" ? "#16a34a" : "#dc2626",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                margin: "0 auto 16px",
+                                color: "#fff",
+                                fontSize: 40,
+                                fontWeight: "bold",
+                            }}
+                        >
+                            {blueCardResponseData?.status === "OK" ? "✓" : "✗"}
+                        </div>
+
+                        {/* Status heading */}
+                        <h3
+                            style={{
+                                margin: "0 0 6px",
+                                fontSize: "23px",
+                                fontWeight: 700,
+                                color:
+                                    blueCardResponseData?.status === "OK" ? "#16a34a" : "#dc2626",
+                            }}
+                        >
+                            {blueCardResponseData?.status === "OK"
+                                ? "Blue Card Approved"
+                                : "Blue Card Rejected"}
+                        </h3>
+
+                        {/* Machine */}
+                        <p style={{ marginBottom: "6px", fontSize: "16px", color: "#374151" }}>
+                            <strong>Machine:</strong>{" "}
+                            <span
+                                style={{
+                                    color:
+                                        blueCardResponseData?.status === "OK"
+                                            ? "#16a34a"
+                                            : "#dc2626",
+                                    fontWeight: 600
+                                }}
+                            >
+                                {blueCardResponseData?.device_name || "-"}
+                            </span>
+                        </p>
+
+                        {/* Time */}
+                        {blueCardResponseData?.end_time && (
+                            <p style={{ marginBottom: "16px", fontSize: "14px", color: "#374151" }}>
+                                at{" "}
+                                <strong
+                                    style={{
+                                        color:
+                                            blueCardResponseData?.status === "OK"
+                                                ? "#16a34a"
+                                                : "#dc2626",
+                                    }}
+                                >
+                                    {new Date(blueCardResponseData.end_time).toLocaleTimeString(
+                                        "en-IN",
+                                        {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                            second: "2-digit",
+                                            hour12: true,
+                                        }
+                                    )}
+                                </strong>
+                            </p>
+                        )}
+
+                        {/* NOK details */}
+                        {blueCardResponseData?.status === "NOK" && (
+                            <div
+                                style={{
+                                    background: "#ffffff",
+                                    border:
+                                        blueCardResponseData?.status === "OK"
+                                            ? "1px solid #bbf7d0"
+                                            : "1px solid #f04343",
+                                    borderRadius: "8px",
+                                    padding: "14px 16px",
+                                    textAlign: "left",
+                                    marginBottom: "16px",
+                                }}
+                            >
+                                <p style={{ margin: "0 0 8px", fontSize: "14px", color: "#374151" }}>
+                                    <strong>Reason:</strong>{" "}
+                                    <span
+                                        style={{
+                                            color:
+                                                blueCardResponseData?.status === "OK"
+                                                    ? "#16a34a"
+                                                    : "#dc2626",
+                                            fontWeight: 600,
+                                            wordBreak: "break-word",
+                                            overflowWrap: "anywhere",
+                                            whiteSpace: "normal",
+                                        }}
+                                    >
+                                        {Array.isArray(blueCardResponseData?.reason)
+                                            ? blueCardResponseData.reason.join(", ")
+                                            : blueCardResponseData?.reason || "Not provided"}
+                                    </span>
+                                </p>
+
+                                <p style={{ margin: 0, fontSize: "14px", color: "#374151" }}>
+                                    <strong>Remark:</strong>{" "}
+                                    <span
+                                        style={{
+                                            color:
+                                                blueCardResponseData?.status === "OK"
+                                                    ? "#16a34a"
+                                                    : "#dc2626",
+                                            fontWeight: 600,
+                                            wordBreak: "break-word",
+                                            overflowWrap: "anywhere",
+                                            whiteSpace: "normal",
+                                        }}
+                                    >
+                                        {blueCardResponseData?.remarks &&
+                                            blueCardResponseData.remarks !== "-"
+                                            ? blueCardResponseData.remarks
+                                            : "Not provided"}
+                                    </span>
+                                </p>
+                            </div>
+                        )}
+
+                        <Button
+                            variant="contained"
+                            sx={{
+                                marginTop: 1,
+                                backgroundColor:
+                                    blueCardResponseData?.status === "OK" ? "#16a34a" : "#dc2626",
+                                "&:hover": {
+                                    backgroundColor:
+                                        blueCardResponseData?.status === "OK" ? "#15803d" : "#b91c1c",
+                                },
+                                minWidth: 120,
+                            }}
+                            onClick={() => {
+                                if (blueCardResponseData) {
+                                    setBlueCardNotifications(prev => [...prev, { ...blueCardResponseData, receivedAt: Date.now() }]);
+                                }
+                                setOpenBlueCardResponse(false);
+                            }}
+                        >
+                            OK
+                        </Button>
+                    </DialogContent>
+                </Dialog>
+
             </div>
             <div className="footer1">
                 <div className="footer-left" onClick={() => handleRejectParts(deviceNameIdJson[selectedMachine])}>
@@ -1817,6 +2668,8 @@ function Operator() {
                 </DialogActions>
             </Dialog>
             {confirmType && handleConfirmAlert()}
+
+            <DynamicSlidingKeyboard touchEnabled={true} />
         </div>
     );
 }

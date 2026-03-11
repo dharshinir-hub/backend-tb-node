@@ -1,5 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Tooltip, IconButton, FormControl, InputLabel, Select, MenuItem, Chip, Autocomplete, TextField } from '@mui/material';
+import { useState, useEffect, useMemo } from 'react';
+import {
+    Tooltip,
+    IconButton,
+    Chip,
+    Autocomplete,
+    TextField,
+    ToggleButtonGroup,
+    ToggleButton
+} from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -11,85 +19,122 @@ import ReasonEdit from './reasonedit';
 import { cleanCustomerId } from '../../Services/app/operatorservice';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
-const ReasonRegistration = () => {
-    // Dialog state
+const ReasonRegistration = ({
+    reasonKey = 'reason',
+    groupKey = 'reasongroups',
+    title = 'Reason Registration',
+    addTooltip = 'Add Reason',
+    isQuality = false,
+}) => {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editDialogData, setEditDialogData] = useState(null);
     const [dialogOpenCount, setDialogOpenCount] = useState(0);
     const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
-
-    // Data source for reasons
     const [datasource, setDatasource] = useState([]);
-    const customerId = localStorage.getItem('CustomerID');
     const [filteredDataSource, setFilteredDataSource] = useState([]);
     const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
+    const [sourceTypeFilter, setSourceTypeFilter] = useState('all');
 
-    useEffect(() => {
-        if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
-            fetchReasonGroups();
-        }
-    }, []);
-
-       useEffect(() => {
-        if (selectedGroupFilter === 'all') {
-            setFilteredDataSource(datasource);
-        } else {
-            const filtered = datasource.filter(item => 
-                item.group === selectedGroupFilter
-            );
-            setFilteredDataSource(filtered);
-        }
-    }, [datasource, selectedGroupFilter]);
+    const customerId = localStorage.getItem('CustomerID');
 
     const fetchReasonGroups = async () => {
-        const key = 'reasongroups';
         try {
-            const data = await customerbasedshift(customerId, key);
-            const allReasonGroups = data[0]?.value || [];
-            const mappedGroups = allReasonGroups.map((item) => ({
-                value: item.groupName,
-                label: item.groupName,
-            }));
-            setReasonGroupOptions(mappedGroups);
-        } catch (error) {
-            console.error("Error fetching reason groups:", error);
+            const [groupData, qualityGroupData] = await Promise.all([
+                customerbasedshift(customerId, groupKey),
+                customerbasedshift(customerId, 'qualityreasongroups'),
+            ]);
+            const groups = groupData?.[0]?.value || [];
+            const qualityGroups = qualityGroupData?.[0]?.value || [];
+            const allGroups = [...groups, ...qualityGroups];
+            const seen = new Set();
+            const mapped = allGroups
+                .filter((item) => {
+                    if (seen.has(item.groupName)) return false;
+                    seen.add(item.groupName);
+                    return true;
+                })
+                .map((item) => ({ value: item.groupName, label: item.groupName }));
+            setReasonGroupOptions(mapped);
+        } catch (err) {
+            console.error('Error fetching reason groups:', err);
             setReasonGroupOptions([]);
         }
     };
 
-    // Open/close handlers for Add dialog
+    const getReasons = async () => {
+        try {
+            const [reasonData, qualityData] = await Promise.all([
+                customerbasedshift(customerId, 'reason'),
+                customerbasedshift(customerId, 'qualityreason'),
+            ]);
+
+            const reasons = (reasonData?.[0]?.value || []).map(r => ({
+                ...r,
+                sourceType: 'reason'
+            }));
+
+            const qualityReasons = (qualityData?.[0]?.value || []).map(r => ({
+                ...r,
+                sourceType: 'qualityreason'
+            }));
+
+            const allReasons = [...reasons, ...qualityReasons];
+
+            setDatasource(allReasons);
+            setFilteredDataSource(allReasons);
+        } catch (error) {
+            console.error('Error fetching reasons:', error);
+            setDatasource([]);
+            setFilteredDataSource([]);
+        }
+    };
+
+    useEffect(() => {
+        if (!customerId) return;
+        getReasons();
+        if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+            fetchReasonGroups();
+        }
+    }, [reasonKey, customerId]);
+
+    useEffect(() => {
+        let filtered = datasource;
+        if (sourceTypeFilter !== 'all') {
+            filtered = filtered.filter((item) => item.sourceType === sourceTypeFilter);
+        }
+        if (selectedGroupFilter !== 'all') {
+            filtered = filtered.filter((item) => item?.group === selectedGroupFilter);
+        }
+        setFilteredDataSource(filtered);
+    }, [datasource, selectedGroupFilter, sourceTypeFilter]);
+
     const handleOpenAddDialog = () => {
         setIsAddDialogOpen(true);
-        setDialogOpenCount(prevCount => prevCount + 1);
+        setDialogOpenCount((c) => c + 1);
     };
+
     const handleCloseAddDialog = (event, reason) => {
-        if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
-            return;
-        }
+        if (reason === 'backdropClick' || reason === 'escapeKeyDown') return;
         setIsAddDialogOpen(false);
-        setDialogOpenCount(prevCount => Math.max(0, prevCount - 1)); // Ensure count doesn't go below 0
-        getShifts(); // Refresh data after add/close
+        setDialogOpenCount((c) => Math.max(0, c - 1));
+        getReasons();
     };
     const handleOpenEditDialog = (rowData) => {
-        setEditDialogData(rowData); // Set the data for the specific row being edited
+        setEditDialogData(rowData);
         setIsEditDialogOpen(true);
-        setDialogOpenCount(prevCount => prevCount + 1);
+        setDialogOpenCount((c) => c + 1);
     };
-    // Open/close handlers for Edit dialog
-    const handleCloseEditDialog = (event, reason) => {
-        if (reason && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
-            return;
-        }
-        setIsEditDialogOpen(false);
-        setEditDialogData(null); // Clear the data when dialog closes
-        setDialogOpenCount(prevCount => Math.max(0, prevCount - 1)); // Ensure count doesn't go below 0
-        getShifts(); // Refresh data after edit/close
-    };
-  
 
-    // Delete reason handler
-    const deleteshift = (row) => {
+    const handleCloseEditDialog = (event, reason) => {
+        if (reason === 'backdropClick' || reason === 'escapeKeyDown') return;
+        setIsEditDialogOpen(false);
+        setEditDialogData(null);
+        setDialogOpenCount((c) => Math.max(0, c - 1));
+        getReasons();
+    };
+
+    const deleteReason = (row) => {
         Swal.fire({
             title: 'Are you sure you want to delete this record?',
             icon: 'warning',
@@ -100,213 +145,248 @@ const ReasonRegistration = () => {
             allowOutsideClick: false,
             allowEscapeKey: false
         }).then(async (result) => {
-            if (result.isConfirmed) {
-                try {
-                    // Fetch the current list of reasons from the backend
-                    const key = 'reason';
-                    const currentDataResponse = await customerbasedshift(customerId, key);
-                    const allReasons = currentDataResponse[0]?.value || [];
+            if (!result.isConfirmed) return;
 
-                    // Filter out the reason to be deleted based on its ID
-                    const updatedReasons = allReasons.filter(reason => {
-                        // Handle both string and object id
-                        if (typeof reason.id === 'object' && reason.id?.$oid && typeof row.id === 'object' && row.id?.$oid) {
-                            return reason.id.$oid !== row.id.$oid;
-                        }
-                        return reason.id !== row.id;
-                    });
+            try {
+                // ✅ reliable source detection
+                const targetKey =
+                    row?.sourceType === 'qualityreason'
+                        ? 'qualityreason'
+                        : 'reason';
 
-                    // Prepare the payload to send back to the API
-                    const formData = {
-                        reason: updatedReasons,
-                        lastUpdateTs: Date.now()
-                    };
+                const currentData = await customerbasedshift(customerId, targetKey);
+                const allReasons = currentData?.[0]?.value || [];
 
-                    const scope = 'SERVER_SCOPE';
-
-                    // Call the API to update the reasons (effectively deleting the selected one)
-                    const response = await shiftadd(formData, customerId, scope);
-
-                    if (response.msg) {
-                        Swal.fire('Deleted!', response.msg, 'success');
-                    } else {
-                        Swal.fire('Deleted!', 'Your reason has been deleted successfully.', 'success');
+                const updatedReasons = allReasons.filter((reason) => {
+                    if (
+                        typeof reason.id === 'object' &&
+                        reason.id?.$oid &&
+                        typeof row.id === 'object' &&
+                        row.id?.$oid
+                    ) {
+                        return reason.id.$oid !== row.id.$oid;
                     }
-                    getShifts();
-                } catch (error) {
-                    console.error('Error deleting reason:', error);
-                    Swal.fire('Error!', 'Failed to delete the reason: ' + error.message, 'error');
-                }
-            } else {
-                Swal.fire('Cancelled');
+                    return reason.id !== row.id;
+                });
+
+                const formData = {
+                    [targetKey]: updatedReasons,
+                    lastUpdateTs: Date.now()
+                };
+
+                const scope = 'SERVER_SCOPE';
+                const response = await shiftadd(formData, customerId, scope);
+
+                Swal.fire(
+                    'Deleted!',
+                    response?.msg || 'Deleted successfully.',
+                    'success'
+                );
+
+                getReasons();
+            } catch (error) {
+                console.error('Error deleting reason:', error);
+                Swal.fire('Error!', error.message || 'Delete failed', 'error');
             }
         });
     };
 
-    // Fetch reasons from backend
-    const getShifts = async () => {
-        const key = 'reason';
-        customerbasedshift(customerId, key)
-            .then(async (data) => {
-                const allReasons = data[0]?.value || [];
-                setDatasource(allReasons);
-                setFilteredDataSource(allReasons); 
-            })
-            .catch(error => {
-                console.error("Error fetching reasons:", error);
-                setDatasource([]);
-                setFilteredDataSource([]);
-            });
-    };
-
-    useEffect(() => {
-        getShifts();
-    }, []);
-
-    const handleFilterChange = (event) => {
-        setSelectedGroupFilter(event.target.value);
-    };
+    const sortedReasons = useMemo(() => {
+        return filteredDataSource
+            ?.slice()
+            .sort((a, b) => Number(a?.code || 0) - Number(b?.code || 0));
+    }, [filteredDataSource]);
 
     return (
-        <div className="pages">
+        <div className="pages" style={{
+            paddingBlockStart: '40px', paddingLeft: "10px"
+        }}>
             <div className="pagecontents">
-                <div className="left-labels">
+                <div className="left-labels" style={{
+                    padding: '1rem 2rem 1rem 1rem',
+                }}>
                     <div className="shift-content">
-                        <h5>Reason Registration</h5>
-                        <div className="add_new">
-                            <Tooltip title="Add Reason">
-                                <IconButton className="circle" onClick={handleOpenAddDialog}>
-                                    <AddIcon />
-                                </IconButton>
-                            </Tooltip>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                width: "100%",
+                            }}
+                        >
+                            {/* LEFT — Title + Add */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <h5 style={{ margin: 0 }}>{title}</h5>
+
+                                <Tooltip title={addTooltip}>
+                                    <IconButton
+                                        className="circle"
+                                        onClick={handleOpenAddDialog}
+                                        sx={{
+                                            backgroundColor: "#F69320",
+                                            color: "#945307",
+                                            width: 32,
+                                            height: 32,
+                                            "&:hover": {
+                                                backgroundColor: "#e6841c",
+                                            },
+                                        }}
+                                    >
+                                        <AddIcon fontSize="medium" />
+                                    </IconButton>
+                                </Tooltip>
+                            </div>
+
+                            {/* RIGHT — Filters */}
+                            {(
+                               cleanCustomerId(customerId) === CUSTOMER_IDS.PMI 
+                            ) && (
+                                    <ToggleButtonGroup
+                                        value={sourceTypeFilter}
+                                        exclusive
+                                        onChange={(_, val) => {
+                                            if (val !== null) setSourceTypeFilter(val);
+                                        }}
+                                        size="small"
+                                    >
+                                        <ToggleButton value="all">All</ToggleButton>
+                                        <ToggleButton value="reason">Reason</ToggleButton>
+                                        <ToggleButton value="qualityreason">
+                                            Quality Reason
+                                        </ToggleButton>
+                                    </ToggleButtonGroup>
+                                )}
                         </div>
                     </div>
-                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            marginBottom: '20px',
-                            alignItems: 'center'
-                        }}>
+
+                    {cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && (
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                marginBottom: '20px'
+                            }}
+                        >
                             <Autocomplete
-                                id="filter-group-autocomplete"
-                                options={[{ label: 'All Groups', value: 'all' }, ...reasonGroupOptions]}
-                                getOptionLabel={(option) => option.label}
+                                options={[
+                                    { label: 'All Groups', value: 'all' },
+                                    ...reasonGroupOptions
+                                ]}
+                                getOptionLabel={(o) => o.label}
                                 value={
-                                    reasonGroupOptions.find((opt) => opt.value === selectedGroupFilter) ||
-                                    (selectedGroupFilter === 'all' ? { label: 'All Groups', value: 'all' } : null)
+                                    selectedGroupFilter === 'all'
+                                        ? { label: 'All Groups', value: 'all' }
+                                        : reasonGroupOptions.find(
+                                            (opt) => opt.value === selectedGroupFilter
+                                        ) || null
                                 }
-                                onChange={(event, newValue) => {
-                                    const value = newValue ? newValue.value : 'all';
-                                    handleFilterChange({ target: { value } });
-                                }}
+                                onChange={(_, newValue) =>
+                                    setSelectedGroupFilter(newValue?.value || 'all')
+                                }
                                 renderInput={(params) => (
                                     <TextField
                                         {...params}
                                         label="Filter by Group"
                                         variant="outlined"
-                                        InputLabelProps={{
-                                            sx: {
-                                                color: 'black',
-                                                '&.Mui-focused': { color: 'orange' },
-                                            },
-                                        }}
-                                        sx={{
-                                            minWidth: 300,
-                                            '& .MuiOutlinedInput-root': {
-                                                '& fieldset': { borderColor: 'black' },
-                                                '&:hover fieldset': { borderColor: 'black' },
-                                                '&.Mui-focused fieldset': { borderColor: 'orange' },
-                                                '& .MuiOutlinedInput-input': { color: 'black' },
-                                                '&.Mui-focused .MuiOutlinedInput-input': { caretColor: 'orange' },
-                                            },
-                                        }}
+                                        sx={{ minWidth: 300 }}
                                     />
                                 )}
                             />
                         </div>
                     )}
                 </div>
-                {/* Dynamically render each reason as a card-like item */}
+
                 <div className="idle_reason_list">
-                    {Array.isArray(filteredDataSource) && filteredDataSource.length > 0 ? (
-                        filteredDataSource
-                            .slice() // Create a shallow copy to avoid mutating state
-                            .sort((a, b) => {
-                                // Ensure codes are treated as numbers for correct sorting
-                                const codeA = Number(a.code);
-                                const codeB = Number(b.code);
-                                return codeA - codeB;
-                            })
-                            .map((item, idx) => {
-                                const itemId = typeof item.id === 'object' && item.id?.$oid ? item.id.$oid : item.id || idx;
-                                return (
-                                    <div
-                                        className="idle_reason_item"
-                                        key={itemId}
-                                        data-id={item.code}
-                                    >
-                                        <div className="icons">
-                                            <span className="icon-text">{item.code}</span>
-                                        </div>
-                                        <h3 className="reason-text">{item.reason}</h3>
-                                        {item?.group && (
-                                            <Chip
-                                                label={item.group}
-                                                size="small"
-                                                variant="outlined"
-                                                className="group-chip"
-                                            />
-                                        )}
-                                        <div className="user_action">
-                                            <ul>
-                                                <li>
-                                                    <Tooltip title="Edit Reason">
-                                                        <IconButton onClick={() => handleOpenEditDialog(item)}>
-                                                            <EditIcon sx={{ color: 'black' }} />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                </li>
-                                                <li>
-                                                    <Tooltip title="Delete Reason">
-                                                        <IconButton onClick={() => deleteshift(item)}>
-                                                            <DeleteIcon sx={{ color: 'black' }} />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                </li>
-                                            </ul>
-                                        </div>
+                    {sortedReasons?.length > 0 ? (
+                        sortedReasons.map((item, idx) => {
+                            const itemId =
+                                typeof item.id === 'object' && item.id?.$oid
+                                    ? item.id.$oid
+                                    : item.id || idx;
+
+                            return (
+                                <div
+                                    className="idle_reason_item"
+                                    key={itemId}
+                                    style={{ borderColor: '#FFA500' }}
+                                >
+                                    <div className="icons">
+                                        <span className="icon-text">{idx + 1}</span>
                                     </div>
-                                );
-                            })
+                                    <h3 className="reason-text">{item.reason}</h3>
+
+                                    {item?.group && (
+                                        <Chip
+                                            label={item.group}
+                                            size="small"
+                                            variant="outlined"
+                                            className="group-chip"
+                                            color={item.sourceType === 'qualityreason' ? 'secondary' : 'default'}
+                                        />
+                                    )}
+
+                                    <div className="user_action">
+                                        <ul>
+                                            <li>
+                                                <Tooltip title="Edit">
+                                                    <IconButton
+                                                        onClick={() => handleOpenEditDialog(item)}
+                                                    >
+                                                        <EditIcon sx={{ color: 'black' }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </li>
+                                            <li>
+                                                <Tooltip title="Delete">
+                                                    <IconButton onClick={() => deleteReason(item)}>
+                                                        <DeleteIcon sx={{ color: 'black' }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            );
+                        })
                     ) : (
-                        <div style={{ margin: '2rem', color: '#888' }}>No reasons found.</div>
+                        <div
+                            style={{
+                                margin: '3rem 0',
+                                textAlign: 'center',
+                                color: '#888',
+                                fontWeight: 500
+                            }}
+                        >
+                            No reasons found.
+                        </div>
                     )}
                 </div>
             </div>
 
-            {/* Add Dialog */}
             <ReasonAdd
                 open={isAddDialogOpen}
                 handleClose={handleCloseAddDialog}
-                handleAdd={handleCloseAddDialog}
                 dialogOpenCount={dialogOpenCount}
                 datasource={datasource}
                 customerId={customerId}
                 setDatasource={setDatasource}
+                reasonKey={reasonKey}
+                groupKey={groupKey}
+                isQuality={isQuality}
             />
 
-            {/* Edit Dialog */}
             {isEditDialogOpen && editDialogData && (
                 <ReasonEdit
                     open={isEditDialogOpen}
                     handleClose={handleCloseEditDialog}
-                    handleAdd={handleCloseEditDialog}
                     dialogData={editDialogData}
                     dialogOpenCount={dialogOpenCount}
                     datasource={datasource}
                     customerId={customerId}
                     setDatasource={setDatasource}
+                    reasonKey={reasonKey}
+                    groupKey={groupKey}
+                    isQuality={isQuality}
                 />
             )}
         </div>

@@ -7,7 +7,6 @@ import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-// import dayjs from 'dayjs';
 import './reasonreg.css';
 import { useForm } from 'react-hook-form';
 import { convertTo24Hour } from '../Inputfield/inputfield';
@@ -16,54 +15,84 @@ import { Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
 import Autocomplete from '@mui/material/Autocomplete';
-import { cleanCustomerId, customerbasedshift } from '../../Services/app/operatorservice';
+import {
+  cleanCustomerId,
+  customerbasedshift,
+} from '../../Services/app/operatorservice';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
-export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId }) {
+export default function ReasonAdd({
+  open,
+  handleClose,
+  handleAdd,
+  dialogOpenCount,
+  datasource,
+  setDatasource,
+  customerId,
+  reasonKey = 'reason',
+  groupKey = 'reasongroups',
+  isQuality = false,
+}) {
   console.log('datasource', datasource);
-  const customDaySelectRef = useRef();
+  const resolvedGroupKey = useMemo(() => {
+    return groupKey || 'reasongroups';
+  }, [groupKey]);
 
-  const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
+  const customDaySelectRef = useRef();
+  const componentNameRef = useRef();
+
+  const dialogBackgroundColor =
+    dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
+
   const [shiftCategory, setShiftCategory] = useState([]);
   const [shiftsmode, setShiftsmode] = useState([]);
+  const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
 
-  const { register, handleSubmit, formState: { errors }, trigger, setValue, reset } = useForm({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    trigger,
+    setValue,
+    reset,
+    unregister
+  } = useForm({
     shouldFocusError: true,
-    mode: 'onBlur'
+    mode: 'onBlur',
   });
 
-  const defaultShiftForm = useMemo(() => ({
-    reason: '',
-    // code: '',
-    mode: '',
-    category: '',
-    group: ''
-  }), []);
+  const defaultShiftForm = useMemo(
+    () => ({
+      reason: '',
+      mode: '',
+      category: '',
+      group: '',
+    }),
+    []
+  );
 
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
-  const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
-  
-  useEffect(() => {
-    if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
-      fetchReasonGroups();
-    }
-  }, []);
 
   const fetchReasonGroups = async () => {
-    const key = 'reasongroups';
     try {
-      const data = await customerbasedshift(customerId, key);
-      const allReasonGroups = data[0]?.value || [];
+      const data = await customerbasedshift(customerId, resolvedGroupKey);
+      const allReasonGroups = data?.[0]?.value || [];
+
       const mappedGroups = allReasonGroups.map((item) => ({
         value: item.groupName,
         label: item.groupName,
       }));
+
       setReasonGroupOptions(mappedGroups);
     } catch (error) {
-      console.error("Error fetching reason groups:", error);
+      console.error('Error fetching reason groups:', error);
       setReasonGroupOptions([]);
     }
   };
+
+  useEffect(() => {
+    fetchReasonGroups();
+  }, [resolvedGroupKey, customerId]);
 
   useEffect(() => {
     const fallbackOptions = [
@@ -71,6 +100,7 @@ export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCoun
       { value: 'Unplanned downtime', label: 'Unplanned Downtime' },
     ];
     setShiftCategory(fallbackOptions);
+
     const fallbackOptions1 = [
       { value: 'Men', label: 'Men' },
       { value: 'Machine', label: 'Machine' },
@@ -80,12 +110,14 @@ export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCoun
       { value: 'Measurement', label: 'Measurement' },
     ];
     setShiftsmode(fallbackOptions1);
+
     if (!open) {
       reset(defaultShiftForm);
     } else {
       if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
         fetchReasonGroups();
-      } setShiftForm(defaultShiftForm);
+      }
+      setShiftForm(defaultShiftForm);
     }
   }, [open, reset, defaultShiftForm]);
 
@@ -96,69 +128,111 @@ export default function ReasonAdd({ open, handleClose, handleAdd, dialogOpenCoun
     trigger(name);
   };
 
-const onSubmit = async (data) => {
-  try {
-    const id = Math.random().toString(36).substr(2, 9);
-    let existingReasons = Array.isArray(datasource) ? [...datasource] : [];
-    let lastCode = 0;
-    if (existingReasons.length > 0) {
-      lastCode = Math.max(
-        ...existingReasons.map(item => parseInt(item.code, 10) || 0)
+  const onSubmit = async () => {
+    try {
+      const id = Math.random().toString(36).substr(2, 9);
+
+      const targetKey =
+        shiftForm.group?.toLowerCase() === "quality" ? "qualityreason" : "reason";
+
+      const normalizedReason = shiftForm.reason
+        ?.replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+      const scope = "SERVER_SCOPE";
+
+      const currentData = await customerbasedshift(customerId, targetKey);
+      let existingReasons = currentData?.[0]?.value || [];
+
+      if (typeof existingReasons === "string") {
+        existingReasons = JSON.parse(existingReasons);
+      }
+
+      if (!Array.isArray(existingReasons)) {
+        existingReasons = [];
+      }
+
+      const isDuplicate = existingReasons.some(
+        (item) => item.reason?.trim().toLowerCase() === normalizedReason
       );
-    }
-    const autoCode = lastCode + 1;
-    const reasonData = {
-      id,
-      reason: shiftForm.reason?.trim(),
-      code: String(autoCode),
-      mode: shiftForm.mode,
-      category: shiftForm.category,
-      group: shiftForm.group || null,
-    };
-    const isDuplicate = existingReasons.some(item =>
-      item.reason?.trim().toLowerCase() === reasonData.reason.toLowerCase()
-    );
-    if (isDuplicate) {
+
+      if (isDuplicate) {
+        handleClose();
+        Swal.fire("Error", "Duplicate Reason is not allowed.", "error");
+        return;
+      }
+
+      let lastCode = 0;
+
+      if (existingReasons.length > 0) {
+        lastCode = Math.max(
+          ...existingReasons.map((item) => parseInt(item.code, 10) || 0)
+        );
+      }
+
+      const autoCode = lastCode + 1;
+
+      const reasonData = {
+        id,
+        reason: shiftForm.reason?.trim(),
+        code: String(autoCode),
+        mode: shiftForm.mode,
+        category: hideCategory ? "" : shiftForm.category,
+        group: shiftForm.group || "",
+      };
+
+      existingReasons.push(reasonData);
+
+      const formData = {
+        [targetKey]: existingReasons,
+        lastUpdateTs: Date.now(),
+      };
+
+      const response = await shiftadd(formData, customerId, scope);
+
+      if (response?.msg) {
+        Swal.fire(response.msg);
+      } else {
+        Swal.fire("Reason Created Successfully");
+      }
+
       handleClose();
-      Swal.fire('Error', 'Duplicate Reason is not allowed.', 'error');
-      return;
-    }
-    existingReasons.push(reasonData);
-    const formData = {
-      reason: existingReasons,
-      lastUpdateTs: Date.now()
-    };
-    const scope = 'SERVER_SCOPE';
-    const response = await shiftadd(formData, customerId, scope);
-    if (response.msg) {
-      Swal.fire(response.msg);
-    } else {
-      Swal.fire("Reason Created Successfully");
-    }
-    handleClose();
-    reset(defaultShiftForm);
-  } catch (error) {
-    console.error('Error submitting reason data:', error);
-    Swal.fire('Error submitting reason data: ' + error.message);
-    handleClose();
-    reset(defaultShiftForm);
-  }
-};
+      reset(defaultShiftForm);
 
-
-  const componentNameRef = useRef();
+    } catch (error) {
+      console.error("Error submitting reason data:", error);
+      Swal.fire("Error submitting reason data: " + error.message);
+      handleClose();
+      reset(defaultShiftForm);
+    }
+  };
 
   useEffect(() => {
     if (open) {
       const timer = setTimeout(() => {
-        if (componentNameRef.current) {
-          componentNameRef.current.focus();
-        }
-      }, 100); // reduced delay for better responsiveness
-
-      return () => clearTimeout(timer); // cleanup on unmount
+        componentNameRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [open]);
+
+  const hideCategory =
+    [CUSTOMER_IDS.PMI].includes(cleanCustomerId(customerId)) &&
+    shiftForm.group?.toLowerCase() === "quality";
+
+  useEffect(() => {
+    if (hideCategory) {
+      unregister("category");
+      setShiftForm((prev) => ({ ...prev, category: "" }));
+    }
+  }, [hideCategory, unregister]);
+
+
+  const isSaveDisabled =
+    !shiftForm?.mode ||
+    !shiftForm?.reason?.trim() ||
+    (!hideCategory && !shiftForm?.category);
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="300px" PaperProps={{ style: { backgroundColor: dialogBackgroundColor } }}>
@@ -288,37 +362,7 @@ const onSubmit = async (data) => {
                   />
                   {errors.code && <div className="mat-error">{errors.code.message}</div>}
                 </div> */}
-                <div className={`form_field  ${errors.mode ? 'error-outline' : ''}`}>
-                  <CustomDaySelect
-                    {...register("mode", { required: "Mode is required" })}
-                    onBlur={() => trigger('mode')}
-                    ref={customDaySelectRef}
-                    name="mode"
-                    value={shiftForm.mode}
-                    onChange={handleFormChange}
-                    label="Select Mode"
-                    required={true}
-                    options={shiftsmode}
-                    error={!!errors.mode}
-                  />
-                  {errors.mode && <div className="mat-error">Mode is required</div>}
-                </div>
-                <div className={`form_field ${errors.category ? 'error-outline' : ''}`}>
-                  <CustomDaySelect
-                    {...register("category", { required: "Category is required" })}
-                    onBlur={() => trigger('category')}
-                    ref={customDaySelectRef}
-                    name="category"
-                    value={shiftForm.category}
-                    onChange={handleFormChange}
-                    label="Select Category"
-                    required={true}
-                    options={shiftCategory}
-                    error={!!errors.category}
-                  />
-                  {errors.category && <div className="mat-error">Category is required</div>}
-                </div>
-                {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (
+                {[CUSTOMER_IDS.GPLAST, CUSTOMER_IDS.PMI].includes(cleanCustomerId(customerId)) && (
                   <div className="form_field">
                     <Autocomplete
                       options={reasonGroupOptions}
@@ -357,10 +401,42 @@ const onSubmit = async (data) => {
                     />
                   </div>
                 )}
+                <div className={`form_field  ${errors.mode ? 'error-outline' : ''}`}>
+                  <CustomDaySelect
+                    {...register("mode", { required: "Mode is required" })}
+                    onBlur={() => trigger('mode')}
+                    ref={customDaySelectRef}
+                    name="mode"
+                    value={shiftForm.mode}
+                    onChange={handleFormChange}
+                    label="Select Mode"
+                    required={true}
+                    options={shiftsmode}
+                    error={!!errors.mode}
+                  />
+                  {errors.mode && <div className="mat-error">Mode is required</div>}
+                </div>
+                {!hideCategory && (
+                  <div className={`form_field ${errors.category ? 'error-outline' : ''}`}>
+                    <CustomDaySelect
+                      {...register("category", { required: !hideCategory && "Category is required" })}
+                      onBlur={() => trigger('category')}
+                      ref={customDaySelectRef}
+                      name="category"
+                      value={shiftForm.category}
+                      onChange={handleFormChange}
+                      label="Select Category"
+                      required={!hideCategory}
+                      options={shiftCategory}
+                      error={!!errors.category}
+                    />
+                    {errors.category && <div className="mat-error">Category is required</div>}
+                  </div>
+                )}
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
-              <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning" >
+              <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning" disabled={isSaveDisabled}>
                 Save
               </Button>
             </div>

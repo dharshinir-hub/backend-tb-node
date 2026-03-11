@@ -36,11 +36,15 @@ const Layout = () => {
     location.pathname === '/machines-group' ||
     location.pathname === '/operator-leaderboard' ||
     location.pathname === '/notification-center' ||
-    location.pathname === '/kpi-dashboard' || 
+    location.pathname === '/kpi-dashboard' ||
     location.pathname === '/group' ||
     location.pathname === '/production-overview' ||
     location.pathname === '/settings' ||
-    location.pathname === '/production-metrics'; 
+    location.pathname === '/production-metrics' ||
+    location.pathname === '/bluecard' ||
+    location.pathname === '/bluecarddetails' ||
+    location.pathname === '/bluecardreport' ||
+    location.pathname === '/quality';
 
   return (
     <>

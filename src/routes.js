@@ -39,6 +39,7 @@ import PartCycleTime from './app/Pages/CycleTime/partcycletime';
 import InprogressOee from './app/Pages/CycleTime/inprogressoee';
 import MachineGroup from './app/Pages/Machinegroup/machinegroup';
 import OeeTv from './app/Pages/Oee-tv/oeetv';
+import BluecardDetails from './app/Pages/BlueCardScreen/bluecarddetails';
 
 // Import other components for your routes
 
@@ -52,7 +53,7 @@ const AppRoutes = () => {
     setPageList(usersDetailsData.pageList || []);
     setInitialized(true);
   }, [userDetails]);
-  
+
   if (!initialized) return null;
 
   return (
@@ -104,6 +105,13 @@ const AppRoutes = () => {
             <Route path="/inprogressoee" element={<InprogressOee />} />
           </>
         )}
+        
+        {pageList.includes("bluecard") && (
+          <>
+            <Route path="/bluecarddetails" element={<BluecardDetails />} />
+          </>
+        )}
+
       </Route>
 
       {/* <Route path="/" element={<Layout />}>
