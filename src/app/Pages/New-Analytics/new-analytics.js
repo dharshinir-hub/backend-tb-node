@@ -6,7 +6,7 @@ import {
     TableHead, TableRow, TablePagination,
     Paper, CircularProgress, IconButton,
     Stack, Typography, AppBar, Toolbar,
-    Chip, alpha
+    alpha
 } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -26,7 +26,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import { saveAs } from 'file-saver';
 import { getAverageUtilizationForRange } from "../../Shared/utils/utilizationCalculations";
 import { CUSTOMER_IDS } from "../../Shared/constants/ids";
-import { getPartsReport } from "../../Shared/utils/oeepartsdata";
+import { getPartsReport, fetchPartsShiftWiseByDate, getSummaryStats } from "../../Shared/utils/oeepartsdata";
 
 // Constants
 const ANALYSIS_TYPES = {
@@ -39,12 +39,14 @@ const ANALYSIS_TYPES = {
 
 const OEE_VIEW_TYPES = {
     FISCAL: "fiscal",
-    DAYS: "days"
+    DAYS: "days",
+    MONTH: "month"
 };
 
 const UTILIZATION_VIEW_TYPES = {
     FISCAL: "fiscal",
-    DAYS: "days"
+    DAYS: "days",
+    MONTH: "month"
 };
 
 // Move column definitions outside component to prevent recreation
@@ -661,6 +663,121 @@ const mapDataToUtilizationDays = (data, shifts, fromDate, toDate) => {
     return results;
 };
 
+const mapDataToOeeMonth = (data) => {
+    const results = [];
+    Object.keys(data).forEach(machineId => {
+        const machine = data[machineId];
+        const oeeValues = machine.oeeValues || [];
+        if (!Array.isArray(oeeValues) || oeeValues.length === 0) return;
+
+        const groupedByMonth = {};
+        oeeValues.forEach(oee => {
+            const dateObj = new Date(Number(oee.ts));
+            const monthKey = `${String(dateObj.getMonth() + 1).padStart(2, "0")}-${dateObj.getFullYear()}`;
+            if (!groupedByMonth[monthKey]) {
+                groupedByMonth[monthKey] = { sum: 0, count: 0 };
+            }
+            groupedByMonth[monthKey].sum += Number(oee.value);
+            groupedByMonth[monthKey].count++;
+        });
+
+        Object.keys(groupedByMonth).forEach(monthKey => {
+            const d = groupedByMonth[monthKey];
+            const avgOee = d.count > 0 ? d.sum / d.count : 0;
+            results.push({
+                date: monthKey,
+                machine_name: machine.machineName || machineId,
+                oee_value: Math.round(avgOee * 100) / 100,
+                shift_number: "All",
+                operator_name: "-",
+                operator_code: "-",
+                component_name: "-",
+                component_code: "-",
+                timestamp: monthKey,
+                shift_start_time: "-",
+                shift_end_time: "-"
+            });
+        });
+    });
+    return results;
+};
+
+const mapDataToUtilizationMonth = (data) => {
+    const results = [];
+    Object.keys(data).forEach(machineId => {
+        const machine = data[machineId];
+        const utilizationValues = machine.utilizationValues || [];
+        if (!Array.isArray(utilizationValues) || utilizationValues.length === 0) return;
+
+        const groupedByMonth = {};
+        utilizationValues.forEach(util => {
+            const dateObj = new Date(Number(util.ts));
+            const monthKey = `${String(dateObj.getMonth() + 1).padStart(2, "0")}-${dateObj.getFullYear()}`;
+            if (!groupedByMonth[monthKey]) {
+                groupedByMonth[monthKey] = { sum: 0, count: 0 };
+            }
+            const utilData = util.value ? JSON.parse(util.value) : { utilization: 0 };
+            groupedByMonth[monthKey].sum += Number(utilData.utilization || 0);
+            groupedByMonth[monthKey].count++;
+        });
+
+        Object.keys(groupedByMonth).forEach(monthKey => {
+            const d = groupedByMonth[monthKey];
+            const avgUtil = d.count > 0 ? d.sum / d.count : 0;
+            results.push({
+                date: monthKey,
+                machine_name: machine.machineName || machineId,
+                utilization_value: Math.round(avgUtil * 100) / 100,
+                shift_number: "All",
+                operator_name: "-",
+                operator_code: "-",
+                component_name: "-",
+                component_code: "-",
+                timestamp: monthKey,
+                shift_start_time: "-",
+                shift_end_time: "-"
+            });
+        });
+    });
+    return results;
+};
+
+// Parts aggregation helpers for utilization view
+const aggregatePartsByDay = (partsData) => {
+    const byDay = {};
+    (partsData || []).forEach(d => {
+        if (!byDay[d.date]) byDay[d.date] = { totalshots: 0, target: 0 };
+        byDay[d.date].totalshots += d.totalshots || 0;
+        byDay[d.date].target += d.target || 0;
+    });
+    return byDay;
+};
+
+const aggregatePartsByWeek = (partsData) => {
+    const byWeek = {};
+    (partsData || []).forEach(d => {
+        const date = dayjs(d.date);
+        const dow = date.day(); // 0=Sun, 1=Mon
+        const monday = date.subtract(dow === 0 ? 6 : dow - 1, 'day');
+        const weekKey = monday.format('YYYY-MM-DD');
+        if (!byWeek[weekKey]) byWeek[weekKey] = { totalshots: 0, target: 0 };
+        byWeek[weekKey].totalshots += d.totalshots || 0;
+        byWeek[weekKey].target += d.target || 0;
+    });
+    return byWeek;
+};
+
+const aggregatePartsByMonth = (partsData) => {
+    const byMonth = {};
+    (partsData || []).forEach(d => {
+        const monthKey = dayjs(d.date).format('YYYY-MM');
+        if (!byMonth[monthKey]) byMonth[monthKey] = { totalshots: 0, target: 0 };
+        byMonth[monthKey].totalshots += d.totalshots || 0;
+        byMonth[monthKey].target += d.target || 0;
+    });
+    return byMonth;
+};
+
 // Main Component
 export default function NewAnalytics() {
     const customerId = localStorage.getItem("CustomerID");
@@ -686,7 +803,11 @@ export default function NewAnalytics() {
     const [fromDate, setFromDate] = useState(dayjs().subtract(7, 'day'));
     const [toDate, setToDate] = useState(dayjs());
     const isGPLAST = cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
-    const [analysisType, setAnalysisType] = useState(ANALYSIS_TYPES.PARTS);
+    const [analysisType, setAnalysisType] = useState(
+        cleanCustomerId(customerId) === window._env_.SMC_CUSTOMER_ID
+            ? ANALYSIS_TYPES.PARTS
+            : ANALYSIS_TYPES.UTILIZATION
+    );
     const [grafanaUrl, setGrafanaUrl] = useState("");
     const [selectedShift, setSelectedShift] = useState("all");
     const [fromTime, setFromTime] = useState(null);
@@ -703,6 +824,7 @@ export default function NewAnalytics() {
     const [avgOeeData, setAvgOeeData] = useState({});
     const [oeeFiscalUrl, setOeeFiscalUrl] = useState("");
     const [oeeDaysUrl, setOeeDaysUrl] = useState("");
+    const [oeeMonthUrl, setOeeMonthUrl] = useState("");
     const [oeeGrafanaUrl, setOeeGrafanaUrl] = useState("");
     const [oeeViewType, setOeeViewType] = useState(OEE_VIEW_TYPES.FISCAL);
     const [oeeDaysTableData, setOeeDaysTableData] = useState([]);
@@ -711,11 +833,18 @@ export default function NewAnalytics() {
     const [avgUtilizationData, setAvgUtilizationData] = useState({});
     const [utilizationFiscalUrl, setUtilizationFiscalUrl] = useState("");
     const [utilizationDaysUrl, setUtilizationDaysUrl] = useState("");
+    const [utilizationMonthUrl, setUtilizationMonthUrl] = useState("");
     const [utilizationGrafanaUrl, setUtilizationGrafanaUrl] = useState("");
     const [utilizationViewType, setUtilizationViewType] = useState(UTILIZATION_VIEW_TYPES.FISCAL);
     const [utilizationDaysTableData, setUtilizationDaysTableData] = useState([]);
     const [utilizationDaysPage, setUtilizationDaysPage] = useState(0);
     const [utilizationDaysRowsPerPage, setUtilizationDaysRowsPerPage] = useState(25);
+    const [oeeMonthTableData, setOeeMonthTableData] = useState([]);
+    const [oeeMonthPage, setOeeMonthPage] = useState(0);
+    const [oeeMonthRowsPerPage, setOeeMonthRowsPerPage] = useState(25);
+    const [utilizationMonthTableData, setUtilizationMonthTableData] = useState([]);
+    const [utilizationMonthPage, setUtilizationMonthPage] = useState(0);
+    const [utilizationMonthRowsPerPage, setUtilizationMonthRowsPerPage] = useState(25);
     const [selectedYear, setSelectedYear] = useState(dayjs().year());
     const [data, setData] = useState({
         summary: null,
@@ -748,75 +877,74 @@ export default function NewAnalytics() {
         [analysisType]
     );
 
-    // Separate pagination for OEE Days table
+    // Pagination for all view types
     const paginatedData = useMemo(() => {
         if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
-            return oeeDaysTableData.slice(
-                oeeDaysPage * oeeDaysRowsPerPage,
-                oeeDaysPage * oeeDaysRowsPerPage + oeeDaysRowsPerPage
-            );
+            return oeeDaysTableData.slice(oeeDaysPage * oeeDaysRowsPerPage, oeeDaysPage * oeeDaysRowsPerPage + oeeDaysRowsPerPage);
+        }
+        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.MONTH) {
+            return oeeMonthTableData.slice(oeeMonthPage * oeeMonthRowsPerPage, oeeMonthPage * oeeMonthRowsPerPage + oeeMonthRowsPerPage);
         }
         if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
-            return utilizationDaysTableData.slice(
-                utilizationDaysPage * utilizationDaysRowsPerPage,
-                utilizationDaysPage * utilizationDaysRowsPerPage + utilizationDaysRowsPerPage
-            );
+            return utilizationDaysTableData.slice(utilizationDaysPage * utilizationDaysRowsPerPage, utilizationDaysPage * utilizationDaysRowsPerPage + utilizationDaysRowsPerPage);
+        }
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.MONTH) {
+            return utilizationMonthTableData.slice(utilizationMonthPage * utilizationMonthRowsPerPage, utilizationMonthPage * utilizationMonthRowsPerPage + utilizationMonthRowsPerPage);
         }
         return tableData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
     }, [
-        analysisType,
-        oeeViewType,
-        utilizationViewType,
-        tableData,
-        oeeDaysTableData,
-        utilizationDaysTableData,
-        page,
-        rowsPerPage,
-        oeeDaysPage,
-        oeeDaysRowsPerPage,
-        utilizationDaysPage,
-        utilizationDaysRowsPerPage
+        analysisType, oeeViewType, utilizationViewType,
+        tableData, oeeDaysTableData, oeeMonthTableData, utilizationDaysTableData, utilizationMonthTableData,
+        page, rowsPerPage,
+        oeeDaysPage, oeeDaysRowsPerPage,
+        oeeMonthPage, oeeMonthRowsPerPage,
+        utilizationDaysPage, utilizationDaysRowsPerPage,
+        utilizationMonthPage, utilizationMonthRowsPerPage
     ]);
 
     const currentPage = useMemo(() => {
-        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
-            return oeeDaysPage;
-        }
-        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
-            return utilizationDaysPage;
-        }
+        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) return oeeDaysPage;
+        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.MONTH) return oeeMonthPage;
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) return utilizationDaysPage;
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.MONTH) return utilizationMonthPage;
         return page;
-    }, [analysisType, oeeViewType, utilizationViewType, oeeDaysPage, utilizationDaysPage, page]);
+    }, [analysisType, oeeViewType, utilizationViewType, oeeDaysPage, oeeMonthPage, utilizationDaysPage, utilizationMonthPage, page]);
 
     const currentRowsPerPage = useMemo(() => {
-        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
-            return oeeDaysRowsPerPage;
-        }
-        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
-            return utilizationDaysRowsPerPage;
-        }
+        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) return oeeDaysRowsPerPage;
+        if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.MONTH) return oeeMonthRowsPerPage;
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) return utilizationDaysRowsPerPage;
+        if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.MONTH) return utilizationMonthRowsPerPage;
         return rowsPerPage;
-    }, [analysisType, oeeViewType, utilizationViewType, oeeDaysRowsPerPage, utilizationDaysRowsPerPage, rowsPerPage]);
+    }, [analysisType, oeeViewType, utilizationViewType, oeeDaysRowsPerPage, oeeMonthRowsPerPage, utilizationDaysRowsPerPage, utilizationMonthRowsPerPage, rowsPerPage]);
 
     const currentDataLength = useMemo(() => {
         if (analysisType === ANALYSIS_TYPES.OEE) {
-            return oeeViewType === OEE_VIEW_TYPES.DAYS ? oeeDaysTableData.length : tableData.length;
+            if (oeeViewType === OEE_VIEW_TYPES.DAYS) return oeeDaysTableData.length;
+            if (oeeViewType === OEE_VIEW_TYPES.MONTH) return oeeMonthTableData.length;
+            return tableData.length;
         }
         if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
-            return utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? utilizationDaysTableData.length : tableData.length;
+            if (utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) return utilizationDaysTableData.length;
+            if (utilizationViewType === UTILIZATION_VIEW_TYPES.MONTH) return utilizationMonthTableData.length;
+            return tableData.length;
         }
         return tableData.length;
-    }, [analysisType, oeeViewType, utilizationViewType, tableData, oeeDaysTableData, utilizationDaysTableData]);
+    }, [analysisType, oeeViewType, utilizationViewType, tableData, oeeDaysTableData, oeeMonthTableData, utilizationDaysTableData, utilizationMonthTableData]);
 
     const hasData = useMemo(() => {
         if (analysisType === ANALYSIS_TYPES.OEE) {
-            return oeeViewType === OEE_VIEW_TYPES.DAYS ? oeeDaysTableData.length > 0 : tableData.length > 0;
+            if (oeeViewType === OEE_VIEW_TYPES.DAYS) return oeeDaysTableData.length > 0;
+            if (oeeViewType === OEE_VIEW_TYPES.MONTH) return oeeMonthTableData.length > 0;
+            return tableData.length > 0;
         }
         if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
-            return utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? utilizationDaysTableData.length > 0 : tableData.length > 0;
+            if (utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) return utilizationDaysTableData.length > 0;
+            if (utilizationViewType === UTILIZATION_VIEW_TYPES.MONTH) return utilizationMonthTableData.length > 0;
+            return tableData.length > 0;
         }
         return tableData.length > 0;
-    }, [analysisType, oeeViewType, utilizationViewType, tableData, oeeDaysTableData, utilizationDaysTableData]);
+    }, [analysisType, oeeViewType, utilizationViewType, tableData, oeeDaysTableData, oeeMonthTableData, utilizationDaysTableData, utilizationMonthTableData]);
 
     const getReportTitle = useMemo(() => {
         switch (analysisType) {
@@ -838,7 +966,7 @@ export default function NewAnalytics() {
 
     // Handle date/shift changes
     useEffect(() => {
-        if (analysisType === "Parts") return; 
+        if (analysisType === "Parts") return;
         if (!fromDate || !toDate || shifts.length === 0) return;
 
         if (!fromDate.isSame(toDate, "day") || selectedShift === "all") {
@@ -1073,11 +1201,12 @@ export default function NewAnalytics() {
     };
     console.log('setfrom', todayFrom, 'setto', todayTo)
 
-useEffect(() => {
-    if (analysisType === "Parts" && shifts.length) {
-        handlePartsYearTimeRange();
-    }
-}, [analysisType, selectedYear, shifts]);
+    useEffect(() => {
+        if (analysisType === "Parts" && shifts.length) {
+            handlePartsYearTimeRange();
+        }
+    }, [analysisType, selectedYear, shifts]);
+
 
 
     const selectedMachineIds = deviceNameID
@@ -1198,8 +1327,9 @@ useEffect(() => {
 
         const fiscalTableData = mapDataToOeeFiscal(oeeData);
         const daysTableData = mapDataToOeeDays(oeeData, shifts, fromDate, toDate);
+        const monthTableData = mapDataToOeeMonth(oeeData);
 
-        return { avgData: renamedData, oeeData, fiscalTableData, daysTableData };
+        return { avgData: renamedData, oeeData, fiscalTableData, daysTableData, monthTableData };
     }, [selectedMachines, shifts, from, to, fromDate, toDate, deviceNameID, getDeviceObjectsForMachines]);
 
     const processUtilizationData = useCallback(async () => {
@@ -1217,6 +1347,7 @@ useEffect(() => {
             from,
             to
         );
+        console.log('util data', utilData)
         const idToNameMap = Object.fromEntries(
             deviceNameID.map(d => [d.id, d.name])
         );
@@ -1229,10 +1360,10 @@ useEffect(() => {
 
         const fiscalTableData = mapDataToUtilizationFiscal(utilData);
         const daysTableData = mapDataToUtilizationDays(utilData, shifts, fromDate, toDate);
+        const monthTableData = mapDataToUtilizationMonth(utilData);
 
-        return { avgData: renamedData, utilData, fiscalTableData, daysTableData };
+        return { avgData: renamedData, utilData, fiscalTableData, daysTableData, monthTableData };
     }, [selectedMachines, shifts, from, to, fromDate, toDate, deviceNameID, getDeviceObjectsForMachines]);
-
     const updateGrafanaURL = useCallback((type = analysisType, machines = selectedMachines) => {
         if (type === ANALYSIS_TYPES.OEE || type === ANALYSIS_TYPES.UTILIZATION) return;
 
@@ -1257,7 +1388,7 @@ useEffect(() => {
         }
     }, [analysisType, selectedMachines, newToken, customerId, fromTime, toTime, from, to]);
 
-    const generateOeeGrafanaUrls = useCallback(async (avgOeeData) => {
+    const generateOeeGrafanaUrls = useCallback(async (avgOeeData, partsData = null) => {
         const machinesParam = selectedMachines.join(",");
         const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
         const cleanedId = cleanCustomerId(customerId);
@@ -1277,16 +1408,29 @@ useEffect(() => {
 
         const avgOeeJson = encodeURIComponent(JSON.stringify(deviceWiseData));
 
-        const fiscalUrl = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${avgOeeJson}&var-machines=${encodeURIComponent(machinesParam)}&var-type=OEE&kiosk&theme=light&refresh=20s`;
+        const totalshots = partsData ? partsData.reduce((sum, s) => sum + (s.totalshots || 0), 0) : 0;
+        const targetparts = partsData ? partsData.reduce((sum, s) => sum + (s.target || 0), 0) : 0;
+        const partsParams = `&var-totalshots=${totalshots}&var-ttotalshots=${totalshots}&var-targetparts=${targetparts}`;
 
-        const daysUrl = `${GRAFANA_URL}d/af88m3yq4cu80e/analytics-dashboard-oee-day-wise-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgOeeJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&var-type=OEE&kiosk&theme=light&refresh=20s`;
+        const fiscalUrl = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${avgOeeJson}&var-machines=${encodeURIComponent(machinesParam)}&var-type=OEE${partsParams}&kiosk&theme=light&refresh=20s`;
+
+        const daysUrl = `${GRAFANA_URL}d/af88m3yq4cu80e/analytics-dashboard-oee-day-wise-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgOeeJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&var-type=OEE${partsParams}&kiosk&theme=light&refresh=20s`;
+
+        const MonthUrl = `${GRAFANA_URL}d/dfe31si9uqrk0e/analytics-dashboard-oee-monthwise?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgOeeJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&var-type=OEE${partsParams}&kiosk&theme=light&refresh=20s`;
 
         setOeeFiscalUrl(fiscalUrl);
         setOeeDaysUrl(daysUrl);
-        setOeeGrafanaUrl(oeeViewType === OEE_VIEW_TYPES.FISCAL ? fiscalUrl : daysUrl);
+        setOeeMonthUrl(MonthUrl);
+        const urlMap = {
+            [OEE_VIEW_TYPES.FISCAL]: fiscalUrl,
+            [OEE_VIEW_TYPES.DAYS]: daysUrl,
+            [OEE_VIEW_TYPES.MONTH]: MonthUrl,
+        };
+
+        setOeeGrafanaUrl(urlMap[oeeViewType] || daysUrl);
     }, [selectedMachines, newToken, customerId, from, to, oeeViewType]);
 
-    const generateUtilizationGrafanaUrls = useCallback(async (avgUtilizationData) => {
+    const generateUtilizationGrafanaUrls = useCallback(async (avgUtilizationData, partsData = null) => {
         const machinesParam = selectedMachines.join(",");
         const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
         const cleanedId = cleanCustomerId(customerId);
@@ -1294,25 +1438,66 @@ useEffect(() => {
         const baseUrl = window._env_.SERVER_URL;
         const GRAFANA_URL = window._env_.GRAFANA_URL;
 
-        const deviceWiseData = Object.fromEntries(
-            Object.entries(avgUtilizationData).map(([deviceId, deviceData]) => {
-                const formatted = Object.entries(deviceData).map(([date, value]) => ({
-                    date,
-                    value,
-                }));
-                return [deviceId, formatted];
-            })
-        );
+        // Aggregate parts by each view granularity
+        const partsByWeek = aggregatePartsByWeek(partsData);
+        const partsByDay = aggregatePartsByDay(partsData);
+        const partsByMonth = aggregatePartsByMonth(partsData);
 
-        const avgUtilizationJson = encodeURIComponent(JSON.stringify(deviceWiseData));
+        // Build device-wise data with totalparts/targetparts for a given lookup function
+        const buildDeviceWiseData = (getPartsForDate) =>
+            Object.fromEntries(
+                Object.entries(avgUtilizationData).map(([deviceId, deviceData]) => {
+                    const formatted = Object.entries(deviceData).map(([date, value]) => {
+                        const { totalparts, targetparts } = getPartsForDate(date);
+                        return { date, value, totalparts, targetparts };
+                    });
+                    return [deviceId, formatted];
+                })
+            );
 
-        const fiscalUrl = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${avgUtilizationJson}&var-machines=${encodeURIComponent(machinesParam)}&var-type=Utilization&kiosk&theme=light&refresh=20s`;
+        // Fiscal = week-wise
+        const fiscalDeviceData = buildDeviceWiseData((date) => {
+            const d = dayjs(date);
+            const dow = d.day();
+            const monday = d.subtract(dow === 0 ? 6 : dow - 1, 'day');
+            const w = partsByWeek[monday.format('YYYY-MM-DD')] || {};
+            return { totalparts: w.totalshots || 0, targetparts: w.target || 0 };
+        });
 
-        const daysUrl = `${GRAFANA_URL}d/af88m3yq4cu80e/analytics-dashboard-oee-day-wise-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${avgUtilizationJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&var-type=Utilization&kiosk&theme=light&refresh=20s`;
+        // Day-wise
+        const daysDeviceData = buildDeviceWiseData((date) => {
+            const d = partsByDay[date] || {};
+            return { totalparts: d.totalshots || 0, targetparts: d.target || 0 };
+        });
+
+        // Month-wise
+        const monthDeviceData = buildDeviceWiseData((date) => {
+            const d = partsByMonth[dayjs(date).format('YYYY-MM')] || {};
+            return { totalparts: d.totalshots || 0, targetparts: d.target || 0 };
+        });
+
+        const fiscalJson = encodeURIComponent(JSON.stringify(fiscalDeviceData));
+        const daysJson = encodeURIComponent(JSON.stringify(daysDeviceData));
+        const monthJson = encodeURIComponent(JSON.stringify(monthDeviceData));
+
+        // Total parts for URL params (sum across entire period)
+        const totalshots = partsData ? partsData.reduce((sum, s) => sum + (s.totalshots || 0), 0) : 0;
+        const targetparts = partsData ? partsData.reduce((sum, s) => sum + (s.target || 0), 0) : 0;
+        const partsParams = `&var-totalshots=${totalshots}&var-ttotalshots=${totalshots}&var-targetparts=${targetparts}`;
+
+        const fiscalUrl = `${GRAFANA_URL}d/bf4e1lg78zmdcf/analytics-dashboard-oee?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${fiscalJson}&var-machines=${encodeURIComponent(machinesParam)}&var-type=Utilization${partsParams}&kiosk&theme=light&refresh=20s`;
+
+        const daysUrl = `${GRAFANA_URL}d/af88m3yq4cu80e/analytics-dashboard-oee-day-wise-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-avgOee=${daysJson}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-machines=${encodeURIComponent(machinesParam)}&var-type=Utilization${partsParams}&kiosk&theme=light&refresh=20s`;
+
+        const monthUrl = `${GRAFANA_URL}d/dfe31si9uqrk0e/analytics-dashboard-oee-monthwise?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&from=${from}&to=${to}&var-url=${baseUrl}&var-grafanaurl=${GRAFANA_URL}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-avgOee=${monthJson}&var-machines=${encodeURIComponent(machinesParam)}&var-type=Utilization${partsParams}&kiosk&theme=light&refresh=20s`;
 
         setUtilizationFiscalUrl(fiscalUrl);
         setUtilizationDaysUrl(daysUrl);
-        setUtilizationGrafanaUrl(utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? fiscalUrl : daysUrl);
+        setUtilizationMonthUrl(monthUrl);
+        setUtilizationGrafanaUrl(
+            utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? fiscalUrl :
+                utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? daysUrl : monthUrl
+        );
     }, [selectedMachines, newToken, customerId, from, to, utilizationViewType]);
 
     const partsTableData = useMemo(() => {
@@ -1330,32 +1515,54 @@ useEffect(() => {
         setIsLoading(true);
         try {
             if (analysisType === ANALYSIS_TYPES.OEE) {
-                const { avgData, fiscalTableData, daysTableData } = await processOeeData();
+                const { avgData, fiscalTableData, daysTableData, monthTableData } = await processOeeData();
                 setAvgOeeData(avgData);
                 setTableData(fiscalTableData);
                 setOeeDaysTableData(daysTableData);
-
-                // Reset pagination for both tables
+                setOeeMonthTableData(monthTableData);
                 setPage(0);
                 setOeeDaysPage(0);
+                setOeeMonthPage(0);
 
-                // Generate Grafana URLs only if in Grafana view
+                // Fetch parts data (totalshots, targetparts) for URL params
+                let partsData = null;
+                if (selectedMachineIds.length && from && to) {
+                    partsData = await fetchPartsShiftWiseByDate({
+                        machineIds: selectedMachineIds,
+                        shifts,
+                        fromEpoch: from,
+                        toEpoch: to,
+                        getShiftTimes
+                    });
+                }
+
                 if (viewType === "grafana") {
-                    await generateOeeGrafanaUrls(avgData);
+                    await generateOeeGrafanaUrls(avgData, partsData);
                 }
             } else if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
-                const { avgData, fiscalTableData, daysTableData } = await processUtilizationData();
+                const { avgData, fiscalTableData, daysTableData, monthTableData } = await processUtilizationData();
                 setAvgUtilizationData(avgData);
                 setTableData(fiscalTableData);
                 setUtilizationDaysTableData(daysTableData);
-
-                // Reset pagination for both tables
+                setUtilizationMonthTableData(monthTableData);
                 setPage(0);
                 setUtilizationDaysPage(0);
+                setUtilizationMonthPage(0);
 
-                // Generate Grafana URLs only if in Grafana view
+                // Fetch parts data (totalshots, targetparts) for URL params
+                let partsData = null;
+                if (selectedMachineIds.length && from && to) {
+                    partsData = await fetchPartsShiftWiseByDate({
+                        machineIds: selectedMachineIds,
+                        shifts,
+                        fromEpoch: from,
+                        toEpoch: to,
+                        getShiftTimes
+                    });
+                }
+
                 if (viewType === "grafana") {
-                    await generateUtilizationGrafanaUrls(avgData);
+                    await generateUtilizationGrafanaUrls(avgData, partsData);
                 }
             } else if (analysisType === "Parts") {
                 await generatePartsReport();
@@ -1441,17 +1648,22 @@ useEffect(() => {
     const handleAnalysisTypeChange = (e) => {
         const newType = e.target.value;
         setAnalysisType(newType);
-        // Reset pagination when changing analysis type
         setPage(0);
         setOeeDaysPage(0);
+        setOeeMonthPage(0);
         setUtilizationDaysPage(0);
+        setUtilizationMonthPage(0);
     };
 
     const handleChangePage = (event, newPage) => {
         if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
             setOeeDaysPage(newPage);
+        } else if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.MONTH) {
+            setOeeMonthPage(newPage);
         } else if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
             setUtilizationDaysPage(newPage);
+        } else if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.MONTH) {
+            setUtilizationMonthPage(newPage);
         } else {
             setPage(newPage);
         }
@@ -1462,9 +1674,15 @@ useEffect(() => {
         if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.DAYS) {
             setOeeDaysRowsPerPage(newRowsPerPage);
             setOeeDaysPage(0);
+        } else if (analysisType === ANALYSIS_TYPES.OEE && oeeViewType === OEE_VIEW_TYPES.MONTH) {
+            setOeeMonthRowsPerPage(newRowsPerPage);
+            setOeeMonthPage(0);
         } else if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS) {
             setUtilizationDaysRowsPerPage(newRowsPerPage);
             setUtilizationDaysPage(0);
+        } else if (analysisType === ANALYSIS_TYPES.UTILIZATION && utilizationViewType === UTILIZATION_VIEW_TYPES.MONTH) {
+            setUtilizationMonthRowsPerPage(newRowsPerPage);
+            setUtilizationMonthPage(0);
         } else {
             setRowsPerPage(newRowsPerPage);
             setPage(0);
@@ -1486,34 +1704,38 @@ useEffect(() => {
     // Handle OEE view type change
     const handleOeeViewTypeChange = (type) => {
         setOeeViewType(type);
-        // Reset pagination when switching OEE view type
         if (type === OEE_VIEW_TYPES.DAYS) {
             setOeeDaysPage(0);
+        } else if (type === OEE_VIEW_TYPES.MONTH) {
+            setOeeMonthPage(0);
         } else {
             setPage(0);
         }
-
         if (type === OEE_VIEW_TYPES.FISCAL && oeeFiscalUrl) {
             setOeeGrafanaUrl(oeeFiscalUrl);
         } else if (type === OEE_VIEW_TYPES.DAYS && oeeDaysUrl) {
             setOeeGrafanaUrl(oeeDaysUrl);
+        } else if (type === OEE_VIEW_TYPES.MONTH && oeeMonthUrl) {
+            setOeeGrafanaUrl(oeeMonthUrl);
         }
     };
 
     // Handle Utilization view type change
     const handleUtilizationViewTypeChange = (type) => {
         setUtilizationViewType(type);
-        // Reset pagination when switching Utilization view type
         if (type === UTILIZATION_VIEW_TYPES.DAYS) {
             setUtilizationDaysPage(0);
+        } else if (type === UTILIZATION_VIEW_TYPES.MONTH) {
+            setUtilizationMonthPage(0);
         } else {
             setPage(0);
         }
-
         if (type === UTILIZATION_VIEW_TYPES.FISCAL && utilizationFiscalUrl) {
             setUtilizationGrafanaUrl(utilizationFiscalUrl);
         } else if (type === UTILIZATION_VIEW_TYPES.DAYS && utilizationDaysUrl) {
             setUtilizationGrafanaUrl(utilizationDaysUrl);
+        } else if (type === UTILIZATION_VIEW_TYPES.MONTH && utilizationMonthUrl) {
+            setUtilizationGrafanaUrl(utilizationMonthUrl);
         }
     };
 
@@ -1521,8 +1743,6 @@ useEffect(() => {
     console.log(selectedMachineIds);
     console.log('analysistype', analysisType)
     console.log('from', from, 'to', to, fromTime, toTime)
-
-
 
     return (
         <Box
@@ -1551,149 +1771,7 @@ useEffect(() => {
 
 
                     {/* Right side: OEE/Utilization View Toggle and View Toggle (only show when data has been generated) */}
-                    {hasGeneratedData && hasData && (
-                        <Stack direction="row" spacing={2} alignItems="center">
 
-
-                            {/* View Toggle (Dashboard/Table) */}
-                            <Stack direction="row" spacing={0.5}>
-                                <Button
-                                    variant={viewType === "grafana" ? "contained" : "text"}
-                                    size="small"
-                                    startIcon={<GridViewIcon />}
-                                    onClick={() => handleViewSwitch("grafana")}
-                                    sx={{
-                                        minWidth: 110,
-                                        height: 32,
-                                        borderRadius: '20px',
-                                        backgroundColor: viewType === "grafana" ? '#007AFF' : 'transparent',
-                                        color: viewType === "grafana" ? '#ffffff' : '#1d1d1f',
-                                        textTransform: 'none',
-                                        fontSize: '13px',
-                                        fontWeight: 500,
-                                        letterSpacing: '-0.01em',
-                                        '&:hover': {
-                                            backgroundColor: viewType === "grafana" ? '#007AFF' : alpha('#007AFF', 0.08),
-                                        }
-                                    }}
-                                >
-                                    Dashboard
-                                </Button>
-                                {analysisType !== "Parts" && (
-                                    <Button
-                                        variant={viewType === "table" ? "contained" : "text"}
-                                        size="small"
-                                        startIcon={<TableChartIcon />}
-                                        onClick={() => handleViewSwitch("table")}
-                                        sx={{
-                                            minWidth: 110,
-                                            height: 32,
-                                            borderRadius: '20px',
-                                            backgroundColor: viewType === "table" ? '#007AFF' : 'transparent',
-                                            color: viewType === "table" ? '#ffffff' : '#1d1d1f',
-                                            textTransform: 'none',
-                                            fontSize: '13px',
-                                            fontWeight: 500,
-                                            letterSpacing: '-0.01em',
-                                            '&:hover': {
-                                                backgroundColor: viewType === "table" ? '#007AFF' : alpha('#007AFF', 0.08),
-                                            }
-                                        }}
-                                    >
-                                        Table
-                                    </Button>
-                                )}
-
-                            </Stack>
-
-                            {/* OEE View Type Toggle - Only show when OEE is selected */}
-                            {analysisType === ANALYSIS_TYPES.OEE && (
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                    <Typography variant="body2" color="#86868b" sx={{ fontSize: '13px' }}>
-                                        OEE View:
-                                    </Typography>
-                                    <Chip
-                                        label="Fiscal"
-                                        size="small"
-                                        onClick={() => handleOeeViewTypeChange(OEE_VIEW_TYPES.FISCAL)}
-                                        sx={{
-                                            borderRadius: '15px',
-                                            backgroundColor: oeeViewType === OEE_VIEW_TYPES.FISCAL ? '#007AFF' : 'transparent',
-                                            color: oeeViewType === OEE_VIEW_TYPES.FISCAL ? '#ffffff' : '#1d1d1f',
-                                            border: '1px solid',
-                                            borderColor: oeeViewType === OEE_VIEW_TYPES.FISCAL ? '#007AFF' : 'rgba(0, 0, 0, 0.12)',
-                                            fontSize: '12px',
-                                            height: 28,
-                                            '&:hover': {
-                                                backgroundColor: oeeViewType === OEE_VIEW_TYPES.FISCAL ? '#007AFF' : alpha('#007AFF', 0.08),
-                                            }
-                                        }}
-                                    />
-                                    <Chip
-                                        label="Days"
-                                        size="small"
-                                        onClick={() => handleOeeViewTypeChange(OEE_VIEW_TYPES.DAYS)}
-                                        sx={{
-                                            borderRadius: '15px',
-                                            backgroundColor: oeeViewType === OEE_VIEW_TYPES.DAYS ? '#007AFF' : 'transparent',
-                                            color: oeeViewType === OEE_VIEW_TYPES.DAYS ? '#ffffff' : '#1d1d1f',
-                                            border: '1px solid',
-                                            borderColor: oeeViewType === OEE_VIEW_TYPES.DAYS ? '#007AFF' : 'rgba(0, 0, 0, 0.12)',
-                                            fontSize: '12px',
-                                            height: 28,
-                                            '&:hover': {
-                                                backgroundColor: oeeViewType === OEE_VIEW_TYPES.DAYS ? '#007AFF' : alpha('#007AFF', 0.08),
-                                            }
-                                        }}
-                                    />
-                                </Stack>
-                            )}
-
-                            {/* Utilization View Type Toggle - Only show when Utilization is selected */}
-                            {analysisType === ANALYSIS_TYPES.UTILIZATION && (
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                    <Typography variant="body2" color="#86868b" sx={{ fontSize: '13px' }}>
-                                        Utilization View:
-                                    </Typography>
-                                    <Chip
-                                        label="Fiscal"
-                                        size="small"
-                                        onClick={() => handleUtilizationViewTypeChange(UTILIZATION_VIEW_TYPES.FISCAL)}
-                                        sx={{
-                                            borderRadius: '15px',
-                                            backgroundColor: utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? '#007AFF' : 'transparent',
-                                            color: utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? '#ffffff' : '#1d1d1f',
-                                            border: '1px solid',
-                                            borderColor: utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? '#007AFF' : 'rgba(0, 0, 0, 0.12)',
-                                            fontSize: '12px',
-                                            height: 28,
-                                            '&:hover': {
-                                                backgroundColor: utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? '#007AFF' : alpha('#007AFF', 0.08),
-                                            }
-                                        }}
-                                    />
-                                    <Chip
-                                        label="Days"
-                                        size="small"
-                                        onClick={() => handleUtilizationViewTypeChange(UTILIZATION_VIEW_TYPES.DAYS)}
-                                        sx={{
-                                            borderRadius: '15px',
-                                            backgroundColor: utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? '#007AFF' : 'transparent',
-                                            color: utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? '#ffffff' : '#1d1d1f',
-                                            border: '1px solid',
-                                            borderColor: utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? '#007AFF' : 'rgba(0, 0, 0, 0.12)',
-                                            fontSize: '12px',
-                                            height: 28,
-                                            '&:hover': {
-                                                backgroundColor: utilizationViewType === UTILIZATION_VIEW_TYPES.DAYS ? '#007AFF' : alpha('#007AFF', 0.08),
-                                            }
-                                        }}
-                                    />
-                                </Stack>
-                            )}
-                        </Stack>
-                    )}
-                    {/* Left side: All filters in a single row */}
                     <Stack direction="row" spacing={2} alignItems="center" flexWrap="nowrap">
                         {/* Machine Groups Dropdown */}
                         {showMachineGroupsDropdown && (
@@ -1799,19 +1877,50 @@ useEffect(() => {
                                     }
                                 }}
                             >
+                                {cleanCustomerId(customerId) != window._env_.SMC_CUSTOMER_ID && (
+                                    <MenuItem value={ANALYSIS_TYPES.UTILIZATION}>Utilization</MenuItem>
+                                )}
                                 <MenuItem value={ANALYSIS_TYPES.PARTS}>Parts</MenuItem>
                                 {cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST && (
                                     <MenuItem value={ANALYSIS_TYPES.LIVE_ALARM}>Alarm</MenuItem>
                                 )}
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_REASON}>Downtime</MenuItem>
                                 <MenuItem value={ANALYSIS_TYPES.OEE}>OEE</MenuItem>
-                                {cleanCustomerId(customerId) != window._env_.SMC_CUSTOMER_ID && (
-                                    <MenuItem value={ANALYSIS_TYPES.UTILIZATION}>Utilization</MenuItem>
 
-                                )}
-                                
                             </Select>
                         </FormControl>
+
+                        {analysisType === ANALYSIS_TYPES.OEE && (
+                            <FormControl size="small" sx={{ minWidth: 130 }}>
+                                <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>OEE View</InputLabel>
+                                <Select
+                                    value={oeeViewType}
+                                    label="OEE View"
+                                    onChange={(e) => handleOeeViewTypeChange(e.target.value)}
+                                    sx={{ fontSize: '13px', height: 36, }}
+                                >
+                                    <MenuItem value={OEE_VIEW_TYPES.FISCAL}>Fiscal</MenuItem>
+                                    <MenuItem value={OEE_VIEW_TYPES.DAYS}>Day</MenuItem>
+                                    <MenuItem value={OEE_VIEW_TYPES.MONTH}>Month</MenuItem>
+                                </Select>
+                            </FormControl>
+                        )}
+
+                        {analysisType === ANALYSIS_TYPES.UTILIZATION && (
+                            <FormControl size="small" sx={{ minWidth: 150 }}>
+                                <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Utilization View</InputLabel>
+                                <Select
+                                    value={utilizationViewType}
+                                    label="Utilization View"
+                                    onChange={(e) => handleUtilizationViewTypeChange(e.target.value)}
+                                    sx={{ fontSize: '13px', height: 36, }}
+                                >
+                                    <MenuItem value={UTILIZATION_VIEW_TYPES.FISCAL}>Fiscal</MenuItem>
+                                    <MenuItem value={UTILIZATION_VIEW_TYPES.DAYS}>Day</MenuItem>
+                                    <MenuItem value={UTILIZATION_VIEW_TYPES.MONTH}>Month</MenuItem>
+                                </Select>
+                            </FormControl>
+                        )}
 
                         {/* Show Year dropdown when analysisType is Parts */}
                         {analysisType === "Parts" ? (
@@ -2013,7 +2122,7 @@ useEffect(() => {
                                                         alignItems: 'center'
                                                     }}
                                                 >
-                                                    ({oeeViewType === OEE_VIEW_TYPES.FISCAL ? 'Fiscal View' : 'Days View'})
+                                                    ({oeeViewType === OEE_VIEW_TYPES.FISCAL ? 'Fiscal View' : oeeViewType === OEE_VIEW_TYPES.MONTH ? 'Month View' : 'Day View'})
                                                 </Typography>
                                             )}
                                             {analysisType === ANALYSIS_TYPES.UTILIZATION && (
@@ -2028,7 +2137,7 @@ useEffect(() => {
                                                         alignItems: 'center'
                                                     }}
                                                 >
-                                                    ({utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? 'Fiscal View' : 'Days View'})
+                                                    ({utilizationViewType === UTILIZATION_VIEW_TYPES.FISCAL ? 'Fiscal View' : utilizationViewType === UTILIZATION_VIEW_TYPES.MONTH ? 'Month View' : 'Day View'})
                                                 </Typography>
                                             )}
                                         </Typography>
