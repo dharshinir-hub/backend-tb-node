@@ -354,7 +354,7 @@ export default function PersistentDrawerLeft({ children }) {
             </span>
             <div>
               <h6>{username}</h6>
-              <p>{formattedUser}</p>
+              <p>{mode || formattedUser}</p>
             </div>
             <Tooltip title="Log-out">
               <label className="circles-icon" onClick={handleLogout} style={{ cursor: 'pointer' }}>

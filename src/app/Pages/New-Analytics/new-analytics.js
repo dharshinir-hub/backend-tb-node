@@ -860,6 +860,8 @@ export default function NewAnalytics() {
     const minYear = 2025;
     const maxYear = dayjs().year();
     const [partsViewType, setPartsViewType] = useState("day");
+    const [downtimePeriod, setDowntimePeriod] = useState("day"); // "day" | "week" | "month"
+    const [downtimeTopCount, setDowntimeTopCount] = useState(3); // 3 or 4
 
     // Memoized values
     const isShiftDisabled = useMemo(() =>
@@ -1380,13 +1382,20 @@ export default function NewAnalytics() {
                 selectedShift && selectedShift !== "all"
                     ? selectedShift
                     : shifts.map(s => s.shift_no).join(",");
+            const topNums = Array.from({ length: downtimeTopCount }, (_, i) => `top${i + 1}`);
+            const topParams = topNums.map(t => `var-top=${t}`).join("&");
             const reporturl = `${window._env_.SERVER_URL2}report/idle_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000000000000`;
-            const url = type === 'live_reason' ? `${GRAFANA_URL}d/afbprll75uwaoa/analytics-downtime-report-based?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&kiosk&theme=light&refresh=20s` : `${GRAFANA_URL}d/af88lwhpkj08wd/analytics-downtime-alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
+
+            const url = type === 'live_reason'
+                ? (cleanedId !== CUSTOMER_IDS.PMI
+                    ? `${GRAFANA_URL}d/afbprll75uwaoa/analytics-downtime-report-based?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&var-period=${downtimePeriod}&${topParams}&kiosk&theme=light&refresh=20s`
+                    : `${GRAFANA_URL}d/affv6yl9skjk0a/analytics-downtime-top?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&var-period=${downtimePeriod}&${topParams}&kiosk&theme=light&refresh=20s`)
+                : `${GRAFANA_URL}d/af88lwhpkj08wd/analytics-downtime-alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
             setGrafanaUrl(url);
         } catch (error) {
             console.error("Error updating Grafana URL:", error);
         }
-    }, [analysisType, selectedMachines, newToken, customerId, fromTime, toTime, from, to]);
+    }, [analysisType, selectedMachines, newToken, customerId, fromTime, toTime, from, to, downtimePeriod, downtimeTopCount]);
 
     const generateOeeGrafanaUrls = useCallback(async (avgOeeData, partsData = null) => {
         const machinesParam = selectedMachines.join(",");
@@ -1776,7 +1785,7 @@ export default function NewAnalytics() {
                         {/* Machine Groups Dropdown */}
                         {showMachineGroupsDropdown && (
                             <FormControl size="small" sx={{ minWidth: 180 }}>
-                                <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machine Group</InputLabel>
+                                <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Machine Group</InputLabel>
                                 <Select
                                     multiple
                                     value={selectedGroups}
@@ -1818,7 +1827,7 @@ export default function NewAnalytics() {
 
                         {/* Machines Dropdown */}
                         <FormControl size="small" sx={{ minWidth: 200 }}>
-                            <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machines</InputLabel>
+                            <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Machines</InputLabel>
                             <Select
                                 multiple
                                 value={selectedMachines}
@@ -1857,7 +1866,7 @@ export default function NewAnalytics() {
                         </FormControl>
 
                         <FormControl size="small" sx={{ minWidth: 160 }}>
-                            <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Analysis Type</InputLabel>
+                            <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Analysis Type</InputLabel>
                             <Select
                                 value={analysisType}
                                 onChange={handleAnalysisTypeChange}
@@ -1890,9 +1899,44 @@ export default function NewAnalytics() {
                             </Select>
                         </FormControl>
 
+                        {/* Downtime-specific filters: Period and Top N */}
+                        {(analysisType === ANALYSIS_TYPES.LIVE_REASON && cleanCustomerId(customerId) === CUSTOMER_IDS.PMI) && (
+                            <>
+                                <FormControl size="small" sx={{ minWidth: 120 }}>
+                                    <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Period</InputLabel>
+                                    <Select
+                                        value={downtimePeriod}
+                                        label="Period"
+                                        onChange={(e) => setDowntimePeriod(e.target.value)}
+                                        sx={{ fontSize: '13px', height: 36 }}
+                                    >
+                                        <MenuItem value="day">Day</MenuItem>
+                                        <MenuItem value="week">Week</MenuItem>
+                                        <MenuItem value="month">Month</MenuItem>
+                                    </Select>
+                                </FormControl>
+
+                                <FormControl size="small" sx={{ minWidth: 120 }}>
+                                    <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Top Filter</InputLabel>
+                                    <Select
+                                        value={downtimeTopCount}
+                                        label="Top Filter"
+                                        onChange={(e) => setDowntimeTopCount(e.target.value)}
+                                        sx={{ fontSize: '13px', height: 36 }}
+                                    >
+                                        <MenuItem value={1}>Top 1</MenuItem>
+                                        <MenuItem value={2}>Top 2</MenuItem>
+                                        <MenuItem value={3}>Top 3</MenuItem>
+                                        <MenuItem value={4}>Top 4</MenuItem>
+                                        <MenuItem value={4}>Top 5</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </>
+                        )}
+
                         {analysisType === ANALYSIS_TYPES.OEE && (
                             <FormControl size="small" sx={{ minWidth: 130 }}>
-                                <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>OEE View</InputLabel>
+                                <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>OEE View</InputLabel>
                                 <Select
                                     value={oeeViewType}
                                     label="OEE View"
@@ -1908,7 +1952,7 @@ export default function NewAnalytics() {
 
                         {analysisType === ANALYSIS_TYPES.UTILIZATION && (
                             <FormControl size="small" sx={{ minWidth: 150 }}>
-                                <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Utilization View</InputLabel>
+                                <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Utilization View</InputLabel>
                                 <Select
                                     value={utilizationViewType}
                                     label="Utilization View"
@@ -1975,7 +2019,7 @@ export default function NewAnalytics() {
                                 </LocalizationProvider>
 
                                 <FormControl size="small" sx={{ minWidth: 140 }}>
-                                    <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>
+                                    <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>
                                         Shifts
                                     </InputLabel>
                                     <Select

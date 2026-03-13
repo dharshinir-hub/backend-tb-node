@@ -237,7 +237,7 @@ export default function BlueCard() {
         const filters = [
           { key: "all", label: "Total Requests", value: requestItems.length, color: "#1d4ed8", activeColor: "#1d4ed8", activeBg: "#eff6ff", activeBorder: "#1d4ed8", inactiveBorder: "#1d4ed8" },
           { key: "nok", label: "Components with NOK History", value: nokCount, color: "#b91c1c", activeColor: "#b91c1c", activeBg: "#fef2f2", activeBorder: "#ef4444", inactiveBorder: "#ea7a7a" },
-          { key: "no_nok", label: "Components without NOK History", value: noNokCount, color: "#15803d", activeColor: "#15803d", activeBg: "#f0fdf4", activeBorder: "#22c55e", inactiveBorder: "#2be36f" },
+          { key: "no_nok", label: "Components with OK History", value: noNokCount, color: "#15803d", activeColor: "#15803d", activeBg: "#f0fdf4", activeBorder: "#22c55e", inactiveBorder: "#2be36f" },
         ];
         return (
           <div style={{ display: "flex", gap: "12px", padding: "16px 28px 0", flexWrap: "wrap" }}>
