@@ -1928,7 +1928,7 @@ export default function NewAnalytics() {
                                         <MenuItem value={2}>Top 2</MenuItem>
                                         <MenuItem value={3}>Top 3</MenuItem>
                                         <MenuItem value={4}>Top 4</MenuItem>
-                                        <MenuItem value={4}>Top 5</MenuItem>
+                                        <MenuItem value={5}>Top 5</MenuItem>
                                     </Select>
                                 </FormControl>
                             </>
