@@ -169,9 +169,30 @@ export default function MachineDashboard() {
   // set default shift only once when data arrives
   useEffect(() => {
     if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
-      const cur = getCurrentShift(shifts); // string
-      setSelectedShift(cur);
-      console.log("currect shift", cur)
+      const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+
+      if (firstShift) {
+        const [h, m] = firstShift.start_time.split(':').map(Number);
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const firstShiftMinutes = h * 60 + m;
+
+        if (currentMinutes < firstShiftMinutes) {
+          // Before first shift: default to yesterday's date + last shift
+          setSelectedDate(dayjs().subtract(1, 'day'));
+          setSelectedShift(String(lastShift.shift_no));
+          console.log("Before first shift — defaulting to yesterday + last shift:", lastShift.shift_no);
+        } else {
+          const cur = getCurrentShift(shifts);
+          setSelectedShift(cur);
+          console.log("Current shift:", cur);
+        }
+      } else {
+        const cur = getCurrentShift(shifts);
+        setSelectedShift(cur);
+      }
     }
     // intentionally omit selectedShift from deps so this runs once when shifts load
   }, [shifts]);
@@ -244,6 +265,22 @@ export default function MachineDashboard() {
     };
   }
 
+  // Filter telemetry data points to within a single shift window
+  function filterByShiftRange(data, shiftFrom, shiftTo) {
+    if (!data) return null;
+    const result = {};
+    for (const key of Object.keys(data)) {
+      if (Array.isArray(data[key])) {
+        result[key] = data[key].filter(point => {
+          const ts = Number(point.ts);
+          return ts >= shiftFrom && ts <= shiftTo - 1;
+        });
+      } else {
+        result[key] = data[key];
+      }
+    }
+    return result;
+  }
 
 
   console.log('From', from, 'to', to);
@@ -275,12 +312,20 @@ export default function MachineDashboard() {
     const resultsMachineStatusTimes = {};
     const resultsLiveReason = {};
     const resultsLockStatus = {};
+    const resultsPartsStats = {};
 
     const shiftNo =
       typeof selectedShift === "string"
         ? selectedShift.replace("Shift ", "")
         : String(selectedShift ?? "");
     const currentShiftNo = getCurrentShift(shifts);
+    const isAllShift = shiftNo === "allshift";
+    // Per-shift time ranges used for allshift splitting
+    const shiftRanges = isAllShift
+      ? shifts
+        .map(s => ({ shiftNo: String(s.shift_no), ...getShiftTimes(shifts, String(s.shift_no), selectedDate) }))
+        .filter(r => r.from && r.to)
+      : [];
     const allKeys = [
       "utilization",
       "historicalbaseline",
@@ -289,7 +334,11 @@ export default function MachineDashboard() {
       "total_duration",
       "auto_duration",
       "live_reason",
-      "operations"
+      "operations",
+      "totalparts",
+      "targetparts",
+      "oee",
+      "quality"
     ];
 
     await Promise.all(
@@ -319,36 +368,224 @@ export default function MachineDashboard() {
           // }
 
           /** ---------------- Shift Utilization ---------------- **/
-          const values = data?.utilization || [];
-          if (!Array.isArray(values) || values.length === 0) {
-            resultsUtilization[machine.id.id] = { utilization: 0 };
-          } else {
-            try {
-              const latestPoint = values.reduce((latest, point) =>
-                new Date(point.ts) > new Date(latest.ts) ? point : latest
-              );
-              console.log(`Latest utilization point for ${machine.name}:`, latestPoint);
-              let utilizationValue = Number(latestPoint.value);
-              if (!isNaN(utilizationValue)) {
-                utilizationValue = parseFloat(utilizationValue);
-              } else {
-                utilizationValue = 0;
+          try {
+            let utilizationValue = 0;
+
+            const parseHMS = (str = "00:00:00") => {
+              const [h = 0, m = 0, s = 0] = str.split(":").map(Number);
+              return h * 3600 + m * 60 + s;
+            };
+
+            const isPMIorGPLAST =
+    [CUSTOMER_IDS.PMI, CUSTOMER_IDS.GPLAST].includes(
+        cleanCustomerId(customerId)
+    );
+
+            const getNumerator = (run, idle) =>
+              isPMIorGPLAST ? run : run + idle;
+
+            // ✅ BREAK TIME CONFIG (IMPORTANT)
+            const BREAKS = {
+              "1": 30 * 60, // 30 min
+              "2": 30 * 60,
+              "3": 20 * 60,
+            };
+
+            const getShiftNetSeconds = (shiftCfg) => {
+              if (!shiftCfg) return 0;
+
+              const startSec = parseHMS(shiftCfg.start_time);
+              let endSec = parseHMS(shiftCfg.end_time);
+
+              let duration = endSec - startSec;
+              if (duration < 0) duration += 24 * 3600;
+
+              const breakSec = BREAKS[String(shiftCfg.shift_no)] || 0;
+
+              return Math.max(0, duration - breakSec);
+            };
+
+            const extractRunIdle = (value) => {
+              try {
+                const parsed =
+                  typeof value === "string" ? JSON.parse(value) : value;
+
+                return {
+                  run: Number(parsed?.total_run_duration || 0),
+                  idle: Number(parsed?.total_idle_duration || 0),
+                };
+              } catch {
+                return { run: 0, idle: 0 };
               }
-              resultsUtilization[machine.id.id] = { utilization: utilizationValue };
-            } catch (error) {
-              resultsUtilization[machine.id.id] = { utilization: 0 };
+            };
+
+            // ✅ 🔥 CORE FIX: HANDLE RESET PROPERLY
+            const getFinalShiftValue = (arr = []) => {
+              if (!Array.isArray(arr) || arr.length === 0) return null;
+
+              const parsed = arr
+                .map((e) => {
+                  const { run, idle } = extractRunIdle(e.value);
+                  return {
+                    ts: Number(e.ts),
+                    run,
+                    idle,
+                    raw: e,
+                  };
+                })
+                .sort((a, b) => a.ts - b.ts);
+
+              let lastValid = null;
+
+              for (let i = 0; i < parsed.length; i++) {
+                const curr = parsed[i];
+                const prev = parsed[i - 1];
+
+                // ✅ Detect RESET (run drops)
+                if (prev && curr.run < prev.run) {
+                  return prev.raw; // last correct cumulative value
+                }
+
+                lastValid = curr;
+              }
+
+              return lastValid?.raw || null;
+            };
+
+            const getLatestEntry = (arr = []) => {
+              if (!Array.isArray(arr) || arr.length === 0) return null;
+
+              return arr.reduce((latest, curr) =>
+                new Date(curr.ts) > new Date(latest.ts) ? curr : latest
+              );
+            };
+
+            // =========================
+            // ✅ ALL SHIFT (FIXED)
+            // =========================
+            if (isAllShift && Array.isArray(shiftRanges) && shiftRanges.length > 0) {
+              let totalRun = 0;
+              let totalIdle = 0;
+              let totalShiftSecs = 0;
+
+              for (const range of shiftRanges) {
+
+                const shiftData = filterByShiftRange(data, range.from, range.to);
+                const totalDurationArr = shiftData?.total_duration || [];
+
+                if (totalDurationArr.length > 0) {
+
+                  // ✅ USE RESET-AWARE LOGIC
+                  const latest = getFinalShiftValue(totalDurationArr);
+
+                  if (latest?.value) {
+                    const { run, idle } = extractRunIdle(latest.value);
+
+                    totalRun += run;
+                    totalIdle += idle;
+
+                    console.log(`✅ Shift ${range.shiftNo}`, {
+                      run,
+                      idle,
+                      ts: latest.ts,
+                    });
+                  }
+                }
+
+                // ✅ Add shift duration (minus break)
+                const shiftCfg = shifts.find(
+                  (s) => String(s.shift_no) === String(range.shiftNo)
+                );
+
+                const shiftSecs = getShiftNetSeconds(shiftCfg);
+                totalShiftSecs += shiftSecs;
+              }
+
+              const numerator = getNumerator(totalRun, totalIdle);
+
+              utilizationValue =
+                totalShiftSecs > 0
+                  ? Math.min(
+                    100,
+                    Math.max(0, Math.round((numerator / totalShiftSecs) * 100))
+                  )
+                  : 0;
+
+              console.log("🔥 FINAL ALL SHIFT", {
+                totalRun,
+                totalIdle,
+                numerator,
+                totalShiftSecs,
+                utilizationValue,
+              });
             }
+
+            // =========================
+            // ✅ SINGLE SHIFT (UNCHANGED)
+            // =========================
+            else {
+              const utilValues = data?.utilization || [];
+
+              const latestUtil = getLatestEntry(utilValues);
+
+              if (latestUtil) {
+                try {
+                  const parsed =
+                    typeof latestUtil.value === "string"
+                      ? JSON.parse(latestUtil.value)
+                      : latestUtil.value;
+
+                  const val =
+                    typeof parsed === "object"
+                      ? Number(parsed?.utilization ?? 0)
+                      : Number(parsed ?? 0);
+
+                  utilizationValue = Math.min(100, Math.max(0, Math.round(val)));
+                } catch {
+                  utilizationValue = 0;
+                }
+              }
+            }
+
+            resultsUtilization[machine.id.id] = {
+              utilization: utilizationValue,
+            };
+
+          } catch (error) {
+            console.error(`[Utilization Error] machine: ${machine?.name}`, error);
+
+            resultsUtilization[machine.id.id] = {
+              utilization: 0,
+            };
           }
-
-
           /** ---------------- Historical Baseline ---------------- **/
           const baselineValues = data?.historicalbaseline || [];
           if (baselineValues.length) {
-            const latestPoint = baselineValues.reduce((max, p) => p.ts > max.ts ? p : max);
             let utilizationBaseline = 0;
-            if (latestPoint?.value) {
-              const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
-              utilizationBaseline = parseFloat(parsed?.utilization ?? 0);
+            if (isAllShift && shiftRanges.length > 0) {
+              // Average the latest baseline value from each shift
+              const shiftBaselines = [];
+              for (const range of shiftRanges) {
+                const filtered = filterByShiftRange(data, range.from, range.to);
+                const filteredVals = filtered?.historicalbaseline || [];
+                if (filteredVals.length > 0) {
+                  const latest = filteredVals.reduce((a, b) => a.ts > b.ts ? a : b);
+                  if (latest?.value) {
+                    const parsed = typeof latest.value === "string" ? JSON.parse(latest.value) : latest.value;
+                    const val = parseFloat(parsed?.utilization ?? 0);
+                    if (!isNaN(val)) shiftBaselines.push(val);
+                  }
+                }
+              }
+              utilizationBaseline = shiftBaselines.length > 0
+                ? shiftBaselines.reduce((a, b) => a + b, 0) / shiftBaselines.length
+                : 0;
+            } else {
+              const latestPoint = baselineValues.reduce((max, p) => p.ts > max.ts ? p : max);
+              if (latestPoint?.value) {
+                const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
+                utilizationBaseline = parseFloat(parsed?.utilization ?? 0);
+              }
             }
             resultsBaseline[machine.id.id] = { utilizationBaseline: parseFloat(utilizationBaseline.toFixed(1)) };
           } else {
@@ -391,23 +628,131 @@ export default function MachineDashboard() {
               : { componentName: null };
 
           /** ---------------- Total / Auto Durations ---------------- **/
-          const totalValues = data?.total_duration || [];
-          const totalObj = totalValues[0] ? (typeof totalValues[0].value === "string" ? JSON.parse(totalValues[0].value) : totalValues[0].value) : {};
-          let autoObj = {};
           const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
+          let run = 0, idle = 0, disconnect = 0, alarm = 0, setting = 0;
+          let totalParts = 0, targetParts = 0, goodParts = 0, scrap = 0, ncr = 0;
 
-          if (shiftNo === currentShiftNo && isToday) {
-            const autoValues = data?.auto_duration || [];
-            autoObj = autoValues[0] ? (typeof autoValues[0].value === "string" ? JSON.parse(autoValues[0].value) : autoValues[0].value) : {};
+          if (isAllShift && shiftRanges.length > 0) {
+            // Sum the first (latest) total_duration value from each shift
+            for (const range of shiftRanges) {
+              const filtered = filterByShiftRange(data, range.from, range.to);
+              const shiftTotalVals = filtered?.total_duration || [];
+              if (shiftTotalVals.length > 0) {
+                const latest = shiftTotalVals.reduce((a, b) =>
+                  new Date(a.ts) > new Date(b.ts) ? a : b
+                );
+                const parsed = typeof latest.value === "string" ? JSON.parse(latest.value) : latest.value;
+                run += Math.round(parsed?.total_run_duration || 0);
+                idle += Math.round(parsed?.total_idle_duration || 0);
+                disconnect += Math.round(parsed?.total_disconnect_duration || 0);
+                alarm += Math.round(parsed?.total_alarm_duration || 0);
+                setting += Math.round(parsed?.total_setting_duration || 0);
+              }
+
+              // Sum totalparts (JSON value: {totalshots: <number>}) per shift
+              const rawTotalParts = data?.totalparts || [];
+              const shiftTotalPartsVals = filtered?.totalparts || [];
+              console.log(`[totalparts] shift ${range.shiftNo} raw count:`, rawTotalParts.length, '| filtered count:', shiftTotalPartsVals.length, '| range:', range.from, range.to);
+              if (shiftTotalPartsVals.length > 0) {
+                const latestShot = shiftTotalPartsVals.reduce((a, b) =>
+                  new Date(a.ts) > new Date(b.ts) ? a : b
+                );
+                const parsedShot = typeof latestShot.value === "string" ? JSON.parse(latestShot.value) : latestShot.value;
+                console.log(`[totalparts] shift ${range.shiftNo} latestShot:`, latestShot, '| parsed:', parsedShot);
+                totalParts += Math.round(parsedShot?.totalshots || 0);
+                goodParts += Math.round(parsedShot?.goodparts || 0);
+                scrap += Math.round(parsedShot?.scrap || 0);
+                ncr += Math.round(parsedShot?.ncr || 0);
+              }
+
+              // Sum targetparts (integer value) per shift
+              const rawTargetParts = data?.targetparts || [];
+              const shiftTargetVals = filtered?.targetparts || [];
+              console.log(`[targetparts] shift ${range.shiftNo} raw count:`, rawTargetParts.length, '| filtered count:', shiftTargetVals.length);
+              if (shiftTargetVals.length > 0) {
+                const latestTarget = shiftTargetVals.reduce((a, b) =>
+                  new Date(a.ts) > new Date(b.ts) ? a : b
+                );
+                const targetVal = typeof latestTarget.value === "string" ? Number(latestTarget.value) : Number(latestTarget.value);
+                console.log(`[targetparts] shift ${range.shiftNo} latestTarget:`, latestTarget, '| val:', targetVal);
+                targetParts += Math.round(targetVal || 0);
+              }
+
+              // Add auto_duration for the currently ongoing shift
+              if (isToday && range.shiftNo === currentShiftNo) {
+                const shiftAutoVals = filtered?.auto_duration || [];
+                if (shiftAutoVals.length > 0) {
+                  const latestAuto = shiftAutoVals.reduce((a, b) =>
+                    new Date(a.ts) > new Date(b.ts) ? a : b
+                  );
+                  const autoObj = typeof latestAuto.value === "string" ? JSON.parse(latestAuto.value) : latestAuto.value;
+                  run += Math.round(autoObj?.total_run_duration || 0);
+                  idle += Math.round(autoObj?.total_idle_duration || 0);
+                  disconnect += Math.round(autoObj?.total_disconnect_duration || 0);
+                  alarm += Math.round(autoObj?.total_alarm_duration || 0);
+                  setting += Math.round(autoObj?.total_setting_duration || 0);
+                }
+              }
+            }
+          } else {
+            const totalValues = data?.total_duration || [];
+            const totalObj = totalValues[0] ? (typeof totalValues[0].value === "string" ? JSON.parse(totalValues[0].value) : totalValues[0].value) : {};
+            let autoObj = {};
+            if (shiftNo === currentShiftNo && isToday) {
+              const autoValues = data?.auto_duration || [];
+              autoObj = autoValues[0] ? (typeof autoValues[0].value === "string" ? JSON.parse(autoValues[0].value) : autoValues[0].value) : {};
+            }
+            run = Math.round((totalObj.total_run_duration || 0) + (autoObj.total_run_duration || 0));
+            idle = Math.round((totalObj.total_idle_duration || 0) + (autoObj.total_idle_duration || 0));
+            disconnect = Math.round((totalObj.total_disconnect_duration || 0) + (autoObj.total_disconnect_duration || 0));
+            alarm = Math.round((totalObj.total_alarm_duration || 0) + (autoObj.total_alarm_duration || 0));
+            setting = Math.round((totalObj.total_setting_duration || 0) + (autoObj.total_setting_duration || 0));
+
+            // totalparts (single shift)
+            const totalPartsVals = data?.totalparts || [];
+            if (totalPartsVals.length > 0) {
+              const latestShot = totalPartsVals.reduce((a, b) => new Date(a.ts) > new Date(b.ts) ? a : b);
+              const parsedShot = typeof latestShot.value === "string" ? JSON.parse(latestShot.value) : latestShot.value;
+              totalParts = Math.round(parsedShot?.totalshots || 0);
+              goodParts = Math.round(parsedShot?.goodparts || 0);
+              scrap = Math.round(parsedShot?.scrap || 0);
+              ncr = Math.round(parsedShot?.ncr || 0);
+            }
+
+            // targetparts (single shift)
+            const targetPartsVals = data?.targetparts || [];
+            if (targetPartsVals.length > 0) {
+              const latestTarget = targetPartsVals.reduce((a, b) => new Date(a.ts) > new Date(b.ts) ? a : b);
+              targetParts = Math.round(Number(latestTarget.value) || 0);
+            }
           }
-          const run = Math.round((totalObj.total_run_duration || 0) + (autoObj.total_run_duration || 0));
-          const idle = Math.round((totalObj.total_idle_duration || 0) + (autoObj.total_idle_duration || 0));
-          const disconnect = Math.round((totalObj.total_disconnect_duration || 0) + (autoObj.total_disconnect_duration || 0));
-          const alarm = Math.round((totalObj.total_alarm_duration || 0) + (autoObj.total_alarm_duration || 0));
-          const setting = Math.round((totalObj.total_setting_duration || 0) + (autoObj.total_setting_duration || 0));
           const total = run + idle + disconnect + alarm + setting;
 
-          resultsDurations[machine.id.id] = { run, idle, disconnect, alarm, setting, total };
+          resultsDurations[machine.id.id] = { run, idle, disconnect, alarm, setting, total, totalParts, targetParts, goodParts, scrap, ncr };
+
+          /** ---------------- OEE / Performance / Quality ---------------- **/
+          const utilizationVal = resultsUtilization[machine.id.id]?.utilization ?? 0;
+          const performance = targetParts > 0 ? Math.min(100, Math.round((totalParts / targetParts) * 100)) : 0;
+
+          if (isAllShift) {
+            const quality = totalParts > 0 ? Math.min(100, Math.round((goodParts / totalParts) * 100)) : 0;
+            const oeeCalc = Math.round((utilizationVal / 100) * (performance / 100) * (quality / 100) * 100);
+            resultsPartsStats[machine.id.id] = { performance, quality, oee: oeeCalc };
+          } else {
+            // Single shift: read latest oee and quality from fetched keys
+            let oeeFromKey = 0, qualityFromKey = 0;
+            const oeeVals = data?.oee || [];
+            if (oeeVals.length > 0) {
+              const latestOee = oeeVals.reduce((a, b) => new Date(a.ts) > new Date(b.ts) ? a : b);
+              oeeFromKey = Math.round(Number(latestOee.value) || 0);
+            }
+            const qualityVals = data?.quality || [];
+            if (qualityVals.length > 0) {
+              const latestQuality = qualityVals.reduce((a, b) => new Date(a.ts) > new Date(b.ts) ? a : b);
+              qualityFromKey = Math.round(Number(latestQuality.value) || 0);
+            }
+            resultsPartsStats[machine.id.id] = { performance, quality: qualityFromKey, oee: oeeFromKey };
+          }
 
           /** ---------------- Machine_Status (latest display) ---------------- **/
           const statusValues = data?.machine_status || [];
@@ -491,6 +836,7 @@ export default function MachineDashboard() {
           resultsBaseline[machine.id.id] = { utilizationBaseline: 0 };
           resultsLiveComponent[machine.id.id] = { componentName: null };
           resultsDurations[machine.id.id] = { run: 0, idle: 0, disconnect: 0, alarm: 0, setting: 0, total: 0 };
+          resultsPartsStats[machine.id.id] = { performance: 0, quality: 0, oee: 0 };
           resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status: "Error" };
           resultsMachineStatusTimes[machine.id.id] = { lastTs: null };
         }
@@ -505,6 +851,7 @@ export default function MachineDashboard() {
     setMachineStatusTimes(resultsMachineStatusTimes);
     setLiveReason(resultsLiveReason);
     setLockStatus(resultsLockStatus);
+    setMachinePartsStats(resultsPartsStats);
     console.log(resultsLiveReason, 'result live reason and lock')
   };
 
@@ -736,7 +1083,21 @@ export default function MachineDashboard() {
       intervalRef.current = null;
     }
 
-    if (isToday && currentShift === shiftNo) {
+    if (shiftNo === "allshift") {
+      if (isToday) {
+        setCurrentTime(Date.now());
+        intervalRef.current = setInterval(() => {
+          setCurrentTime(Date.now());
+        }, 1000);
+      } else {
+        const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
+        const lastShiftObj = sortedShifts[sortedShifts.length - 1];
+        if (lastShiftObj) {
+          const endDate = getShiftEndDateTime(selectedDate, lastShiftObj);
+          if (endDate) setCurrentTime(endDate.getTime());
+        }
+      }
+    } else if (isToday && currentShift === shiftNo) {
       // ✅ Set immediately
       setCurrentTime(Date.now());
 
@@ -801,8 +1162,51 @@ export default function MachineDashboard() {
 
     const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
     const isTodayOngoingShift = isToday && (currentShiftNo === shiftNo);
-    let url = `${baseUrls[tab]}&var-from=${from}&var-to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-token=${bearerToken}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-isTodayOngoingShift=${isTodayOngoingShift}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&theme=light&kiosk`;
+    const isAllShift = shiftNo === "allshift" ? "allshift" : currentShiftNo;
 
+    const isAllShiftSelected = shiftNo === "allshift";
+    const _util = machineUtilization[machineId]?.utilization ?? 0;
+    const _run = machineDurations[machineId]?.run ?? 0;
+    const _idle = machineDurations[machineId]?.idle ?? 0;
+    const _disconnect = machineDurations[machineId]?.disconnect ?? 0;
+    const _alarm = machineDurations[machineId]?.alarm ?? 0;
+    const _totalParts = machineDurations[machineId]?.totalParts ?? 0;
+    const _targetParts = machineDurations[machineId]?.targetParts ?? 0;
+    const _performance = machinePartsStats[machineId]?.performance ?? 0;
+    const _quality = machinePartsStats[machineId]?.quality ?? 0;
+    const _oee = machinePartsStats[machineId]?.oee ?? 0;
+
+    const allShiftData = encodeURIComponent(JSON.stringify(
+      isAllShiftSelected
+        ? {
+          utilization: _util,
+          performance: _performance,
+          quality: _quality,
+          oee: _oee,
+          totalparts: _totalParts,
+          targetparts: _targetParts,
+          total_run_duration: _run,
+          total_idle_duration: _idle,
+          total_disconnect_duration: _disconnect,
+          total_alarm_duration: _alarm,
+        }
+        : {
+          utilization: _util,
+          performance: _performance,
+          quality: _quality,
+          oee: _oee,
+          totalparts: _totalParts,
+          targetparts: _targetParts,
+          total_run_duration: _run,
+          total_idle_duration: _idle,
+          total_disconnect_duration: _disconnect,
+          total_alarm_duration: _alarm,
+        }
+    ));
+
+    let url = `${baseUrls[tab]}&var-isAllShift=${isAllShift}&var-customerid=${cleanCustomerId(customerId)}&var-from=${from}&var-to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-token=${bearerToken}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-isTodayOngoingShift=${isTodayOngoingShift}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&var-allShiftData=${allShiftData}&theme=light&kiosk`;
+
+    console.log(shiftNo, '0000000000000000000000000000000000000 shifdu')
     if (tab === "diagnostics") {
       url = `${baseUrls[tab]}?&from=${from}&to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
     }
@@ -1038,6 +1442,7 @@ export default function MachineDashboard() {
 
   // State for storing utilization baseline
   const [utilizationBaseline, setUtilizationBaseline] = useState({});
+  const [machinePartsStats, setMachinePartsStats] = useState({});
 
   const [liveComponent, setLiveComponent] = useState({});
 
@@ -1250,7 +1655,7 @@ export default function MachineDashboard() {
     if (!fromTime || !toTime) return;
 
     handleTabClick(activeTab || "overview", selectedMachine);
-  }, [from, to, fromTime, toTime, selectedMachine, selectedDate, activeTab]);
+  }, [from, to, fromTime, toTime, selectedMachine, selectedDate, activeTab, machineUtilization, machineDurations, machinePartsStats]);
 
 
 
@@ -1408,7 +1813,7 @@ export default function MachineDashboard() {
       >
 
         {showMachineGroupsDropdown && (
-          <FormControl size="small" sx={{ minWidth: 180,  marginBottom: "10px" }}>
+          <FormControl size="small" sx={{ minWidth: 180, marginBottom: "10px" }}>
             <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machine Group</InputLabel>
             <Select
               multiple
@@ -1550,7 +1955,7 @@ export default function MachineDashboard() {
           ) : (
             filteredDevices.map((machine) => {
               const changePositive = machine.changeFromBaseline >= 0;
-              const { run = 0, idle = 0, total = 0, disconnect = 0, alarm = 0, setting = 0 } =
+              const { run = 0, idle = 0, total = 0, disconnect = 0, alarm = 0, setting = 0, totalParts = 0, targetParts = 0, goodParts = 0, scrap = 0, ncr = 0 } =
                 machineDurations[machine.id.id] || {};
               // const firstActiveTime =
               //   machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
@@ -1576,7 +1981,7 @@ export default function MachineDashboard() {
                     background: isSelected ? "#e3f2fd" : "#ffffff",
                     border: "1px solid #e0e0e0",
                     boxShadow: `
-      4px 4px 8px rgba(0,0,0,0.08), 
+      4px 4px 8px rgba(0,0,0,0.08),
       -4px -4px 8px rgba(255,255,255,0.9)
     `,
                     borderLeft: `5px solid ${machineStatuses[machine.id.id]?.status === "Running"
@@ -1690,6 +2095,7 @@ export default function MachineDashboard() {
                         First Active: {formatMillisecondsTo12HourTime(machineStatusTimes[machine.id.id]?.lastTs)}
                       </Typography>
                     </Box>
+
 
                     {/* Reason & Component */}
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1 }}>
@@ -1891,7 +2297,7 @@ export default function MachineDashboard() {
         }}
       ></span>
       <Typography variant="body2.3" color="textSecondary" component="span">
-        {displayLabel} 
+        {displayLabel}
       </Typography> */}
                 </Typography>
               );
@@ -1953,11 +2359,18 @@ export default function MachineDashboard() {
                   onChange={(e) => setSelectedShift(e.target.value)}
                   label="Shifts"
                 >
-                  {shifts.map((s) => (
-                    <MenuItem key={s.id} value={s.shift_no}>
-                      {s.shift_name || `Shift ${s.shift_no}`}
-                    </MenuItem>
-                  ))}
+                  <MenuItem value="allshift">All Shifts</MenuItem>
+                  {shifts.map((s) => {
+                    const isFuture = dayjs(selectedDate).isSame(dayjs(), 'day') && (() => {
+                      const times = getShiftTimes(shifts, String(s.shift_no), selectedDate);
+                      return times.from !== null && times.from > Date.now();
+                    })();
+                    return (
+                      <MenuItem key={s.id} value={String(s.shift_no)} disabled={isFuture}>
+                        {s.shift_name || `Shift ${s.shift_no}`}{isFuture ? ' (upcoming)' : ''}
+                      </MenuItem>
+                    );
+                  })}
                 </Select>
               </FormControl>
             </div>
