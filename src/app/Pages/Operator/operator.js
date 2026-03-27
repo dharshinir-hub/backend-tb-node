@@ -21,7 +21,12 @@ import {
     Button,
     Autocomplete,
     TextField,
+    InputLabel,
+    Checkbox,
+    ListItemText,
+    IconButton,
 } from "@mui/material";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { ROLE_OPERATOR } from '../../Shared/constants/role'
 import { getOperatorDetails, Loginapi, startTokenAutoRefresh } from '../../Services/app/loginservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
@@ -31,6 +36,7 @@ import { useLocation } from 'react-router-dom';
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 import { cleanCustomerId, shiftadd } from '../../Services/app/masterservice';
 import DynamicSlidingKeyboard from '../../Shared/Pages/dynamicSlidingKeyboard/dynamicSlidingKeyboard';
+import { getReportGenerate1, getReportToken } from '../../Services/app/reportservice';
 
 function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
@@ -55,6 +61,7 @@ function Operator() {
     const [loading, setLoading] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const location = useLocation();
+    const CustomerEmail = localStorage.getItem("email");
     const [telemetry, setTelemetry] = useState({
         machineStatus: "Unknown",
         targetParts: 0,
@@ -80,6 +87,13 @@ function Operator() {
     const [blueCardElapsed, setBlueCardElapsed] = useState(0);
     const blueCardTimerRef = useRef(null);
     const [routeCardNo, setRouteCardNo] = useState("");
+    const [openReject, setOpenReject] = useState(false);
+    const [selectedRow, setSelectedRow] = useState(null);
+    const [existingCount, setExistingCount] = useState(0);
+    const [rejectRows, setRejectRows] = useState([{ count: 0, reason: [], remark: "" }]);
+    const [qualityReasonList, setQualityReasonList] = useState([]);
+    const [isFetchingBluecard, setIsFetchingBluecard] = useState(false);
+    const [prevOperatorData, setPrevOperatorData] = useState(null);
     const isValidRouteCard = /^[a-z0-9]+$/i.test(routeCardNo);
     const [openBlueCardResponse, setOpenBlueCardResponse] = useState(false);
     const [blueCardResponseData, setBlueCardResponseData] = useState(null);
@@ -116,6 +130,10 @@ function Operator() {
         location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" ||
         cleanCustomerId(getCustomerId()) === CUSTOMER_IDS.PMI;
 
+    const isGplastCondition =
+        location.pathname === "/gplast_operator_awe6tc" ||
+        cleanCustomerId(getCustomerId()) === CUSTOMER_IDS.GPLAST;
+
     const fetchDevices = async () => {
         try {
             const customerId = getCustomerId();
@@ -140,6 +158,8 @@ function Operator() {
                     localStorage.setItem("selectedMachine", defaultMachine);
                 }
             }
+            const qualityResult = await customerbasedshift(customerId, "qualityreason");
+            setQualityReasonList(qualityResult?.[0]?.value || []);
         } catch (err) {
             console.error("Failed to fetch devices", err);
         }
@@ -563,6 +583,7 @@ function Operator() {
                     end_time: currentActiveShift.end_time.slice(0, 5),
                 };
                 setCurrentShift(formattedShift);
+                setSelectedShift(currentActiveShift.shift_no);
                 const startTime = dayjs(`${dayjs().format("YYYY-MM-DD")} ${formattedShift.start_time}`, "YYYY-MM-DD HH:mm");
                 let endTime = dayjs(`${dayjs().format("YYYY-MM-DD")} ${formattedShift.end_time}`, "YYYY-MM-DD HH:mm");
                 if (currentActiveShift.start_day !== currentActiveShift.end_day) {
@@ -1521,83 +1542,334 @@ function Operator() {
         });
     };
 
-    const handleRejectParts = async (deviceId, initialCount = 0) => {
-        let rejectCount = initialCount;
-        await Swal.fire({
-            title: "Reject Parts",
-            html: `
-      <div style="display:flex; align-items:center; justify-content:center; gap:30px;">
-        <button id="decrement" 
-          style="width:50px;height:50px;border-radius:50%;font-size:24px;font-weight:bold;background:#f56565;color:white;border:none;cursor:pointer;">-</button>
-        <span id="counterValue" style="font-size:28px; font-weight:bold; min-width:50px; text-align:center;">${rejectCount}</span>
-        <button id="increment" 
-          style="width:50px;height:50px;border-radius:50%;font-size:24px;font-weight:bold;background:#48bb78;color:white;border:none;cursor:pointer;">+</button>
-      </div>
-    `,
-            showCancelButton: true,
-            confirmButtonText: "Continue",
-            cancelButtonText: "Cancel",
-            didOpen: () => {
-                const counterEl = Swal.getHtmlContainer().querySelector("#counterValue");
-                const incBtn = Swal.getHtmlContainer().querySelector("#increment");
-                const decBtn = Swal.getHtmlContainer().querySelector("#decrement");
-                const produced = telemetry.totalShots || 0;
-                const alreadyRejected = telemetry.scrap || 0;
-                const maxReject = produced - alreadyRejected;
-                incBtn.addEventListener("click", () => {
-                    if (rejectCount < maxReject) {
-                        rejectCount++;
-                        counterEl.textContent = rejectCount;
-                    } else {
-                        Swal.showValidationMessage(`Cannot exceed ${maxReject} parts`);
-                    }
-                });
-                decBtn.addEventListener("click", () => {
-                    if (rejectCount > 0) {
-                        rejectCount--;
-                        counterEl.textContent = rejectCount;
-                    }
-                });
+    const handleRejectParts = async () => {
+        setSelectedRow({
+            machineName: selectedMachine,
+            op: {
+                goodvsexp: `${telemetry.totalShots}/0`,
+                operation_name: telemetry.jobName || "No Operations",
             },
-            preConfirm: () => {
-                if (rejectCount <= 0) {
-                    Swal.showValidationMessage("Please select at least 1 reject part");
-                    return false;
-                }
-                return rejectCount;
-            },
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const count = result.value;
-                Swal.fire({
-                    title: "Confirm Rejection",
-                    text: `Are you sure you want to reject ${count} part(s)?`,
-                    icon: "warning",
-                    showCancelButton: true,
-                    confirmButtonText: "Yes, Reject",
-                    cancelButtonText: "No, Go Back",
-                }).then(async (confirmResult) => {
-                    if (confirmResult.isConfirmed) {
-                        try {
-                            const payload = { ts: dayjs().valueOf(), values: { rejection_id: count } };
-                            await operatorTelemetry("DEVICE", deviceId, payload);
-                            Swal.fire({
-                                icon: "success",
-                                title: "Success",
-                                text: `${count} part(s) rejected successfully.`,
-                                timer: 2000,
-                                showConfirmButton: false,
-                            });
-                        } catch (err) {
-                            console.error("Reject API failed:", err);
-                            Swal.fire("Error", "Failed to reject parts. Try again.", "error");
-                        }
-                    } else if (confirmResult.dismiss === Swal.DismissReason.cancel) {
-                        handleRejectParts(deviceId, count);
-                    }
-                });
-            }
         });
+        setExistingCount(telemetry.scrap || 0);
+        setRejectRows([{ count: 0, reason: [], remark: "", isExisting: false }]);
+        setIsFetchingBluecard(false);
+        setPrevOperatorData(null);
+        setOpenReject(true);
+
+        const deviceId = deviceNameIdJson[selectedMachine];
+
+        // Fetch operations for current shift to get actual (goodvsexp numerator) and rejected counts
+        if (deviceId && currentShift) {
+            try {
+                const { shiftStart, shiftEnd } = getShiftEpoch(currentShift.start_time, currentShift.end_time);
+                const opsData = await telemetrykeydata(deviceId, "DEVICE", "operations", shiftStart, shiftEnd);
+                const rawOps = opsData?.operations || [];
+                const parsedOps = rawOps
+                    .map(item => {
+                        try {
+                            const v = typeof item.value === "string" ? JSON.parse(item.value) : item.value;
+                            return { ts: item.ts, ...v };
+                        } catch { return null; }
+                    })
+                    .filter(Boolean);
+
+                if (parsedOps.length > 0) {
+                    parsedOps.sort((a, b) => b.ts - a.ts);
+                    const latestOp = parsedOps[0];
+                    const actualFromOps = Number((latestOp.goodvsexp?.split("/") || [])[0] || 0);
+                    const rejectedFromOps = Number(latestOp.rejected ?? 0);
+                    setSelectedRow({
+                        machineName: selectedMachine,
+                        op: {
+                            goodvsexp: latestOp.goodvsexp || `${actualFromOps}/0`,
+                            operation_name: telemetry.jobName || "No Operations",
+                        },
+                    });
+                    setExistingCount(rejectedFromOps);
+                }
+            } catch (err) {
+                console.warn("Could not fetch operations data for reject parts", err);
+            }
+        }
+
+        const startTime = telemetry?.liveComponent?.start_time;
+        if (deviceId && startTime) {
+            try {
+                const existingData = await telemetrykeydata(deviceId, "DEVICE", "rejection", startTime - 1000, startTime + 1000);
+                const entries = existingData?.rejection || [];
+                if (entries.length > 0) {
+                    let parsed = null;
+                    try { parsed = typeof entries[0].value === "string" ? JSON.parse(entries[0].value) : entries[0].value; } catch { }
+                    if (parsed && Number(parsed.operator_count || 0) > 0) {
+                        setPrevOperatorData({
+                            count: Number(parsed.operator_count || 0),
+                            reason: Array.isArray(parsed.operator_reason) ? parsed.operator_reason : parsed.operator_reason ? [parsed.operator_reason] : [],
+                            remark: Array.isArray(parsed.operator_remark) ? parsed.operator_remark.join(", ") : parsed.operator_remark || "",
+                        });
+                    }
+                }
+            } catch (err) {
+                console.warn("Could not fetch previous operator rejection data", err);
+            }
+        }
+    };
+
+    const formatReason = (val) => {
+        if (!val) return "-";
+        if (Array.isArray(val)) return val.map(v => String(v).trim()).filter(Boolean).join(", ");
+        return String(val);
+    };
+    const isGplast = cleanCustomerId(customerId1) === CUSTOMER_IDS.GPLAST;
+
+
+    const handleLoginAndFetch = async (machineName,
+        formattedDate,
+        selectedShift,
+        isLiveShift) => {
+        try {
+            const loginRes = await getReportToken(
+                isGplast ? "gplast" : "pmi",
+                isGplast ? "gplast" : "pmi"
+            );
+            const token = loginRes?.accessToken;
+            if (!token) {
+                console.warn("Token missing — skipping report call");
+                return;
+            }
+            await getReportGenerate1(
+                machineName,
+                formattedDate,
+                selectedShift,
+                isLiveShift
+            );
+        } catch (err) {
+            console.error("Login/report flow failed:", err);
+        }
+    };
+
+    const handleSave = async () => {
+
+        const filledRows = rejectRows.filter(
+            row => !row.isExisting && (Number(row.count) || 0) > 0
+        );
+
+        if (filledRows.length === 0) return;
+
+        const newCount = filledRows.reduce((sum, row) => sum + Number(row.count), 0);
+
+        const newReasons = filledRows
+            .flatMap(row => Array.isArray(row.reason) ? row.reason : [row.reason])
+            .filter(Boolean);
+
+        const newRemarks = filledRows
+            .map(row => row.remark)
+            .filter(Boolean);
+
+        const deviceId = deviceNameIdJson[selectedMachine];
+        const startTime = telemetry?.liveComponent?.start_time;
+
+        if (!deviceId || !startTime) {
+            Swal.fire("Error", "No active component found.", "error");
+            return;
+        }
+
+        /* -------------------------------
+           Existing Values
+        --------------------------------*/
+
+        let prevEmails = [];
+
+        let prevOperatorCount = 0;
+        let prevOperatorReasons = [];
+        let prevOperatorRemarks = [];
+
+        let prevQualityCount = 0;
+        let prevQualityReason = [];
+        let prevQualityRemark = [];
+        let prevQualityRows = [];
+
+        let prevCount = 0;
+        let prevReasons = [];
+        let prevRemarks = [];
+
+        try {
+
+            const existingData = await telemetrykeydata(
+                deviceId,
+                "DEVICE",
+                "rejection",
+                startTime - 1000,
+                startTime + 1000
+            );
+
+            const entries = existingData?.rejection || [];
+
+            if (entries.length > 0) {
+
+                let parsed = null;
+
+                try {
+                    parsed = typeof entries[0].value === "string"
+                        ? JSON.parse(entries[0].value)
+                        : entries[0].value;
+                } catch { }
+
+                if (parsed) {
+
+                    prevEmails = Array.isArray(parsed.operator_email)
+                        ? parsed.operator_email
+                        : parsed.operator_email
+                            ? [parsed.operator_email]
+                            : [];
+
+                    prevOperatorCount = Number(parsed.operator_count || 0);
+
+                    prevOperatorReasons = Array.isArray(parsed.operator_reason)
+                        ? parsed.operator_reason
+                        : parsed.operator_reason
+                            ? [parsed.operator_reason]
+                            : [];
+
+                    prevOperatorRemarks = Array.isArray(parsed.operator_remark)
+                        ? parsed.operator_remark
+                        : parsed.operator_remark
+                            ? [parsed.operator_remark]
+                            : [];
+
+                    prevQualityCount = Number(parsed.qualitycount || 0);
+
+                    prevQualityReason = Array.isArray(parsed.qualityreason)
+                        ? parsed.qualityreason
+                        : parsed.qualityreason
+                            ? [parsed.qualityreason]
+                            : [];
+
+                    prevQualityRemark = Array.isArray(parsed.quality_remark)
+                        ? parsed.quality_remark
+                        : parsed.quality_remark
+                            ? [parsed.quality_remark]
+                            : [];
+
+                    prevQualityRows = Array.isArray(parsed.quality_rows)
+                        ? parsed.quality_rows
+                        : [];
+
+                    prevCount = Number(parsed.count || 0);
+
+                    prevReasons = Array.isArray(parsed.reason)
+                        ? parsed.reason
+                        : parsed.reason
+                            ? [parsed.reason]
+                            : [];
+
+                    prevRemarks = Array.isArray(parsed.remark)
+                        ? parsed.remark
+                        : parsed.remark
+                            ? [parsed.remark]
+                            : [];
+                }
+            }
+
+        } catch (err) {
+            console.warn("Could not fetch existing rejection data", err);
+        }
+
+        /* -------------------------------
+           Correct Merging Logic
+        --------------------------------*/
+
+        const combinedEmails = [
+            ...new Set([...prevEmails, CustomerEmail])
+        ];
+
+        const operatorCount = prevOperatorCount + newCount;
+
+        const operatorReasons = [
+            ...new Set([...prevOperatorReasons, ...newReasons])
+        ];
+
+        const operatorRemarks = [
+            ...prevOperatorRemarks,
+            ...newRemarks
+        ];
+
+        const totalCount = prevCount + newCount;
+
+        const finalReasons = [
+            ...new Set([...prevReasons, ...newReasons])
+        ];
+
+        const finalRemarks = [
+            ...prevRemarks,
+            ...newRemarks
+        ];
+
+        /* -------------------------------
+           Payload
+        --------------------------------*/
+
+        const key = {
+            ts: startTime,
+            values: {
+                rejection: {
+
+                    operator_email: combinedEmails,
+                    operator_count: operatorCount,
+                    operator_reason: operatorReasons,
+                    operator_remark: operatorRemarks,
+
+                    qualitycount: prevQualityCount,
+                    qualityreason: prevQualityReason,
+                    quality_remark: prevQualityRemark,
+                    quality_rows: prevQualityRows,
+
+                    count: totalCount,
+                    reason: finalReasons,
+                    remark: finalRemarks,
+
+                    shift: currentShift?.shift_no
+                }
+            }
+        };
+
+        try {
+
+            await Downtimeadd1("DEVICE", deviceId, "SERVER_SCOPE", key);
+
+            setOpenReject(false);
+            setRejectRows([{ count: 0, reason: [], remark: "" }]);
+
+            Swal.fire({
+                icon: "success",
+                title: "Success",
+                text: `${newCount} part(s) rejected successfully.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+            const formattedDate = dayjs(selectedDate).format("YYYY-MM-DD");
+            const todayStr = dayjs().format("YYYY-MM-DD");
+            const selectedDateStr = dayjs(selectedDate).format("YYYY-MM-DD");
+            const currentShift = getCurrentShift(shifts);
+
+            const isToday = selectedDateStr === todayStr;
+            const isCurrentShift = String(selectedShift) === String(currentShift);
+            const isLiveShift = isToday && isCurrentShift;
+
+            await handleLoginAndFetch(selectedMachine,
+                formattedDate,
+                currentShift?.shift_no,
+                "true")
+
+        } catch (err) {
+
+            console.error("Reject API failed:", err);
+
+            Swal.fire(
+                "Error",
+                "Failed to reject parts. Try again.",
+                "error"
+            );
+        }
     };
 
     const formatBlueCardTimer = (seconds) => {
@@ -1886,6 +2158,7 @@ function Operator() {
 
     console.log('blue card data------------', blueCardLogs)
     console.log('selected shift', currentShift?.shift_no)
+    console.log('selected shift no is', selectedShift)
 
     const blinkGreenBorder = keyframes`
   0%, 100% {
@@ -1932,6 +2205,91 @@ function Operator() {
     const isBlueCardLimitReached = blueCardPushCount >= totalShotsNum && totalShotsNum != 0;
     console.log('telemetry', telemetry)
 
+    const rejectActual = Number((selectedRow?.op?.goodvsexp?.split("/") || [])[0] || 0);
+    const rejectAllowed = Math.max(0, rejectActual - (existingCount || 0));
+    const totalNewRejectCount = rejectRows.reduce((sum, r) => !r.isExisting ? sum + Number(r.count || 0) : sum, 0);
+    const isMaxReached = totalNewRejectCount >= rejectAllowed;
+    const existingRows = rejectRows.filter(r => r.isExisting);
+
+    const handleRejectParts1 = async (deviceId, initialCount = 0) => {
+        let rejectCount = initialCount;
+        await Swal.fire({
+            title: "Reject Parts",
+            html: `
+      <div style="display:flex; align-items:center; justify-content:center; gap:30px;">
+        <button id="decrement" 
+          style="width:50px;height:50px;border-radius:50%;font-size:24px;font-weight:bold;background:#f56565;color:white;border:none;cursor:pointer;">-</button>
+        <span id="counterValue" style="font-size:28px; font-weight:bold; min-width:50px; text-align:center;">${rejectCount}</span>
+        <button id="increment" 
+          style="width:50px;height:50px;border-radius:50%;font-size:24px;font-weight:bold;background:#48bb78;color:white;border:none;cursor:pointer;">+</button>
+      </div>
+    `,
+            showCancelButton: true,
+            confirmButtonText: "Continue",
+            cancelButtonText: "Cancel",
+            didOpen: () => {
+                const counterEl = Swal.getHtmlContainer().querySelector("#counterValue");
+                const incBtn = Swal.getHtmlContainer().querySelector("#increment");
+                const decBtn = Swal.getHtmlContainer().querySelector("#decrement");
+                const produced = telemetry.totalShots || 0;
+                const alreadyRejected = telemetry.scrap || 0;
+                const maxReject = produced - alreadyRejected;
+                incBtn.addEventListener("click", () => {
+                    if (rejectCount < maxReject) {
+                        rejectCount++;
+                        counterEl.textContent = rejectCount;
+                    } else {
+                        Swal.showValidationMessage(`Cannot exceed ${maxReject} parts`);
+                    }
+                });
+                decBtn.addEventListener("click", () => {
+                    if (rejectCount > 0) {
+                        rejectCount--;
+                        counterEl.textContent = rejectCount;
+                    }
+                });
+            },
+            preConfirm: () => {
+                if (rejectCount <= 0) {
+                    Swal.showValidationMessage("Please select at least 1 reject part");
+                    return false;
+                }
+                return rejectCount;
+            },
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                const count = result.value;
+                Swal.fire({
+                    title: "Confirm Rejection",
+                    text: `Are you sure you want to reject ${count} part(s)?`,
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonText: "Yes, Reject",
+                    cancelButtonText: "No, Go Back",
+                }).then(async (confirmResult) => {
+                    if (confirmResult.isConfirmed) {
+                        try {
+                            const payload = { ts: dayjs().valueOf(), values: { rejection_id: count } };
+                            await operatorTelemetry("DEVICE", deviceId, payload);
+                            Swal.fire({
+                                icon: "success",
+                                title: "Success",
+                                text: `${count} part(s) rejected successfully.`,
+                                timer: 2000,
+                                showConfirmButton: false,
+                            });
+                        } catch (err) {
+                            console.error("Reject API failed:", err);
+                            Swal.fire("Error", "Failed to reject parts. Try again.", "error");
+                        }
+                    } else if (confirmResult.dismiss === Swal.DismissReason.cancel) {
+                        handleRejectParts1(deviceId, count);
+                    }
+                });
+            }
+        });
+    };
+
     return (
         <div className="operator-screen">
             <div className="header">
@@ -1956,84 +2314,84 @@ function Operator() {
                     </div>
 
                     {/* Blue Card Notification Bell */}
-                                        {isPMIBlueCardPage && (
+                    {isPMIBlueCardPage && (
 
-                    <div ref={notifBellRef} style={{ position: 'relative', marginLeft: '16px', cursor: 'pointer' }}>
-                        <div onClick={() => setShowBlueCardNotif(prev => !prev)} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <FaBell size={22} style={{ color: '#6b7280' }} />
-                            {blueCardNotifications.length > 0 && (
-                                <span style={{
-                                    position: 'absolute', top: -6, right: -6,
-                                    background: '#F99022', color: 'white',
-                                    borderRadius: '50%', width: 18, height: 18,
-                                    fontSize: 11, fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    lineHeight: 1,
-                                }}>
-                                    {blueCardNotifications.length}
-                                </span>
-                            )}
-                        </div>
-
-                        {showBlueCardNotif && (
-                            <div style={{
-                                position: 'absolute', top: '110%', right: 0, zIndex: 1100,
-                                background: 'white', border: '1px solid #e5e7eb',
-                                borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
-                                minWidth: 320, maxHeight: 360, overflowY: 'auto',
-                            }}>
-                                <div style={{ padding: '10px 16px', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #f3f4f6', color: '#111827' }}>
-                                    Blue Card Responses
-                                    {telemetry?.liveComponent?.name && (
-                                        <span style={{ fontWeight: 400, fontSize: 12, color: '#6b7280', marginLeft: 8 }}>
-                                            ({telemetry.liveComponent.name})
-                                        </span>
-                                    )}
-                                </div>
-                                {blueCardNotifications.length === 0 ? (
-                                    <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
-                                        No responses yet for this component
-                                    </div>
-                                ) : (
-                                    [...blueCardNotifications].reverse().map((n, i) => {
-                                        const relTime = (() => {
-                                            if (!n.receivedAt) return '';
-                                            const diff = Math.floor((Date.now() - n.receivedAt) / 1000);
-                                            if (diff < 60) return 'Just now';
-                                            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-                                            return `${Math.floor(diff / 3600)}h ago`;
-                                        })();
-                                        return (
-                                            <div key={i} style={{
-                                                padding: '10px 16px', borderBottom: '1px solid #f3f4f6',
-                                                background: i === 0 ? '#fafafa' : 'white',
-                                            }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                                                    <span style={{ fontWeight: 600, fontSize: 14, color: n.status === 'OK' ? '#16a34a' : '#dc2626' }}>
-                                                        {n.status === 'OK' ? '✓ Approved' : '✗ Rejected'} — {n.device_name || '-'}
-                                                    </span>
-                                                    <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', marginLeft: 8 }}>
-                                                        {relTime}
-                                                    </span>
-                                                </div>
-                                                {n.status === 'NOK' && n.reason && (
-                                                    <div style={{ fontSize: 12, color: '#374151', marginBottom: 2 }}>
-                                                        <strong>Reason:</strong> {Array.isArray(n.reason) ? n.reason.join(', ') : n.reason}
-                                                    </div>
-                                                )}
-                                                {n.status === 'NOK' && n.remarks && n.remarks !== '-' && (
-                                                    <div style={{ fontSize: 12, color: '#374151' }}>
-                                                        <strong>Remark:</strong> {n.remarks}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })
+                        <div ref={notifBellRef} style={{ position: 'relative', marginLeft: '16px', cursor: 'pointer' }}>
+                            <div onClick={() => setShowBlueCardNotif(prev => !prev)} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <FaBell size={22} style={{ color: '#6b7280' }} />
+                                {blueCardNotifications.length > 0 && (
+                                    <span style={{
+                                        position: 'absolute', top: -6, right: -6,
+                                        background: '#F99022', color: 'white',
+                                        borderRadius: '50%', width: 18, height: 18,
+                                        fontSize: 11, fontWeight: 700,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        lineHeight: 1,
+                                    }}>
+                                        {blueCardNotifications.length}
+                                    </span>
                                 )}
                             </div>
-                        )}
-                    </div>    
+
+                            {showBlueCardNotif && (
+                                <div style={{
+                                    position: 'absolute', top: '110%', right: 0, zIndex: 1100,
+                                    background: 'white', border: '1px solid #e5e7eb',
+                                    borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+                                    minWidth: 320, maxHeight: 360, overflowY: 'auto',
+                                }}>
+                                    <div style={{ padding: '10px 16px', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #f3f4f6', color: '#111827' }}>
+                                        Blue Card Responses
+                                        {telemetry?.liveComponent?.name && (
+                                            <span style={{ fontWeight: 400, fontSize: 12, color: '#6b7280', marginLeft: 8 }}>
+                                                ({telemetry.liveComponent.name})
+                                            </span>
                                         )}
+                                    </div>
+                                    {blueCardNotifications.length === 0 ? (
+                                        <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+                                            No responses yet for this component
+                                        </div>
+                                    ) : (
+                                        [...blueCardNotifications].reverse().map((n, i) => {
+                                            const relTime = (() => {
+                                                if (!n.receivedAt) return '';
+                                                const diff = Math.floor((Date.now() - n.receivedAt) / 1000);
+                                                if (diff < 60) return 'Just now';
+                                                if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+                                                return `${Math.floor(diff / 3600)}h ago`;
+                                            })();
+                                            return (
+                                                <div key={i} style={{
+                                                    padding: '10px 16px', borderBottom: '1px solid #f3f4f6',
+                                                    background: i === 0 ? '#fafafa' : 'white',
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                                                        <span style={{ fontWeight: 600, fontSize: 14, color: n.status === 'OK' ? '#16a34a' : '#dc2626' }}>
+                                                            {n.status === 'OK' ? '✓ Approved' : '✗ Rejected'} — {n.device_name || '-'}
+                                                        </span>
+                                                        <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', marginLeft: 8 }}>
+                                                            {relTime}
+                                                        </span>
+                                                    </div>
+                                                    {n.status === 'NOK' && n.reason && (
+                                                        <div style={{ fontSize: 12, color: '#374151', marginBottom: 2 }}>
+                                                            <strong>Reason:</strong> {Array.isArray(n.reason) ? n.reason.join(', ') : n.reason}
+                                                        </div>
+                                                    )}
+                                                    {n.status === 'NOK' && n.remarks && n.remarks !== '-' && (
+                                                        <div style={{ fontSize: 12, color: '#374151' }}>
+                                                            <strong>Remark:</strong> {n.remarks}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                 </div>
             </div>
@@ -2564,7 +2922,19 @@ function Operator() {
 
             </div>
             <div className="footer1">
-                <div className="footer-left" onClick={() => handleRejectParts(deviceNameIdJson[selectedMachine])}>
+                <div
+                    className="footer-left"
+                    onClick={() => {
+                        if (telemetry.jobName && telemetry.jobName !== "Route card not assigned") {
+                            if (isGplastCondition) {
+                                handleRejectParts();
+                            } else {
+                                handleRejectParts1(deviceNameIdJson[selectedMachine]);
+                            }
+                        }
+                    }}
+                    style={{ opacity: (telemetry.jobName && telemetry.jobName !== "Route card not assigned") ? 1 : 0.4, cursor: (telemetry.jobName && telemetry.jobName !== "Route card not assigned") ? "pointer" : "not-allowed" }}
+                >
                     <FaPause />
                     Reject Parts
                 </div>
@@ -2667,6 +3037,297 @@ function Operator() {
                     <Button type="submit" variant="contained" className="filter_btn btn_orange" sx={{ backgroundColor: '#ff9800' }} onClick={handleSaveThreshold2}>Save</Button>
                 </DialogActions>
             </Dialog>
+            <Dialog
+                open={openReject}
+                onClose={() => setOpenReject(false)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        width: 800,
+                        maxWidth: "95%",
+                        borderRadius: "14px",
+                        overflow: "hidden",
+                    },
+                }}
+            >
+                <div style={{
+                    padding: "18px 24px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderBottom: "1px solid #e8eaf0",
+                }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{ fontSize: "22px" }}>🚫</span>
+                        <span style={{ fontSize: "20px", fontWeight: "600", color: "#212121", letterSpacing: "0.4px" }}>
+                            Reject Parts Entry
+                        </span>
+                        {selectedRow?.machineName && (
+                            <span style={{ fontSize: "20px", fontWeight: "600", color: "#212121" }}>
+                                - {selectedRow.machineName}
+                            </span>
+                        )}
+                        {selectedRow?.op?.operation_name && selectedRow.op.operation_name !== "No Operations" && (
+                            <span style={{ fontSize: "15px", fontWeight: "500", color: "#555", marginLeft: "4px" }}>
+                                ({selectedRow.op.operation_name})
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                <DialogContent
+                    sx={{
+                        padding: "20px 24px",
+                        background: "#fff",
+                        maxHeight: "70vh",
+                        overflowY: "auto",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "18px"
+                    }}
+                >
+                    {selectedRow && !isFetchingBluecard && (() => {
+                        const actual = Number((selectedRow.op?.goodvsexp?.split("/") || [])[0] || 0);
+                        const canReject = Math.max(0, actual - (existingCount || 0));
+                        const rejectedAlready = existingCount || 0;
+                        const stats = [
+                            { label: "Actual", value: actual, color: "#fff", bg: "#1976d2", border: "#1565c0" },
+                            { label: "Rejected", value: rejectedAlready, color: "#fff", bg: "#e53935", border: "#c62828" },
+                            { label: "Remaining", value: canReject, color: "#fff", bg: "#2e7d32", border: "#1b5e20" },
+                        ];
+                        return (
+                            <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
+                                {stats.map(s => (
+                                    <div key={s.label} style={{ flex: 1, background: s.bg, border: `1px solid ${s.border}`, borderRadius: "8px", padding: "10px 8px", textAlign: "center" }}>
+                                        <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.85)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>{s.label}</div>
+                                        <div style={{ fontSize: "24px", fontWeight: "800", color: s.color, lineHeight: 1 }}>{s.value}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
+
+                    {prevOperatorData && prevOperatorData.count > 0 && (
+                        <>
+                            <div style={{ fontWeight: 600, fontSize: "16px", marginBottom: "8px" }}>
+                                Previously Rejected
+                            </div>
+
+                            <div
+                                style={{
+                                    border: "1px solid #e0e0e0",
+                                    borderRadius: "8px",
+                                    overflow: "hidden",
+                                    flexShrink: 0
+                                }}
+                            >
+                                {/* Header */}
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gridTemplateColumns: "100px 1fr 1fr",
+                                        background: "#f5f6fa",
+                                        borderBottom: "1px solid #e0e0e0"
+                                    }}
+                                >
+                                    {["Count", "Reason", "Remark"].map((h, i) => (
+                                        <div
+                                            key={h}
+                                            style={{
+                                                padding: "14px",
+                                                fontWeight: "600",
+                                                fontSize: "15px",
+                                                textAlign: "center",
+                                                borderRight: i !== 2 ? "1px solid #e0e0e0" : "none"
+                                            }}
+                                        >
+                                            {h}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Rows container */}
+                                <div
+                                    style={{
+                                        maxHeight: "260px", // ~4 rows
+                                        overflowY: "auto"
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            display: "grid",
+                                            gridTemplateColumns: "100px 1fr 1fr",
+                                            borderBottom: "1px solid #e0e0e0",
+                                            alignItems: "center",
+                                            minHeight: "65px",
+
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                padding: "14px",
+                                                textAlign: "center",
+                                                fontSize: "15px",
+                                                fontWeight: "500",
+                                                borderRight: "1px solid #e0e0e0",
+                                                display: "flex",
+                                                justifyContent: "center",
+                                                alignItems: "center"
+                                            }}
+                                        >
+                                            {prevOperatorData.count}
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                padding: "14px",
+                                                fontSize: "15px",
+                                                fontWeight: "500",
+                                                borderRight: "1px solid #e0e0e0",
+                                                whiteSpace: "normal",
+                                                wordBreak: "break-word",
+                                                textAlign: "center"
+                                            }}
+                                        >
+                                            {Array.isArray(prevOperatorData.reason)
+                                                ? prevOperatorData.reason.join(", ")
+                                                : prevOperatorData.reason || "-"}
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                padding: "14px",
+                                                fontSize: "15px",
+                                                fontWeight: "500",
+                                                whiteSpace: "normal",
+                                                wordBreak: "break-word",
+                                                textAlign: "center"
+                                            }}
+                                        >
+                                            {prevOperatorData.remark || "-"}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    <div style={{ fontWeight: 600, fontSize: "16px" }}>Add New Reject Parts</div>
+
+                    {rejectRows.map((row, idx) => {
+                        if (row.isExisting) return null;
+                        const actual = Number((selectedRow?.op?.goodvsexp?.split("/") || [])[0] || 0);
+                        const allowed = Math.max(0, actual - (existingCount || 0));
+                        const usedByOthers = rejectRows.reduce((sum, r, i) => i !== idx && !r.isExisting ? sum + Number(r.count || 0) : sum, 0);
+                        const remaining = Math.max(0, allowed - usedByOthers);
+                        return (
+                            <div key={idx} style={{ display: "grid", gridTemplateColumns: "80px 260px 1fr 50px", borderBottom: "1px solid #f0f0f0", alignItems: "center", gap: "8px", padding: "6px 8px" }}>
+                                <div>
+                                    <TextField
+                                        type="number"
+                                        value={row.count}
+                                        size="small"
+                                        label="Count"
+                                        onFocus={() => { if (row.count === 0) setRejectRows(rejectRows.map((r, i) => i === idx ? { ...r, count: "" } : r)); }}
+                                        onChange={(e) => {
+                                            let val = e.target.value;
+                                            if (val === "") val = "";
+                                            else { val = Number(val); if (val > remaining) val = remaining; if (val < 0) val = 0; }
+                                            setRejectRows(rejectRows.map((r, i) => i === idx ? { ...r, count: val } : r));
+                                        }}
+                                        inputProps={{ min: 0, max: remaining, style: { textAlign: "center", fontWeight: "600" } }}
+                                        sx={{ width: "80px", "& .MuiInputBase-root": { height: "40px" } }}
+                                    />
+                                </div>
+                                <div>
+                                    <FormControl size="small" fullWidth>
+                                        <InputLabel>Reason</InputLabel>
+                                        <Select
+                                            multiple
+                                            label="Reason"
+                                            value={row.reason || []}
+                                            MenuProps={{ PaperProps: { style: { maxHeight: 220, overflowY: "auto" } } }}
+                                            onChange={(e) => {
+                                                const { value } = e.target;
+                                                setRejectRows(rejectRows.map((r, i) => i === idx ? { ...r, reason: typeof value === "string" ? value.split(",") : value } : r));
+                                            }}
+                                            renderValue={(selected) => selected.length <= 2 ? selected.join(", ") : `${selected.slice(0, 2).join(", ")} ...`}
+                                            sx={{ height: "40px" }}
+                                        >
+                                            {(qualityReasonList || []).map((item, i) => (
+                                                <MenuItem key={i} value={item.reason}>
+                                                    <Checkbox checked={(row.reason || []).includes(item.reason)} size="small" />
+                                                    <ListItemText primary={item.reason} />
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                </div>
+                                <div>
+                                    <TextField
+                                        value={row.remark}
+                                        size="small"
+                                        label="Remark"
+                                        fullWidth
+                                        onChange={(e) => setRejectRows(rejectRows.map((r, i) => i === idx ? { ...r, remark: e.target.value } : r))}
+                                        sx={{ "& .MuiInputBase-root": { height: "40px" } }}
+                                    />
+                                </div>
+                                <div style={{ display: "flex", justifyContent: "center" }}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => setRejectRows(rejectRows.filter((_, i) => i !== idx))}
+                                        sx={{ background: "#fafafa", border: "1px solid #e0e0e0", "&:hover": { background: "#ffeaea", color: "#d32f2f" } }}
+                                    >
+                                        <DeleteOutlineIcon fontSize="small" />
+                                    </IconButton>
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    <div style={{ padding: "12px 0" }}>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            disabled={isMaxReached}
+                            style={{
+                                border: `1px solid ${isMaxReached ? "#bdbdbd" : "#EC6E17"}`,
+                                color: isMaxReached ? "#9e9e9e" : "#EC6E17",
+                                backgroundColor: "transparent",
+                                cursor: isMaxReached ? "not-allowed" : "pointer"
+                            }}
+                            onClick={() => setRejectRows([...rejectRows, { count: 0, reason: [], remark: "", isExisting: false }])}
+                        >
+                            + Add Row
+                        </Button>
+                    </div>
+                </DialogContent>
+
+                <DialogActions sx={{ padding: "14px 24px", gap: 1.5, backgroundColor: "#f8f9fb", borderTop: "1px solid #e8eaf0" }}>
+                    <Button
+                        onClick={() => setOpenReject(false)}
+                        variant="outlined"
+                        sx={{ borderRadius: "4px", minWidth: "110px", borderColor: "#90a4ae", background: "#969392", color: "#ffffff", "&:hover": { borderColor: "#788388", background: "#a5a2a1" } }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleSave}
+                        disabled={(() => {
+                            const newRows = rejectRows.filter(row => !row.isExisting);
+                            if (newRows.length === 0) return true;
+                            return newRows.some(row => (Number(row.count) || 0) <= 0 || (row.reason || []).length === 0 || !row.remark);
+                        })()}
+                        sx={{ borderRadius: "4px", minWidth: "110px", background: "#EC6E17", "&:hover": { background: "#e08529" } }}
+                    >
+                        Save
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             {confirmType && handleConfirmAlert()}
 
             <DynamicSlidingKeyboard touchEnabled={true} />

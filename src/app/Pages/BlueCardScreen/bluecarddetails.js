@@ -15,6 +15,32 @@ import "./bluecarddetails.css";
 import Swal from "sweetalert2";
 import { getReportGenerate, getReportGenerate1, getReportToken } from "../../Services/app/reportservice";
 
+function getShiftForTs(shifts, ts) {
+  if (!Array.isArray(shifts) || shifts.length === 0 || !ts) return null;
+
+  const d = new Date(ts);
+  const tsMinutes = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+
+  for (const s of shifts) {
+    const [fromH, fromM] = s.start_time.split(":").map(Number);
+    const [toH, toM] = s.end_time.split(":").map(Number);
+
+    const fromMinutes = fromH * 60 + fromM;
+    const toMinutes = toH * 60 + toM;
+
+    if (fromMinutes < toMinutes) {
+      if (tsMinutes >= fromMinutes && tsMinutes < toMinutes) {
+        return String(s.shift_no);
+      }
+    } else {
+      if (tsMinutes >= fromMinutes || tsMinutes < toMinutes) {
+        return String(s.shift_no);
+      }
+    }
+  }
+  return null;
+}
+
 function getCurrentShift(shifts) {
   if (!Array.isArray(shifts) || shifts.length === 0) return null;
 
@@ -272,6 +298,8 @@ const BluecardDetails = () => {
     setEndTime(new Date());
     showQualityCheckSuccess();
 
+    const postingShift = getShiftForTs(shifts, card.clicked_ts);
+
     const payload = {
       job_name: card.job_name || "",
       code: card.code || "",
@@ -286,7 +314,7 @@ const BluecardDetails = () => {
       remarks: remark || "---",
       status: status || "OK",
       progress: "completed",
-      shift: selectedShift,
+      shift: postingShift,
       route_card_no: card.route_card_no,
       bluecard_email: CustomerEmail
     };
@@ -309,8 +337,15 @@ const BluecardDetails = () => {
       if (status === "NOK" && reason && reason !== "-") {
 
         let updatedBluecardCount = 1;
+        let finalCount = 0;
         let updatedReason = [];
-        let updatedRemark = "";
+        let updatedRemark = [];
+
+        let existingQualityCount = 0;
+        let existingQualityReasons = [];
+        let existingQualityRemarks = [];
+        let existingQualityRows = [];
+
         try {
           const data = await telemetrykeydata(
             deviceId,
@@ -323,10 +358,7 @@ const BluecardDetails = () => {
           const parsed = (data?.rejection || [])
             .map((p) => {
               try {
-                if (
-                  typeof p.value === "string" &&
-                  p.value.trim().startsWith("{")
-                ) {
+                if (typeof p.value === "string" && p.value.trim().startsWith("{")) {
                   return JSON.parse(p.value);
                 }
                 return null;
@@ -335,6 +367,7 @@ const BluecardDetails = () => {
               }
             })
             .filter(Boolean);
+
           const lastRecord = parsed.sort(
             (a, b) => Number(b.ts || 0) - Number(a.ts || 0)
           )[0];
@@ -342,28 +375,40 @@ const BluecardDetails = () => {
           const existingCount = Number(lastRecord?.bluecard_count) || 0;
           updatedBluecardCount = existingCount + 1;
 
+
           const existingReasons = Array.isArray(lastRecord?.bluecard_reason)
             ? lastRecord.bluecard_reason
             : [];
 
-          const newReasons = Array.isArray(reason)
-            ? reason
-            : reason
-              ? [reason]
-              : [];
+          const existingRemarks = Array.isArray(lastRecord?.bluecard_remark)
+            ? lastRecord.bluecard_remark
+            : [];
 
-          updatedReason = [...existingReasons, ...newReasons];
-          updatedReason = [...new Set(updatedReason)];
-          const existingRemark = lastRecord?.bluecard_remark || "";
-          if (existingRemark && remark) {
-            updatedRemark = `${existingRemark}, ${remark}`;
-          } else {
-            updatedRemark = existingRemark || remark || "";
-          }
-        } catch (err) {
-          console.warn(
-            "Failed to fetch rejection history, starting from 1"
-          );
+          existingQualityCount = Number(lastRecord?.qualitycount) || 0;
+
+          existingQualityReasons = Array.isArray(lastRecord?.qualityreason)
+            ? lastRecord.qualityreason
+            : [];
+
+          existingQualityRemarks = Array.isArray(lastRecord?.qualityremark)
+            ? lastRecord.quality_remark
+            : [];
+
+          existingQualityRows = Array.isArray(lastRecord?.quality_rows)
+            ? lastRecord.quality_rows
+            : [];
+
+          const newReasons = Array.isArray(reason) ? reason : reason ? [reason] : [];
+          updatedReason = [...new Set([...existingReasons, ...newReasons])];
+
+          const newRemarks = Array.isArray(remark) ? remark : remark ? [remark] : [];
+          updatedRemark = [...existingRemarks, ...newRemarks];
+
+          finalCount = updatedBluecardCount + existingQualityCount;
+
+        } catch (error) {
+          console.error("Error fetching rejection data:", error);
+
           updatedBluecardCount = 1;
         }
 
@@ -373,8 +418,12 @@ const BluecardDetails = () => {
           bluecard_remark: updatedRemark,
           bluecard_rejection_data: rejectionData,
           bluecard_email: CustomerEmail,
+          quality_count: existingQualityCount,
+          quality_reason: existingQualityReasons,
+          quality_remark: existingQualityRemarks,
+          quality_rows: existingQualityRows,
           shift: selectedShift,
-          count: String(updatedBluecardCount),
+          count: String(finalCount),
           reason: reason
         };
 
@@ -398,6 +447,7 @@ const BluecardDetails = () => {
             ts: completedTime,
             machine_name: card.device_name || "-",
             operator_name: card.operator_name || "-",
+            route_card_no: card.route_card_no || "No Route card",
             reason,
             remark: remark || "-",
             rejection_data: rejectionData,

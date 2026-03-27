@@ -314,9 +314,9 @@ category: hideCategory ? "" : shiftForm.category,
       return () => clearTimeout(timer);
     }
   }, [open]);
-  const hideCategory =
-    [CUSTOMER_IDS.PMI].includes(cleanCustomerId(customerId)) &&
-    shiftForm.group?.toLowerCase() === "quality";
+const hideCategory =
+  [CUSTOMER_IDS.PMI, CUSTOMER_IDS.GPLAST].includes(cleanCustomerId(customerId)) &&
+  (shiftForm.group || "").trim().toLowerCase() === "quality";
 
   useEffect(() => {
     if (hideCategory) {
@@ -516,10 +516,7 @@ category: hideCategory ? "" : shiftForm.category,
 
                   {errors.mode && <div className="mat-error">Mode is required</div>}
                 </div>
-                           {!(
-                  [CUSTOMER_IDS.PMI].includes(cleanCustomerId(customerId)) &&
-                  shiftForm.group?.toLowerCase() === "quality"
-                ) && (
+                           {!hideCategory && (
                   <div className={`form_field ${errors.category ? 'error-outline' : ''}`}>
                     <CustomDaySelect
                       {...register("category", { required: "Category is required" })}

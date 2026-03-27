@@ -218,7 +218,7 @@ export default function ReasonAdd({
   }, [open]);
 
   const hideCategory =
-    [CUSTOMER_IDS.PMI].includes(cleanCustomerId(customerId)) &&
+      [CUSTOMER_IDS.PMI, CUSTOMER_IDS.GPLAST].includes(cleanCustomerId(customerId)) &&
     shiftForm.group?.toLowerCase() === "quality";
 
   useEffect(() => {

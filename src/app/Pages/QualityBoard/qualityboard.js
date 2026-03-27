@@ -17,6 +17,8 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, }
 import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
 import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, DowntimeaddDelete1 } from '../../Services/app/masterservice'; import Swal from "sweetalert2";
 import { getReportGenerate, getReportGenerate1, getReportToken } from "../../Services/app/reportservice";
+import { CUSTOMER_IDS } from "../../Shared/constants/ids";
+import { cleanCustomerId } from "../../Services/app/operatorservice";
 
 function getCurrentShift(shifts) {
     if (!Array.isArray(shifts) || shifts.length === 0) return null;
@@ -80,7 +82,7 @@ export default function QualityBoard() {
     const customerId = localStorage.getItem("CustomerID");
     const CustomerEmail = localStorage.getItem("email");
     console.log('email', CustomerEmail);
-
+    const isPMI = cleanCustomerId(customerId) === CUSTOMER_IDS.PMI;
     const [devices, setDevices] = useState([]);
     const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
     const [shifts, setShifts] = useState([]);
@@ -97,6 +99,12 @@ export default function QualityBoard() {
     const [reasonError, setReasonError] = useState(false);
     const [countError, setCountError] = useState(false);
     const [countPopup, setCountPopup] = useState(false);
+    const [operatorrejectdata, setOperatorRejectData] = useState({
+        operator_count: 0,
+        operator_reason: "",
+        operator_remark: "",
+        operator_email: ""
+    });
     const [existingCount, setExistingCount] = useState(0);
     const [existingBluecardEmail, setBluecardEmail] = useState(0);
     const [existingBluecardCount, setExistingBluecardCount] = useState(0);
@@ -466,6 +474,12 @@ export default function QualityBoard() {
         setExistingQualityRemark("");
         setExistingBluecardRemark("");
         setRejectRows([{ count: 0, reason: [], remark: "" }]);
+        setOperatorRejectData({
+            operator_count: 0,
+            operator_reason: "",
+            operator_remark: "",
+            operator_email: ""
+        });
         setOpenReject(true);
         setIsFetchingBluecard(true);
 
@@ -508,6 +522,17 @@ export default function QualityBoard() {
                         setExistingBluecardRemark(entry?.bluecard_remark || "");
                         setBluecardEmail(entry?.bluecard_email || "")
                         setExistingQualityCount(qualCount);
+                        const operatorCount = Number(entry?.operator_count || 0);
+                        const operatorReason = entry?.operator_reason || "";
+                        const operatorRemark = entry?.operator_remark || "";
+                        const operatorEmail = entry?.operator_email || "";
+
+                        setOperatorRejectData({
+                            operator_count: operatorCount,
+                            operator_reason: operatorReason,
+                            operator_remark: operatorRemark,
+                            operator_email: operatorEmail
+                        });
 
                         const qualReasonRaw = entry?.qualityreason || [];
                         const qualReasonArr = Array.isArray(qualReasonRaw)
@@ -560,12 +585,9 @@ export default function QualityBoard() {
     console.log('selected device', selectedMachines)
     console.log('selected device id ', selectedDeviceIds);
 
-    const postQualityLog = async (deviceId, action, count, machineName, oldCount, componentName) => {
+    const postQualityLog = async (deviceId, count, machineName, componentName) => {
         const currentTime = dayjs().format("DD-MM-YYYY HH:mm:ss");
-        const logMessage =
-            action === "edited"
-                ? `CustomerEmail: ${CustomerEmail}, LogMessage: Edited ${oldCount} parts to ${count} parts, Component: ${componentName}, Machine: ${machineName}, Time: ${currentTime}, Shift: ${selectedShift}`
-                : `CustomerEmail: ${CustomerEmail}, LogMessage: ${action} ${count} parts, Component: ${componentName}, Machine: ${machineName}, Time: ${currentTime}, Shift: ${selectedShift}`;
+        const logMessage = `CustomerEmail: ${CustomerEmail}, LogMessage: rejected ${count} parts, Component: ${componentName}, Machine: ${machineName}, Time: ${currentTime}, Shift: ${selectedShift}`;
         const logKey = {
             qualityentryrecords: logMessage,
         };
@@ -613,7 +635,7 @@ export default function QualityBoard() {
 
         const qualityCount = totalNewRejectCount;
         const bluecardCount = existingBluecardCount || 0;
-        const totalRejectCount = bluecardCount + qualityCount;
+        const totalRejectCount = bluecardCount + qualityCount + operatorrejectdata.operator_count;
 
         setOperationsData((prev) => {
             const updated = { ...prev };
@@ -635,7 +657,8 @@ export default function QualityBoard() {
         const qualityRowsJson = rejectRows.map(row => ({
             count: Number(row.count) || 0,
             reason: Array.isArray(row.reason) ? row.reason : [row.reason],
-            remark: row.remark || ""
+            remark: row.remark || "",
+            email: CustomerEmail
         }));
 
         const qualityReasonCombined = [
@@ -654,13 +677,17 @@ export default function QualityBoard() {
                 ...qualityReasonCombined,
                 ...(Array.isArray(existingBluecardReason)
                     ? existingBluecardReason
-                    : [existingBluecardReason])
+                    : [existingBluecardReason]),
+                ...(Array.isArray(operatorrejectdata.operator_reason)
+                    ? operatorrejectdata.operator_reason
+                    : [operatorrejectdata.operator_reason])
             ])
         ].filter(Boolean);
 
         const finalRemark = [
             existingBluecardRemark,
-            qualityRemarkCombined
+            qualityRemarkCombined,
+            operatorrejectdata.operator_remark
         ]
             .filter(Boolean)
             .join(" , ");
@@ -670,15 +697,19 @@ export default function QualityBoard() {
             ts: op.start_time,
             values: {
                 rejection: {
+                    operator_count: operatorrejectdata.operator_count,
+                    operator_reason: operatorrejectdata.operator_reason,
+                    operator_remark: operatorrejectdata.operator_remark,
+                    operator_email: operatorrejectdata.operator_email,
                     bluecard_count: bluecardCount,
                     bluecard_reason: existingBluecardReason,
                     bluecard_remark: existingBluecardRemark,
                     bluecard_email: existingBluecardEmail,
                     qualitycount: qualityCount,
-                    qualityreason: qualityReasonCombined,
-                    quality_remark: qualityRemarkCombined || "-",
+                    qualityreason: qualityReasonCombined || [],
+                    quality_remark: qualityRemarkCombined || "",
                     quality_rows: qualityRowsJson,
-                    count: totalRejectCount,
+                    count: totalRejectCount || 0,
                     reason: finalReason.length ? finalReason : [],
                     remark: finalRemark || "",
                     shift: selectedShift,
@@ -689,9 +720,8 @@ export default function QualityBoard() {
 
         try {
             await Downtimeadd1("DEVICE", deviceId, "SERVER_SCOPE", key);
-            const logAction = hasExistingQuality ? "edited" : "rejected";
-            const oldRejectCount = hasExistingQuality ? existingQualityCount : null;
-            await postQualityLog(deviceId, logAction, totalNewRejectCount, machineName, oldRejectCount, op.operation_name);
+            const deltaRejectCount = totalNewRejectCount - (Number(existingQualityCount) || 0);
+            await postQualityLog(deviceId, deltaRejectCount > 0 ? deltaRejectCount : totalNewRejectCount, machineName, op.operation_name);
             await Swal.fire({
                 icon: "success",
                 title: "Saved",
@@ -728,13 +758,16 @@ export default function QualityBoard() {
         console.log('telemetry data called ------------')
     };
 
+
     const handleLoginAndFetch = async (machineName,
         formattedDate,
         selectedShift,
         isLiveShift) => {
         try {
-            const loginRes = await getReportToken("pmi", "pmi");
-            const token = loginRes?.accessToken;
+            const loginRes = await getReportToken(
+                isPMI ? "pmi" : "gplast",
+                isPMI ? "pmi" : "gplast"
+            ); const token = loginRes?.accessToken;
             if (!token) {
                 console.warn("Token missing — skipping report call");
                 return;
@@ -766,7 +799,7 @@ export default function QualityBoard() {
     };
 
     const handleExport = () => {
-        const headers = ["S.no", "Date", "Machine", "Shift", "Component Name", "Component Number", "Actual", "Good Parts", "Total Rejected", "Reject Count", "Reason", "Remark", "Responded By", "Last Updated Time"];
+        const headers = ["S.no", "Date", "Machine", "Shift", "Component Name", "Component Number", "Actual", "Good Parts", "Total Rejected", "Quality Reject", "Reason", "Remark", "Rejected By", "Last Updated Time"];
         const dateStr = dayjs(selectedDate).format("DD-MM-YYYY");
         const csvRows = [];
         let rowNum = 1;
@@ -837,6 +870,7 @@ export default function QualityBoard() {
                     actual,
                     goodParts,
                     rejected,
+                    0,
                     reason,
                     op?.rejection_info?.quality_remark || "-",
                     respondedBy,
@@ -861,8 +895,19 @@ export default function QualityBoard() {
         URL.revokeObjectURL(url);
     };
 
-    const actual = Number((selectedRow?.op?.goodvsexp?.split("/") || [])[0] || 0);
-    const allowed = Math.max(0, actual - (existingCount || 0));
+    const componentCode = selectedRow?.op?.code;
+    const machineOpsForComponent = selectedRow
+        ? (mergedData[selectedRow.machineName] || []).filter(op => op.code === componentCode)
+        : [];
+    const componentActual = machineOpsForComponent.reduce((sum, op) =>
+        sum + Number((op.goodvsexp?.split("/") || [])[0] || 0), 0);
+    const compRejList = rejectionData[selectedRow?.machineName] || [];
+    const compRejMap = new Map(compRejList.map(r => [Number(r.ts), r]));
+    const componentRejected = machineOpsForComponent.reduce((sum, op) => {
+        const rej = compRejMap.get(Number(op.start_time));
+        return sum + Number(rej?.count || 0);
+    }, 0);
+    const allowed = Math.max(0, componentActual - componentRejected);
     const totalNewCount = rejectRows.reduce((sum, r) => {
         if (!r.isExisting) {
             return sum + Number(r.count || 0);
@@ -871,6 +916,39 @@ export default function QualityBoard() {
     }, 0);
     const isMaxReached = totalNewCount >= allowed;
     const existingRows = rejectRows.filter(r => r.isExisting);
+
+    const allComponentExistingRows = (() => {
+        if (!selectedRow) return [];
+        const code = selectedRow.op?.code;
+        const compOps = (mergedData[selectedRow.machineName] || []).filter(op => op.code === code);
+        const rejList = rejectionData[selectedRow.machineName] || [];
+        const rejMap = new Map(rejList.map(r => [Number(r.ts), r]));
+        const rows = [];
+        compOps.forEach(op => {
+            const rej = rejMap.get(Number(op.start_time));
+            if (rej?.quality_rows?.length > 0) {
+                rej.quality_rows.forEach(row => rows.push({
+                    count: Number(row.count || 0),
+                    reason: Array.isArray(row.reason) ? row.reason : row.reason ? [row.reason] : [],
+                    remark: row.remark || ""
+                }));
+            } else if (Number(rej?.qualitycount) > 0) {
+                const r = rej.qualityreason;
+                rows.push({
+                    count: Number(rej.qualitycount),
+                    reason: Array.isArray(r) ? r : r ? [r] : [],
+                    remark: rej.quality_remark || ""
+                });
+            }
+        });
+        return rows;
+    })();
+
+    const { operator_count, operator_reason } = operatorrejectdata;
+
+    const rejectionCount = isPMI ? existingBluecardCount : operator_count;
+    const rejectionReason = isPMI ? existingBluecardReason : operator_reason;
+    const rejectionLabel = isPMI ? "Blue Card Rejection :" : "Operator Rejection :";
 
 
     return (
@@ -1097,10 +1175,10 @@ export default function QualityBoard() {
                                 <th style={thStyle}>Actual</th>
                                 <th style={thStyle}>Good Parts</th>
                                 <th style={thStyle}>Total Reject</th>
-                                <th style={thStyle}>Reject Count</th>
+                                <th style={thStyle}>Quality Reject</th>
                                 <th style={thStyle}>Reason</th>
                                 <th style={thStyle}>Remark</th>
-                                <th style={thStyle}>Responded By</th>
+                                <th style={thStyle}>Rejected By</th>
                                 <th style={thStyle}>Edit</th>
                                 <th style={thStyle}>Last Updated Time</th>
                                 <th style={thStyle}>Logs</th>
@@ -1239,7 +1317,8 @@ export default function QualityBoard() {
                                                                     key={idx}
                                                                     style={{
                                                                         ...nestedItemBase,
-                                                                        borderBottom: idx < qualityRows.length - 1 ? "1px solid #e9e7e7" : "none",
+                                                                        borderBottom:
+                                                                            idx < qualityRows.length - 1 ? "1px solid #e9e7e7" : "none",
                                                                     }}
                                                                 >
                                                                     {qRow.count ?? 0}
@@ -1255,7 +1334,8 @@ export default function QualityBoard() {
                                                                     key={idx}
                                                                     style={{
                                                                         ...nestedItemBase,
-                                                                        borderBottom: idx < qualityRows.length - 1 ? "1px solid #e9e7e7" : "none",
+                                                                        borderBottom:
+                                                                            idx < qualityRows.length - 1 ? "1px solid #e9e7e7" : "none",
                                                                     }}
                                                                 >
                                                                     <div style={scrollTextStyle} className="qb-thin-scroll">
@@ -1275,7 +1355,8 @@ export default function QualityBoard() {
                                                                     key={idx}
                                                                     style={{
                                                                         ...nestedItemBase,
-                                                                        borderBottom: idx < qualityRows.length - 1 ? "1px solid #e9e7e7" : "none",
+                                                                        borderBottom:
+                                                                            idx < qualityRows.length - 1 ? "1px solid #e9e7e7" : "none",
                                                                     }}
                                                                 >
                                                                     <div style={scrollTextStyle} className="qb-thin-scroll">
@@ -1285,22 +1366,46 @@ export default function QualityBoard() {
                                                             ))}
                                                         </div>
                                                     </td>
+
+                                                    {/* NEW EMAIL COLUMN */}
+                                                    <td style={{ ...tdStyle, minWidth: "160px", padding: 0 }}>
+                                                        <div style={nestedContainerStyle}>
+                                                            {qualityRows.map((qRow, idx) => (
+                                                                <div
+                                                                    key={idx}
+                                                                    style={{
+                                                                        ...nestedItemBase,
+                                                                        borderBottom:
+                                                                            idx < qualityRows.length - 1 ? "1px solid #e9e7e7" : "none",
+                                                                    }}
+                                                                >
+                                                                    {qRow.email || "-"}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </td>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <td style={tdStyle}>{rejected}</td>
+                                                    <td style={tdStyle}>{op?.rejection_info?.qualitycount ?? 0}</td>
+
                                                     <td style={{ ...tdStyle, minWidth: "180px" }}>
                                                         {Array.isArray(op?.rejection_info?.qualityreason)
                                                             ? op.rejection_info.qualityreason.join(", ") || "-"
                                                             : op?.rejection_info?.qualityreason || "-"}
                                                     </td>
+
                                                     <td style={{ ...tdStyle, minWidth: "180px" }}>
                                                         {op?.rejection_info?.quality_remark || "-"}
+                                                    </td>
+
+                                                    {/* EMAIL COLUMN */}
+                                                    <td style={{ ...centeredTdStyle, minWidth: "160px" }}>
+                                                        {op?.rejection_info?.quality_customer_email || "-"}
                                                     </td>
                                                 </>
                                             )}
 
-                                            <td style={{ ...centeredTdStyle, minWidth: "160px" }}>{op?.rejection_info?.quality_customer_email}</td>
                                             <td style={{ ...centeredTdStyle, minWidth: "110px" }}>
                                                 <IconButton
                                                     size="small"
@@ -1386,7 +1491,7 @@ export default function QualityBoard() {
                     }}
                 >
 
-                    {!isFetchingBluecard && (existingBluecardCount > 0 || existingBluecardReason) && (
+                    {!isFetchingBluecard && (rejectionCount > 0 || rejectionReason) && (
                         <div
                             style={{
                                 display: "flex",
@@ -1399,7 +1504,9 @@ export default function QualityBoard() {
                                 flexWrap: "wrap"
                             }}
                         >
-                            <span style={{ fontWeight: 700, color: "#1565c0" }}>🔵 Blue Card Rejection : </span>
+                            <span style={{ fontWeight: 700, color: "#1565c0" }}>
+                                🔵 {rejectionLabel}
+                            </span>
 
                             <span
                                 style={{
@@ -1410,29 +1517,46 @@ export default function QualityBoard() {
                                     fontWeight: "800"
                                 }}
                             >
-                                {existingBluecardCount}
+                                {rejectionCount}
                             </span>
 
-                            {existingBluecardReason && (
-                                <span style={{ fontSize: "13px", color: "#1565c0", fontWeight: "600" }}>
-                                    {formatReason(existingBluecardReason)}
+                            {rejectionReason && (
+                                <span
+                                    style={{
+                                        fontSize: "13px",
+                                        color: "#1565c0",
+                                        fontWeight: "600"
+                                    }}
+                                >
+                                    {formatReason(
+                                        Array.isArray(rejectionReason)
+                                            ? rejectionReason
+                                            : [rejectionReason]
+                                    )}
                                 </span>
                             )}
                         </div>
                     )}
-
                     {/* Actual / Rejected / Can Reject */}
 
                     {selectedRow && !isFetchingBluecard && (() => {
 
-                        const actual = Number((selectedRow.op?.goodvsexp?.split("/") || [])[0] || 0);
-                        const canReject = Math.max(0, actual - (existingCount || 0));
-                        const rejectedAlready = existingCount || 0;
+                        const componentCode = selectedRow.op?.code;
+                        const machineOpsForComponent = (mergedData[selectedRow.machineName] || []).filter(op => op.code === componentCode);
+                        const componentActual = machineOpsForComponent.reduce((sum, op) =>
+                            sum + Number((op.goodvsexp?.split("/") || [])[0] || 0), 0);
+                        const rejList = rejectionData[selectedRow.machineName] || [];
+                        const rejMap = new Map(rejList.map(r => [Number(r.ts), r]));
+                        const componentRejected = machineOpsForComponent.reduce((sum, op) => {
+                            const rej = rejMap.get(Number(op.start_time));
+                            return sum + Number(rej?.count || 0);
+                        }, 0);
+                        const componentRemaining = Math.max(0, componentActual - componentRejected);
 
                         const stats = [
-                            { label: "Actual", value: actual, color: "#1565c0", bg: "#e3f2fd", border: "#bbdefb" },
-                            { label: "Rejected", value: rejectedAlready, color: "#c62828", bg: "#ffebee", border: "#ffcdd2" },
-                            { label: "Remaining", value: canReject, color: "#2e7d32", bg: "#e8f5e9", border: "#c8e6c9" },
+                            { label: "Actual", value: componentActual, color: "#1565c0", bg: "#e3f2fd", border: "#bbdefb" },
+                            { label: "Rejected", value: componentRejected, color: "#c62828", bg: "#ffebee", border: "#ffcdd2" },
+                            { label: "Remaining", value: componentRemaining, color: "#2e7d32", bg: "#e8f5e9", border: "#c8e6c9" },
                         ];
 
                         return (
@@ -1477,7 +1601,7 @@ export default function QualityBoard() {
                     })()}
 
                     {/* ================= PREVIOUSLY REJECTED ================= */}
-                    {existingRows.length > 0 && (
+                    {allComponentExistingRows.length > 0 && (
                         <>
                             {/* Header */}
                             <div style={{ fontWeight: 600, fontSize: "15px", marginBottom: "8px" }}>
@@ -1504,7 +1628,7 @@ export default function QualityBoard() {
                                         <div
                                             key={h}
                                             style={{
-                                                padding: "10px",
+                                                padding: "20px",
                                                 fontWeight: "600",
                                                 fontSize: "14px",
                                                 textAlign: "center",
@@ -1517,14 +1641,14 @@ export default function QualityBoard() {
                                 </div>
 
                                 <div>
-                                    {existingRows.map((row, idx) => (
+                                    {allComponentExistingRows.map((row, idx) => (
                                         <div
                                             key={idx}
                                             style={{
                                                 display: "grid",
                                                 gridTemplateColumns: "100px 1fr 1fr",
                                                 borderBottom: "1px solid #e0e0e0",
-                                                alignItems: "center", 
+                                                alignItems: "center",
                                             }}
                                         >
                                             <div
@@ -1549,7 +1673,7 @@ export default function QualityBoard() {
                                                     borderRight: "1px solid #e0e0e0",
                                                     whiteSpace: "normal",
                                                     wordBreak: "break-word",
-                                                    maxHeight: "3.6em", 
+                                                    maxHeight: "3.6em",
                                                     overflowY: "auto",
                                                     textAlign: "center",
                                                 }}
@@ -1564,7 +1688,7 @@ export default function QualityBoard() {
                                                     fontWeight: "500",
                                                     whiteSpace: "normal",
                                                     wordBreak: "break-word",
-                                                    maxHeight: "3.6em", 
+                                                    maxHeight: "3.6em",
                                                     overflowY: "auto",
                                                     textAlign: "center",
                                                 }}
@@ -1586,9 +1710,6 @@ export default function QualityBoard() {
                     {rejectRows.map((row, idx) => {
 
                         if (row.isExisting) return null;
-
-                        const actual = Number((selectedRow?.op?.goodvsexp?.split("/") || [])[0] || 0);
-                        const allowed = Math.max(0, actual - (existingCount || 0));
 
                         const usedByOthers = rejectRows.reduce((sum, r, i) => {
                             if (i !== idx && !r.isExisting) {
@@ -1618,7 +1739,7 @@ export default function QualityBoard() {
                                         value={row.count}
                                         size="small"
                                         label="Count"
-                                        onFocus={(e) => {
+                                        onFocus={() => {
                                             if (row.count === 0) {
                                                 setRejectRows(
                                                     rejectRows.map((r, i) =>
@@ -1736,9 +1857,10 @@ export default function QualityBoard() {
                             size="small"
                             disabled={isMaxReached}
                             style={{
-                                border: "1px solid #EC6E17",
-                                color: "#EC6E17",
+                                border: `1px solid ${isMaxReached ? "#bdbdbd" : "#EC6E17"}`,
+                                color: isMaxReached ? "#9e9e9e" : "#EC6E17",
                                 backgroundColor: "transparent",
+                                cursor: isMaxReached ? "not-allowed" : "pointer"
                             }}
                             onClick={() =>
                                 setRejectRows([
@@ -1764,8 +1886,9 @@ export default function QualityBoard() {
                         variant="contained"
                         onClick={handleSave}
                         disabled={(() => {
-                            const filledRows = rejectRows.filter(row => (Number(row.count) || 0) > 0);
-                            return filledRows.length === 0 || filledRows.some(row => row.reason.length === 0 || !row.remark);
+                            const newRows = rejectRows.filter(row => !row.isExisting);
+                            if (newRows.length === 0) return true;
+                            return newRows.some(row => (Number(row.count) || 0) <= 0 || row.reason.length === 0 || !row.remark);
                         })()}
                         sx={{
                             borderRadius: "4px", minWidth: "110px",
@@ -1809,10 +1932,10 @@ export default function QualityBoard() {
                         size="small"
                         onClick={() => setLogsDialogOpen(false)}
                         sx={{
-                            backgroundColor: "#ffffff", 
+                            backgroundColor: "#ffffff",
                             color: "#918d8d",
-                            borderRadius: "50%", 
-                            width: 32, 
+                            borderRadius: "50%",
+                            width: 32,
                             height: 32,
                             "&:hover": {
                                 backgroundColor: "#c2c0c0",
@@ -1881,7 +2004,7 @@ export default function QualityBoard() {
                                     const message = parse("LogMessage");
                                     const component = parse("Component");
                                     const machine = parse("Machine");
-                                    const timeStr = parse("Time");  
+                                    const timeStr = parse("Time");
                                     const shift = parse("Shift");
 
                                     const dayjsTime = dayjs(timeStr, "DD-MM-YYYY HH:mm:ss");

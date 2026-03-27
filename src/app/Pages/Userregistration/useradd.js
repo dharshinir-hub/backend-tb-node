@@ -168,12 +168,14 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
   };
 
   const qualityValues = QUALITY_PAGELIST.map(p => p.value);
+
   const filteredPageList = useMemo(() => {
+    const customer = cleanCustomerId(customerId);
 
-
+    // ✅ PMI (unchanged)
     if (
       [ROLE_ADMIN, ROLE_SUPER_ADMIN].includes(shiftForm.mode) &&
-      cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
+      customer === CUSTOMER_IDS.PMI
     ) {
       const merged = [...pageList, ...QUALITY_PAGELIST];
 
@@ -183,12 +185,37 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
       );
       return uniquePages;
     }
+
+    // ✅ GPLAST Admin/Super Admin
+    if (
+      [ROLE_ADMIN, ROLE_SUPER_ADMIN].includes(shiftForm.mode) &&
+      customer === CUSTOMER_IDS.GPLAST
+    ) {
+      const merged = [...pageList, { value: "quality", label: "Quality Entry" }];
+
+      const uniquePages = merged.filter(
+        (page, index, self) =>
+          index === self.findIndex(p => p.value === page.value)
+      );
+      return uniquePages;
+    }
+
+    // ✅ PMI Quality (unchanged)
     if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
+      customer === CUSTOMER_IDS.PMI
     ) {
       return QUALITY_PAGELIST;
     }
+
+    // ✅ GPLAST Quality
+    if (
+      shiftForm.mode?.toLowerCase() === "quality" &&
+      customer === CUSTOMER_IDS.GPLAST
+    ) {
+      return [{ value: "quality", label: "Quality Entry" }];
+    }
+
     return pageList.filter(p => !qualityValues.includes(p.value));
   }, [shiftForm.mode, pageList, customerId]);
 
@@ -205,9 +232,11 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
   }, [filteredPageList]);
 
   useEffect(() => {
+    const customer = cleanCustomerId(customerId);
+
     if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
+      customer === CUSTOMER_IDS.PMI
     ) {
       const qualityPages = QUALITY_PAGELIST.map(p => p.value);
 
@@ -217,6 +246,21 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
       }));
 
       setValue("pagelist", qualityPages);
+
+      // 👉 GPLAST logic
+    } else if (
+      shiftForm.mode?.toLowerCase() === "quality" &&
+      customer === CUSTOMER_IDS.GPLAST
+    ) {
+      const qualityPages = ["quality"];
+
+      setShiftForm(prev => ({
+        ...prev,
+        pagelist: qualityPages
+      }));
+
+      setValue("pagelist", qualityPages);
+
     } else {
       setShiftForm(prev => ({
         ...prev,
@@ -227,6 +271,8 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
 
     trigger("pagelist");
   }, [shiftForm.mode, customerId]);
+
+
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="300px" PaperProps={{ style: { backgroundColor: dialogBackgroundColor } }}>
       <DialogTitle style={{ color: 'black' }}>Add User </DialogTitle>
