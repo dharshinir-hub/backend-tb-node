@@ -765,8 +765,8 @@ export default function QualityBoard() {
         isLiveShift) => {
         try {
             const loginRes = await getReportToken(
-                isPMI ? "pmi" : "gplast",
-                isPMI ? "pmi" : "gplast"
+                isPMI ? "pmi" : "gd",
+                isPMI ? "pmi" : "gd"
             ); const token = loginRes?.accessToken;
             if (!token) {
                 console.warn("Token missing — skipping report call");

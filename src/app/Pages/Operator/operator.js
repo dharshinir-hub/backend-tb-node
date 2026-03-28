@@ -1628,8 +1628,8 @@ function Operator() {
         isLiveShift) => {
         try {
             const loginRes = await getReportToken(
-                isGplast ? "gplast" : "pmi",
-                isGplast ? "gplast" : "pmi"
+                isGplast ? "gd" : "pmi",
+                isGplast ? "gd" : "pmi"
             );
             const token = loginRes?.accessToken;
             if (!token) {
