@@ -3015,9 +3015,15 @@ function Operator() {
                                                     label="Select Reason"
                                                     required
                                                     options={
-                                                        formattedReasons.filter(r =>
-                                                            !item.groupselected || item.groupselected === "all" || r.group === item.groupselected
-                                                        )
+                                                        (() => {
+                                                            const filtered = formattedReasons.filter(r =>
+                                                                !item.groupselected || item.groupselected === "all" || r.group === item.groupselected
+                                                            );
+                                                            if (item.reasonselected === "UNKNOWN" && !filtered.some(r => r.value === "UNKNOWN")) {
+                                                                return [{ value: "UNKNOWN", label: "UNKNOWN", group: item.groupselected }, ...filtered];
+                                                            }
+                                                            return filtered;
+                                                        })()
                                                     }
                                                 />
                                             </td>
