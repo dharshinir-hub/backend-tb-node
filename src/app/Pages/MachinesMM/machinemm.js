@@ -381,6 +381,9 @@ export default function MachineDashboard() {
         cleanCustomerId(customerId)
     );
 
+            const isGPLAST =
+              cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
+
             const getNumerator = (run, idle) =>
               isPMIorGPLAST ? run : run + idle;
 
@@ -403,6 +406,18 @@ export default function MachineDashboard() {
               const breakSec = BREAKS[String(shiftCfg.shift_no)] || 0;
 
               return Math.max(0, duration - breakSec);
+            };
+
+            const getShiftGrossSeconds = (shiftCfg) => {
+              if (!shiftCfg) return 0;
+
+              const startSec = parseHMS(shiftCfg.start_time);
+              let endSec = parseHMS(shiftCfg.end_time);
+
+              let duration = endSec - startSec;
+              if (duration < 0) duration += 24 * 3600;
+
+              return Math.max(0, duration);
             };
 
             const extractRunIdle = (value) => {
@@ -497,7 +512,9 @@ export default function MachineDashboard() {
                   (s) => String(s.shift_no) === String(range.shiftNo)
                 );
 
-                const shiftSecs = getShiftNetSeconds(shiftCfg);
+                const shiftSecs = isGPLAST
+                  ? getShiftGrossSeconds(shiftCfg)
+                  : getShiftNetSeconds(shiftCfg);
                 totalShiftSecs += shiftSecs;
               }
 
@@ -1655,7 +1672,7 @@ export default function MachineDashboard() {
     if (!fromTime || !toTime) return;
 
     handleTabClick(activeTab || "overview", selectedMachine);
-  }, [from, to, fromTime, toTime, selectedMachine, selectedDate, activeTab, machineUtilization, machineDurations, machinePartsStats]);
+  }, [from, to, fromTime, toTime, selectedMachine, activeTab, machineUtilization, machineDurations, machinePartsStats]);
 
 
 

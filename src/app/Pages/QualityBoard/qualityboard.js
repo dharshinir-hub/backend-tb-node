@@ -739,12 +739,13 @@ export default function QualityBoard() {
             const currentShift = getCurrentShift(shifts);
 
             const isToday = selectedDateStr === todayStr;
-            const isCurrentShift = String(selectedShift) === String(currentShift);
+            const rowShift = op.shift;
+            const isCurrentShift = String(rowShift) === String(currentShift);
             const isLiveShift = isToday && isCurrentShift;
 
             await handleLoginAndFetch(machineName,
                 formattedDate,
-                selectedShift,
+                rowShift,
                 isLiveShift ? "true" : "false")
 
             await fetchTelemetryData();
@@ -897,7 +898,7 @@ export default function QualityBoard() {
 
     const componentCode = selectedRow?.op?.code;
     const machineOpsForComponent = selectedRow
-        ? (mergedData[selectedRow.machineName] || []).filter(op => op.code === componentCode)
+        ? (mergedData[selectedRow.machineName] || []).filter(op => op.code === componentCode && op.shift == selectedRow?.op?.shift)
         : [];
     const componentActual = machineOpsForComponent.reduce((sum, op) =>
         sum + Number((op.goodvsexp?.split("/") || [])[0] || 0), 0);
@@ -920,7 +921,7 @@ export default function QualityBoard() {
     const allComponentExistingRows = (() => {
         if (!selectedRow) return [];
         const code = selectedRow.op?.code;
-        const compOps = (mergedData[selectedRow.machineName] || []).filter(op => op.code === code);
+        const compOps = (mergedData[selectedRow.machineName] || []).filter(op => op.code === code && op.shift == selectedRow?.op?.shift);
         const rejList = rejectionData[selectedRow.machineName] || [];
         const rejMap = new Map(rejList.map(r => [Number(r.ts), r]));
         const rows = [];
@@ -1542,7 +1543,7 @@ export default function QualityBoard() {
                     {selectedRow && !isFetchingBluecard && (() => {
 
                         const componentCode = selectedRow.op?.code;
-                        const machineOpsForComponent = (mergedData[selectedRow.machineName] || []).filter(op => op.code === componentCode);
+                        const machineOpsForComponent = (mergedData[selectedRow.machineName] || []).filter(op => op.code === componentCode && op.shift == selectedRow?.op?.shift);
                         const componentActual = machineOpsForComponent.reduce((sum, op) =>
                             sum + Number((op.goodvsexp?.split("/") || [])[0] || 0), 0);
                         const rejList = rejectionData[selectedRow.machineName] || [];
