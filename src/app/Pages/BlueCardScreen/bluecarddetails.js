@@ -473,13 +473,14 @@ const BluecardDetails = () => {
       const selectedDateStr = dayjs(selectedDate).format("YYYY-MM-DD");
       const currentShift = getCurrentShift(shifts);
       const isToday = selectedDateStr === todayStr;
-      const isCurrentShift = String(selectedShift) === String(currentShift);
+      const isCurrentShift = String(card?.shift) === String(currentShift);
       const isLiveShift = isToday && isCurrentShift;
 
       handleLoginAndFetch(card.device_name,
         formattedDate,
-        selectedShift,
+        card?.shift,
         isLiveShift ? "true" : "false")
+
       try {
         const REQUEST_KEY = "request_payload";
         let existingRequests = [];
@@ -513,7 +514,7 @@ const BluecardDetails = () => {
       </div>
     );
   }
-
+console.log('posting shift',card.shift)
   return (
     <div style={{ padding: "30px 0px", minHeight: "100vh", backgroundColor: "#ffffff" }}>
       <header className="bcd-header">

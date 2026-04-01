@@ -732,12 +732,22 @@ export default function BluecardReport() {
                             </span>
                           </TableCell>
 
-                          <TableCell align="center" style={cellStyle}>
-                            {formatReason(item.reason) || "---"}
+                          <TableCell align="center" style={{ ...cellStyle, maxWidth: 200 }}>
+                            <div
+                              title={formatReason(item.reason) || "---"}
+                              style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180, margin: "0 auto", cursor: "default" }}
+                            >
+                              {formatReason(item.reason) || "---"}
+                            </div>
                           </TableCell>
 
-                          <TableCell align="center" style={cellStyle}>
-                            {item.remarks || "---"}
+                          <TableCell align="center" style={{ ...cellStyle, maxWidth: 200 }}>
+                            <div
+                              title={item.remarks || "---"}
+                              style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180, margin: "0 auto", cursor: "default" }}
+                            >
+                              {item.remarks || "---"}
+                            </div>
                           </TableCell>
 
                           <TableCell align="center" style={cellStyle}>
