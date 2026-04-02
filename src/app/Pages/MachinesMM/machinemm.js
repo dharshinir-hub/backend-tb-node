@@ -19,6 +19,8 @@ import { Tabs, Tab, Box } from "@mui/material";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 import {
@@ -91,6 +93,7 @@ export default function MachineDashboard() {
   const [machineStatusTimes, setMachineStatusTimes] = useState({});
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [autoSelected, setAutoSelected] = useState(false);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
 
 
 
@@ -377,9 +380,9 @@ export default function MachineDashboard() {
             };
 
             const isPMIorGPLAST =
-    [CUSTOMER_IDS.PMI, CUSTOMER_IDS.GPLAST].includes(
-        cleanCustomerId(customerId)
-    );
+              [CUSTOMER_IDS.PMI, CUSTOMER_IDS.GPLAST].includes(
+                cleanCustomerId(customerId)
+              );
 
             const isGPLAST =
               cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
@@ -488,24 +491,24 @@ export default function MachineDashboard() {
                 const shiftData = filterByShiftRange(data, range.from, range.to);
                 const totalDurationArr = shiftData?.total_duration || [];
 
-                if (totalDurationArr.length > 0) {
+              if (totalDurationArr.length > 0) {
 
-                  // ✅ USE RESET-AWARE LOGIC
-                  const latest = getFinalShiftValue(totalDurationArr);
+                // ✅ USE RESET-AWARE LOGIC
+                const latest = getFinalShiftValue(totalDurationArr);
 
-                  if (latest?.value) {
-                    const { run, idle } = extractRunIdle(latest.value);
+                if (latest?.value) {
+                  const { run, idle } = extractRunIdle(latest.value);
 
                     totalRun += run;
                     totalIdle += idle;
 
                     console.log(`✅ Shift ${range.shiftNo}`, {
-                      run,
-                      idle,
-                      ts: latest.ts,
-                    });
-                  }
+                    run,
+                    idle,
+                    ts: latest.ts,
+                  });
                 }
+              }
 
                 // ✅ Add shift duration (minus break)
                 const shiftCfg = shifts.find(
@@ -1815,33 +1818,77 @@ export default function MachineDashboard() {
   }, [filteredDevices, selectedMachineId, activeTab, newToken, selectedShift]);
 
   return (
-    <div style={{ display: "flex", height: "100vh", paddingTop: "20px" }}>
+    <div style={{ display: "flex", height: 'calc(100vh - 45px)', paddingTop: "20px", position: "relative" }}>
       {/* Left Panel */}
-      <div
-        style={{
-          width: "350px",
-          background: "#f9f9f9",
-          padding: "15px",
-          paddingTop: "40px",
-          borderRight: "1px solid #ddd",
-          display: "flex",
-          flexDirection: "column"
-        }}
-      >
+      <div style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+        <div
+          style={{
+            width: leftPanelOpen ? "350px" : "0px",
+            minWidth: leftPanelOpen ? "350px" : "0px",
+            background: "#f9f9f9",
+            padding: leftPanelOpen ? "15px" : "0px",
+            paddingTop: leftPanelOpen ? "40px" : "0px",
+            borderRight: "1px solid #ddd",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            transition: "width 0.3s ease, min-width 0.3s ease, padding 0.3s ease",
+          }}
+        >
 
-        {showMachineGroupsDropdown && (
-          <FormControl size="small" sx={{ minWidth: 180, marginBottom: "10px" }}>
-            <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machine Group</InputLabel>
+          {showMachineGroupsDropdown && (
+            <FormControl size="small" sx={{ minWidth: 180, marginBottom: "10px" }}>
+              <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machine Group</InputLabel>
+              <Select
+                multiple
+                value={selectedGroups}
+                onChange={(e) => handleGroupChange(e.target.value)}
+                label="Machine Group"
+                renderValue={(selected) => {
+                  if (selected.length === machineGroups.length) return "All Groups";
+                  if (selected.length === 0) return "Select Groups";
+                  return selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "");
+                }}
+                sx={{
+                  fontSize: '14px',
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    '&:hover': {
+                      borderColor: '#007AFF',
+                    },
+                    '&.Mui-focused': {
+                      borderColor: '#007AFF',
+                      boxShadow: '0 0 0 3px rgba(0, 122, 255, 0.1)',
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="all">
+                  <Checkbox checked={selectedGroups.length === machineGroups.length} />
+                  <ListItemText primary="All Groups" />
+                </MenuItem>
+                {machineGroups.map((g) => (
+                  <MenuItem key={g.name} value={g.name}>
+                    <Checkbox checked={selectedGroups.includes(g.name)} />
+                    <ListItemText primary={g.name} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          <FormControl size="small" sx={{ minWidth: 200, marginBottom: "10px" }}>
+            <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machines</InputLabel>
             <Select
               multiple
-              value={selectedGroups}
-              onChange={(e) => handleGroupChange(e.target.value)}
-              label="Machine Group"
-              renderValue={(selected) => {
-                if (selected.length === machineGroups.length) return "All Groups";
-                if (selected.length === 0) return "Select Groups";
-                return selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "");
-              }}
+              value={groupSelectedMachines}
+              onChange={(e) => handleMachineChange(e.target.value)}
+              label="Machines"
+              renderValue={(selected) =>
+                isAllMachinesSelected ? "All Machines" :
+                  selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "")
+              }
               sx={{
                 fontSize: '14px',
                 '& .MuiOutlinedInput-root': {
@@ -1858,265 +1905,225 @@ export default function MachineDashboard() {
               }}
             >
               <MenuItem value="all">
-                <Checkbox checked={selectedGroups.length === machineGroups.length} />
-                <ListItemText primary="All Groups" />
+                <Checkbox checked={isAllMachinesSelected} />
+                <ListItemText primary="All Machines" />
               </MenuItem>
-              {machineGroups.map((g) => (
-                <MenuItem key={g.name} value={g.name}>
-                  <Checkbox checked={selectedGroups.includes(g.name)} />
-                  <ListItemText primary={g.name} />
+              {availableMachines.map((machine) => (
+                <MenuItem key={machine} value={machine}>
+                  <Checkbox checked={groupSelectedMachines.includes(machine)} />
+                  <ListItemText primary={machine} />
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
-        )}
 
-        <FormControl size="small" sx={{ minWidth: 200, marginBottom: "10px" }}>
-          <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machines</InputLabel>
-          <Select
-            multiple
-            value={groupSelectedMachines}
-            onChange={(e) => handleMachineChange(e.target.value)}
-            label="Machines"
-            renderValue={(selected) =>
-              isAllMachinesSelected ? "All Machines" :
-                selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "")
-            }
-            sx={{
-              fontSize: '14px',
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                border: '1px solid rgba(0, 0, 0, 0.12)',
-                '&:hover': {
-                  borderColor: '#007AFF',
-                },
-                '&.Mui-focused': {
-                  borderColor: '#007AFF',
-                  boxShadow: '0 0 0 3px rgba(0, 122, 255, 0.1)',
-                }
-              }
-            }}
-          >
-            <MenuItem value="all">
-              <Checkbox checked={isAllMachinesSelected} />
-              <ListItemText primary="All Machines" />
-            </MenuItem>
-            {availableMachines.map((machine) => (
-              <MenuItem key={machine} value={machine}>
-                <Checkbox checked={groupSelectedMachines.includes(machine)} />
-                <ListItemText primary={machine} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        {/* Search + Filter Button */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            marginBottom: "10px",
-          }}
-        >
-          <TextField
-            size="small"
-            placeholder="Search Here"
-            variant="outlined"
-            fullWidth
-            style={{ background: "#fff" }}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            InputProps={{
-              endAdornment: <SearchIcon style={{ color: "#777" }} />,
-            }}
-          />
-          <IconButton onClick={handleFilterClick} style={{ marginLeft: "5px" }}>
-            <FilterListIcon />
-          </IconButton>
-        </div>
-
-        {/* Live Compared to Baseline */}
-        <div style={{ marginBottom: "10px" }}>
-          <span
+          {/* Search + Filter Button */}
+          <div
             style={{
-              background: "#eee",
-              padding: "3px 6px",
-              borderRadius: "4px",
-              fontSize: "12px",
-              marginRight: "8px",
+              display: "flex",
+              alignItems: "center",
+              marginBottom: "10px",
             }}
           >
-            Live
-          </span>
-          <span style={{ fontSize: "13px", color: "#555" }}>
-            Compared to: <strong>Baseline</strong>
-          </span>
-        </div>
+            <TextField
+              size="small"
+              placeholder="Search Here"
+              variant="outlined"
+              fullWidth
+              style={{ background: "#fff" }}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              InputProps={{
+                endAdornment: <SearchIcon style={{ color: "#777" }} />,
+              }}
+            />
+            <IconButton onClick={handleFilterClick} style={{ marginLeft: "5px" }}>
+              <FilterListIcon />
+            </IconButton>
+          </div>
 
-        {/* Machine List */}
-        <div style={{ overflowY: "auto", flexGrow: 1 }}>
-          {loading ? (
-            <Typography variant="body2" sx={{ textAlign: "center", color: "gray", mt: 2 }}>
-              Loading machines...
-            </Typography>
-          ) : filteredDevices.length === 0 ? (
-            <Typography
-              variant="body2"
-              sx={{ textAlign: "center", color: "gray", mt: 2 }}
+          {/* Live Compared to Baseline */}
+          <div style={{ marginBottom: "10px" }}>
+            <span
+              style={{
+                background: "#eee",
+                padding: "3px 6px",
+                borderRadius: "4px",
+                fontSize: "12px",
+                marginRight: "8px",
+              }}
             >
-              No machines in{" "}
-              {[...selectedMachines, ...selectedStatus].length > 0
-                ? `(${[...selectedMachines, ...selectedStatus].join(", ")})`
-                : "filter"}
-            </Typography>
-          ) : (
-            filteredDevices.map((machine) => {
-              const changePositive = machine.changeFromBaseline >= 0;
-              const { run = 0, idle = 0, total = 0, disconnect = 0, alarm = 0, setting = 0, totalParts = 0, targetParts = 0, goodParts = 0, scrap = 0, ncr = 0 } =
-                machineDurations[machine.id.id] || {};
-              // const firstActiveTime =
-              //   machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
-              const isSelected = machine.id.id === selectedMachineId; // ✅ Check if selected
-              const firstActiveTime = machineStatusTimes?.[machine.id.id] || "N/A";
+              Live
+            </span>
+            <span style={{ fontSize: "13px", color: "#555" }}>
+              Compared to: <strong>Baseline</strong>
+            </span>
+          </div>
+
+          {/* Machine List */}
+          <div style={{ overflowY: "auto", flexGrow: 1 }}>
+            {loading ? (
+              <Typography variant="body2" sx={{ textAlign: "center", color: "gray", mt: 2 }}>
+                Loading machines...
+              </Typography>
+            ) : filteredDevices.length === 0 ? (
+              <Typography
+                variant="body2"
+                sx={{ textAlign: "center", color: "gray", mt: 2 }}
+              >
+                No machines in{" "}
+                {[...selectedMachines, ...selectedStatus].length > 0
+                  ? `(${[...selectedMachines, ...selectedStatus].join(", ")})`
+                  : "filter"}
+              </Typography>
+            ) : (
+              filteredDevices.map((machine) => {
+                const changePositive = machine.changeFromBaseline >= 0;
+                const { run = 0, idle = 0, total = 0, disconnect = 0, alarm = 0, setting = 0, totalParts = 0, targetParts = 0, goodParts = 0, scrap = 0, ncr = 0 } =
+                  machineDurations[machine.id.id] || {};
+                // const firstActiveTime =
+                //   machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
+                const isSelected = machine.id.id === selectedMachineId; // ✅ Check if selected
+                const firstActiveTime = machineStatusTimes?.[machine.id.id] || "N/A";
 
 
-              return (
-                <Card
-                  key={machine.id.id}
-                  onClick={() => {
-                    setViewedMachine(machine);
-                    setSelectedMachineId(machine.id.id);
-                    setSelectedMachine(machine);
-                    handleTabClick(activeTab, machine);
-                    fetchAllMachineData();
-                  }}
-                  sx={{
-                    mb: 1.5,
-                    borderRadius: 3,
-                    cursor: "pointer",
-                    transition: "all 0.3s ease-in-out",
-                    background: isSelected ? "#e3f2fd" : "#ffffff",
-                    border: "1px solid #e0e0e0",
-                    boxShadow: `
+                return (
+                  <Card
+                    key={machine.id.id}
+                    onClick={() => {
+                      setViewedMachine(machine);
+                      setSelectedMachineId(machine.id.id);
+                      setSelectedMachine(machine);
+                      handleTabClick(activeTab, machine);
+                      fetchAllMachineData();
+                    }}
+                    sx={{
+                      mb: 1.5,
+                      borderRadius: 3,
+                      cursor: "pointer",
+                      transition: "all 0.3s ease-in-out",
+                      background: isSelected ? "#e3f2fd" : "#ffffff",
+                      border: "1px solid #e0e0e0",
+                      boxShadow: `
       4px 4px 8px rgba(0,0,0,0.08),
       -4px -4px 8px rgba(255,255,255,0.9)
     `,
-                    borderLeft: `5px solid ${machineStatuses[machine.id.id]?.status === "Running"
-                      ? "#4caf50"
-                      : machineStatuses[machine.id.id]?.status === "Idle"
-                        ? "#f1a014ff"
-                        : machineStatuses[machine.id.id]?.status === "Alarm"
-                          ? "#f44336"
-                          : machineStatuses[machine.id.id]?.status === "Disconnected"
-                            ? "#9e9e9e"
-                            : machineStatuses[machine.id.id]?.status === "Locked"
-                              ? "rgb(243, 44, 130)"
-                              : machineStatuses[machine.id.id]?.status === "Setting"
-                                ? "#81c8f5ff"
-                                : "#f44336"
-                      }`,
-                    ...(machineStatuses[machine.id.id]?.status === "Alarm" && {
-                      animation: `${blinkRedBorder} 1.5s ease-in-out infinite`,
-                    }),
-                  }}
-                >
-                  <CardContent sx={{ p: 1.5 }}>
-                    {/* Header */}
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: "1.1rem", color: "#222" }}>
-                        {machine.name}
-                      </Typography>
-                      <Box
-                        sx={{
-                          px: 1.3,
-                          py: 0.35,
-                          borderRadius: "50px",
-                          fontSize: "0.72rem",
-                          fontWeight: 600,
-                          color: "#fff",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                          background:
-                            machineStatuses[machine.id.id]?.status === "Running"
-                              ? "linear-gradient(135deg, #43a047, #2e7d32)"
-                              : machineStatuses[machine.id.id]?.status === "Idle"
-                                ? "linear-gradient(135deg, #fbc02d, #f57f17)"
-                                : machineStatuses[machine.id.id]?.status === "Alarm"
-                                  ? "linear-gradient(135deg, #e53935, #b71c1c)"
-                                  : machineStatuses[machine.id.id]?.status === "Disconnected"
-                                    ? "#616161"
-                                    : machineStatuses[machine.id.id]?.status === "Locked"
-                                      ? "rgb(243, 44, 130)"
-                                      : machineStatuses[machine.id.id]?.status === "Setting"
-                                        ? "linear-gradient(135deg, #29b6f6, #0288d1)"
-                                        : "#b71c1c",
-                        }}
-                      >
-                        {machineStatuses[machine.id.id]?.status ?? "Unknown"}
-                      </Box>
-                    </Box>
-
-                    {/* Status & Duration */}
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", mb: 1 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
+                      borderLeft: `5px solid ${machineStatuses[machine.id.id]?.status === "Running"
+                        ? "#4caf50"
+                        : machineStatuses[machine.id.id]?.status === "Idle"
+                          ? "#f1a014ff"
+                          : machineStatuses[machine.id.id]?.status === "Alarm"
+                            ? "#f44336"
+                            : machineStatuses[machine.id.id]?.status === "Disconnected"
+                              ? "#9e9e9e"
+                              : machineStatuses[machine.id.id]?.status === "Locked"
+                                ? "rgb(243, 44, 130)"
+                                : machineStatuses[machine.id.id]?.status === "Setting"
+                                  ? "#81c8f5ff"
+                                  : "#f44336"
+                        }`,
+                      ...(machineStatuses[machine.id.id]?.status === "Alarm" && {
+                        animation: `${blinkRedBorder} 1.5s ease-in-out infinite`,
+                      }),
+                    }}
+                  >
+                    <CardContent sx={{ p: 1.5 }}>
+                      {/* Header */}
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: "1.1rem", color: "#222" }}>
+                          {machine.name}
+                        </Typography>
                         <Box
                           sx={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            bgcolor:
+                            px: 1.3,
+                            py: 0.35,
+                            borderRadius: "50px",
+                            fontSize: "0.72rem",
+                            fontWeight: 600,
+                            color: "#fff",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                            background:
                               machineStatuses[machine.id.id]?.status === "Running"
-                                ? "#4caf50"
+                                ? "linear-gradient(135deg, #43a047, #2e7d32)"
                                 : machineStatuses[machine.id.id]?.status === "Idle"
-                                  ? "#f1a014"
-                                  : machineStatuses[machine.id.id]?.status === "Disconnected"
-                                    ? "#9e9e9e"
-                                    : machineStatuses[machine.id.id]?.status === "Alarm"
-                                      ? "#f44336"
-                                      : machineStatuses[machine.id.id]?.status === "Setting"
-                                        ? "#81c8f5ff"
-                                        : machineStatuses[machine.id.id]?.status === "Locked"
-                                          ? "rgb(243, 44, 130)"
-                                          : "#9e9e9e",
+                                  ? "linear-gradient(135deg, #fbc02d, #f57f17)"
+                                  : machineStatuses[machine.id.id]?.status === "Alarm"
+                                    ? "linear-gradient(135deg, #e53935, #b71c1c)"
+                                    : machineStatuses[machine.id.id]?.status === "Disconnected"
+                                      ? "#616161"
+                                      : machineStatuses[machine.id.id]?.status === "Locked"
+                                        ? "rgb(243, 44, 130)"
+                                        : machineStatuses[machine.id.id]?.status === "Setting"
+                                          ? "linear-gradient(135deg, #29b6f6, #0288d1)"
+                                          : "#b71c1c",
                           }}
-                        />
-                        <Typography sx={{ fontSize: "0.83rem", color: "#222" }}>
-                          {machineStatuses[machine.id.id]?.status === "Running"
-                            ? `Run: ${formatTime(run)}`
-                            : machineStatuses[machine.id.id]?.status === "Idle"
-                              ? `Idle: ${formatTime(idle)}`
-                              : machineStatuses[machine.id.id]?.status === "Disconnected"
-                                ? `Disconnect: ${formatTime(disconnect)}`
-                                : machineStatuses[machine.id.id]?.status === "Alarm"
-                                  ? `Alarm: ${formatTime(alarm)}`
-                                  : machineStatuses[machine.id.id]?.status === "Setting"
-                                    ? `Setting: ${formatTime(setting)}`
-                                    : `Total: ${formatTime(total)}`}
+                        >
+                          {machineStatuses[machine.id.id]?.status ?? "Unknown"}
+                        </Box>
+                      </Box>
+
+                      {/* Status & Duration */}
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", mb: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              bgcolor:
+                                machineStatuses[machine.id.id]?.status === "Running"
+                                  ? "#4caf50"
+                                  : machineStatuses[machine.id.id]?.status === "Idle"
+                                    ? "#f1a014"
+                                    : machineStatuses[machine.id.id]?.status === "Disconnected"
+                                      ? "#9e9e9e"
+                                      : machineStatuses[machine.id.id]?.status === "Alarm"
+                                        ? "#f44336"
+                                        : machineStatuses[machine.id.id]?.status === "Setting"
+                                          ? "#81c8f5ff"
+                                          : machineStatuses[machine.id.id]?.status === "Locked"
+                                            ? "rgb(243, 44, 130)"
+                                            : "#9e9e9e",
+                            }}
+                          />
+                          <Typography sx={{ fontSize: "0.83rem", color: "#222" }}>
+                            {machineStatuses[machine.id.id]?.status === "Running"
+                              ? `Run: ${formatTime(run)}`
+                              : machineStatuses[machine.id.id]?.status === "Idle"
+                                ? `Idle: ${formatTime(idle)}`
+                                : machineStatuses[machine.id.id]?.status === "Disconnected"
+                                  ? `Disconnect: ${formatTime(disconnect)}`
+                                  : machineStatuses[machine.id.id]?.status === "Alarm"
+                                    ? `Alarm: ${formatTime(alarm)}`
+                                    : machineStatuses[machine.id.id]?.status === "Setting"
+                                      ? `Setting: ${formatTime(setting)}`
+                                      : `Total: ${formatTime(total)}`}
+                          </Typography>
+                        </Box>
+
+                        <Typography sx={{ fontSize: "0.73rem", color: "#555", display: "flex", alignItems: "center" }}>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#555"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{ marginRight: "3px" }}
+                          >
+                            <polyline points="0 12 5 12 8 4 12 20 16 8 19 12 24 12" />
+                          </svg>
+                          First Active: {formatMillisecondsTo12HourTime(machineStatusTimes[machine.id.id]?.lastTs)}
                         </Typography>
                       </Box>
 
-                      <Typography sx={{ fontSize: "0.73rem", color: "#555", display: "flex", alignItems: "center" }}>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="14"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#555"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          style={{ marginRight: "3px" }}
-                        >
-                          <polyline points="0 12 5 12 8 4 12 20 16 8 19 12 24 12" />
-                        </svg>
-                        First Active: {formatMillisecondsTo12HourTime(machineStatusTimes[machine.id.id]?.lastTs)}
-                      </Typography>
-                    </Box>
 
-
-                    {/* Reason & Component */}
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1 }}>
-                      {/* {(machineStatuses[machine.id.id]?.status === "Idle" || machineStatuses[machine.id.id]?.status === "Alarm") &&
+                      {/* Reason & Component */}
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1 }}>
+                        {/* {(machineStatuses[machine.id.id]?.status === "Idle" || machineStatuses[machine.id.id]?.status === "Alarm") &&
                         (() => {
                           const isLocked = lockStatus[machine.id.id]?.lockStatus?.toLowerCase() === "locked";
                           const live = liveReason[machine.id.id]?.liveReason;
@@ -2145,7 +2152,7 @@ export default function MachineDashboard() {
                           return null;
                         })()} */}
 
-                      {/* {(machineStatuses[machine.id.id]?.status === "Idle" || machineStatuses[machine.id.id]?.status === "Alarm") &&
+                        {/* {(machineStatuses[machine.id.id]?.status === "Idle" || machineStatuses[machine.id.id]?.status === "Alarm") &&
                         liveReason[machine.id.id]?.liveReason?.name &&
                         (
                           <Chip
@@ -2164,106 +2171,129 @@ export default function MachineDashboard() {
                             }}
                           />
                         )} */}
-                      <Chip
-                        label={liveComponent[machine.id.id]?.componentName ?? "No Component"}
-                        size="small"
-                        sx={{
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          bgcolor:
-                            (liveComponent[machine.id.id]?.componentName ?? "No Component") !== "No Component"
-                              ? "#e0f7fa"
-                              : "#ffebee",
-                          color:
-                            (liveComponent[machine.id.id]?.componentName ?? "No Component") !== "No Component"
-                              ? "#00796b"
-                              : "#c62828",
-                        }}
-                      />
-                    </Box>
-
-                    {/* Utilization with floating neumorphic progress bar */}
-                    <Box
-                      sx={{
-                        mt: 0.8,
-                        p: 1.5,
-                        bgcolor: "#ffffff",
-                        borderRadius: 2.5,
-                        boxShadow: `
-          3px 3px 6px rgba(0,0,0,0.08),
-          -3px -3px 6px rgba(255,255,255,0.7)
-        `,
-                      }}
-                    >
-                      <Typography sx={{ fontWeight: 700, fontSize: "0.8rem", color: "#222", mb: 0.8 }}>
-                        Utilization Rate
-                      </Typography>
-
-                      <Typography sx={{ fontWeight: 700, fontSize: "22px", color: "#222", mb: 1.5 }}>
-                        {machineUtilization[machine.id.id]?.utilization ?? 0}%
-                      </Typography>
-
-                      <Box
-                        sx={{
-                          position: "relative",
-                          height: 12,
-                          borderRadius: 10,
-                          bgcolor: "#f1f3f6",
-                          mb: 1.5,
-                          boxShadow: "inset 1.5px 1.5px 3px rgba(0,0,0,0.08), inset -1.5px -1.5px 3px rgba(255,255,255,0.7)",
-                        }}
-                      >
-                        <Box
+                        <Chip
+                          label={liveComponent[machine.id.id]?.componentName ?? "No Component"}
+                          size="small"
                           sx={{
-                            width: `${machineUtilization[machine.id.id]?.utilization ?? 0}%`,
-                            height: "100%",
-                            borderRadius: 10,
-                            background:
-                              parseFloat(
-                                (machineUtilization[machine.id.id]?.utilization ?? 0) -
-                                (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)
-                              ) >= 0
-                                ? "linear-gradient(90deg, #81c784, #4caf50)"
-                                : "linear-gradient(90deg, #ef9a9a, #f44336)",
-                            boxShadow: `
-              1.5px 1.5px 3px rgba(0,0,0,0.15),
-              -1.5px -1.5px 3px rgba(255,255,255,0.8)
-            `,
-                            transition: "width 0.5s ease",
+                            fontSize: "0.7rem",
+                            fontWeight: 600,
+                            bgcolor:
+                              (liveComponent[machine.id.id]?.componentName ?? "No Component") !== "No Component"
+                                ? "#e0f7fa"
+                                : "#ffebee",
+                            color:
+                              (liveComponent[machine.id.id]?.componentName ?? "No Component") !== "No Component"
+                                ? "#00796b"
+                                : "#c62828",
                           }}
                         />
                       </Box>
 
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                        {parseFloat(
-                          (machineUtilization[machine.id.id]?.utilization ?? 0) -
-                          (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)
-                        ) >= 0 ? (
-                          <ArrowUpwardIcon fontSize="small" sx={{ color: "#4caf50" }} />
-                        ) : (
-                          <ArrowDownwardIcon fontSize="small" sx={{ color: "#f44336" }} />
-                        )}
-                        <Typography sx={{ fontSize: "0.68rem", color: "#555" }}>
-                          {Math.abs(
-                            parseFloat(
-                              ((machineUtilization[machine.id.id]?.utilization ?? 0) -
-                                (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)).toFixed(1)
-                            )
-                          )}{" "}
-                          pp {parseFloat(
+                      {/* Utilization with floating neumorphic progress bar */}
+                      <Box
+                        sx={{
+                          mt: 0.8,
+                          p: 1.5,
+                          bgcolor: "#ffffff",
+                          borderRadius: 2.5,
+                          boxShadow: `
+          3px 3px 6px rgba(0,0,0,0.08),
+          -3px -3px 6px rgba(255,255,255,0.7)
+        `,
+                        }}
+                      >
+                        <Typography sx={{ fontWeight: 700, fontSize: "0.8rem", color: "#222", mb: 0.8 }}>
+                          Utilization Rate
+                        </Typography>
+
+                        <Typography sx={{ fontWeight: 700, fontSize: "22px", color: "#222", mb: 1.5 }}>
+                          {machineUtilization[machine.id.id]?.utilization ?? 0}%
+                        </Typography>
+
+                        <Box
+                          sx={{
+                            position: "relative",
+                            height: 12,
+                            borderRadius: 10,
+                            bgcolor: "#f1f3f6",
+                            mb: 1.5,
+                            boxShadow: "inset 1.5px 1.5px 3px rgba(0,0,0,0.08), inset -1.5px -1.5px 3px rgba(255,255,255,0.7)",
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: `${machineUtilization[machine.id.id]?.utilization ?? 0}%`,
+                              height: "100%",
+                              borderRadius: 10,
+                              background:
+                                parseFloat(
+                                  (machineUtilization[machine.id.id]?.utilization ?? 0) -
+                                  (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)
+                                ) >= 0
+                                  ? "linear-gradient(90deg, #81c784, #4caf50)"
+                                  : "linear-gradient(90deg, #ef9a9a, #f44336)",
+                              boxShadow: `
+              1.5px 1.5px 3px rgba(0,0,0,0.15),
+              -1.5px -1.5px 3px rgba(255,255,255,0.8)
+            `,
+                              transition: "width 0.5s ease",
+                            }}
+                          />
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                          {parseFloat(
                             (machineUtilization[machine.id.id]?.utilization ?? 0) -
                             (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)
-                          ) >= 0 ? "up" : "down"} from baseline
-                        </Typography>
+                          ) >= 0 ? (
+                            <ArrowUpwardIcon fontSize="small" sx={{ color: "#4caf50" }} />
+                          ) : (
+                            <ArrowDownwardIcon fontSize="small" sx={{ color: "#f44336" }} />
+                          )}
+                          <Typography sx={{ fontSize: "0.68rem", color: "#555" }}>
+                            {Math.abs(
+                              parseFloat(
+                                ((machineUtilization[machine.id.id]?.utilization ?? 0) -
+                                  (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)).toFixed(1)
+                              )
+                            )}{" "}
+                            pp {parseFloat(
+                              (machineUtilization[machine.id.id]?.utilization ?? 0) -
+                              (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)
+                            ) >= 0 ? "up" : "down"} from baseline
+                          </Typography>
+                        </Box>
                       </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+
         </div>
 
+        {/* Toggle Arrow Button — always visible at top-right corner of left panel */}
+        <IconButton
+          onClick={() => setLeftPanelOpen(prev => !prev)}
+          size="small"
+          style={{
+            position: "absolute",
+            top: "8px",
+            right: "-16px",
+            zIndex: 20,
+            background: "#fff",
+            border: "2px solid #b4b1ae",   // orange border
+            borderRadius: "50%",
+            padding: "4px",
+            color: "#999793",              // icon color (orange)
+          }}
+        >
+          {leftPanelOpen
+            ? <ChevronLeftIcon fontSize="small" />
+            : <ChevronRightIcon fontSize="small" />
+          }
+        </IconButton>
       </div>
 
       {/* Right Panel */}
@@ -2324,7 +2354,7 @@ export default function MachineDashboard() {
           </div>
 
           {/* Tab Buttons */}
-          <div style={{ marginTop: "10px", display: "flex", gap: "30px" }}>
+          <div style={{ marginTop: "10px", display: "flex", gap: "26px", marginLeft: "10px" }}>
             <Button
               variant={activeTab === "overview" ? "contained" : "text"}
               onClick={() => handleTabClick("overview", selectedMachine)}

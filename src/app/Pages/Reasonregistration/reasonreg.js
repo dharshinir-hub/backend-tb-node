@@ -305,47 +305,68 @@ const ReasonRegistration = ({
                                     : item.id || idx;
 
                             return (
-                                <div
-                                    className="idle_reason_item"
-                                    key={itemId}
-                                    style={{ borderColor: '#FFA500' }}
-                                >
-                                    <div className="icons">
-                                        <span className="icon-text">{idx + 1}</span>
-                                    </div>
-                                    <h3 className="reason-text">{item.reason}</h3>
+           <div
+    className="idle_reason_item"
+    key={itemId}
+    style={{
+        borderColor: '#FFA500',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        minWidth: 0,
+    }}
+>
+    {/* Number badge */}
+    <div className="icons" style={{ flexShrink: 0 }}>
+        <span className="icon-text">{idx + 1}</span>
+    </div>
 
-                                    {item?.group && (
-                                        <Chip
-                                            label={item.group}
-                                            size="small"
-                                            variant="outlined"
-                                            className="group-chip"
-                                            color={item.sourceType === 'qualityreason' ? 'secondary' : 'default'}
-                                        />
-                                    )}
+    {/* Reason name */}
+   <h3
+    className="reason-text"
+    title={item.reason}   // ← add only this line
+    style={{
+        margin: 0,
+        flexShrink: 1,
+        minWidth: 0,
+        wordBreak: 'break-word',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+    }}
+>
+    {item.reason}
+</h3>
 
-                                    <div className="user_action">
-                                        <ul>
-                                            <li>
-                                                <Tooltip title="Edit">
-                                                    <IconButton
-                                                        onClick={() => handleOpenEditDialog(item)}
-                                                    >
-                                                        <EditIcon sx={{ color: 'black' }} />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </li>
-                                            <li>
-                                                <Tooltip title="Delete">
-                                                    <IconButton onClick={() => deleteReason(item)}>
-                                                        <DeleteIcon sx={{ color: 'black' }} />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
+    {/* Group chip — right next to reason name */}
+    {item?.group && (
+        <Chip
+            label={item.group}
+            size="small"
+            variant="outlined"
+            className="group-chip"
+            color={item.sourceType === 'qualityreason' ? 'secondary' : 'default'}
+            style={{ flexShrink: 0 }}
+        />
+    )}
+
+    {/* Spacer pushes edit/delete to far right */}
+    <div style={{ flex: 1 }} />
+
+    {/* Edit + Delete icons */}
+    <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <Tooltip title="Edit">
+            <IconButton onClick={() => handleOpenEditDialog(item)}>
+                <EditIcon sx={{ color: 'black' }} />
+            </IconButton>
+        </Tooltip>
+        <Tooltip title="Delete">
+            <IconButton onClick={() => deleteReason(item)}>
+                <DeleteIcon sx={{ color: 'black' }} />
+            </IconButton>
+        </Tooltip>
+    </div>
+</div>
                             );
                         })
                     ) : (

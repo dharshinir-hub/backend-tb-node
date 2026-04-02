@@ -1779,9 +1779,8 @@ export default function NewAnalytics() {
                 <Toolbar disableGutters sx={{ justifyContent: 'space-between', minHeight: '48px !important' }}>
 
 
-                    {/* Right side: OEE/Utilization View Toggle and View Toggle (only show when data has been generated) */}
-
-                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="nowrap">
+                    {/* Right side: OEE/Utilization View Toggle and first row filters */}
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, width: '100%', alignItems: 'center',padding:"10px" }}>
                         {/* Machine Groups Dropdown */}
                         {showMachineGroupsDropdown && (
                             <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -1825,7 +1824,6 @@ export default function NewAnalytics() {
                             </FormControl>
                         )}
 
-                        {/* Machines Dropdown */}
                         <FormControl size="small" sx={{ minWidth: 200 }}>
                             <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Machines</InputLabel>
                             <Select
@@ -1899,6 +1897,7 @@ export default function NewAnalytics() {
                             </Select>
                         </FormControl>
 
+                    {/* Second row with remaining filters and action */}
                         {/* Downtime-specific filters: Period and Top N */}
                         {(analysisType === ANALYSIS_TYPES.LIVE_REASON && cleanCustomerId(customerId) === CUSTOMER_IDS.PMI) && (
                             <>
@@ -1941,7 +1940,7 @@ export default function NewAnalytics() {
                                     value={oeeViewType}
                                     label="OEE View"
                                     onChange={(e) => handleOeeViewTypeChange(e.target.value)}
-                                    sx={{ fontSize: '13px', height: 36, }}
+                                    sx={{ fontSize: '13px', height: 36 }}
                                 >
                                     <MenuItem value={OEE_VIEW_TYPES.FISCAL}>Fiscal</MenuItem>
                                     <MenuItem value={OEE_VIEW_TYPES.DAYS}>Day</MenuItem>
@@ -1957,7 +1956,7 @@ export default function NewAnalytics() {
                                     value={utilizationViewType}
                                     label="Utilization View"
                                     onChange={(e) => handleUtilizationViewTypeChange(e.target.value)}
-                                    sx={{ fontSize: '13px', height: 36, }}
+                                    sx={{ fontSize: '13px', height: 36 }}
                                 >
                                     <MenuItem value={UTILIZATION_VIEW_TYPES.FISCAL}>Fiscal</MenuItem>
                                     <MenuItem value={UTILIZATION_VIEW_TYPES.DAYS}>Day</MenuItem>
@@ -1966,7 +1965,6 @@ export default function NewAnalytics() {
                             </FormControl>
                         )}
 
-                        {/* Show Year dropdown when analysisType is Parts */}
                         {analysisType === "Parts" ? (
                             <FormControl size="small" sx={{ minWidth: 150 }}>
                                 <InputLabel>Year</InputLabel>
@@ -2039,7 +2037,6 @@ export default function NewAnalytics() {
                             </>
                         )}
 
-
                         <Tooltip title={isRunDisabled ? "Please select at least one machine" : ""}>
                             <span>
                                 <Button
@@ -2050,7 +2047,7 @@ export default function NewAnalytics() {
                                     sx={{
                                         minWidth: 140,
                                         height: 36,
-                                        borderRadius: '20px',
+                                        borderRadius: '6px',
                                         backgroundColor: '#007AFF',
                                         textTransform: 'none',
                                         fontSize: '14px',
@@ -2074,7 +2071,7 @@ export default function NewAnalytics() {
                                 </Button>
                             </span>
                         </Tooltip>
-                    </Stack>
+                    </Box>
                 </Toolbar>
             </AppBar>
 
@@ -2122,6 +2119,50 @@ export default function NewAnalytics() {
                                     }}
                                     title="Analytics Dashboard"
                                 />
+                                 <div
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 14,
+                  width: 90,
+                  height: "100%",
+                  backgroundColor: 'transparent',
+                  zIndex: 10
+                }}
+              />
+                <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 14,
+                  width: "100%",
+                  height: 50,
+                  backgroundColor: 'transparent',
+                  zIndex: 10
+                }}
+              />
+                <div
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: "35%",
+                  width: 80,
+                  height: "100%",
+                  backgroundColor: 'transparent',
+                  zIndex: 10
+                }}
+              />
+                <div
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: "65%",
+                  width: 90,
+                  height: "100%",
+                  backgroundColor: 'transparent',
+                  zIndex: 10
+                }}
+              />
                             </Box>
                         </Box>
                     )}

@@ -529,17 +529,48 @@ export default function ProductionOverview() {
                         Analysing production data...
                     </Box>
                 ) : iframeUrl ? (
-                    <iframe
-                        src={iframeUrl}
-                        title="Production Metrics"
-                        width="100%"
-                        height="100%"
-                        style={{
-                            border: 'none',
-                            display: 'block',
-                        }}
-                        allowFullScreen
-                    />
+                    <>
+                   <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+  
+  <iframe
+    src={iframeUrl}
+    title="Production Metrics"
+    width="100%"
+    height="100%"
+    style={{
+      border: 'none',
+      display: 'block',
+    }}
+    allowFullScreen
+  />
+
+  {/* Right overlay */}
+  <div
+    style={{
+      position: 'absolute',
+      top: 60,
+      right: 14,
+      width: 90,
+      height: "calc(100% - 60px)",
+      backgroundColor: 'transparent',
+      zIndex: 10
+    }}
+  />
+
+  {/* Top bar */}
+  <div
+    style={{
+      position: 'absolute',
+      top: 0,
+      width: "100%",
+      height: 50,
+      backgroundColor: 'transparent',
+      zIndex: 20
+    }}
+  />
+
+</div>
+                    </>
                 ) : (
                     <Box
                         sx={{

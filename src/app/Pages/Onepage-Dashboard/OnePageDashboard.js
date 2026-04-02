@@ -974,6 +974,7 @@ export default function OnePageDashboard() {
                         </span>
                     </div>
                 ) : mainGrafanaUrl ? (
+                    <>
                     <iframe
                         src={mainGrafanaUrl}
                         style={{
@@ -985,6 +986,48 @@ export default function OnePageDashboard() {
                         title="Grafana KPI Dashboard - Main"
                         allowFullScreen
                     />
+                     <div
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 14,
+                  width: 80,
+                  height: "100%",
+                  backgroundColor: 'transparent',
+                  zIndex: 10
+                }}
+              />
+                <div //oee %
+                    style={{
+                      position: 'absolute',
+                      top:0,
+                      width: "100%",
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10,
+                    }}
+                  />
+                  <div //oee %
+                    style={{
+                      position: 'absolute',
+                      top:100,
+                      width: "100%",
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10,
+                    }}
+                  />
+                  <div //oee %
+                    style={{
+                      position: 'absolute',
+                      top:400,
+                      width: "100%",
+                      height: 40,
+                      backgroundColor: 'transparent',
+                      zIndex: 10,
+                    }}
+                  />
+                    </>
                 ) : (
                     <div style={{
                         width: '100%',
