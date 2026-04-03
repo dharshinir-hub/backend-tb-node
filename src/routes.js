@@ -61,6 +61,7 @@ const AppRoutes = () => {
       <Route path="/" element={<Login />} />
       <Route path="/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" element={<Operator />} />
       <Route path="/smc_operator_bf9tz" element={<Operator />} />
+      <Route path="/atech_operator_atc67" element={<Operator />} />
       <Route path="/marks_operator_ch8st" element={<Operator />} />
       <Route path="/makino_operator_av5tc" element={<Operator />} />
       <Route path="/gplast_operator_awe6tc" element={<Operator />} />
@@ -105,7 +106,7 @@ const AppRoutes = () => {
             <Route path="/inprogressoee" element={<InprogressOee />} />
           </>
         )}
-        
+
         {pageList.includes("bluecard") && (
           <>
             <Route path="/bluecarddetails" element={<BluecardDetails />} />
