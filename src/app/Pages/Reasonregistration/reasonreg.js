@@ -17,7 +17,6 @@ import Swal from 'sweetalert2';
 import ReasonAdd from './reasonadd';
 import ReasonEdit from './reasonedit';
 import { cleanCustomerId } from '../../Services/app/operatorservice';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 const ReasonRegistration = ({
     reasonKey = 'reason',
@@ -93,7 +92,7 @@ const ReasonRegistration = ({
     useEffect(() => {
         if (!customerId) return;
         getReasons();
-        if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+        if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) {
             fetchReasonGroups();
         }
     }, [reasonKey, customerId]);
@@ -239,7 +238,7 @@ const ReasonRegistration = ({
 
                             {/* RIGHT — Filters */}
                             {(
-                               cleanCustomerId(customerId) === CUSTOMER_IDS.PMI 
+                                cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID
                             ) && (
                                     <ToggleButtonGroup
                                         value={sourceTypeFilter}
@@ -259,7 +258,7 @@ const ReasonRegistration = ({
                         </div>
                     </div>
 
-                    {cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && (
+                    {cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && (
                         <div
                             style={{
                                 display: 'flex',
@@ -305,68 +304,68 @@ const ReasonRegistration = ({
                                     : item.id || idx;
 
                             return (
-           <div
-    className="idle_reason_item"
-    key={itemId}
-    style={{
-        borderColor: '#FFA500',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        minWidth: 0,
-    }}
->
-    {/* Number badge */}
-    <div className="icons" style={{ flexShrink: 0 }}>
-        <span className="icon-text">{idx + 1}</span>
-    </div>
+                                <div
+                                    className="idle_reason_item"
+                                    key={itemId}
+                                    style={{
+                                        borderColor: '#FFA500',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        minWidth: 0,
+                                    }}
+                                >
+                                    {/* Number badge */}
+                                    <div className="icons" style={{ flexShrink: 0 }}>
+                                        <span className="icon-text">{idx + 1}</span>
+                                    </div>
 
-    {/* Reason name */}
-   <h3
-    className="reason-text"
-    title={item.reason}   // ← add only this line
-    style={{
-        margin: 0,
-        flexShrink: 1,
-        minWidth: 0,
-        wordBreak: 'break-word',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-    }}
->
-    {item.reason}
-</h3>
+                                    {/* Reason name */}
+                                    <h3
+                                        className="reason-text"
+                                        title={item.reason}   // ← add only this line
+                                        style={{
+                                            margin: 0,
+                                            flexShrink: 1,
+                                            minWidth: 0,
+                                            wordBreak: 'break-word',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                        }}
+                                    >
+                                        {item.reason}
+                                    </h3>
 
-    {/* Group chip — right next to reason name */}
-    {item?.group && (
-        <Chip
-            label={item.group}
-            size="small"
-            variant="outlined"
-            className="group-chip"
-            color={item.sourceType === 'qualityreason' ? 'secondary' : 'default'}
-            style={{ flexShrink: 0 }}
-        />
-    )}
+                                    {/* Group chip — right next to reason name */}
+                                    {item?.group && (
+                                        <Chip
+                                            label={item.group}
+                                            size="small"
+                                            variant="outlined"
+                                            className="group-chip"
+                                            color={item.sourceType === 'qualityreason' ? 'secondary' : 'default'}
+                                            style={{ flexShrink: 0 }}
+                                        />
+                                    )}
 
-    {/* Spacer pushes edit/delete to far right */}
-    <div style={{ flex: 1 }} />
+                                    {/* Spacer pushes edit/delete to far right */}
+                                    <div style={{ flex: 1 }} />
 
-    {/* Edit + Delete icons */}
-    <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-        <Tooltip title="Edit">
-            <IconButton onClick={() => handleOpenEditDialog(item)}>
-                <EditIcon sx={{ color: 'black' }} />
-            </IconButton>
-        </Tooltip>
-        <Tooltip title="Delete">
-            <IconButton onClick={() => deleteReason(item)}>
-                <DeleteIcon sx={{ color: 'black' }} />
-            </IconButton>
-        </Tooltip>
-    </div>
-</div>
+                                    {/* Edit + Delete icons */}
+                                    <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                        <Tooltip title="Edit">
+                                            <IconButton onClick={() => handleOpenEditDialog(item)}>
+                                                <EditIcon sx={{ color: 'black' }} />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Delete">
+                                            <IconButton onClick={() => deleteReason(item)}>
+                                                <DeleteIcon sx={{ color: 'black' }} />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </div>
+                                </div>
                             );
                         })
                     ) : (

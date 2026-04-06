@@ -25,7 +25,6 @@ import TableChartIcon from '@mui/icons-material/TableChart';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { saveAs } from 'file-saver';
 import { getAverageUtilizationForRange } from "../../Shared/utils/utilizationCalculations";
-import { CUSTOMER_IDS } from "../../Shared/constants/ids";
 import { getPartsReport, fetchPartsShiftWiseByDate, getSummaryStats } from "../../Shared/utils/oeepartsdata";
 
 // Constants
@@ -802,7 +801,7 @@ export default function NewAnalytics() {
     const [shifts, setShifts] = useState([]);
     const [fromDate, setFromDate] = useState(dayjs().subtract(7, 'day'));
     const [toDate, setToDate] = useState(dayjs());
-    const isGPLAST = cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
+    const isGPLAST = cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
     const [analysisType, setAnalysisType] = useState(
         cleanCustomerId(customerId) === window._env_.SMC_CUSTOMER_ID
             ? ANALYSIS_TYPES.PARTS
@@ -1387,7 +1386,7 @@ export default function NewAnalytics() {
             const reporturl = `${window._env_.SERVER_URL2}report/idle_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000000000000`;
 
             const url = type === 'live_reason'
-                ? (cleanedId !== CUSTOMER_IDS.PMI
+                ? (cleanedId !== window._env_.PMI_CUSTOMER_ID
                     ? `${GRAFANA_URL}d/afbprll75uwaoa/analytics-downtime-report-based?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&var-period=${downtimePeriod}&${topParams}&kiosk&theme=light&refresh=20s`
                     : `${GRAFANA_URL}d/affv6yl9skjk0a/analytics-downtime-top?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&var-period=${downtimePeriod}&${topParams}&kiosk&theme=light&refresh=20s`)
                 : `${GRAFANA_URL}d/af88lwhpkj08wd/analytics-downtime-alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
@@ -1780,7 +1779,7 @@ export default function NewAnalytics() {
 
 
                     {/* Right side: OEE/Utilization View Toggle and first row filters */}
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, width: '100%', alignItems: 'center',padding:"10px" }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, width: '100%', alignItems: 'center', padding: "10px" }}>
                         {/* Machine Groups Dropdown */}
                         {showMachineGroupsDropdown && (
                             <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -1888,7 +1887,7 @@ export default function NewAnalytics() {
                                     <MenuItem value={ANALYSIS_TYPES.UTILIZATION}>Utilization</MenuItem>
                                 )}
                                 <MenuItem value={ANALYSIS_TYPES.PARTS}>Parts</MenuItem>
-                                {cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST && (
+                                {cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID && (
                                     <MenuItem value={ANALYSIS_TYPES.LIVE_ALARM}>Alarm</MenuItem>
                                 )}
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_REASON}>Downtime</MenuItem>
@@ -1897,9 +1896,9 @@ export default function NewAnalytics() {
                             </Select>
                         </FormControl>
 
-                    {/* Second row with remaining filters and action */}
+                        {/* Second row with remaining filters and action */}
                         {/* Downtime-specific filters: Period and Top N */}
-                        {(analysisType === ANALYSIS_TYPES.LIVE_REASON && cleanCustomerId(customerId) === CUSTOMER_IDS.PMI) && (
+                        {(analysisType === ANALYSIS_TYPES.LIVE_REASON && cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID) && (
                             <>
                                 <FormControl size="small" sx={{ minWidth: 120 }}>
                                     <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Period</InputLabel>
@@ -2119,50 +2118,50 @@ export default function NewAnalytics() {
                                     }}
                                     title="Analytics Dashboard"
                                 />
-                                 <div
-                style={{
-                  position: 'absolute',
-                  top: 2,
-                  right: 14,
-                  width: 90,
-                  height: "100%",
-                  backgroundColor: 'transparent',
-                  zIndex: 10
-                }}
-              />
-                <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  right: 14,
-                  width: "100%",
-                  height: 50,
-                  backgroundColor: 'transparent',
-                  zIndex: 10
-                }}
-              />
-                <div
-                style={{
-                  position: 'absolute',
-                  top: 2,
-                  right: "35%",
-                  width: 80,
-                  height: "100%",
-                  backgroundColor: 'transparent',
-                  zIndex: 10
-                }}
-              />
-                <div
-                style={{
-                  position: 'absolute',
-                  top: 2,
-                  right: "65%",
-                  width: 90,
-                  height: "100%",
-                  backgroundColor: 'transparent',
-                  zIndex: 10
-                }}
-              />
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        top: 2,
+                                        right: 14,
+                                        width: 90,
+                                        height: "100%",
+                                        backgroundColor: 'transparent',
+                                        zIndex: 10
+                                    }}
+                                />
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        right: 14,
+                                        width: "100%",
+                                        height: 50,
+                                        backgroundColor: 'transparent',
+                                        zIndex: 10
+                                    }}
+                                />
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        top: 2,
+                                        right: "35%",
+                                        width: 80,
+                                        height: "100%",
+                                        backgroundColor: 'transparent',
+                                        zIndex: 10
+                                    }}
+                                />
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        top: 2,
+                                        right: "65%",
+                                        width: 90,
+                                        height: "100%",
+                                        backgroundColor: 'transparent',
+                                        zIndex: 10
+                                    }}
+                                />
                             </Box>
                         </Box>
                     )}

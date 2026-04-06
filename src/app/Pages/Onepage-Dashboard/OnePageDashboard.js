@@ -20,7 +20,6 @@ import {
 } from '../../Services/app/companyservice';
 import { telemetrykeydata } from '../../Services/app/operatorservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 export default function OnePageDashboard() {
     const customerId = localStorage.getItem('CustomerID');
@@ -534,7 +533,7 @@ export default function OnePageDashboard() {
 
         let adjustedDuration = 0;
 
-        if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+        if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) {
             const shiftTimes = getShiftTimes(shifts, selectedShift, startDate);
             const from = shiftTimes.from || Date.now() - 24 * 60 * 60 * 1000;
             const to = shiftTimes.to || Date.now();
@@ -975,58 +974,58 @@ export default function OnePageDashboard() {
                     </div>
                 ) : mainGrafanaUrl ? (
                     <>
-                    <iframe
-                        src={mainGrafanaUrl}
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            border: 'none',
-                            display: 'block'
-                        }}
-                        title="Grafana KPI Dashboard - Main"
-                        allowFullScreen
-                    />
-                     <div
-                style={{
-                  position: 'absolute',
-                  top: 2,
-                  right: 14,
-                  width: 80,
-                  height: "100%",
-                  backgroundColor: 'transparent',
-                  zIndex: 10
-                }}
-              />
-                <div //oee %
-                    style={{
-                      position: 'absolute',
-                      top:0,
-                      width: "100%",
-                      height: 40,
-                      backgroundColor: 'transparent',
-                      zIndex: 10,
-                    }}
-                  />
-                  <div //oee %
-                    style={{
-                      position: 'absolute',
-                      top:100,
-                      width: "100%",
-                      height: 40,
-                      backgroundColor: 'transparent',
-                      zIndex: 10,
-                    }}
-                  />
-                  <div //oee %
-                    style={{
-                      position: 'absolute',
-                      top:400,
-                      width: "100%",
-                      height: 40,
-                      backgroundColor: 'transparent',
-                      zIndex: 10,
-                    }}
-                  />
+                        <iframe
+                            src={mainGrafanaUrl}
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                border: 'none',
+                                display: 'block'
+                            }}
+                            title="Grafana KPI Dashboard - Main"
+                            allowFullScreen
+                        />
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: 2,
+                                right: 14,
+                                width: 80,
+                                height: "100%",
+                                backgroundColor: 'transparent',
+                                zIndex: 10
+                            }}
+                        />
+                        <div //oee %
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                width: "100%",
+                                height: 40,
+                                backgroundColor: 'transparent',
+                                zIndex: 10,
+                            }}
+                        />
+                        <div //oee %
+                            style={{
+                                position: 'absolute',
+                                top: 100,
+                                width: "100%",
+                                height: 40,
+                                backgroundColor: 'transparent',
+                                zIndex: 10,
+                            }}
+                        />
+                        <div //oee %
+                            style={{
+                                position: 'absolute',
+                                top: 400,
+                                width: "100%",
+                                height: 40,
+                                backgroundColor: 'transparent',
+                                zIndex: 10,
+                            }}
+                        />
                     </>
                 ) : (
                     <div style={{
@@ -1042,7 +1041,7 @@ export default function OnePageDashboard() {
                         fontSize: '14px'
                     }}>
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                            <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
                         </svg>
                         Select filters and click Submit to load the dashboard
                     </div>

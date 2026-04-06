@@ -20,7 +20,6 @@ import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 import Swal from 'sweetalert2';
 import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, DowntimeaddDelete1 } from '../../Services/app/masterservice';
 import { Autocomplete, FormControl, FormHelperText } from '@mui/material';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 const OperatorDetails = () => {
   const params = new URLSearchParams(window.location.search);
@@ -744,13 +743,13 @@ const OperatorDetails = () => {
         process_name: comp.process_name ? comp.process_name : null,
         value: comp.component_name,
         label:
-          cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH ||
-            cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
+          cleanCustomerId(customerId) === window._env_.ATECH_CUSTOMER_ID ||
+            cleanCustomerId(customerId) === window._env_.HITECH_CUSTOMER_ID
             ? `${comp.component_number} - ${comp.component_name.length > 15
               ? comp.component_name.slice(0, 15) + "..."
               : comp.component_name
             }${comp.operation_type ? ` (${comp.operation_type})` : ""}`
-            : cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST
+            : cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID
               ? (() => {
                 let label = comp.component_name || "";
                 if (comp.item_code) label += ` - ${comp.item_code}`;
@@ -976,7 +975,7 @@ const OperatorDetails = () => {
     }
   };
   const handleOpenEditDialog1 = async (devicename, deviceid) => {
-    if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+    if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) {
       await fetchProcessGroups();
     }
     setTimeErrors({ startTime: '', endTime: '' });
@@ -1033,13 +1032,13 @@ const OperatorDetails = () => {
           value: comp.component_name,
           process_name: comp.process_name ? comp.process_name : null,
           label:
-            cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH ||
-              cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH
+            cleanCustomerId(customerId) === window._env_.ATECH_CUSTOMER_ID ||
+              cleanCustomerId(customerId) === window._env_.HITECH_CUSTOMER_ID
               ? `${comp.component_number} - ${comp.component_name.length > 15
                 ? comp.component_name.slice(0, 15) + "..."
                 : comp.component_name
               }${comp.operation_type ? ` (${comp.operation_type})` : ""}`
-              : cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST
+              : cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID
                 ? (() => {
                   let label = comp.component_name || "";
                   if (comp.item_code) label += ` - ${comp.item_code}`;
@@ -1832,7 +1831,7 @@ const OperatorDetails = () => {
       // { value: 'Supervisor', label: 'Supervisor' },
     ];
     const fallbackOptions =
-      cleanCustomerId(customerId) === CUSTOMER_IDS.PMI
+      cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID
         ? commonOptions
         : [{ value: 'Operator', label: 'Operator' }, ...commonOptions];
 
@@ -1874,7 +1873,7 @@ const OperatorDetails = () => {
     if (Deviceid && token) {
       const fromEpoch = todayStart.valueOf();
       const toEpoch = todayEnd.valueOf();
-      const keys = cleanCustomerId(customerId) === CUSTOMER_IDS.PMI ? 'live_component' : 'live_operator';
+      const keys = cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID ? 'live_component' : 'live_operator';
       const entitytype = 'DEVICE';
       const url = `${window._env_.GRAFANA_URL}d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${Deviceid}&var-entityType=${entitytype}&var-entityId=${Deviceid}&var-token=${token}&var-key=${keys}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
       setIframeUrl(url);
@@ -2520,7 +2519,7 @@ const OperatorDetails = () => {
                     setup_time: setupTime,
                     factorval: factorValue,
                     factor: factors,
-                    ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                    ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && {
                       item_code: itemCode,
                       process_name: processName
                     })
@@ -2615,7 +2614,7 @@ const OperatorDetails = () => {
                     setup_time: setupTime,
                     factorval: factorValue,
                     factor: factors,
-                    ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                    ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && {
                       item_code: itemCode,
                       process_name: processName
                     })
@@ -2798,7 +2797,7 @@ const OperatorDetails = () => {
                     setup_time: setupTime,
                     factorval: factorValue,
                     factor: factors,
-                    ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                    ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && {
                       item_code: itemCode,
                       process_name: processName,
                     }),
@@ -2846,7 +2845,7 @@ const OperatorDetails = () => {
                   setup_time: setupTime,
                   factorval: factorValue,
                   factor: factors,
-                  ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+                  ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && {
                     item_code: itemCode,
                     process_name: processName,
                   }),
@@ -3055,7 +3054,7 @@ const OperatorDetails = () => {
   const selectedShiftData = shifts.find(shift => shift.shift_no === selectedShift);
 
   const dialogWidth = useMemo(() => {
-    return cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST ? '1000px' : '800px';
+    return cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID ? '1000px' : '800px';
   }, [customerId]);
 
   const isEndDateBeforeStart =
@@ -3590,7 +3589,7 @@ const OperatorDetails = () => {
               error={!componentselected}
               ref={customDaySelectRef}
             /> */}
-            {cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && (
+            {cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && (
               <CustomDaySelect
                 name="process"
                 sx={{
@@ -3813,7 +3812,7 @@ const OperatorDetails = () => {
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>End Time (IST)</th>
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Duration</th>
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Status</th>
-                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
+                    {(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
 
                     <th style={{ border: '1px solid #ccc', padding: '8px' }}>Reason</th>
                   </tr>
@@ -3825,7 +3824,7 @@ const OperatorDetails = () => {
                       <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatEpochToIST(item.end)}</td>
                       <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatDuration(item.duration)}</td>
                       <td style={{ border: '1px solid #ccc', padding: '8px' }}>{item.status}</td>
-                      {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (
+                      {(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) && (
                         <td>
                           <CustomDaySelect
                             name={`groupselected-${index}`}

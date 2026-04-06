@@ -15,7 +15,6 @@ import { Autocomplete, Tooltip } from '@mui/material';
 import { shiftadd } from '../../Services/app/masterservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
 import { cleanCustomerId, customerbasedshift } from '../../Services/app/operatorservice';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 export default function ReasonEdit({
   open,
@@ -51,7 +50,7 @@ export default function ReasonEdit({
     return reasonKey || 'reason';
   }, [isQuality, reasonKey, memoizedDialogData]);
 
-  const { register, handleSubmit, formState: { errors }, trigger, setValue, reset,unregister, watch } = useForm({
+  const { register, handleSubmit, formState: { errors }, trigger, setValue, reset, unregister, watch } = useForm({
     shouldFocusError: true,
     mode: 'onBlur',
     defaultValues: {
@@ -100,161 +99,161 @@ export default function ReasonEdit({
     }
   };
 
- const onSubmit = async (data) => {
-  try {
-    const shiftIdToEdit = memoizedDialogData?.id;
-    const targetKey =
-     shiftForm.group?.toLowerCase() === 'quality' ? 'qualityreason' : 'reason';
+  const onSubmit = async (data) => {
+    try {
+      const shiftIdToEdit = memoizedDialogData?.id;
+      const targetKey =
+        shiftForm.group?.toLowerCase() === 'quality' ? 'qualityreason' : 'reason';
 
-    const normalizedReason = shiftForm.reason
-      ?.replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
+      const normalizedReason = shiftForm.reason
+        ?.replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
 
-    const updatedShiftData = {
-      id: shiftIdToEdit,
-      reason: shiftForm.reason?.trim(),
-      code: shiftForm.code,
-      mode: shiftForm.mode,
-category: hideCategory ? "" : shiftForm.category,
-      group: shiftForm.group || "",
-    };
+      const updatedShiftData = {
+        id: shiftIdToEdit,
+        reason: shiftForm.reason?.trim(),
+        code: shiftForm.code,
+        mode: shiftForm.mode,
+        category: hideCategory ? "" : shiftForm.category,
+        group: shiftForm.group || "",
+      };
 
-    const scope = 'SERVER_SCOPE';
+      const scope = 'SERVER_SCOPE';
 
-    // helper to extract id safely
-    const getId = (val) =>
-      typeof val === 'object' && val !== null ? val.$oid : val;
+      // helper to extract id safely
+      const getId = (val) =>
+        typeof val === 'object' && val !== null ? val.$oid : val;
 
-    if (targetKey !== resolvedReasonKey) {
-      // ===============================
-      // 🔁 GROUP CHANGED FLOW
-      // ===============================
+      if (targetKey !== resolvedReasonKey) {
+        // ===============================
+        // 🔁 GROUP CHANGED FLOW
+        // ===============================
 
-      // 🚨 Check duplicate in target list FIRST
-      const targetData = await customerbasedshift(customerId, targetKey);
-      let targetList = targetData?.[0]?.value || [];
+        // 🚨 Check duplicate in target list FIRST
+        const targetData = await customerbasedshift(customerId, targetKey);
+        let targetList = targetData?.[0]?.value || [];
 
-      const isDuplicate = targetList.some((item) => {
-        return (
-          item.reason?.trim().toLowerCase() === normalizedReason &&
-          getId(item.id) !== getId(shiftIdToEdit)
+        const isDuplicate = targetList.some((item) => {
+          return (
+            item.reason?.trim().toLowerCase() === normalizedReason &&
+            getId(item.id) !== getId(shiftIdToEdit)
+          );
+        });
+
+        if (isDuplicate) {
+          handleClose();
+          Swal.fire('Error', 'Duplicate Reason is not allowed.', 'error');
+          return;
+        }
+
+        // ✅ Remove from source list
+        const sourceData = await customerbasedshift(
+          customerId,
+          resolvedReasonKey
         );
-      });
+        let sourceList = sourceData?.[0]?.value || [];
 
-      if (isDuplicate) {
-         handleClose();
-        Swal.fire('Error', 'Duplicate Reason is not allowed.', 'error');
-        return;
-      }
+        sourceList = sourceList.filter(
+          (item) => getId(item.id) !== getId(shiftIdToEdit)
+        );
 
-      // ✅ Remove from source list
-      const sourceData = await customerbasedshift(
-        customerId,
-        resolvedReasonKey
-      );
-      let sourceList = sourceData?.[0]?.value || [];
+        await shiftadd(
+          { [resolvedReasonKey]: sourceList, lastUpdateTs: Date.now() },
+          customerId,
+          scope
+        );
 
-      sourceList = sourceList.filter(
-        (item) => getId(item.id) !== getId(shiftIdToEdit)
-      );
+        // ✅ Add to target list
+        targetList.push(updatedShiftData);
 
-      await shiftadd(
-        { [resolvedReasonKey]: sourceList, lastUpdateTs: Date.now() },
-        customerId,
-        scope
-      );
+        const response = await shiftadd(
+          { [targetKey]: targetList, lastUpdateTs: Date.now() },
+          customerId,
+          scope
+        );
 
-      // ✅ Add to target list
-      targetList.push(updatedShiftData);
-
-      const response = await shiftadd(
-        { [targetKey]: targetList, lastUpdateTs: Date.now() },
-        customerId,
-        scope
-      );
-
-      if (response.msg) {
-        Swal.fire(response.msg);
+        if (response.msg) {
+          Swal.fire(response.msg);
+        } else {
+          Swal.fire('Updated Successfully');
+        }
       } else {
-        Swal.fire('Updated Successfully');
-      }
-    } else {
-      // ===============================
-      // ✏️ SAME LIST UPDATE FLOW
-      // ===============================
+        // ===============================
+        // ✏️ SAME LIST UPDATE FLOW
+        // ===============================
 
-      const sourceData = await customerbasedshift(
-        customerId,
-        resolvedReasonKey
-      );
-      let existingShifts = sourceData?.[0]?.value || [];
-
-      // 🚨 Duplicate check in same list (exclude self)
-      const isDuplicate = existingShifts.some((item) => {
-        return (
-          item.reason?.trim().toLowerCase() === normalizedReason &&
-          getId(item.id) !== getId(shiftIdToEdit)
+        const sourceData = await customerbasedshift(
+          customerId,
+          resolvedReasonKey
         );
-      });
+        let existingShifts = sourceData?.[0]?.value || [];
 
-      if (isDuplicate) {
-        handleClose();
-        Swal.fire('Error', 'Duplicate Reason is not allowed.', 'error');
-        return;
-      }
+        // 🚨 Duplicate check in same list (exclude self)
+        const isDuplicate = existingShifts.some((item) => {
+          return (
+            item.reason?.trim().toLowerCase() === normalizedReason &&
+            getId(item.id) !== getId(shiftIdToEdit)
+          );
+        });
 
-      let existingShiftIndex = -1;
-      let existingIdStructure = null;
+        if (isDuplicate) {
+          handleClose();
+          Swal.fire('Error', 'Duplicate Reason is not allowed.', 'error');
+          return;
+        }
 
-      if (shiftIdToEdit) {
-        existingShiftIndex = existingShifts.findIndex(
-          (item) => getId(item.id) === getId(shiftIdToEdit)
-        );
+        let existingShiftIndex = -1;
+        let existingIdStructure = null;
 
-        if (existingShiftIndex !== -1) {
-          existingIdStructure = existingShifts[existingShiftIndex].id;
+        if (shiftIdToEdit) {
+          existingShiftIndex = existingShifts.findIndex(
+            (item) => getId(item.id) === getId(shiftIdToEdit)
+          );
+
+          if (existingShiftIndex !== -1) {
+            existingIdStructure = existingShifts[existingShiftIndex].id;
+          }
+        }
+
+        if (existingShiftIndex === -1) {
+          console.error('Shift not found for ID:', shiftIdToEdit);
+          Swal.fire(
+            'Error',
+            'Shift not found for update. Please try again.',
+            'error'
+          );
+          handleClose();
+          reset(defaultShiftForm);
+          return;
+        }
+
+        updatedShiftData.id = existingIdStructure;
+        existingShifts[existingShiftIndex] = updatedShiftData;
+
+        const formData = {
+          [resolvedReasonKey]: existingShifts,
+          lastUpdateTs: Date.now(),
+        };
+
+        const response = await shiftadd(formData, customerId, scope);
+
+        if (response.msg) {
+          Swal.fire(response.msg);
+        } else {
+          Swal.fire('Updated Successfully');
         }
       }
 
-      if (existingShiftIndex === -1) {
-        console.error('Shift not found for ID:', shiftIdToEdit);
-        Swal.fire(
-          'Error',
-          'Shift not found for update. Please try again.',
-          'error'
-        );
-        handleClose();
-        reset(defaultShiftForm);
-        return;
-      }
-
-      updatedShiftData.id = existingIdStructure;
-      existingShifts[existingShiftIndex] = updatedShiftData;
-
-      const formData = {
-        [resolvedReasonKey]: existingShifts,
-        lastUpdateTs: Date.now(),
-      };
-
-      const response = await shiftadd(formData, customerId, scope);
-
-      if (response.msg) {
-        Swal.fire(response.msg);
-      } else {
-        Swal.fire('Updated Successfully');
-      }
+      handleClose();
+      reset(defaultShiftForm);
+    } catch (error) {
+      handleClose();
+      reset(defaultShiftForm);
+      console.error('Error submitting shift data:', error);
+      Swal.fire('Error submitting shift data: ' + error.message);
     }
-
-    handleClose();
-    reset(defaultShiftForm);
-  } catch (error) {
-    handleClose();
-    reset(defaultShiftForm);
-    console.error('Error submitting shift data:', error);
-    Swal.fire('Error submitting shift data: ' + error.message);
-  }
-};
+  };
 
   useEffect(() => {
     const fallbackOptions = [
@@ -314,9 +313,9 @@ category: hideCategory ? "" : shiftForm.category,
       return () => clearTimeout(timer);
     }
   }, [open]);
-const hideCategory =
-  [CUSTOMER_IDS.PMI, CUSTOMER_IDS.GPLAST].includes(cleanCustomerId(customerId)) &&
-  (shiftForm.group || "").trim().toLowerCase() === "quality";
+  const hideCategory =
+    [window._env_.PMI_CUSTOMER_ID, window._env_.GPLAST_CUSTOMER_ID].includes(cleanCustomerId(customerId)) &&
+    (shiftForm.group || "").trim().toLowerCase() === "quality";
 
   useEffect(() => {
     if (hideCategory) {
@@ -460,7 +459,7 @@ const hideCategory =
                   />
                   {errors.code && <div className="mat-error">{errors.code.message}</div>}
                 </div> */}
-                 {[CUSTOMER_IDS.GPLAST, CUSTOMER_IDS.PMI].includes(cleanCustomerId(customerId)) && (
+                {[window._env_.GPLAST_CUSTOMER_ID, window._env_.PMI_CUSTOMER_ID].includes(cleanCustomerId(customerId)) && (
                   <div className="form_field">
                     <Autocomplete
                       options={reasonGroupOptions}
@@ -476,7 +475,7 @@ const hideCategory =
                       renderInput={(params) => (
                         <TextField
                           {...params}
-                        label="Select Reason Group"
+                          label="Select Reason Group"
                           variant="outlined"
                           fullWidth
                           InputLabelProps={{
@@ -516,7 +515,7 @@ const hideCategory =
 
                   {errors.mode && <div className="mat-error">Mode is required</div>}
                 </div>
-                           {!hideCategory && (
+                {!hideCategory && (
                   <div className={`form_field ${errors.category ? 'error-outline' : ''}`}>
                     <CustomDaySelect
                       {...register("category", { required: "Category is required" })}
@@ -533,11 +532,11 @@ const hideCategory =
                     {errors.category && <div className="mat-error">Category is required</div>}
                   </div>
                 )}
-               
+
               </div>
             </LocalizationProvider>
             <div className="form-button text-right" align="end" style={{ marginRight: '10px' }}>
-              <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning"  disabled={isSaveDisabled}>
+              <Button type="submit" variant="contained" className="filter_btn btn_orange" color="warning" disabled={isSaveDisabled}>
                 Save
               </Button>
             </div>

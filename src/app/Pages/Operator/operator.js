@@ -33,7 +33,6 @@ import { CustomDaySelect } from '../Inputfield/inputfield';
 import CircularProgress from '../../Shared/Pages/circularprogress/circularprogress';
 import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogress';
 import { useLocation } from 'react-router-dom';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 import { cleanCustomerId, shiftadd } from '../../Services/app/masterservice';
 import DynamicSlidingKeyboard from '../../Shared/Pages/dynamicSlidingKeyboard/dynamicSlidingKeyboard';
 import { getReportGenerate1, getReportToken } from '../../Services/app/reportservice';
@@ -105,19 +104,19 @@ function Operator() {
 
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
-            return window._env_.CUSTOMER_ID;
+            return window._env_.PMI_CUSTOMER_ID;
         } else if (location.pathname === "/smc_operator_bf9tz") {
             return window._env_.SMC_CUSTOMER_ID;
         } else if (location.pathname === "/atech_operator_atc67") {
-            return CUSTOMER_IDS.ATECH;
+            return window._env_.ATECH_CUSTOMER_ID;
         } else if (location.pathname === "/marks_operator_ch8st") {
             return window._env_.MARKS_CUSTOMER_ID;
         } else if (location.pathname === "/makino_operator_av5tc") {
             return window._env_.MAKINO_CUSTOMER_ID;
         } else if (location.pathname === "/demo_operator_av3tc") {
-            return CUSTOMER_IDS.DEMO;
+            return window._env_.DEMO_CUSTOMER_ID;
         } else if (location.pathname === "/gplast_operator_awe6tc") {
-            return CUSTOMER_IDS.GPLAST;
+            return window._env_.GPLAST_CUSTOMER_ID;
         } else {
             const customerIdStr = localStorage.getItem('CustomerID');
             try {
@@ -130,11 +129,11 @@ function Operator() {
     };
     const isPMIBlueCardPage =
         location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" ||
-        cleanCustomerId(getCustomerId()) === CUSTOMER_IDS.PMI;
+        cleanCustomerId(getCustomerId()) === window._env_.PMI_CUSTOMER_ID;
 
     const isGplastCondition =
         location.pathname === "/gplast_operator_awe6tc" ||
-        cleanCustomerId(getCustomerId()) === CUSTOMER_IDS.GPLAST;
+        cleanCustomerId(getCustomerId()) === window._env_.GPLAST_CUSTOMER_ID;
 
     const fetchDevices = async () => {
         try {
@@ -755,7 +754,7 @@ function Operator() {
 
     useEffect(() => {
         const customerId = getCustomerId();
-        if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) return;
+        if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) return;
         if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
         const deviceId = deviceNameIdJson[selectedMachine];
         const openReasonSwal = (idleStart, reasonsList2, previousReason = null) => {
@@ -976,7 +975,7 @@ function Operator() {
     const [reasonGroupOptions, setReasonGroupOptions] = useState([]);
     useEffect(() => {
         const customerId = getCustomerId();
-        if (cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) return;
+        if (cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID) return;
         if (!selectedMachine || !deviceNameIdJson[selectedMachine]) return;
         const deviceId = deviceNameIdJson[selectedMachine];
         const openReasonSwal = (idleStart, reasonsList2, previousReason = null) => {
@@ -1622,7 +1621,7 @@ function Operator() {
         if (Array.isArray(val)) return val.map(v => String(v).trim()).filter(Boolean).join(", ");
         return String(val);
     };
-    const isGplast = cleanCustomerId(customerId1) === CUSTOMER_IDS.GPLAST;
+    const isGplast = cleanCustomerId(customerId1) === window._env_.GPLAST_CUSTOMER_ID;
 
 
     const handleLoginAndFetch = async (machineName,
@@ -2978,7 +2977,7 @@ function Operator() {
                                     <col style={{ width: '20%' }} />
                                     <col style={{ width: '12%' }} />
                                     <col style={{ width: '12%' }} />
-                                    {(getCustomerId() === CUSTOMER_IDS.GPLAST) && (
+                                    {(getCustomerId() === window._env_.GPLAST_CUSTOMER_ID) && (
                                         <col style={{ width: '12%' }} />
                                     )}
                                     <col style={{ width: '36%' }} />
@@ -2989,7 +2988,7 @@ function Operator() {
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>End Time (IST)</th>
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>Duration</th>
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>Status</th>
-                                        {(getCustomerId() === CUSTOMER_IDS.GPLAST) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
+                                        {(getCustomerId() === window._env_.GPLAST_CUSTOMER_ID) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
                                         <th style={{ border: '1px solid #ccc', padding: '8px' }}>Reason</th>
                                     </tr>
                                 </thead>
@@ -3000,7 +2999,7 @@ function Operator() {
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatEpochToIST(item.end)}</td>
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatDuration(item.duration)}</td>
                                             <td style={{ border: '1px solid #ccc', padding: '8px' }}>{item.status}</td>
-                                            {(getCustomerId() === CUSTOMER_IDS.GPLAST) && (
+                                            {(getCustomerId() === window._env_.GPLAST_CUSTOMER_ID) && (
                                                 <td>
                                                     <CustomDaySelect
                                                         name={`groupselected-${index}`}

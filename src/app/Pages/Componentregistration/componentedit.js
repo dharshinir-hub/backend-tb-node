@@ -15,7 +15,6 @@ import { CustomDaySelect, convertTo24Hour } from '../Inputfield/inputfield';
 import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { customerbasedshift, shiftadd } from '../../Services/app/masterservice';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 import { cleanCustomerId } from '../../Services/app/operatorservice';
 
 // Helper function to parse time strings robustly
@@ -207,7 +206,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
       // Assuming 'datasource' is an array containing existing shift data.
       // If 'datasource' is not an array or is undefined, initialize as an empty array.
       let existingShifts = Array.isArray(datasource) ? [...datasource] : [];
-      const isGplast = cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
+      const isGplast = cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
       const normalize = (val) => (val || '').trim().toLowerCase();
       if (isGplast) {
         const duplicate = existingShifts.find((shift) => {
@@ -279,7 +278,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
         cycle_time: cycle_time,
         handling_time: handling_time,
         setupTime: setupTime,
-         ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+        ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && {
           item_code: data.item_code,
           process_name: data.process_name,
         }),
@@ -364,7 +363,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
       reset(defaultShiftForm);
       setShiftForm(defaultShiftForm);
     } else {
-      if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+      if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) {
         fetchProcessGroups();
       }
       if (dialogData) {
@@ -480,7 +479,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                 </div>
 
                 {/* Component Number Field */}
-                {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (
+                {(cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID) && (
                   <div className={`form_field ${errors.component_number ? 'error-outline' : ''}`}>
                     <TextField
                       {...register("component_number", {
@@ -538,7 +537,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                   </div>
                 )}
 
-                {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
+                {(cleanCustomerId(customerId) === window._env_.ATECH_CUSTOMER_ID || cleanCustomerId(customerId) === window._env_.HITECH_CUSTOMER_ID) && (<div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
                   <CustomDaySelect
                     {...register("operation_type", { required: "Operation type is required" })}
                     onBlur={() => trigger('operation_type')}
@@ -686,7 +685,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
 
 
 
-                {cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && (
+                {cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && (
                   <>
                     <div className={`form_field ${errors.item_code ? 'error-outline' : ''}`}>
                       <TextField
@@ -743,7 +742,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                         <div className="mat-error">{errors.process_name.message}</div>
                       )}
                     </div>
-                      <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>
+                    <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>
                       <TextField
                         {...register("operation_number", {
                           required: "Operation Number is required",

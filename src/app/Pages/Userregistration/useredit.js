@@ -16,7 +16,6 @@ import { Checkbox, FormControl, InputAdornment, InputLabel, ListItemText, MenuIt
 import { shiftadd } from '../../Services/app/masterservice';
 import { CustomDaySelect } from '../Inputfield/inputfield';
 import { decryptText, encryptText } from '../../Shared/utils/cryptoUtils';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 import { cleanCustomerId, createNewUser } from '../../Services/app/operatorservice';
 import { ROLE_ADMIN, ROLE_MANAGER, ROLE_OPERATOR, ROLE_SUPER_ADMIN, ROLES } from '../../Shared/constants/role';
 import { useUserRole } from '../../Shared/hooks/useUserRole';
@@ -251,7 +250,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
     // ✅ PMI (unchanged)
     if (
       [ROLE_ADMIN, ROLE_SUPER_ADMIN].includes(shiftForm.mode) &&
-      customer === CUSTOMER_IDS.PMI
+      customer === window._env_.PMI_CUSTOMER_ID
     ) {
       const merged = [...pageList, ...QUALITY_PAGELIST];
 
@@ -265,7 +264,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
     // ✅ GPLAST Admin/Super Admin
     if (
       [ROLE_ADMIN, ROLE_SUPER_ADMIN].includes(shiftForm.mode) &&
-      customer === CUSTOMER_IDS.GPLAST
+      customer === window._env_.GPLAST_CUSTOMER_ID
     ) {
       const merged = [...pageList, { value: "quality", label: "Quality Entry" }];
 
@@ -279,7 +278,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
     // ✅ PMI Quality (unchanged)
     if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      customer === CUSTOMER_IDS.PMI
+      customer === window._env_.PMI_CUSTOMER_ID
     ) {
       return QUALITY_PAGELIST;
     }
@@ -287,7 +286,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
     // ✅ GPLAST Quality
     if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      customer === CUSTOMER_IDS.GPLAST
+      customer === window._env_.GPLAST_CUSTOMER_ID
     ) {
       return [{ value: "quality", label: "Quality Entry" }];
     }
@@ -296,17 +295,17 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
   }, [shiftForm.mode, pageList, customerId]);
 
 
-    useEffect(() => {
-      const allowedValues = filteredPageList.map(p => p.value);
-  
-      const cleaned = (shiftForm.pagelist || []).filter(v =>
-        allowedValues.includes(v)
-      );
-      if (cleaned.length !== (shiftForm.pagelist || []).length) {
-        setShiftForm(prev => ({ ...prev, pagelist: cleaned }));
-        setValue("pagelist", cleaned);
-      }
-    }, [filteredPageList]);
+  useEffect(() => {
+    const allowedValues = filteredPageList.map(p => p.value);
+
+    const cleaned = (shiftForm.pagelist || []).filter(v =>
+      allowedValues.includes(v)
+    );
+    if (cleaned.length !== (shiftForm.pagelist || []).length) {
+      setShiftForm(prev => ({ ...prev, pagelist: cleaned }));
+      setValue("pagelist", cleaned);
+    }
+  }, [filteredPageList]);
 
 
   useEffect(() => {
@@ -320,7 +319,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       setValue("pagelist", ["operator"]);
     } else if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      customer === CUSTOMER_IDS.PMI
+      customer === window._env_.PMI_CUSTOMER_ID
     ) {
       const qualityPages = QUALITY_PAGELIST.map(p => p.value);
 
@@ -334,7 +333,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       // 👉 GPLAST logic
     } else if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      customer === CUSTOMER_IDS.GPLAST
+      customer === window._env_.GPLAST_CUSTOMER_ID
     ) {
       const qualityPages = ["quality"];
 

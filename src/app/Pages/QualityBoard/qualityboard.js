@@ -17,7 +17,6 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, }
 import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
 import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, DowntimeaddDelete1 } from '../../Services/app/masterservice'; import Swal from "sweetalert2";
 import { getReportGenerate, getReportGenerate1, getReportToken } from "../../Services/app/reportservice";
-import { CUSTOMER_IDS } from "../../Shared/constants/ids";
 import { cleanCustomerId } from "../../Services/app/operatorservice";
 
 function getCurrentShift(shifts) {
@@ -82,7 +81,7 @@ export default function QualityBoard() {
     const customerId = localStorage.getItem("CustomerID");
     const CustomerEmail = localStorage.getItem("email");
     console.log('email', CustomerEmail);
-    const isPMI = cleanCustomerId(customerId) === CUSTOMER_IDS.PMI;
+    const isPMI = cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID;
     const [devices, setDevices] = useState([]);
     const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
     const [shifts, setShifts] = useState([]);

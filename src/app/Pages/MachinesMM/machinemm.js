@@ -21,7 +21,6 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 import {
   cleanCustomerId,
@@ -380,12 +379,12 @@ export default function MachineDashboard() {
             };
 
             const isPMIorGPLAST =
-              [CUSTOMER_IDS.PMI, CUSTOMER_IDS.GPLAST].includes(
+              [window._env_.PMI_CUSTOMER_ID, window._env_.GPLAST_CUSTOMER_ID].includes(
                 cleanCustomerId(customerId)
               );
 
             const isGPLAST =
-              cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
+              cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
 
             const getNumerator = (run, idle) =>
               isPMIorGPLAST ? run : run + idle;
@@ -491,24 +490,24 @@ export default function MachineDashboard() {
                 const shiftData = filterByShiftRange(data, range.from, range.to);
                 const totalDurationArr = shiftData?.total_duration || [];
 
-              if (totalDurationArr.length > 0) {
+                if (totalDurationArr.length > 0) {
 
-                // ✅ USE RESET-AWARE LOGIC
-                const latest = getFinalShiftValue(totalDurationArr);
+                  // ✅ USE RESET-AWARE LOGIC
+                  const latest = getFinalShiftValue(totalDurationArr);
 
-                if (latest?.value) {
-                  const { run, idle } = extractRunIdle(latest.value);
+                  if (latest?.value) {
+                    const { run, idle } = extractRunIdle(latest.value);
 
                     totalRun += run;
                     totalIdle += idle;
 
                     console.log(`✅ Shift ${range.shiftNo}`, {
-                    run,
-                    idle,
-                    ts: latest.ts,
-                  });
+                      run,
+                      idle,
+                      ts: latest.ts,
+                    });
+                  }
                 }
-              }
 
                 // ✅ Add shift duration (minus break)
                 const shiftCfg = shifts.find(
@@ -1156,7 +1155,7 @@ export default function MachineDashboard() {
     const machineName = encodeURIComponent(machine.name || "");
     const baseUrls = {
       overview:
-        cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST
+        cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID
           ? `${window._env_.GRAFANA_URL}d/cfd0ph9cvebcwb/mm-production-utilization-2-pmi?orgId=1` : `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1`,
 
       timeline: `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${currentTime}`,

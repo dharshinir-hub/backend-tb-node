@@ -16,13 +16,12 @@ import Swal from 'sweetalert2';
 import { Tooltip } from '@mui/material';
 import { customerbasedshift, shiftadd } from '../../Services/app/masterservice';
 import dayjs from 'dayjs';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 import { cleanCustomerId } from '../../Services/app/operatorservice';
 export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenCount, datasource, setDatasource, customerId }) {
   const customDaySelectRef = useRef();
   const dialogBackgroundColor = dialogOpenCount === 0 ? '#f7f7f7' : '#ededed';
   const [shiftsmodule, setShiftsmodule] = useState([]);
-  
+
   const componentNameRef = useRef();
 
   useEffect(() => {
@@ -72,7 +71,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
 
   useEffect(() => {
     getComponentsAdddata();
-    if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+    if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) {
       fetchProcessGroups();
     }
   }, []);
@@ -162,7 +161,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
       }
       const safeFormat = (v) => dayjs(v).format("HH:mm:ss");
       const id = Math.random().toString(36).substr(2, 9);
-      const isGplast = cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST;
+      const isGplast = cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
 
       const currentShiftData = {
         id,
@@ -178,7 +177,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
         cycle_time: safeFormat(data.cycle_time),
         handling_time: safeFormat(data.handling_time),
         setupTime: safeFormat(data.setupTime),
-        ...(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && {
+        ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && {
           item_code: data.item_code,
           process_name: data.process_name,
         }),
@@ -314,7 +313,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   />
                   {errors.component_name && <div className="mat-error">{errors.component_name.message}</div>}
                 </div>
-                {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (
+                {(cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID) && (
                   <div className={`form_field ${errors.component_number ? 'error-outline' : ''}`}>
                     <TextField
                       {...register("component_number", {
@@ -370,7 +369,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                     )}
                   </div>
                 )}
-                {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (
+                {(cleanCustomerId(customerId) === window._env_.ATECH_CUSTOMER_ID || cleanCustomerId(customerId) === window._env_.HITECH_CUSTOMER_ID) && (
                   <div className={`form_field ${errors.operation_type ? 'error-outline' : ''}`}>
                     <CustomDaySelect
                       {...register("operation_type", { required: "Operation type is required" })}
@@ -522,7 +521,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
 
 
 
-                {cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST && (
+                {cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && (
                   <>
                     <div className={`form_field ${errors.item_code ? 'error-outline' : ''}`}>
                       <TextField
@@ -594,7 +593,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                         <div className="mat-error">{errors.process_name.message}</div>
                       )}
                     </div>
-                     <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>
+                    <div className={`form_field ${errors.operation_number ? 'error-outline' : ''}`}>
                       <TextField
                         {...register("operation_number", {
                           required: "Operation Number is required",

@@ -19,7 +19,6 @@ import {
   cleanCustomerId,
   customerbasedshift,
 } from '../../Services/app/operatorservice';
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 
 export default function ReasonAdd({
   open,
@@ -114,7 +113,7 @@ export default function ReasonAdd({
     if (!open) {
       reset(defaultShiftForm);
     } else {
-      if (cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) {
+      if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) {
         fetchReasonGroups();
       }
       setShiftForm(defaultShiftForm);
@@ -218,7 +217,7 @@ export default function ReasonAdd({
   }, [open]);
 
   const hideCategory =
-      [CUSTOMER_IDS.PMI, CUSTOMER_IDS.GPLAST].includes(cleanCustomerId(customerId)) &&
+    [window._env_.PMI_CUSTOMER_ID, window._env_.GPLAST_CUSTOMER_ID].includes(cleanCustomerId(customerId)) &&
     shiftForm.group?.toLowerCase() === "quality";
 
   useEffect(() => {
@@ -362,7 +361,7 @@ export default function ReasonAdd({
                   />
                   {errors.code && <div className="mat-error">{errors.code.message}</div>}
                 </div> */}
-                {[CUSTOMER_IDS.GPLAST, CUSTOMER_IDS.PMI].includes(cleanCustomerId(customerId)) && (
+                {[window._env_.GPLAST_CUSTOMER_ID, window._env_.PMI_CUSTOMER_ID].includes(cleanCustomerId(customerId)) && (
                   <div className="form_field">
                     <Autocomplete
                       options={reasonGroupOptions}

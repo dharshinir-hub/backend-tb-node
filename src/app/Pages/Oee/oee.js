@@ -90,7 +90,7 @@ const Oee = () => {
 
     const getCustomerIdFromPath = () => {
     if (location.pathname === "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp") {
-      return window._env_.CUSTOMER_ID;
+      return window._env_.PMI_CUSTOMER_ID;
     } else if (location.pathname === "/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp") {
       return window._env_.MARKS_CUSTOMER_ID;
     }

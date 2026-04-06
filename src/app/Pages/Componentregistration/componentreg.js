@@ -12,7 +12,6 @@ import Swal from 'sweetalert2'; // Ensure Swal is imported
 import { shiftadd } from '../../Services/app/masterservice'; // Ensure shiftadd is imported
 import ComponentEdit from '../Componentregistration/componentedit';
 import ComponentAdd from '../Componentregistration/componentadd'
-import { CUSTOMER_IDS } from '../../Shared/constants/ids';
 import { cleanCustomerId } from '../../Services/app/operatorservice';
 const ComponentRegistration = () => {
     // Separate state for Add and Edit dialogs
@@ -310,7 +309,7 @@ const ComponentRegistration = () => {
                         <h5>Component Registration</h5>
                         <div className="add_new">
                             <Tooltip title="Add Component">
-                                <IconButton className="circle" onClick={handleOpenAddDialog}> 
+                                <IconButton className="circle" onClick={handleOpenAddDialog}>
                                     <AddIcon />
                                 </IconButton>
                             </Tooltip>
@@ -327,7 +326,7 @@ const ComponentRegistration = () => {
                         </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
+                        {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID && (
                             <Button
                                 variant="outlined"
                                 onClick={handleExportCSV}
@@ -366,18 +365,18 @@ const ComponentRegistration = () => {
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Component Name</TableCell>
-                                    {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (<TableCell>Component Number</TableCell>)}
-                                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (<TableCell>Operation Type</TableCell>)}
-                                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Item Code</TableCell>)}
-                                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Process Name</TableCell>)}
-                                    {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell>Operation Number</TableCell>)}
+                                    {(cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID) && (<TableCell>Component Number</TableCell>)}
+                                    {(cleanCustomerId(customerId) === window._env_.ATECH_CUSTOMER_ID || cleanCustomerId(customerId) === window._env_.HITECH_CUSTOMER_ID) && (<TableCell>Operation Type</TableCell>)}
+                                    {(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) && (<TableCell>Item Code</TableCell>)}
+                                    {(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) && (<TableCell>Process Name</TableCell>)}
+                                    {(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) && (<TableCell>Operation Number</TableCell>)}
                                     {/* <TableCell>Route Card</TableCell> */}
                                     {/* <TableCell>Drawing Code</TableCell> */}
                                     {/* <TableCell>Mould Name</TableCell> */}
                                     {/* <TableCell>Mould Number</TableCell> */}
                                     <TableCell>Factor</TableCell>
                                     <TableCell>Factor Value</TableCell>
-                                    {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI ? (
+                                    {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID ? (
                                         <>
                                             <TableCell>Standard Cycle Time</TableCell>
                                             <TableCell>Actual Cycle Time</TableCell>
@@ -401,19 +400,19 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_name || '---'}
                                             </TableCell>
-                                            {(cleanCustomerId(customerId) != CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.component_number || '---'}
                                             </TableCell>)}
-                                            {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row?.item_code || '---'}
                                             </TableCell>)}
-                                            {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row?.process_name || '---'}
                                             </TableCell>)}
-                                            {(cleanCustomerId(customerId) === CUSTOMER_IDS.GPLAST) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row?.operation_number || '---'}
                                             </TableCell>)}
-                                            {(cleanCustomerId(customerId) === CUSTOMER_IDS.ATECH || cleanCustomerId(customerId) === CUSTOMER_IDS.HITECH) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
+                                            {(cleanCustomerId(customerId) === window._env_.ATECH_CUSTOMER_ID || cleanCustomerId(customerId) === window._env_.HITECH_CUSTOMER_ID) && (<TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.operation_type || '---'}
                                             </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
@@ -425,14 +424,14 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.cycle_time || '---'}
                                             </TableCell>
-                                            {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
+                                            {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID && (
                                                 <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                     {row.auto_target?.cycle_levels || '---'}
                                                 </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.handling_time || '---'}
                                             </TableCell>
-                                            {cleanCustomerId(customerId) === CUSTOMER_IDS.PMI && (
+                                            {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID && (
                                                 <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                     {row.auto_target?.handling_levels || '---'}
                                                 </TableCell>)}

@@ -3,11 +3,14 @@ window._env_ = {
     SERVER_URL: "http://74.224.122.231:8080/",
     SERVER_URL2: "http://74.224.122.231:5000/",
     GRAFANA_URL: "http://74.224.122.231:9097/",
-    // GRAFANA_URL: "http://demo.yantra24x7.com:9097/",
-    CUSTOMER_ID: "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
+    PMI_CUSTOMER_ID: "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
     SMC_CUSTOMER_ID: "527951c0-c50b-11f0-878e-073dc60e4f9a",
     MARKS_CUSTOMER_ID: "f05b99b0-da4c-11f0-a7b3-dbcd7348bdb3",
     MAKINO_CUSTOMER_ID: "29c6cb40-74fc-11f0-b2ca-b34d1d1b8f24",
+    ATECH_CUSTOMER_ID: "05391cd0-3d37-11f0-b2f2-c1aac5b33cac",
+    HITECH_CUSTOMER_ID: "84fd0f90-9ac4-11f0-a20b-db03187ae4d2",
+    GPLAST_CUSTOMER_ID: "9e435d50-e0b6-11f0-915f-9f39a11b7cf8",
+    DEMO_CUSTOMER_ID: "006dc270-fb3f-11f0-9e22-affd28d5654a",
     TENANT_GMAIL: "pms@gmail.com",
     TENANT_PASSWORD: "pmspms",
     LOGO: "b0coVWpU9C1Ztg9CrjtkHgi87ia4gFxH",
@@ -30,16 +33,3 @@ window._env_ = {
 //     LOGO: "hvLm7vcg5L9Kd56WP18gVIjFHMvUdA3X",
 //     BG_IMAGE: "wS6A4Yz8vYSjv5shILNHjVQfwUm3INWw"
 // };
-
-//local
-// window._env_ = {
-//     SERVER_URL: "http://192.168.2.164:8080/",
-//     SERVER_URL2: "http://192.168.2.164:3000/",
-//     GRAFANA_URL: "http://192.168.0.224:3000/",
-//     // CUSTOMER_ID: "e71c9420-951f-11f0-9f03-851f0943b960",
-//     CUSTOMER_ID: "b9446ad0-9526-11f0-9f03-851f0943b960",
-//     TENANT_GMAIL: "pms@gmail.com",
-//     TENANT_PASSWORD: "pmspms",
-//     LOGO: "PrXO4zvoVjIbeuLRlKbWAJ6H4GNQ3xtK",
-//     BG_IMAGE: "B7d9n3GMHVip4KkOJc3qd2LDZF4FGHVk"
-//   };

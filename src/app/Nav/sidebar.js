@@ -28,7 +28,7 @@ import { IoMdSettings } from "react-icons/io";
 import { FaChartLine } from "react-icons/fa";
 import { stopTokenAutoRefresh } from '../Services/app/loginservice';
 import { UserDetailsContext } from '../Shared/context/UserDetailsContext';
-import { TbChecklist, TbFolders, TbLayoutGrid, TbSettings,TbReportAnalytics  } from "react-icons/tb";
+import { TbChecklist, TbFolders, TbLayoutGrid, TbSettings, TbReportAnalytics } from "react-icons/tb";
 import ChangePasswordCard from '../Nav/changepassword';
 import NotificationBell from '../Pages/NotificationBell/notificationBell';
 import { RiNotificationBadgeLine } from "react-icons/ri";
@@ -37,7 +37,6 @@ import { BsGraphUp, BsJustify } from "react-icons/bs";
 import { BsKanban, BsList } from "react-icons/bs";
 import { MdVerifiedUser, MdRule } from "react-icons/md";
 import { cleanCustomerId } from '../Services/app/operatorservice';
-import { CUSTOMER_IDS } from '../Shared/constants/ids';
 
 
 
@@ -53,7 +52,7 @@ export default function PersistentDrawerLeft({ children }) {
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [productionOpen, setProductionOpen] = useState(false);
   const [qualityOpen, setQualityOpen] = useState(false);
- const [ reportsOpen, setReportsOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -70,7 +69,7 @@ export default function PersistentDrawerLeft({ children }) {
   const [pageList, setPageList] = useState(userDetails.pageList || []);
   const showReportChildren =
     ["quality", "superadmin", "admin"].includes(normalizedMode) &&
-    cleanCustomerId(customerId) === CUSTOMER_IDS.PMI;
+    cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID;
 
   useEffect(() => {
     const parsed = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
