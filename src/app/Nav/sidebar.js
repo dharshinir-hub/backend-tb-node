@@ -168,6 +168,7 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/machinemm", name: "Machine", icon: <IoMdSettings /> },
           { path: "/machine-status", name: "Machine Status", icon: <BiPulse /> },
           { path: "/deviceoee", name: "Oee", icon: <FaChartLine style={{ fontSize: "23px" }} /> },
+          { path: "/operator-performance", name: <>Operator<br />Performance</>, icon: <BiBarChartAlt2 /> },
         ],
       },
       {

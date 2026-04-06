@@ -45,7 +45,8 @@ const Layout = () => {
     location.pathname === '/bluecarddetails' ||
     location.pathname === '/bluecardreport' ||
     location.pathname === '/quality' || 
-    location.pathname === '/machine-status';
+    location.pathname === '/machine-status' ||
+    location.pathname === '/operator-performance';
 
   return (
     <>

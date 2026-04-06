@@ -25,6 +25,8 @@ import BlueCard from '../../Pages/BlueCardScreen/bluecardscreen';
 import BluecardDetails from '../../Pages/BlueCardScreen/bluecarddetails';
 import BluecardReport from '../../Pages/BlueCardScreen/bluecardreport';
 import MachineStatusDashboard from '../../Pages/MachineStatusDashboard/MachineStatusDashboard';
+import OperatorPerformanceDashboard from '../../Pages/Operator-Performance-Dashboard/OperatorPerformanceDashboard';
+
 
 
 export const COMPONENT_REGISTRY = {
@@ -54,6 +56,8 @@ export const COMPONENT_REGISTRY = {
   "bluecard": BlueCard,
   "bluecarddetails" : BluecardDetails,
   "bluecardreport" : BluecardReport,
-  "machine-status": MachineStatusDashboard
+  "machine-status": MachineStatusDashboard,
+  "operator-performance": OperatorPerformanceDashboard
+
 
 };

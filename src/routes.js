@@ -40,6 +40,8 @@ import InprogressOee from './app/Pages/CycleTime/inprogressoee';
 import MachineGroup from './app/Pages/Machinegroup/machinegroup';
 import OeeTv from './app/Pages/Oee-tv/oeetv';
 import BluecardDetails from './app/Pages/BlueCardScreen/bluecarddetails';
+import OperatorPerformanceDashboard from './app/Pages/Operator-Performance-Dashboard/OperatorPerformanceDashboard';
+
 
 // Import other components for your routes
 
@@ -79,7 +81,9 @@ const AppRoutes = () => {
         }
       />
       <Route path="/" element={<Layout />}>
+        <Route path="/operator-performance" element={<OperatorPerformanceDashboard />} />
         {pageList.map((page) => {
+
           const Component = COMPONENT_REGISTRY[page];
           return (
             <Route
