@@ -1386,7 +1386,7 @@ export default function NewAnalytics() {
             const reporturl = `${window._env_.SERVER_URL2}report/idle_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000000000000`;
 
             const url = type === 'live_reason'
-                ? (cleanedId !== window._env_.PMI_CUSTOMER_ID
+                ? (cleanedId !== window._env_.CUSTOMER_ID
                     ? `${GRAFANA_URL}d/afbprll75uwaoa/analytics-downtime-report-based?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&var-period=${downtimePeriod}&${topParams}&kiosk&theme=light&refresh=20s`
                     : `${GRAFANA_URL}d/affv6yl9skjk0a/analytics-downtime-top?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&var-idleReasonReportUrl=${reporturl}&var-period=${downtimePeriod}&${topParams}&kiosk&theme=light&refresh=20s`)
                 : `${GRAFANA_URL}d/af88lwhpkj08wd/analytics-downtime-alarm?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${cleanedId}&var-fromTime=${fromTime}&var-toTime=${toTime}&from=${from}&to=${to}&var-url=${baseUrl}&var-keys=${type}&var-grafanaurl=${GRAFANA_URL}&var-machines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
@@ -1898,7 +1898,7 @@ export default function NewAnalytics() {
 
                         {/* Second row with remaining filters and action */}
                         {/* Downtime-specific filters: Period and Top N */}
-                        {(analysisType === ANALYSIS_TYPES.LIVE_REASON && cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID) && (
+                        {(analysisType === ANALYSIS_TYPES.LIVE_REASON && cleanCustomerId(customerId) === window._env_.CUSTOMER_ID) && (
                             <>
                                 <FormControl size="small" sx={{ minWidth: 120 }}>
                                     <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Period</InputLabel>

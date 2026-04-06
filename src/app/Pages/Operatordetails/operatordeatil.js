@@ -1831,7 +1831,7 @@ const OperatorDetails = () => {
       // { value: 'Supervisor', label: 'Supervisor' },
     ];
     const fallbackOptions =
-      cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID
+      cleanCustomerId(customerId) === window._env_.CUSTOMER_ID
         ? commonOptions
         : [{ value: 'Operator', label: 'Operator' }, ...commonOptions];
 
@@ -1873,7 +1873,7 @@ const OperatorDetails = () => {
     if (Deviceid && token) {
       const fromEpoch = todayStart.valueOf();
       const toEpoch = todayEnd.valueOf();
-      const keys = cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID ? 'live_component' : 'live_operator';
+      const keys = cleanCustomerId(customerId) === window._env_.CUSTOMER_ID ? 'live_component' : 'live_operator';
       const entitytype = 'DEVICE';
       const url = `${window._env_.GRAFANA_URL}d/bef32fe1-8f81-4d8e-94c3-9828fe8ec685/operator-dashboard?orgId=1&var-device_id=${Deviceid}&var-entityType=${entitytype}&var-entityId=${Deviceid}&var-token=${token}&var-key=${keys}&from=${fromEpoch}&to=${toEpoch}&kiosk&theme=light`;
       setIframeUrl(url);

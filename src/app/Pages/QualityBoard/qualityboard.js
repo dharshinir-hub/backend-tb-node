@@ -81,7 +81,7 @@ export default function QualityBoard() {
     const customerId = localStorage.getItem("CustomerID");
     const CustomerEmail = localStorage.getItem("email");
     console.log('email', CustomerEmail);
-    const isPMI = cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID;
+    const isPMI = cleanCustomerId(customerId) === window._env_.CUSTOMER_ID;
     const [devices, setDevices] = useState([]);
     const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
     const [shifts, setShifts] = useState([]);

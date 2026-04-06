@@ -379,7 +379,7 @@ export default function MachineDashboard() {
             };
 
             const isPMIorGPLAST =
-              [window._env_.PMI_CUSTOMER_ID, window._env_.GPLAST_CUSTOMER_ID].includes(
+              [window._env_.CUSTOMER_ID, window._env_.GPLAST_CUSTOMER_ID].includes(
                 cleanCustomerId(customerId)
               );
 

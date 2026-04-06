@@ -88,9 +88,9 @@ const Oee = () => {
   }, [newToken]);
 
 
-    const getCustomerIdFromPath = () => {
+  const getCustomerIdFromPath = () => {
     if (location.pathname === "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp") {
-      return window._env_.PMI_CUSTOMER_ID;
+      return window._env_.CUSTOMER_ID;
     } else if (location.pathname === "/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp") {
       return window._env_.MARKS_CUSTOMER_ID;
     }
@@ -99,12 +99,12 @@ const Oee = () => {
 
   // ✅ login and set customerId1
   useEffect(() => {
-     const allowedPaths = [
+    const allowedPaths = [
       "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp",
       "/o",
       "/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp"
     ];
-    
+
     if (!allowedPaths.includes(location.pathname)) {
       return;
     }
@@ -124,7 +124,7 @@ const Oee = () => {
           setCustomerId1(newCustomerId);
           localStorage.setItem("customerId1", newCustomerId);
         }
-     
+
         startTokenAutoRefresh();
       } catch (err) {
         console.error("Init failed", err);
@@ -448,69 +448,69 @@ const Oee = () => {
   const [avgData, setAvgData] = useState({});
 
 
-useEffect(() => {
-  if (!oeeData || Object.keys(oeeData).length === 0 || !shifts) return;
-  const results = {};
-  const shiftTimestamps = {};
-  Object.keys(oeeData).forEach((machineId) => {
-    const oeeArray = oeeData[machineId]?.oeeValues || [];
-    results[machineId] = {};
-    shiftTimestamps[machineId] = {};
-    oeeArray.forEach((point) => {
-      const ts = Number(point.ts);
-      const value = Number(point.value) || 0;
-      const pointDate = new Date(ts);
-      shifts.forEach((shift, idx) => {
-        const [shHour, shMin, shSec] = shift.start_time.split(":").map(Number);
-        const [enHour, enMin, enSec] = shift.end_time.split(":").map(Number);
-        const testShift = (baseDate) => {
-          const shiftStart = new Date(baseDate);
-          shiftStart.setHours(shHour, shMin, shSec, 0);
-          let shiftEnd = new Date(baseDate);
-          shiftEnd.setHours(enHour, enMin, enSec, 0);
-          if (shiftEnd <= shiftStart) {
-            shiftEnd.setDate(shiftEnd.getDate() + 1);
-          }
-          if (ts >= shiftStart.getTime() && ts < shiftEnd.getTime()) {
-            const dateKey = shiftStart.toISOString().split("T")[0];
-            if (!results[machineId][dateKey]) {
-              results[machineId][dateKey] = {};
-              shiftTimestamps[machineId][dateKey] = {};
-              shifts.forEach((_, i) => {
-                results[machineId][dateKey][`Shift ${i + 1}`] = null;
-                shiftTimestamps[machineId][dateKey][`Shift ${i + 1}`] = null;
-              });
+  useEffect(() => {
+    if (!oeeData || Object.keys(oeeData).length === 0 || !shifts) return;
+    const results = {};
+    const shiftTimestamps = {};
+    Object.keys(oeeData).forEach((machineId) => {
+      const oeeArray = oeeData[machineId]?.oeeValues || [];
+      results[machineId] = {};
+      shiftTimestamps[machineId] = {};
+      oeeArray.forEach((point) => {
+        const ts = Number(point.ts);
+        const value = Number(point.value) || 0;
+        const pointDate = new Date(ts);
+        shifts.forEach((shift, idx) => {
+          const [shHour, shMin, shSec] = shift.start_time.split(":").map(Number);
+          const [enHour, enMin, enSec] = shift.end_time.split(":").map(Number);
+          const testShift = (baseDate) => {
+            const shiftStart = new Date(baseDate);
+            shiftStart.setHours(shHour, shMin, shSec, 0);
+            let shiftEnd = new Date(baseDate);
+            shiftEnd.setHours(enHour, enMin, enSec, 0);
+            if (shiftEnd <= shiftStart) {
+              shiftEnd.setDate(shiftEnd.getDate() + 1);
             }
-            const slotKey = `Shift ${idx + 1}`;
-            const existingTs = shiftTimestamps[machineId][dateKey][slotKey];
-            if (existingTs === null || ts > existingTs) {
-              results[machineId][dateKey][slotKey] = value;
-              shiftTimestamps[machineId][dateKey][slotKey] = ts;
+            if (ts >= shiftStart.getTime() && ts < shiftEnd.getTime()) {
+              const dateKey = shiftStart.toISOString().split("T")[0];
+              if (!results[machineId][dateKey]) {
+                results[machineId][dateKey] = {};
+                shiftTimestamps[machineId][dateKey] = {};
+                shifts.forEach((_, i) => {
+                  results[machineId][dateKey][`Shift ${i + 1}`] = null;
+                  shiftTimestamps[machineId][dateKey][`Shift ${i + 1}`] = null;
+                });
+              }
+              const slotKey = `Shift ${idx + 1}`;
+              const existingTs = shiftTimestamps[machineId][dateKey][slotKey];
+              if (existingTs === null || ts > existingTs) {
+                results[machineId][dateKey][slotKey] = value;
+                shiftTimestamps[machineId][dateKey][slotKey] = ts;
+              }
             }
+          };
+          if (enHour > shHour || (enHour === shHour && enMin > shMin) || (enHour === shHour && enMin === shMin && enSec > shSec)) {
+            testShift(pointDate);
+          } else {
+            const yesterday = new Date(pointDate);
+            yesterday.setDate(yesterday.getDate() - 1);
+            testShift(yesterday);
+            testShift(pointDate);
           }
-        };
-        if (enHour > shHour || (enHour === shHour && enMin > shMin) || (enHour === shHour && enMin === shMin && enSec > shSec)) {
-          testShift(pointDate);
-        } else {
-          const yesterday = new Date(pointDate);
-          yesterday.setDate(yesterday.getDate() - 1);
-          testShift(yesterday);
-          testShift(pointDate);
-        }
+        });
       });
     });
-  });
-  Object.keys(results).forEach((mId) => {
-    Object.keys(results[mId]).forEach((dateKey) => {
-      Object.keys(results[mId][dateKey]).forEach((shiftKey) => {
-        if (results[mId][dateKey][shiftKey] === null) {
-          results[mId][dateKey][shiftKey] = 0;
-        }
+    Object.keys(results).forEach((mId) => {
+      Object.keys(results[mId]).forEach((dateKey) => {
+        Object.keys(results[mId][dateKey]).forEach((shiftKey) => {
+          if (results[mId][dateKey][shiftKey] === null) {
+            results[mId][dateKey][shiftKey] = 0;
+          }
+        });
       });
     });
-  });
-  setShiftWiseOEEByDate(results);
-}, [oeeData, shifts]);
+    setShiftWiseOEEByDate(results);
+  }, [oeeData, shifts]);
 
 
   console.log('Shift Wise OEE data', shiftWiseOEEByDate);

@@ -69,7 +69,7 @@ export default function PersistentDrawerLeft({ children }) {
   const [pageList, setPageList] = useState(userDetails.pageList || []);
   const showReportChildren =
     ["quality", "superadmin", "admin"].includes(normalizedMode) &&
-    cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID;
+    cleanCustomerId(customerId) === window._env_.CUSTOMER_ID;
 
   useEffect(() => {
     const parsed = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;

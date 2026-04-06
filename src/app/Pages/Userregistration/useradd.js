@@ -174,7 +174,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
     // ✅ PMI (unchanged)
     if (
       [ROLE_ADMIN, ROLE_SUPER_ADMIN].includes(shiftForm.mode) &&
-      customer === window._env_.PMI_CUSTOMER_ID
+      customer === window._env_.CUSTOMER_ID
     ) {
       const merged = [...pageList, ...QUALITY_PAGELIST];
 
@@ -202,7 +202,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
     // ✅ PMI Quality (unchanged)
     if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      customer === window._env_.PMI_CUSTOMER_ID
+      customer === window._env_.CUSTOMER_ID
     ) {
       return QUALITY_PAGELIST;
     }
@@ -235,7 +235,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
 
     if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      customer === window._env_.PMI_CUSTOMER_ID
+      customer === window._env_.CUSTOMER_ID
     ) {
       const qualityPages = QUALITY_PAGELIST.map(p => p.value);
 
@@ -553,7 +553,7 @@ export default function UserAdd({ open, handleClose, handleAdd, dialogOpenCount,
                   </div>
                 )}
 
-                {/* {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID && (
+                {/* {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID && (
 )} */}
                 <div className={`form_field ${errors.password ? 'error-outline' : ''}`}>
                   <TextField

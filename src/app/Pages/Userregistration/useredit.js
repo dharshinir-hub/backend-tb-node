@@ -250,7 +250,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
     // ✅ PMI (unchanged)
     if (
       [ROLE_ADMIN, ROLE_SUPER_ADMIN].includes(shiftForm.mode) &&
-      customer === window._env_.PMI_CUSTOMER_ID
+      customer === window._env_.CUSTOMER_ID
     ) {
       const merged = [...pageList, ...QUALITY_PAGELIST];
 
@@ -278,7 +278,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
     // ✅ PMI Quality (unchanged)
     if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      customer === window._env_.PMI_CUSTOMER_ID
+      customer === window._env_.CUSTOMER_ID
     ) {
       return QUALITY_PAGELIST;
     }
@@ -319,7 +319,7 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       setValue("pagelist", ["operator"]);
     } else if (
       shiftForm.mode?.toLowerCase() === "quality" &&
-      customer === window._env_.PMI_CUSTOMER_ID
+      customer === window._env_.CUSTOMER_ID
     ) {
       const qualityPages = QUALITY_PAGELIST.map(p => p.value);
 

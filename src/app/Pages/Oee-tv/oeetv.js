@@ -90,11 +90,11 @@ const OeeTv = () => {
   }, [newToken]);
 
 
-    const getCustomerIdFromPath = () => {
+  const getCustomerIdFromPath = () => {
     if (location.pathname === "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp") {
-      return window._env_.PMI_CUSTOMER_ID;
-    }if (location.pathname === "/pmi-oee-dashboard") {
-      return window._env_.PMI_CUSTOMER_ID;
+      return window._env_.CUSTOMER_ID;
+    } if (location.pathname === "/pmi-oee-dashboard") {
+      return window._env_.CUSTOMER_ID;
     } else if (location.pathname === "/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp") {
       return window._env_.MARKS_CUSTOMER_ID;
     }
@@ -103,13 +103,13 @@ const OeeTv = () => {
 
   // ✅ login and set customerId1
   useEffect(() => {
-     const allowedPaths = [
+    const allowedPaths = [
       "/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp",
       "/o",
       "/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp",
       "/pmi-oee-dashboard"
     ];
-    
+
     if (!allowedPaths.includes(location.pathname)) {
       return;
     }
@@ -129,7 +129,7 @@ const OeeTv = () => {
           setCustomerId1(newCustomerId);
           localStorage.setItem("customerId1", newCustomerId);
         }
-     
+
         startTokenAutoRefresh();
       } catch (err) {
         console.error("Init failed", err);
@@ -453,69 +453,69 @@ const OeeTv = () => {
   const [avgData, setAvgData] = useState({});
 
 
-useEffect(() => {
-  if (!oeeData || Object.keys(oeeData).length === 0 || !shifts) return;
-  const results = {};
-  const shiftTimestamps = {};
-  Object.keys(oeeData).forEach((machineId) => {
-    const oeeArray = oeeData[machineId]?.oeeValues || [];
-    results[machineId] = {};
-    shiftTimestamps[machineId] = {};
-    oeeArray.forEach((point) => {
-      const ts = Number(point.ts);
-      const value = Number(point.value) || 0;
-      const pointDate = new Date(ts);
-      shifts.forEach((shift, idx) => {
-        const [shHour, shMin, shSec] = shift.start_time.split(":").map(Number);
-        const [enHour, enMin, enSec] = shift.end_time.split(":").map(Number);
-        const testShift = (baseDate) => {
-          const shiftStart = new Date(baseDate);
-          shiftStart.setHours(shHour, shMin, shSec, 0);
-          let shiftEnd = new Date(baseDate);
-          shiftEnd.setHours(enHour, enMin, enSec, 0);
-          if (shiftEnd <= shiftStart) {
-            shiftEnd.setDate(shiftEnd.getDate() + 1);
-          }
-          if (ts >= shiftStart.getTime() && ts < shiftEnd.getTime()) {
-            const dateKey = shiftStart.toISOString().split("T")[0];
-            if (!results[machineId][dateKey]) {
-              results[machineId][dateKey] = {};
-              shiftTimestamps[machineId][dateKey] = {};
-              shifts.forEach((_, i) => {
-                results[machineId][dateKey][`Shift ${i + 1}`] = null;
-                shiftTimestamps[machineId][dateKey][`Shift ${i + 1}`] = null;
-              });
+  useEffect(() => {
+    if (!oeeData || Object.keys(oeeData).length === 0 || !shifts) return;
+    const results = {};
+    const shiftTimestamps = {};
+    Object.keys(oeeData).forEach((machineId) => {
+      const oeeArray = oeeData[machineId]?.oeeValues || [];
+      results[machineId] = {};
+      shiftTimestamps[machineId] = {};
+      oeeArray.forEach((point) => {
+        const ts = Number(point.ts);
+        const value = Number(point.value) || 0;
+        const pointDate = new Date(ts);
+        shifts.forEach((shift, idx) => {
+          const [shHour, shMin, shSec] = shift.start_time.split(":").map(Number);
+          const [enHour, enMin, enSec] = shift.end_time.split(":").map(Number);
+          const testShift = (baseDate) => {
+            const shiftStart = new Date(baseDate);
+            shiftStart.setHours(shHour, shMin, shSec, 0);
+            let shiftEnd = new Date(baseDate);
+            shiftEnd.setHours(enHour, enMin, enSec, 0);
+            if (shiftEnd <= shiftStart) {
+              shiftEnd.setDate(shiftEnd.getDate() + 1);
             }
-            const slotKey = `Shift ${idx + 1}`;
-            const existingTs = shiftTimestamps[machineId][dateKey][slotKey];
-            if (existingTs === null || ts > existingTs) {
-              results[machineId][dateKey][slotKey] = value;
-              shiftTimestamps[machineId][dateKey][slotKey] = ts;
+            if (ts >= shiftStart.getTime() && ts < shiftEnd.getTime()) {
+              const dateKey = shiftStart.toISOString().split("T")[0];
+              if (!results[machineId][dateKey]) {
+                results[machineId][dateKey] = {};
+                shiftTimestamps[machineId][dateKey] = {};
+                shifts.forEach((_, i) => {
+                  results[machineId][dateKey][`Shift ${i + 1}`] = null;
+                  shiftTimestamps[machineId][dateKey][`Shift ${i + 1}`] = null;
+                });
+              }
+              const slotKey = `Shift ${idx + 1}`;
+              const existingTs = shiftTimestamps[machineId][dateKey][slotKey];
+              if (existingTs === null || ts > existingTs) {
+                results[machineId][dateKey][slotKey] = value;
+                shiftTimestamps[machineId][dateKey][slotKey] = ts;
+              }
             }
+          };
+          if (enHour > shHour || (enHour === shHour && enMin > shMin) || (enHour === shHour && enMin === shMin && enSec > shSec)) {
+            testShift(pointDate);
+          } else {
+            const yesterday = new Date(pointDate);
+            yesterday.setDate(yesterday.getDate() - 1);
+            testShift(yesterday);
+            testShift(pointDate);
           }
-        };
-        if (enHour > shHour || (enHour === shHour && enMin > shMin) || (enHour === shHour && enMin === shMin && enSec > shSec)) {
-          testShift(pointDate);
-        } else {
-          const yesterday = new Date(pointDate);
-          yesterday.setDate(yesterday.getDate() - 1);
-          testShift(yesterday);
-          testShift(pointDate);
-        }
+        });
       });
     });
-  });
-  Object.keys(results).forEach((mId) => {
-    Object.keys(results[mId]).forEach((dateKey) => {
-      Object.keys(results[mId][dateKey]).forEach((shiftKey) => {
-        if (results[mId][dateKey][shiftKey] === null) {
-          results[mId][dateKey][shiftKey] = 0;
-        }
+    Object.keys(results).forEach((mId) => {
+      Object.keys(results[mId]).forEach((dateKey) => {
+        Object.keys(results[mId][dateKey]).forEach((shiftKey) => {
+          if (results[mId][dateKey][shiftKey] === null) {
+            results[mId][dateKey][shiftKey] = 0;
+          }
+        });
       });
     });
-  });
-  setShiftWiseOEEByDate(results);
-}, [oeeData, shifts]);
+    setShiftWiseOEEByDate(results);
+  }, [oeeData, shifts]);
 
 
   console.log('Shift Wise OEE data', shiftWiseOEEByDate);
@@ -655,49 +655,49 @@ useEffect(() => {
   console.log('Last week shift wise oee', lastWeekShiftWiseOEE);
   console.log('current week shift wise oee', currentWeekShiftWiseOEE);
 
- let THIS_MONTH_FROM_EPOCH;
- let THIS_MONTH_TO_EPOCH;
+  let THIS_MONTH_FROM_EPOCH;
+  let THIS_MONTH_TO_EPOCH;
 
-function setThisMonthEpoch(shifts) {
-  const now = new Date();
-  let monthStart, monthEnd;
+  function setThisMonthEpoch(shifts) {
+    const now = new Date();
+    let monthStart, monthEnd;
 
-  if (shifts && shifts.length >= 1) {
-    const firstShift = shifts[0];
-    const lastShift = shifts[shifts.length - 1];
+    if (shifts && shifts.length >= 1) {
+      const firstShift = shifts[0];
+      const lastShift = shifts[shifts.length - 1];
 
-    // --- Start of month ---
-    monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const [startH, startM, startS] = firstShift.start_time.split(":").map(Number);
-    monthStart.setHours(startH, startM, startS, 0);
+      // --- Start of month ---
+      monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const [startH, startM, startS] = firstShift.start_time.split(":").map(Number);
+      monthStart.setHours(startH, startM, startS, 0);
 
-    // --- End of month ---
-    monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const [endH, endM, endS] = lastShift.end_time.split(":").map(Number);
-    monthEnd.setHours(endH, endM, endS, 0);
+      // --- End of month ---
+      monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const [endH, endM, endS] = lastShift.end_time.split(":").map(Number);
+      monthEnd.setHours(endH, endM, endS, 0);
 
-    // ✅ handle overnight shift (e.g., ends next day like 06:00 AM)
-    const [firstH] = firstShift.start_time.split(":").map(Number);
-    if (endH <= firstH) {
-      monthEnd.setDate(monthEnd.getDate() + 1);
+      // ✅ handle overnight shift (e.g., ends next day like 06:00 AM)
+      const [firstH] = firstShift.start_time.split(":").map(Number);
+      if (endH <= firstH) {
+        monthEnd.setDate(monthEnd.getDate() + 1);
+      }
+    } else {
+      // --- Fallback: full month 00:00 → 23:59:59 ---
+      monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      monthStart.setHours(0, 0, 0, 0);
+
+      monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      monthEnd.setHours(23, 59, 59, 999);
     }
-  } else {
-    // --- Fallback: full month 00:00 → 23:59:59 ---
-    monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    monthStart.setHours(0, 0, 0, 0);
 
-    monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    monthEnd.setHours(23, 59, 59, 999);
+    THIS_MONTH_FROM_EPOCH = monthStart.getTime();
+    THIS_MONTH_TO_EPOCH = monthEnd.getTime();
+
+    console.log("This month From:", new Date(THIS_MONTH_FROM_EPOCH), THIS_MONTH_FROM_EPOCH);
+    console.log("This month To:", new Date(THIS_MONTH_TO_EPOCH), THIS_MONTH_TO_EPOCH);
   }
 
-  THIS_MONTH_FROM_EPOCH = monthStart.getTime();
-  THIS_MONTH_TO_EPOCH = monthEnd.getTime();
-
-  console.log("This month From:", new Date(THIS_MONTH_FROM_EPOCH), THIS_MONTH_FROM_EPOCH);
-  console.log("This month To:", new Date(THIS_MONTH_TO_EPOCH) , THIS_MONTH_TO_EPOCH);
-}
-
-setThisMonthEpoch(shifts);
+  setThisMonthEpoch(shifts);
 
   const buildGrafanaUrl = (device) => {
     if (!device?.id?.id) return "";
@@ -712,7 +712,7 @@ setThisMonthEpoch(shifts);
     const lastWeekOeeForDevice = lastWeekShiftWiseOEE[device.id.id] || {};
     const lastWeekOeeJson = encodeURIComponent(JSON.stringify(lastWeekOeeForDevice));
 
-      const currentWeekOeeForDevice = currentWeekShiftWiseOEE[device.id.id] || {};
+    const currentWeekOeeForDevice = currentWeekShiftWiseOEE[device.id.id] || {};
     const currentWeekOeeJson = encodeURIComponent(JSON.stringify(currentWeekOeeForDevice));
 
     const fiscalWeekMapJson = encodeURIComponent(JSON.stringify(fiscalWeekMap));
@@ -1021,20 +1021,20 @@ setThisMonthEpoch(shifts);
     return url;
   };
 
-    const handleLogout = () => {
-      Swal.fire({
-        title: 'Are you sure want  to logout?',
-        showCancelButton: true,
-        confirmButtonText: 'Ok',
-        cancelButtonText: 'Cancel'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          stopTokenAutoRefresh();
-          localStorage.clear();
-          navigate('/');
-        }
-      });
-    };
+  const handleLogout = () => {
+    Swal.fire({
+      title: 'Are you sure want  to logout?',
+      showCancelButton: true,
+      confirmButtonText: 'Ok',
+      cancelButtonText: 'Cancel'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        stopTokenAutoRefresh();
+        localStorage.clear();
+        navigate('/');
+      }
+    });
+  };
 
   return (
 
@@ -1216,11 +1216,11 @@ setThisMonthEpoch(shifts);
               },
             }}
           />
-           <Tooltip title="Log-out">
-              <label className="circles-icon" onClick={handleLogout} style={{ cursor: 'pointer' }}>
-                <MdPowerSettingsNew />
-              </label>
-            </Tooltip>
+          <Tooltip title="Log-out">
+            <label className="circles-icon" onClick={handleLogout} style={{ cursor: 'pointer' }}>
+              <MdPowerSettingsNew />
+            </label>
+          </Tooltip>
         </div>
       </div>
 
@@ -1260,32 +1260,32 @@ setThisMonthEpoch(shifts);
             }}
             className="device-card"
           >
-              <div
+            <div
+              style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 50,
+                height: "100%",
+                borderRadius: "10px",
+                overflow: "hidden",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <iframe
+                key={buildCellGrafanaUrl()}
+                src={buildCellGrafanaUrl()}
                 style={{
-                  position: "sticky",
-                  top: 0,
-                  zIndex: 50,
+                  flex: 1,
+                  border: "0",
+                  width: "100%",
                   height: "100%",
-                  borderRadius: "10px",
-                  overflow: "hidden",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
                 }}
-              >
-                <iframe
-                  key={buildCellGrafanaUrl()}
-                  src={buildCellGrafanaUrl()}
-                  style={{
-                    flex: 1,
-                    border: "0",
-                    width: "100%",
-                    height: "100%",
-                  }}
-                  title={`Cell-OEE-${selectedGroup}`}
-                />
-              </div>
+                title={`Cell-OEE-${selectedGroup}`}
+              />
+            </div>
             {filteredDevices.map((device, index) => {
               const url = buildGrafanaUrl(device, avgData);
               return (

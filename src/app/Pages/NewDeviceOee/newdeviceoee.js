@@ -105,7 +105,7 @@ const NewDeviceOee = () => {
         localStorage.setItem("refreshToken1", secondResponse.refreshToken);
         localStorage.setItem("Companyname1", secondResponse.Companyname);
         localStorage.setItem("role_name1", secondResponse.Role);
-        setCustomerId1(window._env_.PMI_CUSTOMER_ID);
+        setCustomerId1(window._env_.CUSTOMER_ID);
         startTokenAutoRefresh();
       } catch (err) {
         console.error("Init failed", err);

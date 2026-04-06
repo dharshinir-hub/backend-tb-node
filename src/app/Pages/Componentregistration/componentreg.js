@@ -326,7 +326,7 @@ const ComponentRegistration = () => {
                         </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID && (
+                        {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID && (
                             <Button
                                 variant="outlined"
                                 onClick={handleExportCSV}
@@ -376,7 +376,7 @@ const ComponentRegistration = () => {
                                     {/* <TableCell>Mould Number</TableCell> */}
                                     <TableCell>Factor</TableCell>
                                     <TableCell>Factor Value</TableCell>
-                                    {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID ? (
+                                    {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID ? (
                                         <>
                                             <TableCell>Standard Cycle Time</TableCell>
                                             <TableCell>Actual Cycle Time</TableCell>
@@ -424,14 +424,14 @@ const ComponentRegistration = () => {
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.cycle_time || '---'}
                                             </TableCell>
-                                            {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID && (
+                                            {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID && (
                                                 <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                     {row.auto_target?.cycle_levels || '---'}
                                                 </TableCell>)}
                                             <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                 {row.handling_time || '---'}
                                             </TableCell>
-                                            {cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID && (
+                                            {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID && (
                                                 <TableCell className={classNames({ 'odd-row': index % 2 !== 0, 'even-row': index % 2 === 0 })}>
                                                     {row.auto_target?.handling_levels || '---'}
                                                 </TableCell>)}

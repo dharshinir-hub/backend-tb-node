@@ -104,7 +104,7 @@ function Operator() {
 
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
-            return window._env_.PMI_CUSTOMER_ID;
+            return window._env_.CUSTOMER_ID;
         } else if (location.pathname === "/smc_operator_bf9tz") {
             return window._env_.SMC_CUSTOMER_ID;
         } else if (location.pathname === "/atech_operator_atc67") {
@@ -129,7 +129,7 @@ function Operator() {
     };
     const isPMIBlueCardPage =
         location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV" ||
-        cleanCustomerId(getCustomerId()) === window._env_.PMI_CUSTOMER_ID;
+        cleanCustomerId(getCustomerId()) === window._env_.CUSTOMER_ID;
 
     const isGplastCondition =
         location.pathname === "/gplast_operator_awe6tc" ||

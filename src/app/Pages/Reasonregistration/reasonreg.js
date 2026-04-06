@@ -238,7 +238,7 @@ const ReasonRegistration = ({
 
                             {/* RIGHT — Filters */}
                             {(
-                                cleanCustomerId(customerId) === window._env_.PMI_CUSTOMER_ID
+                                cleanCustomerId(customerId) === window._env_.CUSTOMER_ID
                             ) && (
                                     <ToggleButtonGroup
                                         value={sourceTypeFilter}

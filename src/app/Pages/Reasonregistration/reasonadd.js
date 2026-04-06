@@ -217,7 +217,7 @@ export default function ReasonAdd({
   }, [open]);
 
   const hideCategory =
-    [window._env_.PMI_CUSTOMER_ID, window._env_.GPLAST_CUSTOMER_ID].includes(cleanCustomerId(customerId)) &&
+    [window._env_.CUSTOMER_ID, window._env_.GPLAST_CUSTOMER_ID].includes(cleanCustomerId(customerId)) &&
     shiftForm.group?.toLowerCase() === "quality";
 
   useEffect(() => {
@@ -361,7 +361,7 @@ export default function ReasonAdd({
                   />
                   {errors.code && <div className="mat-error">{errors.code.message}</div>}
                 </div> */}
-                {[window._env_.GPLAST_CUSTOMER_ID, window._env_.PMI_CUSTOMER_ID].includes(cleanCustomerId(customerId)) && (
+                {[window._env_.GPLAST_CUSTOMER_ID, window._env_.CUSTOMER_ID].includes(cleanCustomerId(customerId)) && (
                   <div className="form_field">
                     <Autocomplete
                       options={reasonGroupOptions}

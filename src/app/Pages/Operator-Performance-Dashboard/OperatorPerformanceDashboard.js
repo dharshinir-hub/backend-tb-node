@@ -93,6 +93,7 @@ export default function OperatorPerformanceDashboard() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const dashboardRef = useRef(null);
 
+    const [viewMode, setViewMode] = useState('Current'); // 'Current' or 'Previous'
     const [shifts, setShifts] = useState([]);
     const [currentShiftInfo, setCurrentShiftInfo] = useState(null);
     const [prevShiftInfo, setPrevShiftInfo] = useState(null);
@@ -102,7 +103,8 @@ export default function OperatorPerformanceDashboard() {
 
     const getAchievement = (actual, target) => {
         if (!target || target === 0) return 0;
-        return Math.round((actual / target) * 100);
+        const percent = Math.round((actual / target) * 100);
+        return Math.min(percent, 100); // Cap at 100%
     };
 
     const getPerformanceColor = (percent) => {
@@ -114,41 +116,27 @@ export default function OperatorPerformanceDashboard() {
     // --- Business Logic for Top Performers (Top 3) ---
     const topPerformers = useMemo(() => {
         if (dashboardData.length === 0) return [];
-        
-        // Use Actual vs Target Ratio (Achievement%) as the ranking metric
         return [...dashboardData]
             .filter(m => m.actual > 0 && m.target > 0)
             .map(m => {
-                const achievement = Math.round((m.actual / m.target) * 100);
+                const achievement = getAchievement(m.actual, m.target);
                 return { ...m, achievement };
             })
             .sort((a, b) => b.achievement - a.achievement || b.currentOee - a.currentOee)
             .slice(0, 3);
-            
-        /* Weighted scoring logic (Paused)
-        const maxActual = Math.max(...valid.map(m => m.actual), 1);
-        return [...valid].map(m => {
-            const efficiency = m.target > 0 ? Math.min(m.actual / m.target, 1) : 0;
-            const workload = m.actual / maxActual;
-            const score = (efficiency * 0.6) + (workload * 0.4);
-            return { ...m, score };
-        })
-        .sort((a, b) => b.score - a.score || b.currentOee - a.currentOee)
-        .slice(0, 3);
-        */
     }, [dashboardData]);
 
     // Sorting by Performance Ratio (Dynamic Order & Status Filter)
     const filteredAndSortedData = useMemo(() => {
         return [...dashboardData]
             .filter(m => selectedStatuses.includes(m.status))
-            .filter(m => !topPerformers.some(tp => tp.id === m.id)) // Exclude Top 3 from main grid
+            // Removed filter that excluded top performers to show all machines in grid
             .sort((a, b) => {
                 const perfA = getAchievement(a.actual, a.target);
                 const perfB = getAchievement(b.actual, b.target);
                 return sortOrder === 'asc' ? perfA - perfB : perfB - perfA;
             });
-    }, [dashboardData, sortOrder, selectedStatuses, topPerformers]);
+    }, [dashboardData, sortOrder, selectedStatuses]);
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -254,10 +242,15 @@ export default function OperatorPerformanceDashboard() {
         try {
             const currT = getShiftTimes(shifts, currentShiftInfo.shiftNo, currentShiftInfo.date);
             const prevT = prevShiftInfo ? getShiftTimes(shifts, prevShiftInfo.shiftNo, prevShiftInfo.date) : null;
+            
+            // Determine active time range based on viewMode
+            const activeRange = viewMode === 'Current' ? currT : prevT;
+            if (!activeRange?.from) return;
+
             const keys = ["oee","totalparts","targetparts","machine_status","live_operator"].join(',');
             const ids = deviceNameID.filter((d) => selectedMachines.includes(d.name)).map((d) => d.id);
 
-            // 1. One-time fetch for Previous Shift OEE (Static data)
+            // 1. One-time fetch for Previous Shift OEE (Static data for header comparison)
             if (isInitial || Object.keys(prevOeeCache.current).length === 0) {
                 if (prevT) {
                     await Promise.all(ids.map(async (devId) => {
@@ -270,13 +263,13 @@ export default function OperatorPerformanceDashboard() {
                 }
             }
 
-            // 2. Continuous fetch for Current Shift Live Data
+            // 2. Fetch data for the SELECTED SHIFT (Current or Previous)
             const results = await Promise.all(ids.map(async (devId) => {
-                const currData = await telemetrykeydata(devId, "DEVICE", keys, currT.from, currT.to);
+                const shiftData = await telemetrykeydata(devId, "DEVICE", keys, activeRange.from, activeRange.to);
                 const getLatest = (arr) => (arr && arr.length > 0) ? arr[arr.length - 1] : null;
 
                 // Operator Logic
-                const rawOps = currData?.live_operator || [];
+                const rawOps = shiftData?.live_operator || [];
                 let opString = 'No Operator';
                 if (rawOps.length > 0) {
                     const parsedOps = rawOps.map(r => {
@@ -299,33 +292,38 @@ export default function OperatorPerformanceDashboard() {
 
                 // Machine Status Logic
                 const statusMap = { 0:'Idle', 1:'Idle', 2:'Idle', 3:'Running', 4:'Alarm', 5:'Alarm', 6:'Locked', 7:'Setting', 100:'Disconnected' };
-                const rawS = getLatest(currData?.machine_status)?.value;
+                const rawS = getLatest(shiftData?.machine_status)?.value;
                 const status = statusMap[parseInt(rawS)] || statusMap[rawS] || 'Disconnected';
                 
                 // Parts Logic
-                let parts = { goodparts: 0 }; try { if (getLatest(currData?.totalparts)?.value) parts = JSON.parse(getLatest(currData?.totalparts).value); } catch(e) {}
+                let parts = { goodparts: 0 }; try { if (getLatest(shiftData?.totalparts)?.value) parts = JSON.parse(getLatest(shiftData?.totalparts).value); } catch(e) {}
 
                 return {
                     id: devId,
                     name: deviceNameID.find(d => d.id === devId)?.name || 'Unknown',
                     operator: opString,
                     status: status,
-                    currentOee: Math.round(parseFloat(getLatest(currData?.oee)?.value) || 0),
-                    prevOee: prevOeeCache.current[devId] || 0, // Merged from Cache
-                    target: Math.round(parseFloat(getLatest(currData?.targetparts)?.value) || 0),
+                    currentOee: Math.round(parseFloat(getLatest(shiftData?.oee)?.value) || 0),
+                    prevOee: prevOeeCache.current[devId] || 0, // Header comparison value
+                    target: Math.round(parseFloat(getLatest(shiftData?.targetparts)?.value) || 0),
                     actual: parts.goodparts || 0,
                 };
             }));
 
             setDashboardData(results);
-            const validC = results.filter(m => m.currentOee > 0);
-            const validP = Object.values(prevOeeCache.current).filter(v => v > 0);
-            setSummaryMetrics({
-                currentShiftOee: validC.length > 0 ? Math.round(validC.reduce((a, b) => a + b.currentOee, 0) / validC.length) : 0,
-                prevShiftOee: validP.length > 0 ? Math.round(validP.reduce((a, b) => a + Number(b), 0) / validP.length) : 0
-            });
+            
+            // Header chips always show current vs previous comparison
+            const summaryResults = viewMode === 'Current' ? results : [];
+            if (viewMode === 'Current') {
+                const validC = results.filter(m => m.currentOee > 0);
+                const validP = Object.values(prevOeeCache.current).filter(v => v > 0);
+                setSummaryMetrics({
+                    currentShiftOee: validC.length > 0 ? Math.round(validC.reduce((a, b) => a + b.currentOee, 0) / validC.length) : 0,
+                    prevShiftOee: validP.length > 0 ? Math.round(validP.reduce((a, b) => a + Number(b), 0) / validP.length) : 0
+                });
+            }
         } catch (error) { console.error("Fetch Data Error:", error); } finally { setIsLoading(false); }
-    }, [shifts, currentShiftInfo, prevShiftInfo, customerId, selectedMachines, deviceNameID, getShiftTimes]);
+    }, [shifts, currentShiftInfo, prevShiftInfo, customerId, selectedMachines, deviceNameID, getShiftTimes, viewMode]);
 
     useEffect(() => {
         const fetchShiftList = async () => {
@@ -342,14 +340,16 @@ export default function OperatorPerformanceDashboard() {
             prevOeeCache.current = {}; 
             fetchData(true);
 
-            // Interval call re-checks shift timing AND fetches Current metrics
-            const timer = setInterval(() => {
-                detectShifts(shifts);
-                fetchData(false);
-            }, 30000);
-            return () => clearInterval(timer);
+            // Interval call: ONLY if viewMode is 'Current'
+            if (viewMode === 'Current') {
+                const timer = setInterval(() => {
+                    detectShifts(shifts);
+                    fetchData(false);
+                }, 30000);
+                return () => clearInterval(timer);
+            }
         }
-    }, [shifts, selectedMachines, currentShiftInfo, fetchData, detectShifts]);
+    }, [shifts, selectedMachines, currentShiftInfo, fetchData, detectShifts, viewMode]);
 
     // Common Card Component to ensure visual consistency
     const RenderMachineCard = useCallback(({ m, rank }) => {
@@ -463,14 +463,29 @@ export default function OperatorPerformanceDashboard() {
                 
                 {/* --- Right Side: Shift Info + Controls --- */}
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    {currentShiftInfo && (
+                    {((viewMode === 'Current' ? currentShiftInfo : prevShiftInfo)) && (
                         <Typography sx={{ color: COLORS.TEXT_SUB, fontWeight: 700, fontSize: '0.95rem', mr: 2 }}>
-                            Shift {currentShiftInfo.shiftNo} | {currentShiftInfo.date.format('DD MMM')}
+                            Shift {(viewMode === 'Current' ? currentShiftInfo : prevShiftInfo).shiftNo} | {(viewMode === 'Current' ? currentShiftInfo : prevShiftInfo).date.format('DD MMM')}
                         </Typography>
                     )}
 
+                    {/* --- Shift Selection Dropdown (Current/Previous) --- */}
+                    <FormControl size="small" sx={{ minWidth: 140 }}>
+                        <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>View Shift</InputLabel>
+                        <Select
+                            value={viewMode}
+                            onChange={(e) => setViewMode(e.target.value)}
+                            label="View Shift"
+                            sx={{ height: 38, fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#fff' }}
+                            MenuProps={{ container: dashboardRef.current }}
+                        >
+                            <MenuItem value="Current">Current Shift</MenuItem>
+                            <MenuItem value="Previous">Previous Shift</MenuItem>
+                        </Select>
+                    </FormControl>
+
                     {showMachineGroupsDropdown && (
-                        <FormControl size="small" sx={{ minWidth: 200 }}>
+                        <FormControl size="small" sx={{ minWidth: 180 }}>
                             <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>Machine Group</InputLabel>
                             <Select 
                                 multiple 
