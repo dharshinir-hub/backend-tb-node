@@ -255,7 +255,7 @@ export default function OperatorPerformanceDashboard() {
                 if (prevT) {
                     await Promise.all(ids.map(async (devId) => {
                         const pData = await telemetrykeydata(devId, "DEVICE", "oee", prevT.from, prevT.to);
-                        const val = (pData?.oee && pData.oee.length > 0) ? pData.oee[pData.oee.length - 1].value : 0;
+                        const val = (pData?.oee && pData.oee.length > 0) ? pData.oee[0].value : 0;
                         prevOeeCache.current[devId] = Math.round(parseFloat(val) || 0);
                     }));
                 } else {
@@ -266,7 +266,7 @@ export default function OperatorPerformanceDashboard() {
             // 2. Fetch data for the SELECTED SHIFT (Current or Previous)
             const results = await Promise.all(ids.map(async (devId) => {
                 const shiftData = await telemetrykeydata(devId, "DEVICE", keys, activeRange.from, activeRange.to);
-                const getLatest = (arr) => (arr && arr.length > 0) ? arr[arr.length - 1] : null;
+                const getLatest = (arr) => (arr && arr.length > 0) ? arr[0] : null;
 
                 // Operator Logic
                 const rawOps = shiftData?.live_operator || [];
