@@ -1630,6 +1630,7 @@ const OperatorDetails = () => {
                   duration,
                   value: segment.value,
                   status: 'IDLE',
+                  ongoing: now < toTime,
                 });
               }
 
@@ -1646,7 +1647,7 @@ const OperatorDetails = () => {
             if (results && results.length > 0) {
               downtime = results[0].value;
               const result = extractStartEndFromOneToThree(transformedData);
-              const filteredResult = result.filter(entry => entry.duration > downtime);
+              const filteredResult = result.filter(entry => entry.duration > downtime && !entry.ongoing);
               console.log('filterresult', filteredResult)
               setfilteredResult(filteredResult);
               downtimedatas = encodeURIComponent(JSON.stringify(filteredResult));
