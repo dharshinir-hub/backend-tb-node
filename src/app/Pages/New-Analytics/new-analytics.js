@@ -26,6 +26,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import { saveAs } from 'file-saver';
 import { getAverageUtilizationForRange } from "../../Shared/utils/utilizationCalculations";
 import { getPartsReport, fetchPartsShiftWiseByDate, getSummaryStats } from "../../Shared/utils/oeepartsdata";
+import { fetchPartsCountStatusSummary } from "../../Shared/utils/partsdata";
 
 // Constants
 const ANALYSIS_TYPES = {
@@ -33,7 +34,9 @@ const ANALYSIS_TYPES = {
     LIVE_REASON: "live_reason",
     OEE: "oee",
     UTILIZATION: "utilization",
-    PARTS: "Parts"
+    PARTS: "Parts",
+    PARTS_SUMMARY: "PartsSummary",
+    CYCLE_TIME_COMPARISON: "Cycle Time Comparison"
 };
 
 const OEE_VIEW_TYPES = {
@@ -794,6 +797,7 @@ export default function NewAnalytics() {
         isAllMachinesSelected,
         handleGroupChange,
         handleMachineChange,
+        setSelectedMachines,
         getDeviceObjectsForMachines
     } = useMachineGroups(customerId);
 
@@ -861,16 +865,79 @@ export default function NewAnalytics() {
     const [partsViewType, setPartsViewType] = useState("day");
     const [downtimePeriod, setDowntimePeriod] = useState("day"); // "day" | "week" | "month"
     const [downtimeTopCount, setDowntimeTopCount] = useState(3); // 3 or 4
+    const isPartsSummary = analysisType === ANALYSIS_TYPES.PARTS_SUMMARY;
+    const [selectedCycleTimeMachine, setSelectedCycleTimeMachine] = useState("");
+    const [selectedCycleTimeComponent, setSelectedCycleTimeComponent] = useState("all");
+    const [selectedCycleTimeShift, setSelectedCycleTimeShift] = useState("");
+    const [cycleTimeDate, setCycleTimeDate] = useState(dayjs());
+    const [availableComponents, setAvailableComponents] = useState([]);
+
+    useEffect(() => {
+        if (!isPartsSummary || availableMachines.length === 0) return;
+
+        const currentSelectedMachine = Array.isArray(selectedMachines)
+            ? selectedMachines[0]
+            : selectedMachines;
+
+        if (!currentSelectedMachine || !availableMachines.includes(currentSelectedMachine)) {
+            setSelectedMachines([availableMachines[0]]);
+            return;
+        }
+
+        if (Array.isArray(selectedMachines) && selectedMachines.length !== 1) {
+            setSelectedMachines([currentSelectedMachine]);
+        }
+    }, [isPartsSummary, availableMachines, selectedMachines, setSelectedMachines]);
+
+    useEffect(() => {
+        if (analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON && availableMachines.length > 0 && !selectedCycleTimeMachine) {
+            setSelectedCycleTimeMachine(availableMachines[0]);
+        }
+    }, [analysisType, availableMachines, selectedCycleTimeMachine]);
+
+    useEffect(() => {
+        if (analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON && shifts.length > 0 && !selectedCycleTimeShift) {
+            setSelectedCycleTimeShift(shifts[0].shift_no);
+        }
+    }, [analysisType, shifts, selectedCycleTimeShift]);
+
+    useEffect(() => {
+        if (analysisType !== ANALYSIS_TYPES.PARTS_SUMMARY || shifts.length === 0 || !fromDate) return;
+
+        if (!toDate || !fromDate.isSame(toDate, "day")) {
+            setToDate(fromDate);
+        }
+
+        const hasValidShift = shifts.some((shift) => String(shift.shift_no) === String(selectedShift));
+        if (!hasValidShift) {
+            setSelectedShift(shifts[0].shift_no);
+        }
+    }, [analysisType, shifts, fromDate, toDate, selectedShift]);
+
+    // Fetch components when selected machine, date, or shift changes for cycle time comparison
+    useEffect(() => {
+        if (
+            analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON &&
+            selectedCycleTimeMachine &&
+            cycleTimeDate &&
+            selectedCycleTimeShift
+        ) {
+            fetchComponentsForMachine();
+        }
+    }, [selectedCycleTimeMachine, cycleTimeDate, selectedCycleTimeShift, analysisType]);
 
     // Memoized values
-    const isShiftDisabled = useMemo(() =>
-        !fromDate || !toDate ? true : !fromDate.isSame(toDate, "day"),
-        [fromDate, toDate]
-    );
+    const isShiftDisabled = useMemo(() => {
+        if (analysisType === ANALYSIS_TYPES.PARTS_SUMMARY) return false;
+        return !fromDate || !toDate ? true : !fromDate.isSame(toDate, "day");
+    }, [analysisType, fromDate, toDate]);
 
     const isRunDisabled = useMemo(() =>
-        isLoading || selectedMachines.length === 0,
-        [isLoading, selectedMachines.length]
+        isLoading ||
+        (analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON
+            ? !selectedCycleTimeMachine || !cycleTimeDate || !selectedCycleTimeShift
+            : selectedMachines.length === 0),
+        [isLoading, analysisType, selectedMachines.length, selectedCycleTimeMachine, cycleTimeDate, selectedCycleTimeShift]
     );
 
     const currentColumns = useMemo(() =>
@@ -970,11 +1037,15 @@ export default function NewAnalytics() {
         if (analysisType === "Parts") return;
         if (!fromDate || !toDate || shifts.length === 0) return;
 
-        if (!fromDate.isSame(toDate, "day") || selectedShift === "all") {
+        if (!fromDate.isSame(toDate, "day")) {
             setSelectedShift("all");
             handleAllShiftsTimeRange();
         } else {
-            handleSingleShiftTimeRange();
+            if (!selectedShift || selectedShift === "all") {
+                handleAllShiftsTimeRange();
+            } else {
+                handleSingleShiftTimeRange();
+            }
         }
     }, [fromDate, toDate, selectedShift, shifts]);
 
@@ -1202,6 +1273,69 @@ export default function NewAnalytics() {
     };
     console.log('setfrom', todayFrom, 'setto', todayTo)
 
+    const fetchComponentsForMachine = async () => {
+        if (!selectedCycleTimeMachine || !cycleTimeDate || !selectedCycleTimeShift) return;
+
+        try {
+            const deviceId = deviceNameID.find(device => device.name === selectedCycleTimeMachine)?.id;
+            if (!deviceId) return;
+
+            const selectedShiftObj = shifts.find(shift => String(shift.shift_no) === String(selectedCycleTimeShift)) || shifts[0];
+            const [startH, startM] = selectedShiftObj.start_time.split(":").map(Number);
+            const [endH, endM] = selectedShiftObj.end_time.split(":").map(Number);
+
+            const fromDT = cycleTimeDate.hour(startH).minute(startM).second(0).millisecond(0);
+            let toDT = cycleTimeDate.hour(endH).minute(endM).second(0).millisecond(0);
+
+            if (endH < startH || (endH === startH && endM <= startM)) {
+                toDT = toDT.add(1, "day");
+            }
+
+            const fromEpoch = fromDT.valueOf();
+            const toEpoch = toDT.valueOf();
+
+            console.log("Fetching live_component for cycle time dropdown:", {
+                selectedCycleTimeMachine,
+                selectedCycleTimeShift,
+                selectedShiftObj,
+                cycleTimeDate: cycleTimeDate.format("YYYY-MM-DD"),
+                fromEpoch,
+                toEpoch,
+                fromDT: fromDT.format("YYYY-MM-DD HH:mm:ss"),
+                toDT: toDT.format("YYYY-MM-DD HH:mm:ss")
+            });
+
+            const response = await telemetrykeydata(deviceId, 'DEVICE', 'live_component', fromEpoch, toEpoch);
+            const existingData = response?.live_component || [];
+
+            const componentSet = new Set();
+            const components = [];
+
+            existingData.forEach(item => {
+                if (item.value) {
+                    try {
+                        const parsed = JSON.parse(item.value);
+                        if (parsed && parsed.name && parsed.code) {
+                            const key = `${parsed.name}-${parsed.code}`;
+                            if (!componentSet.has(key)) {
+                                componentSet.add(key);
+                                components.push({ name: parsed.name, code: parsed.code });
+                            }
+                        }
+                    } catch (e) {
+                        // ignore parse errors
+                    }
+                }
+            });
+
+            setAvailableComponents(components);
+            setSelectedCycleTimeComponent("all");
+        } catch (error) {
+            console.error('Error fetching live_component:', error);
+            setAvailableComponents([]);
+        }
+    };
+    console.log('available components', availableComponents)
     useEffect(() => {
         if (analysisType === "Parts" && shifts.length) {
             handlePartsYearTimeRange();
@@ -1209,9 +1343,14 @@ export default function NewAnalytics() {
     }, [analysisType, selectedYear, shifts]);
 
 
+    const activeSelectedMachines = isPartsSummary
+        ? selectedMachines.slice(0, 1)
+        : analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON
+            ? [selectedCycleTimeMachine]
+            : selectedMachines;
 
     const selectedMachineIds = deviceNameID
-        .filter(device => selectedMachines.includes(device.name))
+        .filter(device => activeSelectedMachines.includes(device.name))
         .map(device => device.id);
     const generatePartsReport = async () => {
         if (!selectedMachineIds.length || !from || !to) return;
@@ -1282,6 +1421,115 @@ export default function NewAnalytics() {
 
         } catch (error) {
             console.error("Parts report failed:", error);
+        }
+    };
+
+    const generatePartsSummaryReport = async () => {
+        if (!selectedMachineIds.length || !fromDate || shifts.length === 0) return;
+
+        setIframeUrl("");
+
+        try {
+            const selectedShiftObj = shifts.find(s => String(s.shift_no) === String(selectedShift)) || shifts[0];
+            const [startH, startM] = selectedShiftObj.start_time.split(":").map(Number);
+            const [endH, endM] = selectedShiftObj.end_time.split(":").map(Number);
+
+            const fromDT = fromDate.hour(startH).minute(startM).second(0).millisecond(0);
+            let toDT = fromDate.hour(endH).minute(endM).second(0).millisecond(0);
+            if (endH < startH || (endH === startH && endM <= startM)) {
+                toDT = toDT.add(1, "day");
+            }
+
+            const fromEpoch = fromDT.valueOf();
+            const toEpoch = toDT.valueOf();
+
+            const partsSummaryData = await fetchPartsCountStatusSummary({
+                deviceIds: selectedMachineIds,
+                fromEpoch,
+                toEpoch,
+            });
+
+            console.log("PartsSummary data", {
+                deviceIds: selectedMachineIds,
+                fromEpoch,
+                toEpoch,
+                data: partsSummaryData,
+            });
+
+            const dashboardBaseUrl = `${window._env_.GRAFANA_URL}d/cfhyiqoqbsc8we/analytics-parts-summary-chart?orgId=1&kiosk&theme=light`;
+            const dashboardUrl = `${dashboardBaseUrl}&var-partsummary=${encodeURIComponent(JSON.stringify(partsSummaryData))}`;
+
+            setIframeUrl(dashboardUrl);
+        } catch (error) {
+            console.error("PartsSummary report failed:", error);
+        }
+    };
+
+    const generateCycleTimeComparisonReport = async () => {
+        if (!selectedMachineIds.length || !cycleTimeDate || !shifts.length) return;
+
+        setIframeUrl("");
+
+        try {
+            const selectedDate = cycleTimeDate;
+            const currentShift = shifts.find(shift => String(shift.shift_no) === String(selectedCycleTimeShift)) || shifts[0];
+
+            // Set from and to based on the selected date and chosen shift
+            const [startH, startM] = currentShift.start_time.split(":").map(Number);
+            const [endH, endM] = currentShift.end_time.split(":").map(Number);
+
+            const fromDT = selectedDate.hour(startH).minute(startM).second(0).millisecond(0);
+            let toDT = selectedDate.hour(endH).minute(endM).second(0).millisecond(0);
+
+            if (endH < startH || (endH === startH && endM <= startM)) {
+                toDT = toDT.add(1, "day");
+            }
+
+            const fromEpoch = fromDT.valueOf();
+            const toEpoch = toDT.valueOf();
+
+            console.log("Cycle Time Comparison shift window:", {
+                selectedDate: selectedDate.format('YYYY-MM-DD'),
+                selectedShift: currentShift.shift_no,
+                start_time: currentShift.start_time,
+                end_time: currentShift.end_time,
+                fromEpoch,
+                toEpoch,
+                fromDT: fromDT.format('YYYY-MM-DD HH:mm:ss'),
+                toDT: toDT.format('YYYY-MM-DD HH:mm:ss')
+            });
+
+            const partsSummaryData = await fetchPartsCountStatusSummary({
+                deviceIds: selectedMachineIds,
+                fromEpoch,
+                toEpoch,
+            });
+
+            console.log("Cycle Time Comparison data", {
+                deviceIds: selectedMachineIds,
+                fromEpoch,
+                toEpoch,
+                data: partsSummaryData,
+            });
+
+            const dashboardBaseUrl = `${window._env_.GRAFANA_URL}d/afi212e1xb7k0b/analytics-cycle-comparison-chart?orgId=1&kiosk&theme=light`;
+
+            // Build component parameter: all components comma-separated or single component
+            let componentValue = "";
+            if (selectedCycleTimeComponent === "all") {
+                // Get all component names and join with comma
+                componentValue = availableComponents.map(c => c.name).join(",");
+            } else {
+                // Single component selected
+                componentValue = selectedCycleTimeComponent;
+            }
+
+            const componentParam = componentValue ? `&var-component=${encodeURIComponent(componentValue)}` : "";
+            const dashboardUrl = `${dashboardBaseUrl}&var-partsummary=${encodeURIComponent(JSON.stringify(partsSummaryData))}${componentParam}`;
+
+            setIframeUrl(dashboardUrl);
+        } catch (error) {
+            console.error("Cycle Time Comparison report failed:", error);
         }
     };
 
@@ -1572,8 +1820,12 @@ export default function NewAnalytics() {
                 if (viewType === "grafana") {
                     await generateUtilizationGrafanaUrls(avgData, partsData);
                 }
-            } else if (analysisType === "Parts") {
+            } else if (analysisType === ANALYSIS_TYPES.PARTS) {
                 await generatePartsReport();
+            } else if (analysisType === ANALYSIS_TYPES.PARTS_SUMMARY) {
+                await generatePartsSummaryReport();
+            } else if (analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON) {
+                await generateCycleTimeComparisonReport();
             } else {
                 const tableDataResults = await processAlarmData();
                 setTableData(tableDataResults);
@@ -1656,6 +1908,14 @@ export default function NewAnalytics() {
     const handleAnalysisTypeChange = (e) => {
         const newType = e.target.value;
         setAnalysisType(newType);
+        if (newType === ANALYSIS_TYPES.PARTS_SUMMARY) {
+            const currentDate = dayjs();
+            setFromDate(currentDate);
+            setToDate(currentDate);
+            if (shifts.length > 0) {
+                setSelectedShift(shifts[0].shift_no);
+            }
+        }
         setPage(0);
         setOeeDaysPage(0);
         setOeeMonthPage(0);
@@ -1703,7 +1963,11 @@ export default function NewAnalytics() {
             return oeeGrafanaUrl;
         } else if (analysisType === ANALYSIS_TYPES.UTILIZATION) {
             return utilizationGrafanaUrl;
-        } else if (analysisType === ANALYSIS_TYPES.PARTS) {
+        } else if (
+            analysisType === ANALYSIS_TYPES.PARTS ||
+            analysisType === ANALYSIS_TYPES.PARTS_SUMMARY ||
+            analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON
+        ) {
             return iframeUrl;
         }
         return grafanaUrl;
@@ -1826,13 +2090,27 @@ export default function NewAnalytics() {
                         <FormControl size="small" sx={{ minWidth: 200 }}>
                             <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>Machines</InputLabel>
                             <Select
-                                multiple
-                                value={selectedMachines}
-                                onChange={(e) => handleMachineChange(e.target.value)}
+                                multiple={!isPartsSummary && analysisType !== ANALYSIS_TYPES.CYCLE_TIME_COMPARISON}
+                                value={analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON
+                                    ? selectedCycleTimeMachine
+                                    : isPartsSummary ? (selectedMachines[0] || "") : selectedMachines}
+                                onChange={(e) => {
+                                    if (analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON) {
+                                        setSelectedCycleTimeMachine(e.target.value);
+                                    } else if (isPartsSummary) {
+                                        setSelectedMachines(e.target.value ? [e.target.value] : []);
+                                    } else {
+                                        handleMachineChange(e.target.value);
+                                    }
+                                }}
                                 label="Machines"
                                 renderValue={(selected) =>
-                                    isAllMachinesSelected ? "All Machines" :
-                                        selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "")
+                                    analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON
+                                        ? selected
+                                        : isPartsSummary
+                                            ? selected
+                                            : isAllMachinesSelected ? "All Machines" :
+                                                selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "")
                                 }
                                 sx={{
                                     fontSize: '14px',
@@ -1849,13 +2127,17 @@ export default function NewAnalytics() {
                                     }
                                 }}
                             >
-                                <MenuItem value="all">
-                                    <Checkbox checked={isAllMachinesSelected} />
-                                    <ListItemText primary="All Machines" />
-                                </MenuItem>
+                                {analysisType !== ANALYSIS_TYPES.CYCLE_TIME_COMPARISON && !isPartsSummary && (
+                                    <MenuItem value="all">
+                                        <Checkbox checked={isAllMachinesSelected} />
+                                        <ListItemText primary="All Machines" />
+                                    </MenuItem>
+                                )}
                                 {availableMachines.map((machine) => (
                                     <MenuItem key={machine} value={machine}>
-                                        <Checkbox checked={selectedMachines.includes(machine)} />
+                                        {analysisType !== ANALYSIS_TYPES.CYCLE_TIME_COMPARISON && !isPartsSummary && (
+                                            <Checkbox checked={selectedMachines.includes(machine)} />
+                                        )}
                                         <ListItemText primary={machine} />
                                     </MenuItem>
                                 ))}
@@ -1892,7 +2174,18 @@ export default function NewAnalytics() {
                                 )}
                                 <MenuItem value={ANALYSIS_TYPES.LIVE_REASON}>Downtime</MenuItem>
                                 <MenuItem value={ANALYSIS_TYPES.OEE}>OEE</MenuItem>
-
+                                 {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID && (
+                                  
+                                <MenuItem value={ANALYSIS_TYPES.PARTS_SUMMARY}>
+                                    Part Wise Summary
+                                </MenuItem>
+                                 )}
+                                 {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID && (
+                                <MenuItem value={ANALYSIS_TYPES.CYCLE_TIME_COMPARISON}>
+                                    Cycle Time Analysis
+                                </MenuItem>
+                              
+                                 )}
                             </Select>
                         </FormControl>
 
@@ -1982,6 +2275,95 @@ export default function NewAnalytics() {
                                     ))}
                                 </Select>
                             </FormControl>
+                        ) : analysisType === ANALYSIS_TYPES.CYCLE_TIME_COMPARISON ? (
+                            <>
+                                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                    <DatePicker
+                                        label="Date"
+                                        value={cycleTimeDate}
+                                        onChange={setCycleTimeDate}
+                                        format="DD-MM-YYYY"
+                                        slotProps={{
+                                            textField: {
+                                                size: "small",
+                                                sx: { minWidth: 150 }
+                                            },
+                                        }}
+                                    />
+                                </LocalizationProvider>
+
+                                <FormControl size="small" sx={{ minWidth: 140 }}>
+                                    <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>
+                                        Shift
+                                    </InputLabel>
+                                    <Select
+                                        value={selectedCycleTimeShift}
+                                        onChange={(e) => setSelectedCycleTimeShift(e.target.value)}
+                                        label="Shift"
+                                    >
+                                        {shifts.map((s) => (
+                                            <MenuItem key={s.shift_no} value={s.shift_no}>
+                                                Shift {s.shift_no}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+
+                                <FormControl size="small" sx={{ minWidth: 160 }}>
+                                    <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>
+                                        Component
+                                    </InputLabel>
+                                    <Select
+                                        value={selectedCycleTimeComponent}
+                                        onChange={(e) => setSelectedCycleTimeComponent(e.target.value)}
+                                        label="Component"
+                                    >
+                                        <MenuItem value="all">All Components</MenuItem>
+                                        {availableComponents.map((c) => (
+                                            <MenuItem key={`${c.name}-${c.code}`} value={c.name}>
+                                                {c.name} ({c.code})
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </>
+                        ) : isPartsSummary ? (
+                            <>
+                                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                    <DatePicker
+                                        label="Date"
+                                        value={fromDate}
+                                        onChange={(value) => {
+                                            setFromDate(value);
+                                            setToDate(value);
+                                        }}
+                                        format="DD-MM-YYYY"
+                                        slotProps={{
+                                            textField: {
+                                                size: "small",
+                                                sx: { minWidth: 150 }
+                                            },
+                                        }}
+                                    />
+                                </LocalizationProvider>
+
+                                <FormControl size="small" sx={{ minWidth: 140 }}>
+                                    <InputLabel sx={{ fontSize: '14px', color: '#86868b' }}>
+                                        Shifts
+                                    </InputLabel>
+                                    <Select
+                                        value={selectedShift}
+                                        onChange={(e) => setSelectedShift(e.target.value)}
+                                        label="Shifts"
+                                    >
+                                        {shifts.map((s) => (
+                                            <MenuItem key={s.shift_no} value={s.shift_no}>
+                                                Shift {s.shift_no}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </>
                         ) : (
                             <>
                                 <LocalizationProvider dateAdapter={AdapterDayjs}>
