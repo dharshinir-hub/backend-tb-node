@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import {
@@ -38,9 +38,9 @@ import {
 } from '@mui/icons-material';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
 import {
-    telemetrykeydata,
     customerbasedshift
 } from '../../Services/app/operatorservice';
+import { createTbWebSocket } from '../../Services/app/tbWebSocketService';
 import './MachineStatusDashboard.css';
 
 const STATUS_OPTIONS = ['Running', 'Idle', 'Alarm', 'Disconnected'];
@@ -57,7 +57,6 @@ const MachineStatusDashboard = () => {
     } = useMachineGroups(customerId);
 
     const [machineData, setMachineData] = useState({});
-    const [loadingData, setLoadingData] = useState(false);
     const [shifts, setShifts] = useState([]);
     const [currentShift, setCurrentShift] = useState(null);
     const [customerTitle, setCustomerTitle] = useState(localStorage.getItem('customerTitle') || 'MACHINE DASHBOARD');
@@ -75,6 +74,67 @@ const MachineStatusDashboard = () => {
     const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
     const contentRef = useRef(null);
     const dashboardRef = useRef(null);
+    const wsRef = useRef(null);
+    const [wsConnected, setWsConnected] = useState(false);
+
+    // --- WebSocket message handler: merges status/utilization updates into machineData ---
+    const handleWsMessage = useCallback((msg, cmdIdToDeviceId) => {
+        const deviceId = cmdIdToDeviceId[msg.subscriptionId];
+        if (!deviceId || !msg.data) return;
+
+        const update = msg.data;
+        const getVal = (arr) => (arr && arr.length > 0) ? arr[0][1] : null;
+        const getTs  = (arr) => (arr && arr.length > 0) ? arr[0][0] : null;
+
+        setMachineData(prev => {
+            const existing = prev[deviceId] || { status: 'No Data', utilization: 0, ts: null };
+            const updated = { ...existing };
+
+            if (update.machine_status !== undefined) {
+                const rawS = getVal(update.machine_status);
+                if (rawS !== null) {
+                    const code = Number(rawS);
+                    let statusText = 'No Data';
+                    if ([0, 1, 2].includes(code)) statusText = 'Idle';
+                    else if (code === 3) statusText = 'Running';
+                    else if ([4, 5].includes(code)) statusText = 'Alarm';
+                    else if (code === 100) statusText = 'Disconnected';
+                    updated.status = statusText;
+                    updated.ts = getTs(update.machine_status);
+                }
+            }
+            if (update.utilization !== undefined) {
+                const v = getVal(update.utilization);
+                if (v !== null) updated.utilization = Number(v);
+            }
+
+            return { ...prev, [deviceId]: updated };
+        });
+    }, []);
+
+    // --- Start WebSocket subscription ---
+    const startWs = useCallback((deviceIds) => {
+        const token = localStorage.getItem('token');
+        if (!token || !deviceIds.length) return;
+
+        const base = (window._env_.SERVER_URL || '').replace(/\/$/, '');
+        const wsUrl = base.replace(/^http/, 'ws') + '/api/ws/plugins/telemetry?token=' + token;
+
+        if (wsRef.current) { wsRef.current.disconnect(); wsRef.current = null; }
+
+        const ws = createTbWebSocket({
+            url: wsUrl,
+            onOpen: () => {
+                setWsConnected(true);
+                ws.subscribe(deviceIds);
+            },
+            onMessage: (msg, map) => handleWsMessage(msg, map),
+            onClose: () => setWsConnected(false),
+            onError: () => setWsConnected(false),
+        });
+        ws.connect();
+        wsRef.current = ws;
+    }, [handleWsMessage]);
 
     // Live Clock for timers
     useEffect(() => {
@@ -139,45 +199,6 @@ const MachineStatusDashboard = () => {
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
-    const fetchAllData = async (devices) => {
-        if (!devices.length || !currentShift) return;
-        setLoadingData(true);
-        const newData = {};
-        const from = currentShift.from;
-        const to = currentShift.to;
-        const keys = ["machine_status", "utilization"];
-
-        await Promise.all(devices.map(async (device) => {
-            const deviceId = device.id?.id;
-            try {
-                const data = await telemetrykeydata(deviceId, 'DEVICE', keys.join(','), from, to);
-                const statusValues = data?.machine_status || [];
-                const latestStatusPoint = statusValues.length ? statusValues.sort((a, b) => b.ts - a.ts)[0] : null;
-                const statusCode = latestStatusPoint ? Number(latestStatusPoint.value) : null;
-
-                let statusText = "No Data";
-                if ([0, 1, 2].includes(statusCode)) statusText = "Idle";
-                else if (statusCode === 3) statusText = "Running";
-                else if ([4, 5].includes(statusCode)) statusText = "Alarm";
-                else if (statusCode === 100) statusText = "Disconnected";
-
-                const utilValues = data?.utilization || [];
-                const latestUtil = utilValues.length ? Number(utilValues.sort((a, b) => b.ts - a.ts)[0].value) : 0;
-
-                newData[deviceId] = {
-                    status: statusText,
-                    utilization: latestUtil,
-                    ts: latestStatusPoint?.ts
-                };
-            } catch (error) {
-                console.error(`Error fetching data for ${device.name}:`, error);
-                newData[deviceId] = { status: 'Error', utilization: 0, ts: null };
-            }
-        }));
-        setMachineData(newData);
-        setLoadingData(false);
-    };
-
     const allMachineDevices = useMemo(() => {
         return getDeviceObjectsForMachines(
             machineGroups
@@ -234,12 +255,15 @@ const MachineStatusDashboard = () => {
 
     useEffect(() => {
         const allDevices = getDeviceObjectsForMachines(machineGroups.flatMap(g => g.machines || []));
-        if (allDevices.length > 0 && currentShift) {
-            fetchAllData(allDevices);
-            const interval = setInterval(() => fetchAllData(allDevices), 10000);
-            return () => clearInterval(interval);
+        if (allDevices.length > 0) {
+            const deviceIds = allDevices.map(d => d.id?.id).filter(Boolean);
+            startWs(deviceIds);
         }
-    }, [machineGroups, currentShift]);
+
+        return () => {
+            if (wsRef.current) { wsRef.current.disconnect(); wsRef.current = null; setWsConnected(false); }
+        };
+    }, [machineGroups]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!contentRef.current || !autoScroll) return;
@@ -337,7 +361,7 @@ const MachineStatusDashboard = () => {
                 <div className="machine-status-dashboard" ref={dashboardRef}>
                     {/* ======= PREMIUM COMPACT HEADER (Aligned with NewDeviceOee) ======= */}
                     <header className="dashboard-header-premium">
-                        {/* ==== LEFT SIDE: Date + Shift ==== */}
+                        {/* ==== LEFT SIDE: Date + Shift + Live badge ==== */}
                         <div className="header-left-premium">
                             <div className="header-date-premium">
                                 Date: <span>{dayjs().format("MMM D, YYYY")}</span>
@@ -347,6 +371,12 @@ const MachineStatusDashboard = () => {
                                     Shift {currentShift.shift_no}: {dayjs(currentShift.from).format("h:mm A")} – {dayjs(currentShift.to).format("h:mm A")}
                                 </div>
                             )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: wsConnected ? '#4caf50' : '#f1a014', display: 'inline-block', boxShadow: wsConnected ? '0 0 6px #4caf50' : 'none' }} />
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: wsConnected ? '#4caf50' : '#f1a014' }}>
+                                    {wsConnected ? 'Live' : 'Connecting…'}
+                                </span>
+                            </div>
                         </div>
 
                         {/* ==== CENTER: Title ==== */}
@@ -522,11 +552,6 @@ const MachineStatusDashboard = () => {
                             )}
                         </Grid>
                     </div>
-                    {loadingData && (
-                        <Box className="loading-indicator">
-                            <CircularProgress size={24} color="warning" />
-                        </Box>
-                    )}
 
                     {/* Dashboard Layout Configuration Dialog */}
                     <Dialog 
