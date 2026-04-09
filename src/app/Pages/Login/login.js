@@ -9,6 +9,8 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import mail from '../../../assets/mail.png';
 import lock from '../../../assets/lock.png';
+import fallbackLogo from '../../../assets/yantra-logo-tb.png';
+import fallbackBg from '../../../assets/background-tb.png';
 import { getCustomerTitle, getOperatorDetails, Loginapi, startTokenAutoRefresh, Userapi, Userapi1 } from '../../Services/app/loginservice';
 import { decryptText } from '../../Shared/utils/cryptoUtils';
 import { ROLE_OPERATOR } from '../../Shared/constants/role';
@@ -18,6 +20,11 @@ function LoginForm() {
   const { register, handleSubmit, formState: { errors }, trigger } = useForm();
   const [loginLoading, setLoginLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [bgError, setBgError] = useState(false);
+
+  const bgUrl = bgError
+    ? fallbackBg
+    : `${window._env_.SERVER_URL}api/images/public/${window._env_.BG_IMAGE}`;
   const navigate = useNavigate();
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev);
@@ -29,24 +36,24 @@ function LoginForm() {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     try {
-      if (data.username === 'pmi_tv1@yantra24x7.com' && data.password === 'pmitv1') {
+      if (data.email === 'pmi_tv1@yantra24x7.com' && data.password === 'pmitv1') {
         localStorage.setItem("customerTitle",  "PMI GLOBAL");
         tenantLogin()
         navigate("/Zx9R2tLmN7wQvB1cF4kH5oPjU6yE3aDgT8sK0qWl~1rMnOp");
-      } else if (data.username === 'pmi_tv2@yantra24x7.com' && data.password === 'pmitv2') {
+      } else if (data.email === 'pmi_tv2@yantra24x7.com' && data.password === 'pmitv2') {
         localStorage.setItem("customerTitle",  "PMI GLOBAL");
         tenantLogin()
         navigate("/pmi-oee-dashboard");
       }
-       else if (data.username === 'marks_tv@yantra24x7.com' && data.password === 'markstv') {
+       else if (data.email === 'marks_tv@yantra24x7.com' && data.password === 'markstv') {
         localStorage.setItem("customerTitle", "MARKS");
         tenantLogin()
         navigate("/Ze9R2tLmN7wQvB2cF4kH2oPjU1yE0aDgT4sK2qWl~3rMnOp");
       }
       else
-        if (data.username.includes("@") && data.username.includes(".com")) {
-          const response = await Loginapi(data.username, data.password);
-          localStorage.setItem("email", data.username);
+       {
+          const response = await Loginapi(data.email, data.password);
+          localStorage.setItem("email", data.email);
           localStorage.setItem("token", response.token);
           localStorage.setItem("refreshToken", response.refreshToken);
           localStorage.setItem("newToken", response.token);
@@ -128,12 +135,29 @@ handleNavigationAfterLogin(role, pageList);
     } catch (error) {
       const errorMsg =
         error.response?.data?.message || error.message || "Something went wrong";
-      console.log(errorMsg)
       console.error("Login failed:", errorMsg);
-      toast.error("Login failed: " + errorMsg, {
-        position: "top-center",
-        autoClose: 1500,
-      });
+      toast.error(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 22 }}>🔒</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Login Failed</div>
+            <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>{errorMsg}</div>
+          </div>
+        </div>,
+        {
+          position: 'top-center',
+          autoClose: 3000,
+          style: {
+            background: 'linear-gradient(135deg, #c62828, #e53935)',
+            color: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(229,57,53,0.4)',
+            padding: '12px 16px',
+          },
+          progressStyle: { background: 'rgba(255,255,255,0.5)' },
+          icon: false,
+        }
+      );
     } finally {
       setLoginLoading(false);
     }
@@ -186,7 +210,7 @@ handleNavigationAfterLogin(role, pageList);
     <div
       className="container-fluid"
       style={{
-        backgroundImage: `url(${window._env_.SERVER_URL}api/images/public/${window._env_.BG_IMAGE})`,
+        backgroundImage: `url(${bgUrl})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         minHeight: "100vh",
@@ -196,6 +220,15 @@ handleNavigationAfterLogin(role, pageList);
         justifyContent: "center",
       }}
     >
+      {/* Hidden probe to detect background image load failure */}
+      {!bgError && (
+        <img
+          src={`${window._env_.SERVER_URL}api/images/public/${window._env_.BG_IMAGE}`}
+          alt=""
+          style={{ display: 'none' }}
+          onError={() => setBgError(true)}
+        />
+      )}
       <div className="right-column" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", width: "100%" }}>
         <Card className="login-card">
           <div style={{ padding: '15px 0' }}>
@@ -203,6 +236,7 @@ handleNavigationAfterLogin(role, pageList);
               src={`${window._env_.SERVER_URL}api/images/public/${window._env_.LOGO}`}
               alt="yantra-logo.png"
               style={{ maxWidth: '300px', display: 'block', margin: '0 auto', height: '80px' }}
+              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = fallbackLogo; }}
             />
           </div>
           <CardContent>
@@ -210,16 +244,21 @@ handleNavigationAfterLogin(role, pageList);
               {/* Email Field */}
               <div className="inputs">
                 <TextField
-                  label="Username"
+                  label="Email"
                   variant="outlined"
                   autoFocus
                   fullWidth
-                  {...register('username', {
-                    required: 'Username is required'
+                  type="email"
+                  {...register('email', {
+                    required: 'Email is required',
+                    pattern: {
+                      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                      message: 'Enter a valid email address'
+                    }
                   })}
-                  error={!!errors.username}
-                  helperText={errors.username?.message}
-                  onBlur={() => trigger('username')}
+                  error={!!errors.email}
+                  helperText={errors.email?.message}
+                  onBlur={() => trigger('email')}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -259,8 +298,6 @@ handleNavigationAfterLogin(role, pageList);
                   }}
                 />
               </div>
-
-              <br />
 
               <div style={{ textAlign: "center" }}>
                 <Button type="submit" variant="contained" color="warning" disabled={loginLoading}>
