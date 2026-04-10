@@ -12,36 +12,23 @@ import {
     Typography,
     Box,
     LinearProgress,
-    Chip,
-    Divider,
     Tooltip,
     IconButton,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    TextField,
-    RadioGroup,
-    FormControlLabel,
-    Radio,
-    OutlinedInput,
     Stack
 } from '@mui/material';
 import {
-    Settings as SettingsIcon,
     Fullscreen as FullscreenIcon,
     FullscreenExit as FullscreenExitIcon,
-    ArrowUpward as ArrowUpIcon,
-    ArrowDownward as ArrowDownIcon,
-    EmojiEvents as TrophyIcon
+    EmojiEvents as TrophyIcon,
 } from '@mui/icons-material';
+import { Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import dayjs from 'dayjs';
 import {
     customerbasedshift,
     telemetrykeydata
 } from '../../Services/app/companyservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
+import { createTbWebSocket } from '../../Services/app/tbWebSocketService';
 
 // Color Palette based on machinemm.js
 const COLORS = {
@@ -59,7 +46,6 @@ const COLORS = {
     GOLD: '#FFD700'
 };
 
-const STATUS_OPTIONS = ['Running', 'Idle', 'Alarm', 'Disconnected'];
 
 export default function OperatorPerformanceDashboard() {
     const customerId = localStorage.getItem('CustomerID');
@@ -74,23 +60,30 @@ export default function OperatorPerformanceDashboard() {
     } = useMachineGroups(customerId);
 
     const STORAGE_KEY = 'operator_performance_dashboard';
-    
+
     // --- Persistent Settings ---
     const [settings, setSettings] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
-        const defaults = {
-            thresholds: { bad: 60, normal: 75 },
-            sortOrder: 'asc',
-            selectedStatuses: STATUS_OPTIONS
-        };
+        const defaults = { thresholds: { bad: 60, normal: 75 }, sortOrder: 'asc' };
         return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
     });
 
     // Destructure for easy access
-    const { thresholds, sortOrder, selectedStatuses } = settings;
+    const { thresholds, sortOrder } = settings;
+
+    // Persist settings on every change
+    const updateSettings = (patch) => {
+        setSettings(prev => {
+            const next = { ...prev, ...patch };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
+
+    // Status filter — 'All' or a specific status string
+    const [statusFilter, setStatusFilter] = useState('All');
 
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const dashboardRef = useRef(null);
 
     const [viewMode, setViewMode] = useState('Current'); // 'Current' or 'Previous'
@@ -99,8 +92,24 @@ export default function OperatorPerformanceDashboard() {
     const [prevShiftInfo, setPrevShiftInfo] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [dashboardData, setDashboardData] = useState([]);
-    const [summaryMetrics, setSummaryMetrics] = useState({ currentShiftOee: 0, prevShiftOee: 0 });
+    const [prevShiftOee, setPrevShiftOee] = useState(0);
+    const [currentShiftOee, setCurrentShiftOee] = useState(0);
 
+    // Keep currentShiftOee in sync only when viewing Current shift
+    useEffect(() => {
+        if (viewMode !== 'Current') return;
+        const valid = dashboardData.filter(m => m.currentOee > 0);
+        const oee = valid.length > 0 ? Math.round(valid.reduce((a, m) => a + m.currentOee, 0) / valid.length) : 0;
+        setCurrentShiftOee(oee);
+    }, [dashboardData, viewMode]);
+
+    const summaryMetrics = useMemo(() => ({
+        currentShiftOee,
+        prevShiftOee,
+    }), [currentShiftOee, prevShiftOee]);
+    const [tick, setTick] = useState(0);
+    const [lastUpdatedTime, setLastUpdatedTime] = useState(null);
+    const [activeTab, setActiveTab] = useState('machines');
     const getAchievement = (actual, target) => {
         if (!target || target === 0) return 0;
         const percent = Math.round((actual / target) * 100);
@@ -112,6 +121,24 @@ export default function OperatorPerformanceDashboard() {
         if (percent < thresholds.normal) return COLORS.IDLE;
         return COLORS.RUNNING;
     };
+
+    // Tick every second to drive live status timers (only in Current shift view)
+    useEffect(() => {
+        if (viewMode !== 'Current') return;
+        const interval = setInterval(() => setTick(t => t + 1), 1000);
+        return () => clearInterval(interval);
+    }, [viewMode]);
+
+    const formatElapsed = useCallback((tsMs) => {
+        if (!tsMs) return null;
+        const elapsed = Date.now() - tsMs;
+        if (elapsed < 0) return null;
+        const totalSecs = Math.floor(elapsed / 1000);
+        const h = Math.floor(totalSecs / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        const s = totalSecs % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }, [tick]);
 
     // --- Business Logic for Top Performers (Top 3) ---
     const topPerformers = useMemo(() => {
@@ -129,14 +156,82 @@ export default function OperatorPerformanceDashboard() {
     // Sorting by Performance Ratio (Dynamic Order & Status Filter)
     const filteredAndSortedData = useMemo(() => {
         return [...dashboardData]
-            .filter(m => selectedStatuses.includes(m.status))
-            // Removed filter that excluded top performers to show all machines in grid
+            .filter(m => statusFilter === 'All' || m.status === statusFilter)
             .sort((a, b) => {
                 const perfA = getAchievement(a.actual, a.target);
                 const perfB = getAchievement(b.actual, b.target);
                 return sortOrder === 'asc' ? perfA - perfB : perfB - perfA;
             });
-    }, [dashboardData, sortOrder, selectedStatuses]);
+    }, [dashboardData, sortOrder, statusFilter]);
+
+    // Aggregated header metrics
+    const headerMetrics = useMemo(() => {
+        const totalTarget = dashboardData.reduce((s, m) => s + (m.target || 0), 0);
+        const totalProduced = dashboardData.reduce((s, m) => s + (m.actual || 0), 0);
+        const achievement = totalTarget > 0 ? Math.round((totalProduced / totalTarget) * 100) : 0;
+
+        // Projected: scale produced by net working fraction (shift duration minus breaks)
+        let projected = null;
+        let willMissTarget = false;
+        if (currentShiftInfo && shifts.length > 0) {
+            const { from, to, shiftObj } = (() => {
+                const dateStr = dayjs(currentShiftInfo.date).format("YYYY-MM-DD");
+                const s = shifts.find(s => String(s.shift_no) === String(currentShiftInfo.shiftNo));
+                if (!s) return { from: null, to: null, shiftObj: null };
+                const start = dayjs(`${dateStr}T${s.start_time}`).add((Number(s.start_day) || 1) - 1, 'day');
+                const end = dayjs(`${dateStr}T${s.end_time}`).add((Number(s.end_day) || 1) - 1, 'day');
+                return { from: start.valueOf(), to: end.valueOf(), shiftObj: s };
+            })();
+            if (from && to) {
+                const now = Date.now();
+
+                // Calculate break intervals as absolute timestamps
+                const breaks = (shiftObj?.break_details || []).map(b => {
+                    let bStart = dayjs(`${dayjs(currentShiftInfo.date).format("YYYY-MM-DD")}T${b.start_time}`)
+                        .add((Number(shiftObj.start_day) || 1) - 1, 'day');
+                    let bEnd = dayjs(`${dayjs(currentShiftInfo.date).format("YYYY-MM-DD")}T${b.end_time}`)
+                        .add((Number(shiftObj.start_day) || 1) - 1, 'day');
+                    // If break falls before shift start (overnight shift), push to next day
+                    if (bStart.valueOf() < from) { bStart = bStart.add(1, 'day'); bEnd = bEnd.add(1, 'day'); }
+                    return { start: bStart.valueOf(), end: bEnd.valueOf() };
+                });
+
+                // Net shift duration = total clock time minus all break durations
+                const totalBreakMs = breaks.reduce((sum, b) => sum + (b.end - b.start), 0);
+                const netDuration = (to - from) - totalBreakMs;
+
+                // Net elapsed = clock elapsed minus break time already spent
+                const clockElapsed = Math.max(0, now - from);
+                const elapsedBreakMs = breaks.reduce((sum, b) => {
+                    if (now <= b.start) return sum;                        // break hasn't started
+                    if (now >= b.end) return sum + (b.end - b.start);     // break fully passed
+                    return sum + (now - b.start);                          // currently in break
+                }, 0);
+                const netElapsed = clockElapsed - elapsedBreakMs;
+
+                const fraction = netDuration > 0 ? Math.min(netElapsed / netDuration, 1) : 0;
+                if (fraction > 0.01 && totalProduced > 0) {
+                    projected = Math.round(totalProduced / fraction);
+                    willMissTarget = totalTarget > 0 && projected < totalTarget;
+                }
+            }
+        }
+        return { totalTarget, totalProduced, achievement, projected, willMissTarget };
+    }, [dashboardData, currentShiftInfo, shifts]);
+
+
+    // Status distribution bar
+    const statusDistribution = useMemo(() => {
+        const total = dashboardData.length;
+        if (!total) return [];
+        const counts = dashboardData.reduce((acc, m) => { acc[m.status] = (acc[m.status] || 0) + 1; return acc; }, {});
+        return [
+            { label: 'Running', count: counts['Running'] || 0, color: COLORS.RUNNING },
+            { label: 'Idle',    count: counts['Idle'] || 0,    color: COLORS.IDLE },
+            { label: 'Alarm',   count: counts['Alarm'] || 0,   color: COLORS.ALARM },
+            { label: 'Disconnected', count: counts['Disconnected'] || 0, color: COLORS.DISCONNECTED },
+        ].filter(s => s.count > 0).map(s => ({ ...s, pct: Math.round((s.count / total) * 100) }));
+    }, [dashboardData]);
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -151,29 +246,6 @@ export default function OperatorPerformanceDashboard() {
         document.addEventListener('fullscreenchange', handleFS);
         return () => document.removeEventListener('fullscreenchange', handleFS);
     }, []);
-
-    const handleSettingsSave = () => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-        setIsSettingsOpen(false);
-    };
-
-    const handleReset = () => {
-        const defaults = {
-            thresholds: { bad: 60, normal: 75 },
-            sortOrder: 'asc',
-            selectedStatuses: STATUS_OPTIONS
-        };
-        setSettings(defaults);
-        localStorage.removeItem(STORAGE_KEY);
-        setIsSettingsOpen(false); // Close dialog on reset
-    };
-
-    const handleStatusFilterChange = (status) => {
-        const newStatuses = selectedStatuses.includes(status)
-            ? selectedStatuses.filter(s => s !== status)
-            : [...selectedStatuses, status];
-        setSettings({ ...settings, selectedStatuses: newStatuses });
-    };
 
     // --- Shift and Data Logic ---
     const getShiftTimes = useCallback((shiftList, shiftNo, date) => {
@@ -233,95 +305,149 @@ export default function OperatorPerformanceDashboard() {
     }, []);
 
     // --- API Data Fetching ---
-    const prevOeeCache = useRef({});
+    const wsRef = useRef(null);
+    const [wsConnected, setWsConnected] = useState(false);
 
-    const fetchData = useCallback(async (isInitial = false) => {
+    // --- WebSocket handler: merges incoming telemetry into dashboardData ---
+    const handleWsMessage = useCallback((msg, cmdIdToDeviceId) => {
+        const deviceId = cmdIdToDeviceId[msg.subscriptionId];
+        if (!deviceId) return;
+
+        const update = msg.data;
+        const getVal = (arr) => (arr && arr.length > 0) ? arr[0][1] : null;
+        const getTs  = (arr) => (arr && arr.length > 0) ? arr[0][0] : null;
+
+        setDashboardData(prev => {
+            const idx = prev.findIndex(d => d.id === deviceId);
+            if (idx === -1) return prev;
+            const d = { ...prev[idx] };
+
+            if (update.machine_status !== undefined) {
+                const statusMap = { 0:'Idle',1:'Idle',2:'Idle',3:'Running',4:'Alarm',5:'Alarm',6:'Locked',7:'Setting',100:'Disconnected' };
+                const rawS = getVal(update.machine_status);
+                if (rawS !== null) { d.status = statusMap[parseInt(rawS)] || 'Disconnected'; d.statusTs = getTs(update.machine_status); }
+            }
+            if (update.oee !== undefined) { const v = getVal(update.oee); if (v !== null) d.currentOee = Math.round(parseFloat(v) || 0); }
+            if (update.targetparts !== undefined) { const v = getVal(update.targetparts); if (v !== null) d.target = Math.round(parseFloat(v) || 0); }
+            if (update.totalparts !== undefined) {
+                const v = getVal(update.totalparts);
+                if (v !== null) { try { d.actual = JSON.parse(v).goodparts || 0; } catch(e) {} }
+            }
+            if (update.live_operator !== undefined) {
+                const v = getVal(update.live_operator);
+                if (v !== null) {
+                    try {
+                        const op = JSON.parse(v);
+                        const n = op.name || op.operator || 'Unknown';
+                        const c = op.code || '';
+                        d.operator = c ? `${n} (${c})` : n;
+                    } catch(e) {}
+                }
+            }
+            const result = [...prev];
+            result[idx] = d;
+            return result;
+        });
+
+        setLastUpdatedTime(dayjs().format('DD MMM HH:mm:ss'));
+    }, []);
+
+    // --- Start WebSocket subscription for Current Shift ---
+    const startWs = useCallback((deviceIds) => {
+        const token = localStorage.getItem('token');
+        if (!token || !deviceIds.length) return;
+
+        const base = (window._env_.SERVER_URL || '').replace(/\/$/, '');
+        const wsUrl = base.replace(/^http/, 'ws') + '/api/ws/plugins/telemetry?token=' + token;
+
+        if (wsRef.current) { wsRef.current.disconnect(); wsRef.current = null; }
+
+        const ws = createTbWebSocket({
+            url: wsUrl,
+            onOpen: () => {
+                setWsConnected(true);
+                ws.subscribe(deviceIds);
+            },
+            onMessage: (msg, map) => handleWsMessage(msg, map),
+            onClose: () => setWsConnected(false),
+            onError: () => setWsConnected(false),
+        });
+        ws.connect();
+        wsRef.current = ws;
+    }, [handleWsMessage]);
+
+    const fetchData = useCallback(async () => {
         if (!shifts.length || !currentShiftInfo || !customerId || !selectedMachines.length) return;
-        
+
         setIsLoading(true);
         try {
-            const currT = getShiftTimes(shifts, currentShiftInfo.shiftNo, currentShiftInfo.date);
-            const prevT = prevShiftInfo ? getShiftTimes(shifts, prevShiftInfo.shiftNo, prevShiftInfo.date) : null;
-            
-            // Determine active time range based on viewMode
-            const activeRange = viewMode === 'Current' ? currT : prevT;
-            if (!activeRange?.from) return;
+            const ids = deviceNameID.filter(d => selectedMachines.includes(d.name)).map(d => d.id);
 
-            const keys = ["oee","totalparts","targetparts","machine_status","live_operator"].join(',');
-            const ids = deviceNameID.filter((d) => selectedMachines.includes(d.name)).map((d) => d.id);
+            const parseOperator = (rawOps) => {
+                if (!rawOps || rawOps.length === 0) return 'No Operator Assigned';
+                const parsedOps = rawOps.map(r => {
+                    try { return { ...JSON.parse(r.value), ts: r.ts }; } catch(e) { return null; }
+                }).filter(Boolean).sort((a, b) => b.ts - a.ts);
+                if (parsedOps.length === 0) return 'No Operator Assigned';
+                const latest = parsedOps[0];
+                const pName = latest.name || latest.operator || 'Unknown';
+                const pCode = latest.code || '';
+                return pCode ? `${pName} (${pCode})` : pName;
+            };
 
-            // 1. One-time fetch for Previous Shift OEE (Static data for header comparison)
-            if (isInitial || Object.keys(prevOeeCache.current).length === 0) {
-                if (prevT) {
-                    await Promise.all(ids.map(async (devId) => {
-                        const pData = await telemetrykeydata(devId, "DEVICE", "oee", prevT.from, prevT.to);
-                        const val = (pData?.oee && pData.oee.length > 0) ? pData.oee[0].value : 0;
-                        prevOeeCache.current[devId] = Math.round(parseFloat(val) || 0);
-                    }));
-                } else {
-                    prevOeeCache.current = {};
-                }
-            }
+            if (viewMode === 'Previous') {
+                // Previous shift: one REST call per device with all keys
+                const prevT = prevShiftInfo ? getShiftTimes(shifts, prevShiftInfo.shiftNo, prevShiftInfo.date) : null;
+                if (!prevT?.from) return;
 
-            // 2. Fetch data for the SELECTED SHIFT (Current or Previous)
-            const results = await Promise.all(ids.map(async (devId) => {
-                const shiftData = await telemetrykeydata(devId, "DEVICE", keys, activeRange.from, activeRange.to);
-                const getLatest = (arr) => (arr && arr.length > 0) ? arr[0] : null;
+                const allKeys = "oee,totalparts,targetparts,machine_status,live_operator";
+                const results = await Promise.all(ids.map(async (devId) => {
+                    const data = await telemetrykeydata(devId, "DEVICE", allKeys, prevT.from, prevT.to);
+                    const getLatest = (arr) => (arr && arr.length > 0) ? arr[0] : null;
 
-                // Operator Logic
-                const rawOps = shiftData?.live_operator || [];
-                let opString = 'No Operator';
-                if (rawOps.length > 0) {
-                    const parsedOps = rawOps.map(r => {
-                        try { return { ...JSON.parse(r.value), ts: r.ts }; } catch(e) { return null; }
-                    }).filter(Boolean).sort((a, b) => b.ts - a.ts);
+                    const statusMap = { 0:'Idle', 1:'Idle', 2:'Idle', 3:'Running', 4:'Alarm', 5:'Alarm', 6:'Locked', 7:'Setting', 100:'Disconnected' };
+                    const rawS = getLatest(data?.machine_status)?.value;
+                    const status = statusMap[parseInt(rawS)] || statusMap[rawS] || 'Disconnected';
+                    const statusTs = getLatest(data?.machine_status)?.ts || null;
 
-                    if (parsedOps.length > 0) {
-                        const latest = parsedOps[0];
-                        const pName = latest.name || latest.operator || 'Unknown';
-                        const pCode = latest.code || '';
-                        const pDisp = pCode ? `${pName} (${pCode})` : pName;
-                        const others = parsedOps.slice(1).filter(p => Number(p.duration) >= 1800).map(p => {
-                            const n = p.name || p.operator;
-                            const c = p.code || '';
-                            return c ? `${n} (${c})` : n;
-                        }).filter(n => n && n !== pDisp);
-                        opString = others.length > 0 ? `${pDisp}, ${[...new Set(others)].join(', ')}` : pDisp;
+                    let parts = { goodparts: 0 };
+                    try { if (getLatest(data?.totalparts)?.value) parts = JSON.parse(getLatest(data.totalparts).value); } catch(e) {}
+
+                    return {
+                        id: devId,
+                        name: deviceNameID.find(d => d.id === devId)?.name || 'Unknown',
+                        operator: parseOperator(data?.live_operator),
+                        status,
+                        statusTs,
+                        currentOee: Math.round(parseFloat(getLatest(data?.oee)?.value) || 0),
+                        prevOee: 0,
+                        target: Math.round(parseFloat(getLatest(data?.targetparts)?.value) || 0),
+                        actual: parts.goodparts || 0,
+                    };
+                }));
+                setDashboardData(results);
+            } else {
+                // Current shift: fetch live_operator history only; WS fills the rest in real-time
+                const currT = getShiftTimes(shifts, currentShiftInfo.shiftNo, currentShiftInfo.date);
+                if (!currT?.from) return;
+
+                const opResults = await Promise.all(ids.map(async (devId) => {
+                    try {
+                        const data = await telemetrykeydata(devId, "DEVICE", "live_operator", currT.from, currT.to);
+                        return { id: devId, operator: parseOperator(data?.live_operator) };
+                    } catch(e) {
+                        return { id: devId, operator: 'No Operator Assigned' };
                     }
-                }
+                }));
 
-                // Machine Status Logic
-                const statusMap = { 0:'Idle', 1:'Idle', 2:'Idle', 3:'Running', 4:'Alarm', 5:'Alarm', 6:'Locked', 7:'Setting', 100:'Disconnected' };
-                const rawS = getLatest(shiftData?.machine_status)?.value;
-                const status = statusMap[parseInt(rawS)] || statusMap[rawS] || 'Disconnected';
-                
-                // Parts Logic
-                let parts = { goodparts: 0 }; try { if (getLatest(shiftData?.totalparts)?.value) parts = JSON.parse(getLatest(shiftData?.totalparts).value); } catch(e) {}
-
-                return {
-                    id: devId,
-                    name: deviceNameID.find(d => d.id === devId)?.name || 'Unknown',
-                    operator: opString,
-                    status: status,
-                    currentOee: Math.round(parseFloat(getLatest(shiftData?.oee)?.value) || 0),
-                    prevOee: prevOeeCache.current[devId] || 0, // Header comparison value
-                    target: Math.round(parseFloat(getLatest(shiftData?.targetparts)?.value) || 0),
-                    actual: parts.goodparts || 0,
-                };
-            }));
-
-            setDashboardData(results);
-            
-            // Header chips always show current vs previous comparison
-            const summaryResults = viewMode === 'Current' ? results : [];
-            if (viewMode === 'Current') {
-                const validC = results.filter(m => m.currentOee > 0);
-                const validP = Object.values(prevOeeCache.current).filter(v => v > 0);
-                setSummaryMetrics({
-                    currentShiftOee: validC.length > 0 ? Math.round(validC.reduce((a, b) => a + b.currentOee, 0) / validC.length) : 0,
-                    prevShiftOee: validP.length > 0 ? Math.round(validP.reduce((a, b) => a + Number(b), 0) / validP.length) : 0
-                });
+                // Merge operator history into existing entries (WS may have already updated metrics)
+                setDashboardData(prev => prev.map(d => {
+                    const op = opResults.find(r => r.id === d.id);
+                    return op ? { ...d, operator: op.operator } : d;
+                }));
             }
+
+            setLastUpdatedTime(dayjs().format('DD MMM HH:mm:ss'));
         } catch (error) { console.error("Fetch Data Error:", error); } finally { setIsLoading(false); }
     }, [shifts, currentShiftInfo, prevShiftInfo, customerId, selectedMachines, deviceNameID, getShiftTimes, viewMode]);
 
@@ -334,142 +460,169 @@ export default function OperatorPerformanceDashboard() {
         if (customerId) fetchShiftList();
     }, [customerId, detectShifts]);
 
+    // Periodic shift detection — runs every 60s to auto-advance when shift boundary is crossed.
+    // When currentShiftInfo changes the main useEffect will disconnect the WS, re-fetch and reconnect.
     useEffect(() => {
-        if (shifts.length > 0 && selectedMachines.length > 0 && currentShiftInfo) {
-            // Initial call fetches BOTH Prev and Current
-            prevOeeCache.current = {}; 
-            fetchData(true);
+        if (!shifts.length) return;
+        const interval = setInterval(() => detectShifts(shifts), 60000);
+        return () => clearInterval(interval);
+    }, [shifts, detectShifts]);
 
-            // Interval call: ONLY if viewMode is 'Current'
-            if (viewMode === 'Current') {
-                const timer = setInterval(() => {
-                    detectShifts(shifts);
-                    fetchData(false);
-                }, 30000);
-                return () => clearInterval(timer);
-            }
+    // Fetch previous shift OEE once for header comparison (runs when prevShiftInfo or machines change)
+    useEffect(() => {
+        if (!shifts.length || !prevShiftInfo || !selectedMachines.length || !deviceNameID.length) return;
+        const prevT = getShiftTimes(shifts, prevShiftInfo.shiftNo, prevShiftInfo.date);
+        if (!prevT?.from) return;
+        const ids = deviceNameID.filter(d => selectedMachines.includes(d.name)).map(d => d.id);
+        Promise.all(ids.map(devId =>
+            telemetrykeydata(devId, "DEVICE", "oee", prevT.from, prevT.to)
+                .then(data => (data?.oee?.[0]?.value ? Math.round(parseFloat(data.oee[0].value)) : 0))
+                .catch(() => 0)
+        )).then(values => {
+            const valid = values.filter(v => v > 0);
+            setPrevShiftOee(valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : 0);
+        });
+    }, [shifts, prevShiftInfo, selectedMachines, deviceNameID]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!shifts.length || !selectedMachines.length || !currentShiftInfo) return;
+
+        if (viewMode === 'Current') {
+            const ids = deviceNameID.filter(d => selectedMachines.includes(d.name)).map(d => d.id);
+
+            // Seed dashboardData synchronously so WS handler finds devices on first burst
+            setDashboardData(ids.map(devId => ({
+                id: devId,
+                name: deviceNameID.find(d => d.id === devId)?.name || 'Unknown',
+                operator: 'Loading...',
+                status: 'Disconnected',
+                statusTs: null,
+                currentOee: 0,
+                prevOee: 0, target: 0, actual: 0,
+            })));
+
+            fetchData();   // merges live_operator history async
+            startWs(ids);  // WS sends LATEST_TELEMETRY immediately on connect
+        } else {
+            // Previous Shift: close WS — single REST fetch is the only source
+            if (wsRef.current) { wsRef.current.disconnect(); wsRef.current = null; setWsConnected(false); }
+            fetchData();
         }
-    }, [shifts, selectedMachines, currentShiftInfo, fetchData, detectShifts, viewMode]);
 
-    // Common Card Component to ensure visual consistency
+        return () => {
+            if (wsRef.current) { wsRef.current.disconnect(); wsRef.current = null; setWsConnected(false); }
+        };
+    }, [shifts, selectedMachines, currentShiftInfo, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Common Card Component
     const RenderMachineCard = useCallback(({ m, rank }) => {
         const achievement = getAchievement(m.actual, m.target);
         const perfColor = getPerformanceColor(achievement);
         const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+        const statusColor = COLORS[m.status.toUpperCase()] || COLORS.DISCONNECTED;
+        const rawGap = m.target - m.actual;
+        const isOnTarget = rawGap === 0;
+        const isAhead = rawGap < 0;
+        const gapLabel = isOnTarget ? '=' : isAhead ? `+${Math.abs(rawGap)}` : `-${rawGap}`;
+        const gapColor = isAhead ? COLORS.RUNNING : isOnTarget ? COLORS.TEXT_SUB : COLORS.ALARM;
+        const gapTitle = isOnTarget ? 'On Target' : isAhead ? 'Ahead' : 'Gap';
+        const elapsedLabel = viewMode === 'Current' && m.statusTs ? formatElapsed(m.statusTs) : null;
 
+        const oeeColor = getPerformanceColor(m.currentOee);
         return (
             <Card sx={{
-                padding: '16px', borderRadius: '12px', 
-                display: 'flex', flexDirection: 'column', gap: 1, height: '100%',
-                position: 'relative',
+                borderRadius: '10px', overflow: 'hidden',
+                display: 'flex', flexDirection: 'column', height: '100%',
                 backgroundColor: '#fff',
-                transition: 'all 0.3s ease',
-                
-                // --- Border Logic ---
-                border: `2px solid ${perfColor}`, // Unified 2px border on all sides
-                
-                boxShadow: rank === 1 
-                    ? `0 0 25px ${COLORS.GOLD}66` // Subtle gold glow for the champion
-                    : '0 4px 12px rgba(0,0,0,0.06)', 
-                
-                borderStyle: 'solid',
+                border: `2px solid ${perfColor}`,
+                boxShadow: rank === 1 ? `0 0 18px ${COLORS.GOLD}44` : '0 1px 6px rgba(0,0,0,0.08)',
             }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {rank && <Typography sx={{ fontSize: '1.2rem' }}>{medals[rank]}</Typography>}
-                        <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: COLORS.TEXT_MAIN, overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</Typography>
-                    </Box>
-                    <Box sx={{ backgroundColor: COLORS[m.status.toUpperCase()] || COLORS.ALARM, color: '#fff', px: 1, py: 0.2, borderRadius: '4px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>{m.status}</Box>
-                </Box>
-                <Tooltip title={m.operator} arrow placement="top">
-                    <Typography sx={{ fontSize: '0.8rem', color: COLORS.TEXT_SUB, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        Op: <strong>{m.operator}</strong>
-                    </Typography>
-                </Tooltip>
-                
-                <Box sx={{ mt: 'auto', py: 1 }}>
-                    <Typography variant="h3" sx={{ fontWeight: 900, lineHeight: 1, color: COLORS.TEXT_MAIN }}>{achievement}%</Typography>
-                    <LinearProgress variant="determinate" value={Math.min(achievement, 100)} sx={{ height: 6, borderRadius: 3, mt: 1, backgroundColor: '#f0f0f0', '& .MuiLinearProgress-bar': { backgroundColor: perfColor } }} />
-                </Box>
+                {/* Top accent bar */}
+                <Box sx={{ height: 4, backgroundColor: perfColor, flexShrink: 0 }} />
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, alignItems: 'center' }}>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: COLORS.TEXT_SUB }}>T:{m.target} | A:{m.actual}</Typography>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: COLORS.TEXT_MAIN }}>OEE: {m.currentOee}%</Typography>
+                <Box sx={{ p: '12px 14px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                    {/* Row 1: Machine name + Status */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflow: 'hidden', flex: 1, mr: 1 }}>
+                            {rank && <Typography sx={{ fontSize: '1rem', flexShrink: 0 }}>{medals[rank]}</Typography>}
+                            <Tooltip title={m.name} arrow placement="top" disableHoverListener={m.name.length <= 20}>
+                                <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: COLORS.TEXT_MAIN, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</Typography>
+                            </Tooltip>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                            {elapsedLabel && m.status !== 'Running' && (
+                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: statusColor, fontVariantNumeric: 'tabular-nums' }}>{elapsedLabel}</Typography>
+                            )}
+                            <Box sx={{ backgroundColor: statusColor, color: '#fff', px: 1, py: 0.3, borderRadius: '5px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{m.status}</Box>
+                        </Box>
+                    </Box>
+
+                    {/* Row 2: Operator name */}
+                    <Tooltip title={m.operator} arrow placement="top" disableHoverListener={m.operator.length <= 34}>
+                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mb: 1, cursor: 'default', pb: 0.7, borderBottom: '1px dashed #e0e0e0' }}>{m.operator}</Typography>
+                    </Tooltip>
+
+                    {/* Row 3: Achievement % + progress bar */}
+                    <Typography sx={{ fontWeight: 900, fontSize: '2rem', lineHeight: 1, color: perfColor, mb: 0.5 }}>{achievement}%</Typography>
+                    <LinearProgress
+                        variant="determinate"
+                        value={Math.min(achievement, 100)}
+                        sx={{ height: 8, borderRadius: 4, backgroundColor: `${perfColor}22`, mb: 1.2, '& .MuiLinearProgress-bar': { backgroundColor: perfColor, borderRadius: 4 } }}
+                    />
+
+                    {/* Row 4: Target | Actual | Gap | OEE */}
+                    <Box sx={{ display: 'flex', mt: 'auto', border: '1px solid #ebebeb', borderRadius: '8px', overflow: 'hidden' }}>
+                        {[
+                            { label: 'Target', value: m.target,           color: COLORS.TEXT_MAIN },
+                            { label: 'Actual', value: m.actual,           color: COLORS.TEXT_MAIN },
+                            { label: gapTitle, value: gapLabel,           color: gapColor },
+                            { label: 'OEE',    value: `${m.currentOee}%`, color: oeeColor, bg: `${oeeColor}12` },
+                        ].map((stat, i) => (
+                            <Box key={stat.label} sx={{ flex: 1, textAlign: 'center', py: 0.7, backgroundColor: stat.bg || 'transparent', borderRight: i < 3 ? '1px solid #ebebeb' : 'none' }}>
+                                <Typography sx={{ fontSize: '0.65rem', color: i === 2 ? gapColor : i === 3 ? oeeColor : COLORS.TEXT_SUB, fontWeight: 700, textTransform: 'uppercase', lineHeight: 1.3 }}>{stat.label}</Typography>
+                                <Typography sx={{ fontSize: '1rem', fontWeight: 900, color: stat.color, lineHeight: 1.2 }}>{stat.value}</Typography>
+                            </Box>
+                        ))}
+                    </Box>
                 </Box>
             </Card>
         );
-    }, [getPerformanceColor]);
+    }, [getPerformanceColor, viewMode, tick, formatElapsed]);
 
     return (
         <Box ref={dashboardRef} sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 65px)', backgroundColor: COLORS.BG, overflow: 'hidden'}}>
-            <Box sx={{ 
-                padding: '12px 24px', 
-                borderBottom: '1px solid #e0e0e0', 
-                backgroundColor: COLORS.HEADER_BG, 
-                marginTop: isFullscreen ? '0px' : '35px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between', 
-                position: 'relative', // For centering analytics
-                minHeight: '65px'
+            <Box sx={{
+                padding: '8px 20px',
+                borderBottom: '1px solid #e0e0e0',
+                backgroundColor: COLORS.HEADER_BG,
+                marginTop: isFullscreen ? '0px' : '35px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
             }}>
-                {/* --- Left Side: Title --- */}
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: COLORS.TEXT_MAIN, letterSpacing: '-0.5px' }}>
+                {/* --- LEFT: Live status / shift info --- */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', flexShrink: 0, minWidth: 200 }}>
+                    <Typography sx={{ fontSize: '0.72rem', color: wsConnected ? COLORS.RUNNING : COLORS.TEXT_SUB, fontWeight: 700, lineHeight: 1.3 }}>
+                        {viewMode === 'Current'
+                            ? (wsConnected ? '● Live' : '⏱ Connecting…')
+                            : '📋 Previous Shift'}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.78rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>
+                        {viewMode === 'Current'
+                            ? `Shift ${currentShiftInfo?.shiftNo ?? ''} · Updated ${lastUpdatedTime || '–'}`
+                            : `Shift ${prevShiftInfo?.shiftNo ?? ''}${lastUpdatedTime ? ` · ${lastUpdatedTime}` : ''}`}
+                    </Typography>
+                </Box>
+
+                {/* --- CENTER: Title --- */}
+                <Box sx={{ flex: 1, textAlign: 'center' }}>
+                    <Typography sx={{ fontWeight: 900, fontSize: '1.1rem', color: COLORS.TEXT_MAIN, letterSpacing: '-0.3px' }}>
                         Operator Performance
                     </Typography>
                 </Box>
 
-                {/* --- Center: Performance Analytics (Absolute Centering) --- */}
-                <Box sx={{ 
-                    position: 'absolute', 
-                    left: '50%', 
-                    top: '50%', 
-                    transform: 'translate(-50%, -50%)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 3 
-                }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Typography sx={{ color: COLORS.TEXT_SUB, fontWeight: 800, fontSize: '0.85rem' }}>PREV OEE:</Typography>
-                        <Chip 
-                            label={`${summaryMetrics.prevShiftOee}%`} 
-                            size="medium" 
-                            sx={{ backgroundColor: getPerformanceColor(summaryMetrics.prevShiftOee), color: '#fff', fontWeight: 900, fontSize: '0.9rem', height: 28 }} 
-                        />
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Typography sx={{ color: COLORS.TEXT_SUB, fontWeight: 800, fontSize: '0.85rem' }}>CURRENT OEE:</Typography>
-                        <Chip 
-                            label={`${summaryMetrics.currentShiftOee}%`} 
-                            size="medium" 
-                            sx={{ backgroundColor: getPerformanceColor(summaryMetrics.currentShiftOee), color: '#fff', fontWeight: 900, fontSize: '0.9rem', height: 28 }} 
-                        />
-                        {summaryMetrics.currentShiftOee !== summaryMetrics.prevShiftOee && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
-                                {summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? (
-                                    <Typography sx={{ color: 'green', fontSize: '1rem', fontWeight: 900, display: 'flex', alignItems: 'center' }}>
-                                        <ArrowUpIcon sx={{ fontSize: '1.2rem' }} /> {summaryMetrics.currentShiftOee - summaryMetrics.prevShiftOee}%
-                                    </Typography>
-                                ) : (
-                                    <Typography sx={{ color: 'red', fontSize: '1rem', fontWeight: 900, display: 'flex', alignItems: 'center' }}>
-                                        <ArrowDownIcon sx={{ fontSize: '1.2rem' }} /> {summaryMetrics.prevShiftOee - summaryMetrics.currentShiftOee}%
-                                    </Typography>
-                                )}
-                            </Box>
-                        )}
-                    </Box>
-                </Box>
-                
-                {/* --- Right Side: Shift Info + Controls --- */}
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    {((viewMode === 'Current' ? currentShiftInfo : prevShiftInfo)) && (
-                        <Typography sx={{ color: COLORS.TEXT_SUB, fontWeight: 700, fontSize: '0.95rem', mr: 2 }}>
-                            Shift {(viewMode === 'Current' ? currentShiftInfo : prevShiftInfo).shiftNo} | {(viewMode === 'Current' ? currentShiftInfo : prevShiftInfo).date.format('DD MMM')}
-                        </Typography>
-                    )}
-
-                    {/* --- Shift Selection Dropdown (Current/Previous) --- */}
+                {/* --- RIGHT: Controls --- */}
+                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexShrink: 0, minWidth: 200, justifyContent: 'flex-end' }}>
                     <FormControl size="small" sx={{ minWidth: 140 }}>
                         <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>View Shift</InputLabel>
                         <Select
@@ -487,12 +640,12 @@ export default function OperatorPerformanceDashboard() {
                     {showMachineGroupsDropdown && (
                         <FormControl size="small" sx={{ minWidth: 180 }}>
                             <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>Machine Group</InputLabel>
-                            <Select 
-                                multiple 
-                                value={selectedGroups} 
-                                onChange={(e) => handleGroupChange(e.target.value)} 
-                                label="Machine Group" 
-                                sx={{ height: 38, fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#fff' }} 
+                            <Select
+                                multiple
+                                value={selectedGroups}
+                                onChange={(e) => handleGroupChange(e.target.value)}
+                                label="Machine Group"
+                                sx={{ height: 38, fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#fff' }}
                                 renderValue={(sel) => sel.length === machineGroups.length ? "All Groups" : sel.join(", ")}
                                 MenuProps={{ container: dashboardRef.current }}
                             >
@@ -501,130 +654,357 @@ export default function OperatorPerformanceDashboard() {
                             </Select>
                         </FormControl>
                     )}
-                    
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="Dashboard Settings">
-                            <IconButton onClick={() => setIsSettingsOpen(true)} size="small" sx={{ border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#fff' }}>
-                                <SettingsIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
 
-                        <Tooltip title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-                            <IconButton onClick={toggleFullscreen} size="small" sx={{ border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#fff' }}>
-                                {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
+                    <Tooltip title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
+                        <IconButton onClick={toggleFullscreen} size="small" sx={{ border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#fff' }}>
+                            {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+                        </IconButton>
+                    </Tooltip>
 
-                    {isLoading && <CircularProgress size={20} sx={{ color: COLORS.PRIMARY, ml: 1 }} />}
+                    {isLoading && <CircularProgress size={20} sx={{ color: COLORS.PRIMARY }} />}
                 </Box>
             </Box>
 
-            {/* --- Main Content with Sidebar Partition --- */}
-            <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {/* Left side: Main Fleet Grid */}
-                <Box sx={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
-                    <Grid container spacing={2}>
-                        {filteredAndSortedData.map((m) => (
-                            <Grid item xs={12} sm={6} md={4} lg={4} xl={3} key={m.id}>
-                                <RenderMachineCard m={m} rank={null} />
-                            </Grid>
-                        ))}
-                    </Grid>
+            {/* --- Row 2: Metrics Badges (moved from header) --- */}
+            <Box sx={{ px: 2, py: 0.8, backgroundColor: '#fff', borderBottom: '1px solid #e0e0e0', display: 'flex', alignItems: 'stretch', gap: 1, flexWrap: 'wrap' }}>
+                {/* OEE Current */}
+                {(() => {
+                    const val = summaryMetrics.currentShiftOee;
+                    const color = getPerformanceColor(val);
+                    const r = 26, sw = 5, cx = 32, cy = 32, norm = 2 * Math.PI * r;
+                    const dash = (val / 100) * norm;
+                    return (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.6 }}>
+                            <svg width={64} height={64} style={{ flexShrink: 0 }}>
+                                <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e8e8e8" strokeWidth={sw} />
+                                <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
+                                    strokeDasharray={`${dash} ${norm}`} strokeLinecap="round"
+                                    transform={`rotate(-90 ${cx} ${cy})`} />
+                                <text x={cx} y={cy + 5} textAnchor="middle" fontSize={14} fontWeight={800} fill={color}>{val}%</text>
+                            </svg>
+                            <Typography sx={{ fontSize: '0.8rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>OEE – Current Shift</Typography>
+                        </Box>
+                    );
+                })()}
+
+                {/* OEE Previous Shift */}
+                {summaryMetrics.prevShiftOee > 0 && (() => {
+                    const val = summaryMetrics.prevShiftOee;
+                    const color = getPerformanceColor(val);
+                    const r = 26, sw = 5, cx = 32, cy = 32, norm = 2 * Math.PI * r;
+                    const dash = (val / 100) * norm;
+                    return (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.6 }}>
+                            <svg width={64} height={64} style={{ flexShrink: 0 }}>
+                                <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e8e8e8" strokeWidth={sw} />
+                                <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
+                                    strokeDasharray={`${dash} ${norm}`} strokeLinecap="round"
+                                    transform={`rotate(-90 ${cx} ${cy})`} />
+                                <text x={cx} y={cy + 5} textAnchor="middle" fontSize={14} fontWeight={800} fill={color}>{val}%</text>
+                            </svg>
+                            <Typography sx={{ fontSize: '0.8rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>OEE – Prev Shift</Typography>
+                        </Box>
+                    );
+                })()}
+
+                {/* vs Prev Shift diff */}
+                {summaryMetrics.prevShiftOee > 0 && summaryMetrics.currentShiftOee !== summaryMetrics.prevShiftOee && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', backgroundColor: summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? '#e8f5e9' : '#fdecea', border: `1px solid ${summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? '#66bb6a' : COLORS.ALARM}`, borderRadius: '10px', px: 1.5, py: 0.5 }}>
+                        <Box sx={{ textAlign: 'center' }}>
+                            <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? '#2e7d32' : COLORS.ALARM, display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                                {summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? '▲' : '▼'}
+                                {Math.abs(summaryMetrics.currentShiftOee - summaryMetrics.prevShiftOee)}%
+                            </Typography>
+                            <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>vs Prev Shift</Typography>
+                        </Box>
+                    </Box>
+                )}
+
+                <Box sx={{ width: '1px', backgroundColor: '#e0e0e0', mx: 0.5, alignSelf: 'stretch' }} />
+
+                {/* Shift Target */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.5, minWidth: 80 }}>
+                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>Shift Target</Typography>
+                    <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: COLORS.TEXT_MAIN }}>{headerMetrics.totalTarget.toLocaleString()}</Typography>
+                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>pcs</Typography>
                 </Box>
 
-                {/* Right side Partition: Top 3 Performers */}
-                <Box sx={{ 
-                    width: 340, 
-                    backgroundColor: '#fff', 
-                    borderLeft: '1px solid #e0e0e0', 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    p: 2,
-                    overflowY: 'auto'
-                }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, pb: 1, borderBottom: '2px solid #f8f9fa' }}>
-                        <TrophyIcon sx={{ color: COLORS.GOLD }} />
-                        <Typography variant="h6" sx={{ fontWeight: 800, color: COLORS.TEXT_MAIN, fontSize: '1rem' }}>Top 3 Performers</Typography>
+                {/* Produced */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.5, minWidth: 80 }}>
+                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>Produced</Typography>
+                    <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: COLORS.TEXT_MAIN }}>{headerMetrics.totalProduced.toLocaleString()}</Typography>
+                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>pcs</Typography>
+                </Box>
+
+                {/* Achievement */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.5, minWidth: 80 }}>
+                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>Achievement</Typography>
+                    <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: getPerformanceColor(headerMetrics.achievement) }}>{headerMetrics.achievement}%</Typography>
+                </Box>
+
+                {/* Projected */}
+                {headerMetrics.projected !== null && viewMode === 'Current' && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', backgroundColor: headerMetrics.willMissTarget ? '#fff8e1' : '#f8f9fa', border: `1px solid ${headerMetrics.willMissTarget ? '#f1a014' : '#e0e0e0'}`, borderRadius: '10px', px: 1.5, py: 0.5, minWidth: 80 }}>
+                        <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>Projected</Typography>
+                        <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: headerMetrics.willMissTarget ? COLORS.IDLE : COLORS.RUNNING }}>{headerMetrics.projected.toLocaleString()}</Typography>
+                        {headerMetrics.willMissTarget && <Typography sx={{ fontSize: '0.72rem', color: COLORS.IDLE, fontWeight: 800 }}>⚠ Will Miss Target</Typography>}
                     </Box>
-                    <Stack spacing={2}>
-                        {topPerformers.length > 0 ? (
-                            topPerformers.map((m, index) => (
-                                <Box key={m.id}>
-                                    <RenderMachineCard m={m} rank={index + 1} />
+                )}
+
+                {/* Spacer */}
+                <Box sx={{ flex: 1 }} />
+
+                {/* Sort + Threshold Controls (moved here from fleet row) */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0, flexWrap: 'wrap' }}>
+                    {/* Sort */}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: COLORS.TEXT_SUB }}>Sort by Achievement</Typography>
+                        <Box sx={{ display: 'flex', border: '1px solid #e0e0e0', borderRadius: '8px', overflow: 'hidden' }}>
+                            {[{ val: 'asc', label: '↑ Low→High' }, { val: 'desc', label: '↓ High→Low' }].map(opt => (
+                                <Box key={opt.val} onClick={() => updateSettings({ sortOrder: opt.val })}
+                                    sx={{ px: 1.2, py: 0.5, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', backgroundColor: sortOrder === opt.val ? COLORS.PRIMARY : '#fafafa', color: sortOrder === opt.val ? '#fff' : COLORS.TEXT_SUB, transition: 'all 0.15s', '&:hover': { backgroundColor: sortOrder === opt.val ? COLORS.PRIMARY : '#f0f0f0' } }}
+                                >{opt.label}</Box>
+                            ))}
+                        </Box>
+                    </Box>
+
+                    {/* Thresholds */}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: COLORS.TEXT_SUB }}>Thresholds (%)</Typography>
+                        <Box sx={{ display: 'flex', gap: 0.8, alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, backgroundColor: '#fdecea', border: '1px solid #f4433633', borderRadius: '6px', px: 1, py: 0.4 }}>
+                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: COLORS.ALARM, flexShrink: 0 }} />
+                                <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: COLORS.ALARM, whiteSpace: 'nowrap' }}>Red &lt;</Typography>
+                                <input type="number" value={thresholds.bad}
+                                    onChange={(e) => updateSettings({ thresholds: { ...thresholds, bad: Number(e.target.value) } })}
+                                    style={{ width: 38, border: 'none', background: 'transparent', fontSize: '0.78rem', fontWeight: 800, color: COLORS.ALARM, outline: 'none', textAlign: 'center' }} />
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, backgroundColor: '#fff8e1', border: '1px solid #f1a01433', borderRadius: '6px', px: 1, py: 0.4 }}>
+                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: COLORS.IDLE, flexShrink: 0 }} />
+                                <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: COLORS.IDLE, whiteSpace: 'nowrap' }}>Yellow &lt;</Typography>
+                                <input type="number" value={thresholds.normal}
+                                    onChange={(e) => updateSettings({ thresholds: { ...thresholds, normal: Number(e.target.value) } })}
+                                    style={{ width: 38, border: 'none', background: 'transparent', fontSize: '0.78rem', fontWeight: 800, color: COLORS.IDLE, outline: 'none', textAlign: 'center' }} />
+                            </Box>
+                            {/* Threshold legend */}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, pl: 0.5, borderLeft: '1px solid #e0e0e0', ml: 0.3 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '2px', backgroundColor: COLORS.ALARM }} />
+                                    <Typography sx={{ fontSize: '0.67rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>Bad &lt; {thresholds.bad}%</Typography>
                                 </Box>
-                            ))
-                        ) : (
-                            <Typography sx={{ textAlign: 'center', color: COLORS.TEXT_SUB, mt: 4, fontStyle: 'italic' }}>Calculating rankings...</Typography>
-                        )}
-                    </Stack>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '2px', backgroundColor: COLORS.IDLE }} />
+                                    <Typography sx={{ fontSize: '0.67rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>{thresholds.bad}–{thresholds.normal}% Normal</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                                    <Box sx={{ width: 8, height: 8, borderRadius: '2px', backgroundColor: COLORS.RUNNING }} />
+                                    <Typography sx={{ fontSize: '0.67rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>≥ {thresholds.normal}% Good</Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+                    </Box>
                 </Box>
             </Box>
 
-            {/* --- Settings Dialog --- */}
-            <Dialog 
-                open={isSettingsOpen} 
-                onClose={() => setIsSettingsOpen(false)} 
-                maxWidth="xs" 
-                fullWidth
-                container={dashboardRef.current}
-            >
-                <DialogTitle sx={{ fontWeight: 800, borderBottom: '1px solid #eee' }}>Dashboard Preferences</DialogTitle>
-                <DialogContent sx={{ mt: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Performance Thresholds (%)</Typography>
-                    <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                        <TextField 
-                            label="Bad (Red < )" 
-                            type="number" 
-                            size="small" 
-                            value={thresholds.bad} 
-                            onChange={(e) => setSettings({...settings, thresholds: {...thresholds, bad: Number(e.target.value)}})}
-                        />
-                        <TextField 
-                            label="Normal (Yellow < )" 
-                            type="number" 
-                            size="small" 
-                            value={thresholds.normal} 
-                            onChange={(e) => setSettings({...settings, thresholds: {...thresholds, normal: Number(e.target.value)}})}
-                        />
-                    </Box>
+            {/* --- Row 3: Fleet Status Cards + Machines/Line Tabs (combined) --- */}
+            {(() => {
+                const counts = dashboardData.length > 0
+                    ? dashboardData.reduce((acc, m) => { acc[m.status] = (acc[m.status] || 0) + 1; return acc; }, {})
+                    : {};
+                const cards = [
+                    { key: 'All',          label: 'Total',      count: dashboardData.length,         color: '#1565c0', bg: '#e3f2fd', icon: '🖥' },
+                    { key: 'Running',      label: 'Running',    count: counts['Running'] || 0,        color: '#2e7d32', bg: '#e8f5e9', icon: '📈' },
+                    { key: 'Idle',         label: 'Idle',       count: counts['Idle'] || 0,           color: '#bf360c', bg: '#fff3e0', icon: '⚙' },
+                    { key: 'Alarm',        label: 'Alarm',      count: counts['Alarm'] || 0,          color: '#b71c1c', bg: '#fdecea', icon: '⚠' },
+                    { key: 'Disconnected', label: 'Disconnect', count: counts['Disconnected'] || 0,   color: '#424242', bg: '#f5f5f5', icon: '🚫' },
+                ];
+                return (
+                    <Box sx={{ px: 2, backgroundColor: '#fff', borderBottom: '1px solid #e0e0e0', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {/* Tabs — LEFT */}
+                        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: '0.8rem', fontWeight: 700, textTransform: 'none', py: 0 }, '& .MuiTabs-indicator': { backgroundColor: COLORS.PRIMARY } }}>
+                            <Tab value="machines" label="Machines" />
+                            <Tab value="line" label="Line View" />
+                        </Tabs>
 
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Grid Sorting Order</Typography>
-                    <RadioGroup 
-                        value={sortOrder} 
-                        onChange={(e) => setSettings({...settings, sortOrder: e.target.value})}
-                    >
-                        <FormControlLabel value="asc" control={<Radio size="small" />} label="Lowest Performance First (Ascending)" />
-                        <FormControlLabel value="desc" control={<Radio size="small" />} label="Highest Performance First (Descending)" />
-                    </RadioGroup>
+                        {/* Divider */}
+                        <Box sx={{ width: '1px', height: 36, backgroundColor: '#e0e0e0', mx: 0.5, flexShrink: 0 }} />
 
-                    <Divider sx={{ my: 2 }} />
+                        {/* Fleet status clickable chips — RIGHT */}
+                        <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', py: 0.5 }}>
+                            {cards.map(c => {
+                                const isActive = statusFilter === c.key;
+                                return (
+                                    <Box key={c.key}
+                                        onClick={() => setStatusFilter(isActive && c.key !== 'All' ? 'All' : c.key)}
+                                        sx={{
+                                            display: 'flex', alignItems: 'center', gap: 0.8,
+                                            backgroundColor: isActive ? c.color : '#fafafa',
+                                            border: `2px solid ${isActive ? c.color : '#e0e0e0'}`,
+                                            borderRadius: '10px', px: 1.2, py: 0.5,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.18s ease',
+                                            boxShadow: isActive ? `0 3px 10px ${c.color}44` : 'none',
+                                            '&:hover': { border: `2px solid ${c.color}`, backgroundColor: isActive ? c.color : c.bg, transform: 'translateY(-1px)' },
+                                        }}
+                                    >
+                                        <Typography sx={{ fontSize: '0.9rem', lineHeight: 1 }}>{c.icon}</Typography>
+                                        <Typography sx={{ fontWeight: 900, fontSize: '1rem', color: isActive ? '#fff' : c.color, lineHeight: 1 }}>{c.count}</Typography>
+                                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: isActive ? 'rgba(255,255,255,0.85)' : c.color }}>{c.label}</Typography>
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                    </Box>
+                );
+            })()}
 
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Status Filters</Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {STATUS_OPTIONS.map(status => (
-                            <FormControlLabel
-                                key={status}
-                                control={
-                                    <Checkbox
-                                        size="small"
-                                        checked={selectedStatuses.includes(status)}
-                                        onChange={() => handleStatusFilterChange(status)}
-                                    />
-                                }
-                                label={status}
-                            />
-                        ))}
+            {/* --- Main Content --- */}
+            <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                {/* Machine Grid or Line View */}
+                <Box sx={{ flex: 1, padding: '16px', overflowY: 'auto' }}>
+                    {activeTab === 'machines' && (
+                        <Grid container spacing={1.5}>
+                            {filteredAndSortedData.map((m) => (
+                                <Grid item xs={12} sm={6} md={4} lg={4} xl={3} key={m.id}>
+                                    <RenderMachineCard m={m} rank={null} />
+                                </Grid>
+                            ))}
+                        </Grid>
+                    )}
+                    {activeTab === 'line' && (
+                        <Box sx={{ backgroundColor: '#fff', borderRadius: '10px', border: '1px solid #e0e0e0', overflow: 'hidden' }}>
+                            <Table size="small" stickyHeader>
+                                <TableHead>
+                                    <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 800, fontSize: '0.75rem', color: COLORS.TEXT_SUB, borderBottom: '2px solid #e0e0e0' } }}>
+                                        <TableCell>Machine</TableCell>
+                                        <TableCell>Operator</TableCell>
+                                        <TableCell>Status</TableCell>
+                                        <TableCell align="center">Target</TableCell>
+                                        <TableCell align="center">Actual</TableCell>
+                                        <TableCell align="center">Gap / Ahead</TableCell>
+                                        <TableCell align="center">Achievement</TableCell>
+                                        <TableCell align="center">OEE</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {filteredAndSortedData.map((m) => {
+                                        const ach = getAchievement(m.actual, m.target);
+                                        const rawGapLv = m.target - m.actual;
+                                        const isAheadLv = rawGapLv <= 0;
+                                        const gapLabelLv = isAheadLv ? `+${Math.abs(rawGapLv)}` : `-${rawGapLv}`;
+                                        const gapColorLv = isAheadLv ? COLORS.RUNNING : COLORS.ALARM;
+                                        const statusColor = COLORS[m.status.toUpperCase()] || COLORS.DISCONNECTED;
+                                        const elapsed = viewMode === 'Current' && m.statusTs ? formatElapsed(m.statusTs) : null;
+                                        return (
+                                            <TableRow key={m.id} sx={{ '&:hover': { backgroundColor: '#fafafa' }, '& td': { fontSize: '0.78rem', borderBottom: '1px solid #f5f5f5' } }}>
+                                                <TableCell><Typography sx={{ fontWeight: 800, fontSize: '0.78rem' }}>{m.name}</Typography></TableCell>
+                                                <TableCell><Tooltip title={m.operator} arrow placement="top"><Typography sx={{ fontSize: '0.75rem', color: COLORS.TEXT_SUB, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}>{m.operator}</Typography></Tooltip></TableCell>
+                                                <TableCell>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                        <Box sx={{ backgroundColor: statusColor, color: '#fff', px: 0.7, py: 0.1, borderRadius: '4px', fontSize: '0.6rem', fontWeight: 800 }}>{m.status}</Box>
+                                                        {elapsed && m.status !== 'Running' && <Tooltip title={`${m.status} for ${elapsed}`} arrow><Typography sx={{ fontSize: '0.65rem', color: statusColor, fontWeight: 700, cursor: 'default' }}>{elapsed}</Typography></Tooltip>}
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell align="center">{m.target}</TableCell>
+                                                <TableCell align="center">{m.actual}</TableCell>
+                                                <TableCell align="center">
+                                                    <Typography sx={{ fontWeight: 700, color: gapColorLv, fontSize: '0.78rem' }}>{isAheadLv ? 'Ahead ' : 'Gap '}{gapLabelLv}</Typography>
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                        <LinearProgress variant="determinate" value={Math.min(ach, 100)} sx={{ width: 50, height: 5, borderRadius: 2, backgroundColor: '#f0f0f0', '& .MuiLinearProgress-bar': { backgroundColor: getPerformanceColor(ach) } }} />
+                                                        <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: getPerformanceColor(ach) }}>{ach}%</Typography>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell align="center"><Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: getPerformanceColor(m.currentOee) }}>{m.currentOee}%</Typography></TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                    )}
+                </Box>
+
+                {/* Right Sidebar — Top Performers */}
+                <Box sx={{ width: 300, backgroundColor: '#fff', borderLeft: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column', overflowY: 'auto', flexShrink: 0 }}>
+                    <Box sx={{ p: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.2 }}>
+                            <TrophyIcon sx={{ color: COLORS.GOLD, fontSize: '1.1rem' }} />
+                            <Typography sx={{ fontWeight: 800, color: COLORS.TEXT_MAIN, fontSize: '0.95rem' }}>
+                                Top Performers
+                                <Typography component="span" sx={{ fontSize: '0.78rem', color: COLORS.TEXT_SUB, fontWeight: 600, ml: 0.5 }}>(This Shift)</Typography>
+                            </Typography>
+                        </Box>
+                        <Stack spacing={1.2}>
+                            {topPerformers.length > 0 ? topPerformers.map((m, idx) => {
+                                const ach = getAchievement(m.actual, m.target);
+                                const medals = ['🥇', '🥈', '🥉'];
+                                const perfColor = getPerformanceColor(ach);
+                                const rawGapSb = m.target - m.actual;
+                                const isAheadSb = rawGapSb <= 0;
+                                const gapLabelSb = isAheadSb ? `+${Math.abs(rawGapSb)}` : `-${rawGapSb}`;
+                                const gapColorSb = isAheadSb ? COLORS.RUNNING : COLORS.ALARM;
+                                const gapTitleSb = isAheadSb ? 'Ahead' : 'Gap';
+                                const oeeColorSb = getPerformanceColor(m.currentOee);
+                                const elapsedSb = viewMode === 'Current' && m.statusTs ? formatElapsed(m.statusTs) : null;
+                                const statusColorSb = COLORS[m.status.toUpperCase()] || COLORS.DISCONNECTED;
+                                return (
+                                    <Box key={m.id} sx={{
+                                        borderRadius: '10px', overflow: 'hidden',
+                                        border: `2px solid ${perfColor}`,
+                                        boxShadow: idx === 0 ? `0 0 16px ${COLORS.GOLD}66` : '0 1px 4px rgba(0,0,0,0.07)',
+                                        backgroundColor: '#fff',
+                                    }}>
+                                        {/* Accent bar */}
+                                        <Box sx={{ height: 4, backgroundColor: perfColor }} />
+                                        <Box sx={{ p: '10px 12px' }}>
+                                            {/* Row 1: Medal + name + status */}
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.4 }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflow: 'hidden', flex: 1, mr: 0.5 }}>
+                                                    <Typography sx={{ fontSize: '1rem', flexShrink: 0 }}>{medals[idx]}</Typography>
+                                                    <Tooltip title={m.name} arrow placement="top" disableHoverListener={m.name.length <= 18}>
+                                                        <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: COLORS.TEXT_MAIN, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</Typography>
+                                                    </Tooltip>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, flexShrink: 0 }}>
+                                                    {elapsedSb && m.status !== 'Running' && (
+                                                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: statusColorSb, fontVariantNumeric: 'tabular-nums' }}>{elapsedSb}</Typography>
+                                                    )}
+                                                    <Box sx={{ backgroundColor: statusColorSb, color: '#fff', px: 0.8, py: 0.2, borderRadius: '5px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>{m.status}</Box>
+                                                </Box>
+                                            </Box>
+                                            {/* Row 2: Operator */}
+                                            <Tooltip title={m.operator} arrow placement="top" disableHoverListener={m.operator.length <= 28}>
+                                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mb: 0.8, pb: 0.6, borderBottom: '1px dashed #e0e0e0', cursor: 'default' }}>{m.operator}</Typography>
+                                            </Tooltip>
+                                            {/* Row 3: Achievement % + progress bar */}
+                                            <Typography sx={{ fontWeight: 900, fontSize: '1.8rem', lineHeight: 1, color: perfColor, mb: 0.4 }}>{ach}%</Typography>
+                                            <LinearProgress variant="determinate" value={Math.min(ach, 100)} sx={{ height: 7, borderRadius: 4, backgroundColor: `${perfColor}22`, mb: 1, '& .MuiLinearProgress-bar': { backgroundColor: perfColor, borderRadius: 4 } }} />
+                                            {/* Row 4: Target | Actual | Gap | OEE */}
+                                            <Box sx={{ display: 'flex', border: '1px solid #ebebeb', borderRadius: '7px', overflow: 'hidden' }}>
+                                                {[
+                                                    { label: 'Target', value: m.target, color: COLORS.TEXT_MAIN },
+                                                    { label: 'Actual', value: m.actual, color: COLORS.TEXT_MAIN },
+                                                    { label: gapTitleSb, value: gapLabelSb, color: gapColorSb },
+                                                    { label: 'OEE', value: `${m.currentOee}%`, color: oeeColorSb, bg: `${oeeColorSb}12` },
+                                                ].map((stat, i) => (
+                                                    <Box key={stat.label} sx={{ flex: 1, textAlign: 'center', py: 0.6, backgroundColor: stat.bg || 'transparent', borderRight: i < 3 ? '1px solid #ebebeb' : 'none' }}>
+                                                        <Typography sx={{ fontSize: '0.62rem', color: i === 2 ? gapColorSb : i === 3 ? oeeColorSb : COLORS.TEXT_SUB, fontWeight: 700, textTransform: 'uppercase', lineHeight: 1.3 }}>{stat.label}</Typography>
+                                                        <Typography sx={{ fontSize: '0.9rem', fontWeight: 900, color: stat.color, lineHeight: 1.2 }}>{stat.value}</Typography>
+                                                    </Box>
+                                                ))}
+                                            </Box>
+                                        </Box>
+                                    </Box>
+                                );
+                            }) : (
+                                <Typography sx={{ textAlign: 'center', color: COLORS.TEXT_SUB, mt: 2, fontStyle: 'italic', fontSize: '0.78rem' }}>Calculating rankings...</Typography>
+                            )}
+                        </Stack>
                     </Box>
-                </DialogContent>
-                <DialogActions sx={{ p: 2, borderTop: '1px solid #eee', justifyContent: 'space-between' }}>
-                    <Button onClick={handleReset} sx={{ color: COLORS.ALARM, fontWeight: 700 }}>Reset Defaults</Button>
-                    <Box>
-                        <Button onClick={() => setIsSettingsOpen(false)} sx={{ color: COLORS.TEXT_SUB }}>Cancel</Button>
-                        <Button onClick={handleSettingsSave} variant="contained" sx={{ backgroundColor: COLORS.PRIMARY, '&:hover': { backgroundColor: '#d16602' }, ml: 1 }}>Save Changes</Button>
-                    </Box>
-                </DialogActions>
-            </Dialog>
+                </Box>
+            </Box>
         </Box>
     );
 }
