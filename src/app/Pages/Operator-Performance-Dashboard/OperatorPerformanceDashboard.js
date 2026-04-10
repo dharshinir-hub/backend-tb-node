@@ -873,9 +873,9 @@ export default function OperatorPerformanceDashboard() {
                     )}
                     {activeTab === 'line' && (
                         <Box sx={{ backgroundColor: '#fff', borderRadius: '10px', border: '1px solid #e0e0e0', overflow: 'hidden' }}>
-                            <Table size="small" stickyHeader>
+                            <Table stickyHeader>
                                 <TableHead>
-                                    <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 800, fontSize: '0.75rem', color: COLORS.TEXT_SUB, borderBottom: '2px solid #e0e0e0' } }}>
+                                    <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 800, fontSize: '0.88rem', color: COLORS.TEXT_SUB, borderBottom: '2px solid #e0e0e0', py: 1.2 } }}>
                                         <TableCell>Machine</TableCell>
                                         <TableCell>Operator</TableCell>
                                         <TableCell>Status</TableCell>
@@ -896,27 +896,35 @@ export default function OperatorPerformanceDashboard() {
                                         const statusColor = COLORS[m.status.toUpperCase()] || COLORS.DISCONNECTED;
                                         const elapsed = viewMode === 'Current' && m.statusTs ? formatElapsed(m.statusTs) : null;
                                         return (
-                                            <TableRow key={m.id} sx={{ '&:hover': { backgroundColor: '#fafafa' }, '& td': { fontSize: '0.78rem', borderBottom: '1px solid #f5f5f5' } }}>
-                                                <TableCell><Typography sx={{ fontWeight: 800, fontSize: '0.78rem' }}>{m.name}</Typography></TableCell>
-                                                <TableCell><Tooltip title={m.operator} arrow placement="top"><Typography sx={{ fontSize: '0.75rem', color: COLORS.TEXT_SUB, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}>{m.operator}</Typography></Tooltip></TableCell>
+                                            <TableRow key={m.id} sx={{ '&:hover': { backgroundColor: '#fafafa' }, '& td': { fontSize: '0.9rem', borderBottom: '1px solid #f0f0f0', py: 1.2 } }}>
+                                                <TableCell><Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: COLORS.TEXT_MAIN }}>{m.name}</Typography></TableCell>
                                                 <TableCell>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                        <Box sx={{ backgroundColor: statusColor, color: '#fff', px: 0.7, py: 0.1, borderRadius: '4px', fontSize: '0.6rem', fontWeight: 800 }}>{m.status}</Box>
-                                                        {elapsed && m.status !== 'Running' && <Tooltip title={`${m.status} for ${elapsed}`} arrow><Typography sx={{ fontSize: '0.65rem', color: statusColor, fontWeight: 700, cursor: 'default' }}>{elapsed}</Typography></Tooltip>}
+                                                    <Tooltip title={m.operator} arrow placement="top">
+                                                        <Typography sx={{ fontSize: '0.88rem', color: COLORS.TEXT_SUB, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}>{m.operator}</Typography>
+                                                    </Tooltip>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                                                        <Box sx={{ backgroundColor: statusColor, color: '#fff', px: 1, py: 0.3, borderRadius: '5px', fontSize: '0.75rem', fontWeight: 800 }}>{m.status}</Box>
+                                                        {elapsed && m.status !== 'Running' && (
+                                                            <Tooltip title={`${m.status} for ${elapsed}`} arrow>
+                                                                <Typography sx={{ fontSize: '0.78rem', color: statusColor, fontWeight: 700, cursor: 'default', fontVariantNumeric: 'tabular-nums' }}>{elapsed}</Typography>
+                                                            </Tooltip>
+                                                        )}
                                                     </Box>
                                                 </TableCell>
-                                                <TableCell align="center">{m.target}</TableCell>
-                                                <TableCell align="center">{m.actual}</TableCell>
+                                                <TableCell align="center"><Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{m.target}</Typography></TableCell>
+                                                <TableCell align="center"><Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{m.actual}</Typography></TableCell>
                                                 <TableCell align="center">
-                                                    <Typography sx={{ fontWeight: 700, color: gapColorLv, fontSize: '0.78rem' }}>{isAheadLv ? 'Ahead ' : 'Gap '}{gapLabelLv}</Typography>
+                                                    <Typography sx={{ fontWeight: 800, color: gapColorLv, fontSize: '0.9rem' }}>{isAheadLv ? 'Ahead ' : 'Gap '}{gapLabelLv}</Typography>
                                                 </TableCell>
                                                 <TableCell align="center">
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                        <LinearProgress variant="determinate" value={Math.min(ach, 100)} sx={{ width: 50, height: 5, borderRadius: 2, backgroundColor: '#f0f0f0', '& .MuiLinearProgress-bar': { backgroundColor: getPerformanceColor(ach) } }} />
-                                                        <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: getPerformanceColor(ach) }}>{ach}%</Typography>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
+                                                        <LinearProgress variant="determinate" value={Math.min(ach, 100)} sx={{ width: 64, height: 7, borderRadius: 3, backgroundColor: '#f0f0f0', '& .MuiLinearProgress-bar': { backgroundColor: getPerformanceColor(ach) } }} />
+                                                        <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: getPerformanceColor(ach) }}>{ach}%</Typography>
                                                     </Box>
                                                 </TableCell>
-                                                <TableCell align="center"><Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: getPerformanceColor(m.currentOee) }}>{m.currentOee}%</Typography></TableCell>
+                                                <TableCell align="center"><Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: getPerformanceColor(m.currentOee) }}>{m.currentOee}%</Typography></TableCell>
                                             </TableRow>
                                         );
                                     })}
@@ -939,7 +947,12 @@ export default function OperatorPerformanceDashboard() {
                         <Stack spacing={1.2}>
                             {topPerformers.length > 0 ? topPerformers.map((m, idx) => {
                                 const ach = getAchievement(m.actual, m.target);
-                                const medals = ['🥇', '🥈', '🥉'];
+                                const rankColors = [
+                                    { bg: 'linear-gradient(135deg, #FFD700, #FFA000)', text: '#7a4f00', shadow: '#FFD70088' },
+                                    { bg: 'linear-gradient(135deg, #b0bec5, #78909c)', text: '#fff', shadow: '#90a4ae66' },
+                                    { bg: 'linear-gradient(135deg, #cd7f32, #a0522d)', text: '#fff', shadow: '#cd7f3266' },
+                                ];
+                                const rankStyle = rankColors[idx];
                                 const perfColor = getPerformanceColor(ach);
                                 const rawGapSb = m.target - m.actual;
                                 const isAheadSb = rawGapSb <= 0;
@@ -953,16 +966,25 @@ export default function OperatorPerformanceDashboard() {
                                     <Box key={m.id} sx={{
                                         borderRadius: '10px', overflow: 'hidden',
                                         border: `2px solid ${perfColor}`,
-                                        boxShadow: idx === 0 ? `0 0 16px ${COLORS.GOLD}66` : '0 1px 4px rgba(0,0,0,0.07)',
+                                        boxShadow: idx === 0 ? `0 0 16px ${rankStyle.shadow}` : '0 1px 4px rgba(0,0,0,0.07)',
                                         backgroundColor: '#fff',
                                     }}>
                                         {/* Accent bar */}
                                         <Box sx={{ height: 4, backgroundColor: perfColor }} />
                                         <Box sx={{ p: '10px 12px' }}>
-                                            {/* Row 1: Medal + name + status */}
+                                            {/* Row 1: Rank badge + name + status */}
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.4 }}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflow: 'hidden', flex: 1, mr: 0.5 }}>
-                                                    <Typography sx={{ fontSize: '1rem', flexShrink: 0 }}>{medals[idx]}</Typography>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, overflow: 'hidden', flex: 1, mr: 0.5 }}>
+                                                    {/* Custom rank badge */}
+                                                    <Box sx={{
+                                                        flexShrink: 0,
+                                                        width: 26, height: 26, borderRadius: '7px',
+                                                        background: rankStyle.bg,
+                                                        boxShadow: `0 2px 6px ${rankStyle.shadow}`,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    }}>
+                                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 900, color: rankStyle.text, lineHeight: 1 }}>#{idx + 1}</Typography>
+                                                    </Box>
                                                     <Tooltip title={m.name} arrow placement="top" disableHoverListener={m.name.length <= 18}>
                                                         <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: COLORS.TEXT_MAIN, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</Typography>
                                                     </Tooltip>
