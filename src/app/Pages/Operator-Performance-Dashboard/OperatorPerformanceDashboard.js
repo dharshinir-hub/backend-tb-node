@@ -25,7 +25,8 @@ import { Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow } from '@mu
 import dayjs from 'dayjs';
 import {
     customerbasedshift,
-    telemetrykeydata
+    telemetrykeydata,
+    telemetrylatestdata
 } from '../../Services/app/companyservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
 import { createTbWebSocket } from '../../Services/app/tbWebSocketService';
@@ -308,49 +309,9 @@ export default function OperatorPerformanceDashboard() {
     const wsRef = useRef(null);
     const [wsConnected, setWsConnected] = useState(false);
 
-    // --- WebSocket handler: merges incoming telemetry into dashboardData ---
-    const handleWsMessage = useCallback((msg, cmdIdToDeviceId) => {
-        const deviceId = cmdIdToDeviceId[msg.subscriptionId];
-        if (!deviceId) return;
-
-        const update = msg.data;
-        const getVal = (arr) => (arr && arr.length > 0) ? arr[0][1] : null;
-        const getTs  = (arr) => (arr && arr.length > 0) ? arr[0][0] : null;
-
-        setDashboardData(prev => {
-            const idx = prev.findIndex(d => d.id === deviceId);
-            if (idx === -1) return prev;
-            const d = { ...prev[idx] };
-
-            if (update.machine_status !== undefined) {
-                const statusMap = { 0:'Idle',1:'Idle',2:'Idle',3:'Running',4:'Alarm',5:'Alarm',6:'Locked',7:'Setting',100:'Disconnected' };
-                const rawS = getVal(update.machine_status);
-                if (rawS !== null) { d.status = statusMap[parseInt(rawS)] || 'Disconnected'; d.statusTs = getTs(update.machine_status); }
-            }
-            if (update.oee !== undefined) { const v = getVal(update.oee); if (v !== null) d.currentOee = Math.round(parseFloat(v) || 0); }
-            if (update.targetparts !== undefined) { const v = getVal(update.targetparts); if (v !== null) d.target = Math.round(parseFloat(v) || 0); }
-            if (update.totalparts !== undefined) {
-                const v = getVal(update.totalparts);
-                if (v !== null) { try { d.actual = JSON.parse(v).goodparts || 0; } catch(e) {} }
-            }
-            if (update.live_operator !== undefined) {
-                const v = getVal(update.live_operator);
-                if (v !== null) {
-                    try {
-                        const op = JSON.parse(v);
-                        const n = op.name || op.operator || 'Unknown';
-                        const c = op.code || '';
-                        d.operator = c ? `${n} (${c})` : n;
-                    } catch(e) {}
-                }
-            }
-            const result = [...prev];
-            result[idx] = d;
-            return result;
-        });
-
-        setLastUpdatedTime(dayjs().format('DD MMM HH:mm:ss'));
-    }, []);
+    // WS is kept only to drive the ● Live / Connecting… indicator.
+    // All telemetry data is fetched by the 30s poll (handles same-timestamp rewrites that WS skips).
+    const handleWsMessage = useCallback(() => {}, []);
 
     // --- Start WebSocket subscription for Current Shift ---
     const startWs = useCallback((deviceIds) => {
@@ -376,8 +337,9 @@ export default function OperatorPerformanceDashboard() {
         wsRef.current = ws;
     }, [handleWsMessage]);
 
+    // fetchData is only used for Previous shift — Current shift is fully driven by WS LATEST_TELEMETRY.
     const fetchData = useCallback(async () => {
-        if (!shifts.length || !currentShiftInfo || !customerId || !selectedMachines.length) return;
+        if (!shifts.length || !prevShiftInfo || !customerId || !selectedMachines.length) return;
 
         setIsLoading(true);
         try {
@@ -395,61 +357,38 @@ export default function OperatorPerformanceDashboard() {
                 return pCode ? `${pName} (${pCode})` : pName;
             };
 
-            if (viewMode === 'Previous') {
-                // Previous shift: one REST call per device with all keys
-                const prevT = prevShiftInfo ? getShiftTimes(shifts, prevShiftInfo.shiftNo, prevShiftInfo.date) : null;
-                if (!prevT?.from) return;
+            const prevT = getShiftTimes(shifts, prevShiftInfo.shiftNo, prevShiftInfo.date);
+            if (!prevT?.from) return;
 
-                const allKeys = "oee,totalparts,targetparts,machine_status,live_operator";
-                const results = await Promise.all(ids.map(async (devId) => {
-                    const data = await telemetrykeydata(devId, "DEVICE", allKeys, prevT.from, prevT.to);
-                    const getLatest = (arr) => (arr && arr.length > 0) ? arr[0] : null;
+            const allKeys = "oee,totalparts,targetparts,machine_status,live_operator";
+            const results = await Promise.all(ids.map(async (devId) => {
+                const data = await telemetrykeydata(devId, "DEVICE", allKeys, prevT.from, prevT.to);
+                const getLatest = (arr) => (arr && arr.length > 0) ? arr[0] : null;
 
-                    const statusMap = { 0:'Idle', 1:'Idle', 2:'Idle', 3:'Running', 4:'Alarm', 5:'Alarm', 6:'Locked', 7:'Setting', 100:'Disconnected' };
-                    const rawS = getLatest(data?.machine_status)?.value;
-                    const status = statusMap[parseInt(rawS)] || statusMap[rawS] || 'Disconnected';
-                    const statusTs = getLatest(data?.machine_status)?.ts || null;
+                const statusMap = { 0:'Idle', 1:'Idle', 2:'Idle', 3:'Running', 4:'Alarm', 5:'Alarm', 6:'Locked', 7:'Setting', 100:'Disconnected' };
+                const rawS = getLatest(data?.machine_status)?.value;
+                const status = statusMap[parseInt(rawS)] || statusMap[rawS] || 'Disconnected';
+                const statusTs = getLatest(data?.machine_status)?.ts || null;
 
-                    let parts = { goodparts: 0 };
-                    try { if (getLatest(data?.totalparts)?.value) parts = JSON.parse(getLatest(data.totalparts).value); } catch(e) {}
+                let parts = { goodparts: 0 };
+                try { if (getLatest(data?.totalparts)?.value) parts = JSON.parse(getLatest(data.totalparts).value); } catch(e) {}
 
-                    return {
-                        id: devId,
-                        name: deviceNameID.find(d => d.id === devId)?.name || 'Unknown',
-                        operator: parseOperator(data?.live_operator),
-                        status,
-                        statusTs,
-                        currentOee: Math.round(parseFloat(getLatest(data?.oee)?.value) || 0),
-                        prevOee: 0,
-                        target: Math.round(parseFloat(getLatest(data?.targetparts)?.value) || 0),
-                        actual: parts.goodparts || 0,
-                    };
-                }));
-                setDashboardData(results);
-            } else {
-                // Current shift: fetch live_operator history only; WS fills the rest in real-time
-                const currT = getShiftTimes(shifts, currentShiftInfo.shiftNo, currentShiftInfo.date);
-                if (!currT?.from) return;
-
-                const opResults = await Promise.all(ids.map(async (devId) => {
-                    try {
-                        const data = await telemetrykeydata(devId, "DEVICE", "live_operator", currT.from, currT.to);
-                        return { id: devId, operator: parseOperator(data?.live_operator) };
-                    } catch(e) {
-                        return { id: devId, operator: 'No Operator Assigned' };
-                    }
-                }));
-
-                // Merge operator history into existing entries (WS may have already updated metrics)
-                setDashboardData(prev => prev.map(d => {
-                    const op = opResults.find(r => r.id === d.id);
-                    return op ? { ...d, operator: op.operator } : d;
-                }));
-            }
-
+                return {
+                    id: devId,
+                    name: deviceNameID.find(d => d.id === devId)?.name || 'Unknown',
+                    operator: parseOperator(data?.live_operator),
+                    status,
+                    statusTs,
+                    currentOee: Math.round(parseFloat(getLatest(data?.oee)?.value) || 0),
+                    prevOee: 0,
+                    target: Math.round(parseFloat(getLatest(data?.targetparts)?.value) || 0),
+                    actual: parts.goodparts || 0,
+                };
+            }));
+            setDashboardData(results);
             setLastUpdatedTime(dayjs().format('DD MMM HH:mm:ss'));
         } catch (error) { console.error("Fetch Data Error:", error); } finally { setIsLoading(false); }
-    }, [shifts, currentShiftInfo, prevShiftInfo, customerId, selectedMachines, deviceNameID, getShiftTimes, viewMode]);
+    }, [shifts, prevShiftInfo, customerId, selectedMachines, deviceNameID, getShiftTimes]);
 
     useEffect(() => {
         const fetchShiftList = async () => {
@@ -490,21 +429,23 @@ export default function OperatorPerformanceDashboard() {
         if (viewMode === 'Current') {
             const ids = deviceNameID.filter(d => selectedMachines.includes(d.name)).map(d => d.id);
 
-            // Seed dashboardData synchronously so WS handler finds devices on first burst
+            // Seed rows so WS handler can find devices by id on first burst.
+            // All values (including live_operator) come from WS LATEST_TELEMETRY — no REST needed.
             setDashboardData(ids.map(devId => ({
                 id: devId,
                 name: deviceNameID.find(d => d.id === devId)?.name || 'Unknown',
-                operator: 'Loading...',
+                operator: 'No Operator Assigned',
                 status: 'Disconnected',
                 statusTs: null,
                 currentOee: 0,
                 prevOee: 0, target: 0, actual: 0,
             })));
 
-            fetchData();   // merges live_operator history async
-            startWs(ids);  // WS sends LATEST_TELEMETRY immediately on connect
+            // Defer WS start to next tick so React flushes the seed before the
+            // first LATEST_TELEMETRY burst arrives — prevents idx === -1 dropping all updates.
+            setTimeout(() => startWs(ids), 0);
         } else {
-            // Previous Shift: close WS — single REST fetch is the only source
+            // Previous Shift: close WS, fetch everything from REST
             if (wsRef.current) { wsRef.current.disconnect(); wsRef.current = null; setWsConnected(false); }
             fetchData();
         }
@@ -513,6 +454,79 @@ export default function OperatorPerformanceDashboard() {
             if (wsRef.current) { wsRef.current.disconnect(); wsRef.current = null; setWsConnected(false); }
         };
     }, [shifts, selectedMachines, currentShiftInfo, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Poll latest telemetry every 30s for Current shift.
+    // WS is unreliable for same-timestamp rewrites; polling gives consistent state for all keys.
+    useEffect(() => {
+        if (viewMode !== 'Current' || !selectedMachines.length || !deviceNameID.length) return;
+
+        const POLL_KEYS = 'machine_status,oee,targetparts,totalparts,live_operator';
+
+        const poll = async () => {
+            const ids = deviceNameID.filter(d => selectedMachines.includes(d.name)).map(d => d.id);
+            const results = await Promise.all(ids.map(async (devId) => {
+                try {
+                    return { devId, data: await telemetrylatestdata(devId, 'DEVICE', POLL_KEYS) };
+                } catch(e) { return null; }
+            }));
+
+            setDashboardData(prev => {
+                let changed = false;
+                const next = prev.map(d => {
+                    const r = results.find(r => r?.devId === d.id);
+                    if (!r) return d;
+                    const data = r.data;
+                    const getV = (key) => data?.[key]?.[0]?.value ?? null;
+
+                    const updated = { ...d };
+
+                    const statusV = getV('machine_status');
+                    if (statusV !== null) {
+                        const statusMap = { 0:'Idle',1:'Idle',2:'Idle',3:'Running',4:'Alarm',5:'Alarm',6:'Locked',7:'Setting',100:'Disconnected' };
+                        const mapped = statusMap[parseInt(statusV)] || 'Disconnected';
+                        if (mapped !== updated.status) {
+                            updated.status = mapped;
+                            updated.statusTs = data?.machine_status?.[0]?.ts || null;
+                        }
+                    }
+
+                    const oeeV = getV('oee');
+                    if (oeeV !== null) updated.currentOee = Math.round(parseFloat(oeeV) || 0);
+
+                    const targetV = getV('targetparts');
+                    if (targetV !== null) updated.target = Math.round(parseFloat(targetV) || 0);
+
+                    const totalV = getV('totalparts');
+                    if (totalV !== null) {
+                        try { updated.actual = JSON.parse(totalV).goodparts || 0; } catch(e) {
+                            const n = parseFloat(totalV);
+                            if (!isNaN(n)) updated.actual = Math.round(n);
+                        }
+                    }
+
+                    const opV = getV('live_operator');
+                    if (opV !== null) {
+                        try {
+                            const op = JSON.parse(opV);
+                            const n = op.name || op.operator || 'Unknown';
+                            const c = op.code || '';
+                            updated.operator = c ? `${n} (${c})` : n;
+                        } catch(e) {}
+                    }
+
+                    changed = true;
+                    return updated;
+                });
+                return changed ? next : prev;
+            });
+
+            setLastUpdatedTime(dayjs().format('DD MMM HH:mm:ss'));
+        };
+
+        poll(); // run immediately on mount
+        const interval = setInterval(poll, 30000);
+        return () => clearInterval(interval);
+    }, [viewMode, selectedMachines, deviceNameID]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Common Card Component
     const RenderMachineCard = useCallback(({ m, rank }) => {
