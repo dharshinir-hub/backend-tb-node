@@ -31,11 +31,13 @@ import {
 } from '../../Services/app/companyservice';
 import './machinemm.css';
 import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
+import { useLocation, useSearchParams } from "react-router-dom";
 
 
 export default function MachineDashboard() {
 
-
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [newToken, setNewToken] = useState(localStorage.getItem("token"));
   console.log(newToken)
@@ -68,6 +70,12 @@ export default function MachineDashboard() {
   const [filterAnchor, setFilterAnchor] = useState(null);
   const [selectedMachines, setSelectedMachines] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState([]);
+  // Param-derived filters — independent from hook, cleared when user interacts
+  const [activeMachineFilter, setActiveMachineFilter] = useState([]);
+  const [activeGroupFilter, setActiveGroupFilter] = useState([]);
+
+  const urlParamsApplied = useRef(false);
+
   const [openMachines, setOpenMachines] = useState(false);
   const [openStatus, setOpenStatus] = useState(false);
   const [shifts, setShifts] = useState([]);
@@ -116,6 +124,33 @@ export default function MachineDashboard() {
     getDeviceObjectsForMachines,
     refreshMachineGroups
   } = useMachineGroups(customerId);
+
+  // Apply URL params once after groups have loaded.
+  // Uses local activeMachineFilter/activeGroupFilter — never touches hook state,
+  // so hook re-initialization (React StrictMode) cannot override them.
+  useEffect(() => {
+    if (urlParamsApplied.current) return;
+    const navStatus = searchParams.get("status");
+    const navMachines = searchParams.get("machines");
+    if (!navStatus && !navMachines) { urlParamsApplied.current = true; return; }
+    if (loading) return; // wait for hook to finish
+
+    urlParamsApplied.current = true;
+    setSelectedDate(dayjs());
+
+    if (navStatus && navStatus !== "All") setSelectedStatus([navStatus]);
+
+    if (navMachines) {
+      const machineNames = navMachines.split(",").map(m => m.trim()).filter(Boolean);
+      setActiveMachineFilter(machineNames);
+      if (machineGroups.length > 0) {
+        const matchingGroups = machineGroups
+          .filter(g => (g.machines || []).some(m => machineNames.includes(m)))
+          .map(g => g.name);
+        setActiveGroupFilter(matchingGroups);
+      }
+    }
+  }, [searchParams, loading, machineGroups]);
 
   const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
 
@@ -866,7 +901,7 @@ export default function MachineDashboard() {
     setUtilizationBaseline(resultsBaseline);
     setLiveComponent(resultsLiveComponent);
     setMachineDurations(resultsDurations);
-    setMachineStatuses(resultsMachineStatuses);
+    setMachineStatuses(prev => ({ ...prev, ...resultsMachineStatuses }));
     setMachineStatusTimes(resultsMachineStatusTimes);
     setLiveReason(resultsLiveReason);
     setLockStatus(resultsLockStatus);
@@ -1628,36 +1663,25 @@ export default function MachineDashboard() {
 
 
   useEffect(() => {
-    let machinesToShow = [];
-    if (groupSelectedMachines.length > 0) {
-      machinesToShow = getDeviceObjectsForMachines(
-        Array.isArray(groupSelectedMachines) ? groupSelectedMachines : [groupSelectedMachines]
-      );
-    } else {
-      machinesToShow = devices;
-    }
+    // When URL params set activeMachineFilter, use it directly; otherwise use hook's groupSelectedMachines
+    const effectiveMachines = activeMachineFilter.length > 0 ? activeMachineFilter : groupSelectedMachines;
+
+    const machinesToShow = effectiveMachines.length > 0
+      ? devices.filter(d => effectiveMachines.includes(d.name))
+      : devices;
+
     const filtered = machinesToShow.filter((d) => {
-      const matchDropdown =
-        selectedDevice === "all" || d.id.id === selectedDevice;
-
-      const matchSearch = (d.name || "")
-        .toLowerCase()
-        .includes(searchText.toLowerCase());
-
+      const matchDropdown = selectedDevice === "all" || d.id.id === selectedDevice;
+      const matchSearch = (d.name || "").toLowerCase().includes(searchText.toLowerCase());
       const machineName = d.name || "";
-      const status = machineStatuses[d.id.id]?.status || "";  // ✅ get from machineStatuses
-
-      const machineMatch =
-        selectedMachines.length === 0 || selectedMachines.includes(machineName);
-
-      const statusMatch =
-        selectedStatus.length === 0 || selectedStatus.includes(status);
-
+      const status = machineStatuses[d.id.id]?.status || "";
+      const machineMatch = selectedMachines.length === 0 || selectedMachines.includes(machineName);
+      const statusMatch = selectedStatus.length === 0 || selectedStatus.includes(status);
       return matchDropdown && matchSearch && machineMatch && statusMatch;
     });
 
     setFilteredDevices(filtered);
-  }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses, groupSelectedMachines, getDeviceObjectsForMachines]);
+  }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses, groupSelectedMachines, activeMachineFilter]);
 
   useEffect(() => {
     if (!from || !to || !selectedMachine) return;
@@ -1808,11 +1832,14 @@ export default function MachineDashboard() {
 `;
 
   useEffect(() => {
-    if (filteredDevices.length > 0 && !selectedMachineId) {
-      const firstMachine = filteredDevices[0];
-      setViewedMachine(firstMachine);
-      setSelectedMachineId(firstMachine.id.id);
-      setSelectedMachine(firstMachine);
+    if (filteredDevices.length > 0) {
+      const isCurrentMachineInList = filteredDevices.some(d => d.id.id === selectedMachineId);
+      if (!selectedMachineId || !isCurrentMachineInList) {
+        const firstMachine = filteredDevices[0];
+        setViewedMachine(firstMachine);
+        setSelectedMachineId(firstMachine.id.id);
+        setSelectedMachine(firstMachine);
+      }
     }
   }, [filteredDevices, selectedMachineId, activeTab, newToken, selectedShift]);
 
@@ -1840,12 +1867,17 @@ export default function MachineDashboard() {
               <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machine Group</InputLabel>
               <Select
                 multiple
-                value={selectedGroups}
-                onChange={(e) => handleGroupChange(e.target.value)}
+                value={activeGroupFilter.length > 0 ? activeGroupFilter : selectedGroups}
+                onChange={(e) => {
+                  // Clear param-derived overrides; let hook take over
+                  setActiveGroupFilter([]);
+                  setActiveMachineFilter([]);
+                  handleGroupChange(e.target.value);
+                }}
                 label="Machine Group"
                 renderValue={(selected) => {
-                  if (selected.length === machineGroups.length) return "All Groups";
                   if (selected.length === 0) return "Select Groups";
+                  if (selected.length === machineGroups.length && machineGroups.length > 1) return "All Groups";
                   return selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "");
                 }}
                 sx={{
@@ -1864,12 +1896,16 @@ export default function MachineDashboard() {
                 }}
               >
                 <MenuItem value="all">
-                  <Checkbox checked={selectedGroups.length === machineGroups.length} />
+                  <Checkbox checked={
+                    (activeGroupFilter.length > 0 ? activeGroupFilter : selectedGroups).length === machineGroups.length
+                  } />
                   <ListItemText primary="All Groups" />
                 </MenuItem>
                 {machineGroups.map((g) => (
                   <MenuItem key={g.name} value={g.name}>
-                    <Checkbox checked={selectedGroups.includes(g.name)} />
+                    <Checkbox checked={
+                      (activeGroupFilter.length > 0 ? activeGroupFilter : selectedGroups).includes(g.name)
+                    } />
                     <ListItemText primary={g.name} />
                   </MenuItem>
                 ))}
@@ -1881,13 +1917,19 @@ export default function MachineDashboard() {
             <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machines</InputLabel>
             <Select
               multiple
-              value={groupSelectedMachines}
-              onChange={(e) => handleMachineChange(e.target.value)}
+              value={activeMachineFilter.length > 0 ? activeMachineFilter : groupSelectedMachines}
+              onChange={(e) => {
+                // Clear param-derived overrides; let hook take over
+                setActiveMachineFilter([]);
+                setActiveGroupFilter([]);
+                handleMachineChange(e.target.value);
+              }}
               label="Machines"
-              renderValue={(selected) =>
-                isAllMachinesSelected ? "All Machines" :
-                  selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "")
-              }
+              renderValue={(selected) => {
+                if (selected.length === 0) return "All Machines";
+                if (activeMachineFilter.length === 0 && isAllMachinesSelected) return "All Machines";
+                return selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "");
+              }}
               sx={{
                 fontSize: '14px',
                 '& .MuiOutlinedInput-root': {
@@ -1904,12 +1946,20 @@ export default function MachineDashboard() {
               }}
             >
               <MenuItem value="all">
-                <Checkbox checked={isAllMachinesSelected} />
+                <Checkbox checked={
+                  activeMachineFilter.length > 0
+                    ? availableMachines.length > 0 && activeMachineFilter.length === availableMachines.length && availableMachines.every(m => activeMachineFilter.includes(m))
+                    : isAllMachinesSelected
+                } />
                 <ListItemText primary="All Machines" />
               </MenuItem>
               {availableMachines.map((machine) => (
                 <MenuItem key={machine} value={machine}>
-                  <Checkbox checked={groupSelectedMachines.includes(machine)} />
+                  <Checkbox checked={
+                    activeMachineFilter.length > 0
+                      ? activeMachineFilter.includes(machine)
+                      : groupSelectedMachines.includes(machine)
+                  } />
                   <ListItemText primary={machine} />
                 </MenuItem>
               ))}

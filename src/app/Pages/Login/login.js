@@ -63,6 +63,8 @@ function LoginForm() {
             localStorage.setItem("mod_name", response.module[0]);
           }
 
+          localStorage.removeItem("selectedDate");
+          localStorage.removeItem("selectedShift");
           toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
 
           const userResponse = await Userapi();

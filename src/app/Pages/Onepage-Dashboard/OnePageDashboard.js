@@ -20,6 +20,7 @@ import {
 } from '../../Services/app/companyservice';
 import { telemetrykeydata } from '../../Services/app/operatorservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
+import { useNavigate } from 'react-router-dom';
 
 export default function OnePageDashboard() {
     const customerId = localStorage.getItem('CustomerID');
@@ -48,6 +49,25 @@ export default function OnePageDashboard() {
         handleMachineChange,
         getDeviceObjectsForMachines
     } = useMachineGroups(customerId);
+        const navigate = useNavigate();
+
+    useEffect(() => {
+        const handler = (event) => {
+            if (event.data?.type === "NAVIGATE") {
+                const params = new URLSearchParams();
+                const status = event.data.status;
+                const machines = event.data.machines;
+                if (status && status !== "All") params.set("status", status);
+                if (Array.isArray(machines) && machines.length > 0) params.set("machines", machines.join(","));
+                const query = params.toString();
+                navigate(query ? `${event.data.path}?${query}` : event.data.path);
+            }
+        };
+
+        window.addEventListener("message", handler);
+
+        return () => window.removeEventListener("message", handler);
+    }, [navigate]);
 
     // Consolidated state for all data
     const [dashboardData, setDashboardData] = useState({
