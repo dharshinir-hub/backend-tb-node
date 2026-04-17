@@ -65,7 +65,26 @@ function LoginForm() {
 
           localStorage.removeItem("selectedDate");
           localStorage.removeItem("selectedShift");
-          toast.success("Login successful!", { position: "top-center", autoClose: 1000 });
+          toast.success(
+            <div className="toast-body">
+              <div>
+                <div className="toast-title">Success</div>
+                <div className="toast-message">Login successful!</div>
+              </div>
+              <span className="toast-icon toast-icon--success">✓</span>
+            </div>,
+            {
+              position: 'top-center',
+              autoClose: 1000,
+              hideProgressBar: true,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              className: 'toast-custom toast-custom--success',
+              icon: false,
+              closeButton: false,
+            }
+          );
 
           const userResponse = await Userapi();
           localStorage.setItem("CustomerID", JSON.stringify(userResponse.customerId.id));
@@ -139,25 +158,23 @@ handleNavigationAfterLogin(role, pageList);
         error.response?.data?.message || error.message || "Something went wrong";
       console.error("Login failed:", errorMsg);
       toast.error(
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 22 }}>🔒</span>
+        <div className="toast-body">
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Login Failed</div>
-            <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>{errorMsg}</div>
+            <div className="toast-title">Login Failed</div>
+            <div className="toast-message">{errorMsg}</div>
           </div>
+          <span className="toast-icon toast-icon--error">✕</span>
         </div>,
         {
           position: 'top-center',
           autoClose: 3000,
-          style: {
-            background: 'linear-gradient(135deg, #c62828, #e53935)',
-            color: '#fff',
-            borderRadius: '12px',
-            boxShadow: '0 8px 24px rgba(229,57,53,0.4)',
-            padding: '12px 16px',
-          },
-          progressStyle: { background: 'rgba(255,255,255,0.5)' },
+          hideProgressBar: true,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          className: 'toast-custom toast-custom--error',
           icon: false,
+          closeButton: false,
         }
       );
     } finally {
