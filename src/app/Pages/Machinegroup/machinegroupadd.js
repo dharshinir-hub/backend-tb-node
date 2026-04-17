@@ -261,19 +261,13 @@ export default function MachineGroupAdd({
                     onChange={(e) => {
                       const value = e.target.value;
                       if (value.includes('all')) {
+                        const selectableMachines = machines
+                          .filter((m) => !datasource.some(
+                            (grp) => Array.isArray(grp.machines) && grp.machines.includes(m.name)
+                          ))
+                          .map((m) => m.name);
                         field.onChange(
-                          field.value.length === machines.length
-                            ? []
-                            : machines
-                                .filter((m) => {
-                                  const allocated = datasource.some(
-                                    (grp) =>
-                                      Array.isArray(grp.machines) &&
-                                      grp.machines.includes(m.name)
-                                  );
-                                  return !allocated;
-                                })
-                                .map((m) => m.name)
+                          field.value.length === selectableMachines.length ? [] : selectableMachines
                         );
                       } else {
                         field.onChange(value);
@@ -283,7 +277,14 @@ export default function MachineGroupAdd({
                   >
                     <MenuItem value="all">
                       <Checkbox
-                        checked={field.value.length === machines.length}
+                        checked={(() => {
+                          const selectable = machines
+                            .filter((m) => !datasource.some(
+                              (grp) => Array.isArray(grp.machines) && grp.machines.includes(m.name)
+                            ))
+                            .map((m) => m.name);
+                          return selectable.length > 0 && field.value.length === selectable.length;
+                        })()}
                         sx={{ '&.Mui-checked': { color: '#f47803ff' } }}
                       />
                       <ListItemText primary="All" />
