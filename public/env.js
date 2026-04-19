@@ -1,8 +1,8 @@
 //live
 window._env_ = {
-    SERVER_URL: "http://74.224.122.231:8080/",
-    SERVER_URL2: "http://74.224.122.231:5000/",
-    GRAFANA_URL: "http://74.224.122.231:9097/",
+    SERVER_URL: "http://smart.yantra24x7.com:8080/",
+    SERVER_URL2: "http://smart.yantra24x7.com:5000/",
+    GRAFANA_URL: "http://smart.yantra24x7.com:9097/",
     CUSTOMER_ID: "690d2210-8a3a-11f0-a3ac-9b534c07af2b",
     SMC_CUSTOMER_ID: "527951c0-c50b-11f0-878e-073dc60e4f9a",
     MARKS_CUSTOMER_ID: "f05b99b0-da4c-11f0-a7b3-dbcd7348bdb3",
