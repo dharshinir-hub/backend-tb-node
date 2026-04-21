@@ -413,7 +413,7 @@ const BluecardDetails = () => {
         }
 
         const rejectdata = {
-          bluecard_count: String(updatedBluecardCount),
+          bluecard_count: Number(updatedBluecardCount),
           bluecard_reason: updatedReason,
           bluecard_remark: updatedRemark,
           bluecard_rejection_data: rejectionData,
@@ -423,7 +423,7 @@ const BluecardDetails = () => {
           quality_remark: existingQualityRemarks,
           quality_rows: existingQualityRows,
           shift: selectedShift,
-          count: String(finalCount),
+          count: Number(finalCount),
           reason: reason
         };
 
