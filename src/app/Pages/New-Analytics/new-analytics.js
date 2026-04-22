@@ -2168,7 +2168,7 @@ export default function NewAnalytics() {
                                 {cleanCustomerId(customerId) != window._env_.SMC_CUSTOMER_ID && (
                                     <MenuItem value={ANALYSIS_TYPES.UTILIZATION}>Utilization</MenuItem>
                                 )}
-                                {/* <MenuItem value={ANALYSIS_TYPES.PARTS}>Parts</MenuItem> */}
+                                <MenuItem value={ANALYSIS_TYPES.PARTS}>Parts</MenuItem>
                                 {cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID && (
                                     <MenuItem value={ANALYSIS_TYPES.LIVE_ALARM}>Alarm</MenuItem>
                                 )}
