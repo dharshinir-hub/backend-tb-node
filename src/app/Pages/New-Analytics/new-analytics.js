@@ -860,7 +860,7 @@ export default function NewAnalytics() {
     const [todayData, setTodayData] = useState(null);
     const [todayFrom, setTodayFrom] = useState(null);
     const [todayTo, setTodayTo] = useState(null);
-    const minYear = 2025;
+    const minYear = 2026;
     const maxYear = dayjs().year();
     const [partsViewType, setPartsViewType] = useState("day");
     const [downtimePeriod, setDowntimePeriod] = useState("day"); // "day" | "week" | "month"
