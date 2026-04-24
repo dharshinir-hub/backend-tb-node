@@ -26,6 +26,7 @@ import BluecardDetails from '../../Pages/BlueCardScreen/bluecarddetails';
 import BluecardReport from '../../Pages/BlueCardScreen/bluecardreport';
 import MachineStatusDashboard from '../../Pages/MachineStatusDashboard/MachineStatusDashboard';
 import OperatorPerformanceDashboard from '../../Pages/Operator-Performance-Dashboard/OperatorPerformanceDashboard';
+import AnalyticsV2 from '../../Pages/Analytics-V2/AnalyticsV2';
 
 
 
@@ -41,7 +42,7 @@ export const COMPONENT_REGISTRY = {
   "machinemm": GrafanaEmbed,
   "deviceoee": NewDeviceOee,
   "production-analysis": Analytics,
-  "analytics": NewAnalytics,
+  "analytics": AnalyticsV2,
   "machines-group": MachineGroup,
   "notification-center": NotificationCenter,
   "reports": MachineReport,

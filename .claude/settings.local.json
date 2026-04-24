@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Read(//c/Users/Yantra.YANTRA-GEETHA/projects/tb-node/src/Service/**)",
+      "Read(//c/Users/Yantra.YANTRA-GEETHA/projects/tb-node/**)",
+      "Bash(npm run *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Yantra.YANTRA-GEETHA\\projects\\pmi\\react2024\\src\\app\\Pages",
+      "c:\\Users\\Yantra.YANTRA-GEETHA\\projects\\tb-node"
+    ]
+  }
+}
