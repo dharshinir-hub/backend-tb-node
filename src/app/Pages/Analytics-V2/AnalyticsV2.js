@@ -104,6 +104,7 @@ export default function AnalyticsV2() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [chartData, setChartData] = useState(null);
+    const [iframeUrl, setIframeUrl] = useState('');
     const [expandedOthers, setExpandedOthers] = useState(false);
     const [selectedReason, setSelectedReason] = useState(null);
 
@@ -178,7 +179,7 @@ export default function AnalyticsV2() {
         return selectedMachines.length === 0;
     }, [tab, selectedMachines, cycleMachine, cycleDate, cycleShift]);
 
-    const handleTabChange = (_, newTab) => { setTab(newTab); setSelectedShift('all'); setChartData(null); setExpandedOthers(false); setSelectedReason(null); };
+    const handleTabChange = (_, newTab) => { setTab(newTab); setSelectedShift('all'); setChartData(null); setIframeUrl(''); setExpandedOthers(false); setSelectedReason(null); };
 
     const handleRunAnalysis = async () => {
         const reqId = ++requestIdRef.current;
@@ -191,6 +192,7 @@ export default function AnalyticsV2() {
 
         setIsLoading(true);
         setChartData(null);
+        setIframeUrl('');
         setExpandedOthers(false);
         setSelectedReason(null);
         try {
@@ -205,8 +207,11 @@ export default function AnalyticsV2() {
                     const fromDT = summaryDate.hour(sH).minute(sM).second(0).millisecond(0);
                     let toDT = summaryDate.hour(eH).minute(eM).second(0).millisecond(0);
                     if (eH < sH || (eH === sH && eM <= sM)) toDT = toDT.add(1, 'day');
-                    res = await fetchPartsCountStatusSummary({ deviceIds, fromEpoch: fromDT.valueOf(), toEpoch: toDT.valueOf() });
-                    console.log('[Parts Summary] chart data:', res);
+                    const psData = await fetchPartsCountStatusSummary({ deviceIds, fromEpoch: fromDT.valueOf(), toEpoch: toDT.valueOf() });
+                    if (reqId !== requestIdRef.current) return;
+                    const psBase = `${window._env_.GRAFANA_URL}d/cfhyiqoqbsc8we/analytics-parts-summary-chart?orgId=1&kiosk&theme=light`;
+                    setIframeUrl(`${psBase}&var-partsummary=${encodeURIComponent(JSON.stringify(psData))}`);
+                    // res stays undefined — iframeUrl drives the render
                 }
             } else if (tab === 'cycle_time') {
                 const deviceId = deviceNameID.find(d => d.name === cycleMachine)?.id;
@@ -217,8 +222,14 @@ export default function AnalyticsV2() {
                     const fromDT = cycleDate.hour(sH).minute(sM).second(0).millisecond(0);
                     let toDT = cycleDate.hour(eH).minute(eM).second(0).millisecond(0);
                     if (eH < sH || (eH === sH && eM <= sM)) toDT = toDT.add(1, 'day');
-                    const raw = await fetchPartsCountStatusSummary({ deviceIds: [deviceId], fromEpoch: fromDT.valueOf(), toEpoch: toDT.valueOf() });
-                    res = cycleComponent === 'all' ? raw : raw.filter(d => d.component_name === cycleComponent);
+                    const ctData = await fetchPartsCountStatusSummary({ deviceIds: [deviceId], fromEpoch: fromDT.valueOf(), toEpoch: toDT.valueOf() });
+                    if (reqId !== requestIdRef.current) return;
+                    const ctBase = `${window._env_.GRAFANA_URL}d/afi212e1xb7k0b/analytics-cycle-comparison-chart?orgId=1&kiosk&theme=light`;
+                    const compValue = cycleComponent === 'all'
+                        ? availableComponents.map(c => c.name).join(',')
+                        : cycleComponent;
+                    const compParam = compValue ? `&var-component=${encodeURIComponent(compValue)}` : '';
+                    setIframeUrl(`${ctBase}&var-partsummary=${encodeURIComponent(JSON.stringify(ctData))}${compParam}`);
                 }
             } else if (tab === 'downtime') {
                 // Step 1: all idle reasons summary
@@ -1276,91 +1287,10 @@ export default function AnalyticsV2() {
             );
         }
 
-        if (chartData && tab === 'parts_summary') {
-            const chart = buildPartsSummaryChart(chartData);
+        if (iframeUrl && ['parts_summary', 'cycle_time'].includes(tab)) {
             return (
-                <Box sx={{ width: '100%' }}>
-                    <Box className="av2-chart-card">
-                        <ReactApexChart options={chart.options} series={chart.series} type="bar" height={420} width="100%" />
-                    </Box>
-                </Box>
-            );
-        }
-
-        if (chartData && tab === 'cycle_time') {
-            const { series, options, stats, groups, total: totalBars } = buildCycleTimeChart(chartData);
-            const statItems = [
-                { label: 'Fast Cycle', value: stats.fastCycle, color: '#43a047' },
-                { label: 'Fast Handling', value: stats.fastHandle, color: '#4caf50' },
-                { label: 'Total Parts', value: stats.total, color: '#1e88e5' },
-                { label: 'Slow Cycle', value: stats.slowCycle, color: '#e53935' },
-                { label: 'Slow Handling', value: stats.slowHandle, color: '#f4b942' },
-            ];
-            const legendItems = [
-                { color: '#4caf50', label: 'Cycle Time', type: 'rect' },
-                { color: '#f4b942', label: 'Handling Time', type: 'rect' },
-                { color: '#4caf50', label: 'Std Cycle', type: 'dash' },
-                { color: '#f4b942', label: 'Std Handling', type: 'dash' },
-                { color: '#e53935', label: 'Exceeds Cycle Level', type: 'triangle' },
-            ];
-            return (
-                <Box sx={{ width: '100%' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
-                        {statItems.map(s => (
-                            <Box key={s.label} sx={{
-                                border: `1.5px solid ${s.color}`, borderRadius: 2, px: 2, py: 0.6,
-                                display: 'flex', alignItems: 'center', gap: 1, background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-                            }}>
-                                <Typography sx={{ fontSize: '0.8rem', color: '#555', fontWeight: 500 }}>{s.label}:</Typography>
-                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: s.color }}>{s.value}</Typography>
-                            </Box>
-                        ))}
-                    </Box>
-                    <Box className="av2-chart-card" sx={{ position: 'relative' }}>
-                        {/* Custom legend */}
-                        <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 2, pt: 1.5, pb: 0.5 }}>
-                            {legendItems.map(l => (
-                                <Box key={l.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                                    {l.type === 'rect' && <Box sx={{ width: 12, height: 12, borderRadius: 1, background: l.color }} />}
-                                    {l.type === 'dash' && <Box sx={{ width: 18, height: 2, borderTop: `2px dashed ${l.color}` }} />}
-                                    {l.type === 'triangle' && <Typography sx={{ color: l.color, fontSize: '12px', lineHeight: 1 }}>▲</Typography>}
-                                    <Typography sx={{ fontSize: '11px', color: '#555' }}>{l.label}</Typography>
-                                </Box>
-                            ))}
-                        </Box>
-                        {/* One component overlay per group, positioned at center of each group's x range */}
-                        {groups.filter(g => g.name).map((g, gi) => {
-                            const xCenter   = (g.start + g.end) / 2;
-                            const rangePct  = totalBars > 1 ? (xCenter / (totalBars - 1)) * 100 : 50;
-                            // left = rangePct% + (55px * (1 - rangePct/100)) maps 0%→55px, 50%→50%+27px, 100%→100%
-                            const yOff      = (55 * (1 - rangePct / 100)).toFixed(1);
-                            const leftStyle = `calc(${rangePct.toFixed(1)}% + ${yOff}px)`;
-                            return (
-                                <Box key={gi} sx={{ position: 'absolute', top: 52, left: leftStyle, transform: 'translateX(-50%)', zIndex: 10, pointerEvents: 'none', minWidth: 0 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <Box sx={{ flex: 1, borderTop: '2px dashed #aaa', minWidth: 16 }} />
-                                        <Box sx={{ mx: 0.8, background: '#e53935', color: '#fff', borderRadius: '4px', px: 1.2, py: 0.3, fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                            {g.name}
-                                        </Box>
-                                        <Box sx={{ flex: 1, borderTop: '2px dashed #aaa', minWidth: 16 }} />
-                                    </Box>
-                                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, mt: 0.4 }}>
-                                        {g.cycleTime && (
-                                            <Box sx={{ border: '1.5px solid #4caf50', color: '#4caf50', background: '#fff', borderRadius: '4px', px: 1, py: 0.2, fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                M: {fmtSec(parseHMS(g.cycleTime))}
-                                            </Box>
-                                        )}
-                                        {g.handlingTime && (
-                                            <Box sx={{ border: '1.5px solid #f4b942', color: '#f4b942', background: '#fff', borderRadius: '4px', px: 1, py: 0.2, fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                H: {fmtSec(parseHMS(g.handlingTime))}
-                                            </Box>
-                                        )}
-                                    </Box>
-                                </Box>
-                            );
-                        })}
-                        <ReactApexChart options={options} series={series} type="bar" height={420} width="100%" />
-                    </Box>
+                <Box sx={{ width: '100%', height: '70vh' }}>
+                    <iframe src={iframeUrl} title={tab} style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }} />
                 </Box>
             );
         }
