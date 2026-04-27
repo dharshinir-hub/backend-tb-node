@@ -79,7 +79,7 @@ export default function AnalyticsV2() {
 
     const [tab, setTab] = useState('utilization');
     const [shifts, setShifts] = useState([]);
-    const [selectedShift, setSelectedShift] = useState('all');
+    const [selectedShift, setSelectedShift] = useState([]);
     const [fromDate, setFromDate] = useState(dayjs().subtract(7, 'day'));
     const [toDate, setToDate] = useState(dayjs());
 
@@ -116,7 +116,11 @@ export default function AnalyticsV2() {
         customerbasedshift(customerId, 'allShift').then(res => {
             const list = res?.[0]?.value || [];
             setShifts(list);
-            if (list.length > 0) { setSummaryShift(list[0].shift_no); setCycleShift(list[0].shift_no); }
+            if (list.length > 0) {
+                setSummaryShift(list[0].shift_no);
+                setCycleShift(list[0].shift_no);
+                setSelectedShift(list.map(s => s.shift_no));
+            }
         }).catch(console.error);
     }, [customerId]);
 
@@ -179,13 +183,17 @@ export default function AnalyticsV2() {
         return selectedMachines.length === 0;
     }, [tab, selectedMachines, cycleMachine, cycleDate, cycleShift]);
 
-    const handleTabChange = (_, newTab) => { setTab(newTab); setSelectedShift('all'); setChartData(null); setIframeUrl(''); setExpandedOthers(false); setSelectedReason(null); };
+    const isAllShiftsSelected = shifts.length > 0 && selectedShift.length === shifts.length;
+
+    const handleTabChange = (_, newTab) => { setTab(newTab); setSelectedShift(shifts.map(s => s.shift_no)); setChartData(null); setIframeUrl(''); setExpandedOthers(false); setSelectedReason(null); };
 
     const handleRunAnalysis = async () => {
         const reqId = ++requestIdRef.current;
 
         const machines = selectedMachines.join(',');
-        const shiftParam = selectedShift === 'all' ? shifts.map(s => s.shift_no).join(',') : selectedShift;
+        const shiftParam = (selectedShift.length === 0 || selectedShift.length === shifts.length)
+            ? shifts.map(s => s.shift_no).join(',')
+            : selectedShift.join(',');
         const from = fromDate.format('YYYY-MM-DD');
         const to = toDate.format('YYYY-MM-DD');
         const allShifts = shifts.map(s => s.shift_no).join(',');
@@ -282,7 +290,7 @@ export default function AnalyticsV2() {
             } else if (tab === 'parts') {
                 res = await getPartsAnalytics(machines, allShifts, partsFromDate.format('YYYY-MM-DD'), partsToDate.format('YYYY-MM-DD'));
             } else if (tab === 'utilization') {
-                res = await getMetricByPeriod(machines, shiftParam, from, to, utilView, 'availability');
+                res = await getMetricByPeriod(machines, shiftParam, from, to, utilView, 'run');
             } else if (tab === 'oee') {
                 res = await getMetricByPeriod(machines, shiftParam, from, to, oeeView, 'oee');
             }
@@ -348,9 +356,23 @@ export default function AnalyticsV2() {
                     {shifts.map(s => <MenuItem key={s.shift_no} value={s.shift_no}>Shift {s.shift_no}</MenuItem>)}
                 </Select>
             ) : (
-                <Select value={value} onChange={e => onChange(e.target.value)} label="Shift">
-                    <MenuItem value="all">All Shifts</MenuItem>
-                    {shifts.map(s => <MenuItem key={s.shift_no} value={s.shift_no}>Shift {s.shift_no}</MenuItem>)}
+                <Select multiple value={value} label="Shift"
+                    onChange={e => {
+                        const v = e.target.value;
+                        if (v.includes('all')) {
+                            onChange(isAllShiftsSelected ? [] : shifts.map(s => s.shift_no));
+                        } else {
+                            onChange(v);
+                        }
+                    }}
+                    renderValue={sel => isAllShiftsSelected ? 'All Shifts' : sel.length === 0 ? 'Select Shift' : sel.map(v => `Shift ${v}`).join(', ')}>
+                    <MenuItem value="all"><Checkbox checked={isAllShiftsSelected} sx={{ '&.Mui-checked': { color: '#f47803' } }} /><ListItemText primary="All Shifts" /></MenuItem>
+                    {shifts.map(s => (
+                        <MenuItem key={s.shift_no} value={s.shift_no}>
+                            <Checkbox checked={value.includes(s.shift_no)} sx={{ '&.Mui-checked': { color: '#f47803' } }} />
+                            <ListItemText primary={`Shift ${s.shift_no}`} />
+                        </MenuItem>
+                    ))}
                 </Select>
             )}
         </FormControl>
@@ -475,6 +497,10 @@ export default function AnalyticsV2() {
             x: String(r.name ?? ''),
             y: r.cumPct,
         }));
+        const secondsData = displayReasons.map(r => ({
+            x: String(r.name ?? ''),
+            y: r.total_duration_seconds,
+        }));
         const hours = barData.map(d => d.y);
         const cumPct = lineData.map(d => d.y);
 
@@ -532,10 +558,10 @@ export default function AnalyticsV2() {
             plotOptions: {
                 bar: { borderRadius: 4, columnWidth: '65%', distributed: false },
             },
-            colors: ['#e0e0e0', '#27ae60'],
-            stroke: { width: [0, 2.5], curve: 'smooth' },
+            colors: ['#e0e0e0', '#27ae60', 'transparent'],
+            stroke: { width: [0, 2.5, 0], curve: 'smooth' },
             markers: {
-                size: [0, 5],
+                size: [0, 5, 0],
                 strokeColors: '#fff',
                 strokeWidth: 2,
                 hover: { size: 7 },
@@ -577,6 +603,13 @@ export default function AnalyticsV2() {
                     labels: { formatter: v => `${v}%`, style: { fontSize: '11px' } },
                     axisBorder: { show: false },
                 },
+                {
+                    seriesName: 'Duration (s)',
+                    show: false,
+                    labels: { show: false },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false },
+                },
             ],
             legend: { show: false },
             grid: {
@@ -616,6 +649,7 @@ export default function AnalyticsV2() {
         const series = [
             { name: 'Duration', type: 'bar', data: barData },
             { name: 'Cumulative %', type: 'line', data: lineData },
+            { name: 'Duration (s)', type: 'line', data: secondsData },
         ];
 
         return { options, series };
@@ -1105,8 +1139,10 @@ export default function AnalyticsV2() {
         data.forEach((d, i) => {
             const last = rawGroups[rawGroups.length - 1];
             if (!last || last.name !== d.component_name) {
-                rawGroups.push({ name: d.component_name || '', start: i, end: i,
-                    cycleTime: d.component_cycle_time, handlingTime: d.component_handling_time });
+                rawGroups.push({
+                    name: d.component_name || '', start: i, end: i,
+                    cycleTime: d.component_cycle_time, handlingTime: d.component_handling_time
+                });
             } else {
                 last.end = i;
             }
@@ -1127,16 +1163,16 @@ export default function AnalyticsV2() {
         const getStd = d => d.component_cycle_time ? parseHMS(d.component_cycle_time) : null;
         const getStdH = d => d.component_handling_time ? parseHMS(d.component_handling_time) : null;
 
-        const fastCycle  = data.filter(d => { const s = getStd(d);  return s && d.totalrunduration  / 1000 < s; }).length;
-        const slowCycle  = data.filter(d => { const s = getStd(d);  return s && d.totalrunduration  / 1000 > s; }).length;
+        const fastCycle = data.filter(d => { const s = getStd(d); return s && d.totalrunduration / 1000 < s; }).length;
+        const slowCycle = data.filter(d => { const s = getStd(d); return s && d.totalrunduration / 1000 > s; }).length;
         const fastHandle = data.filter(d => { const s = getStdH(d); return s && d.totalidleduration / 1000 < s; }).length;
         const slowHandle = data.filter(d => { const s = getStdH(d); return s && d.totalidleduration / 1000 > s; }).length;
 
-        const cycleVals  = data.map(d => +(d.totalrunduration  / 1000).toFixed(1));
+        const cycleVals = data.map(d => +(d.totalrunduration / 1000).toFixed(1));
         const handleVals = data.map(d => +(d.totalidleduration / 1000).toFixed(1));
 
         const series = [
-            { name: 'Cycle Time',    type: 'bar', data: data.map((d, i) => ({ x: i, y: cycleVals[i]  })) },
+            { name: 'Cycle Time', type: 'bar', data: data.map((d, i) => ({ x: i, y: cycleVals[i] })) },
             { name: 'Handling Time', type: 'bar', data: data.map((d, i) => ({ x: i, y: handleVals[i] })) },
         ];
 
@@ -1144,11 +1180,11 @@ export default function AnalyticsV2() {
         const seenStd = new Set();
         const yAnnotations = [];
         groups.forEach(g => {
-            const sc = g.cycleTime  ? parseHMS(g.cycleTime)  : null;
+            const sc = g.cycleTime ? parseHMS(g.cycleTime) : null;
             const sh = g.handlingTime ? parseHMS(g.handlingTime) : null;
             if (sc && !seenStd.has(`c${sc}`)) {
                 seenStd.add(`c${sc}`);
-                yAnnotations.push({ y: sc, borderColor: '#4caf50', strokeDashArray: 6, borderWidth: 2, label: { text: 'Std Cycle',    position: 'right', style: { background: 'transparent', color: '#4caf50', fontSize: '10px' } } });
+                yAnnotations.push({ y: sc, borderColor: '#4caf50', strokeDashArray: 6, borderWidth: 2, label: { text: 'Std Cycle', position: 'right', style: { background: 'transparent', color: '#4caf50', fontSize: '10px' } } });
             }
             if (sh && !seenStd.has(`h${sh}`)) {
                 seenStd.add(`h${sh}`);
@@ -1211,7 +1247,7 @@ export default function AnalyticsV2() {
                         <div><span style="color:#888">Parts Count:</span> <b>${d.partscount ?? 0}</b></div>
                         <div><span style="color:#4caf50">●</span> Cycle Time: <b>${ct}</b>${exceeds ? ' <span style="color:#e53935">▲</span>' : ''}</div>
                         <div><span style="color:#f4b942">●</span> Handling Time: <b>${ht}</b></div>
-                        ${d.component_cycle_time    ? `<div style="color:#888;font-size:11px;margin-top:4px">M: ${d.component_cycle_time}</div>`    : ''}
+                        ${d.component_cycle_time ? `<div style="color:#888;font-size:11px;margin-top:4px">M: ${d.component_cycle_time}</div>` : ''}
                         ${d.component_handling_time ? `<div style="color:#888;font-size:11px">H: ${d.component_handling_time}</div>` : ''}
                     </div>`;
                 },
@@ -1422,7 +1458,7 @@ export default function AnalyticsV2() {
         }
 
         if (chartData && tab === 'utilization') {
-            const chart = buildMachineLineChart(chartData, 'Utilization', utilView, 'availability');
+            const chart = buildMachineLineChart(chartData, 'Utilization', utilView, 'run');
             return (
                 <Box sx={{ width: '100%' }}>
                     <Box className="av2-chart-card">
