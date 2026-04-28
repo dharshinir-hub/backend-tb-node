@@ -209,7 +209,7 @@ export default function Metrics() {
     const [statusFilter, setStatusFilter] = useState({
         Idle: true,
         Running: true,
-        Disconnected: true,
+        Disconnect: true,
         Alarm: true,
     });
 
@@ -736,7 +736,7 @@ export default function Metrics() {
 
                                             {openFilter === "status" && (
                                                 <div style={menuStyle}>
-                                                    {["Running", "Idle", "Disconnected", "Alarm"].map(s => (
+                                                    {["Running", "Idle", "Disconnect", "Alarm"].map(s => (
                                                         <label
                                                             key={s}
                                                             style={{
