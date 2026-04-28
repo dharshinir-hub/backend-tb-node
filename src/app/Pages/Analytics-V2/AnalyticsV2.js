@@ -898,7 +898,9 @@ export default function AnalyticsV2() {
 
         const totalActual = rows.reduce((s, r) => s + r.actual, 0);
         const totalTarget = rows.reduce((s, r) => s + r.target, 0);
-        const totalMetric = totalTarget > 0 ? +((totalActual / totalTarget) * 100).toFixed(1) : 0;
+        const totalMetric = totalTarget > 0
+            ? +(rows.reduce((s, r) => s + r.metric * r.target, 0) / totalTarget).toFixed(1)
+            : 0;
         rows.push({ label: 'Total', actual: totalActual, target: totalTarget, metric: totalMetric });
 
         const firstLabel = rows.length > 1 ? rows[0].label : '';
