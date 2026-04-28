@@ -26,7 +26,6 @@ import dayjs from 'dayjs';
 import {
     customerbasedshift,
     telemetrykeydata,
-    telemetrylatestdata
 } from '../../Services/app/companyservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
 import { createTbWebSocket } from '../../Services/app/tbWebSocketService';
@@ -458,15 +457,17 @@ export default function OperatorPerformanceDashboard() {
     // Poll latest telemetry every 30s for Current shift.
     // WS is unreliable for same-timestamp rewrites; polling gives consistent state for all keys.
     useEffect(() => {
-        if (viewMode !== 'Current' || !selectedMachines.length || !deviceNameID.length) return;
+        if (viewMode !== 'Current' || !selectedMachines.length || !deviceNameID.length || !currentShiftInfo || !shifts.length) return;
 
         const POLL_KEYS = 'machine_status,oee,targetparts,totalparts,live_operator';
 
         const poll = async () => {
             const ids = deviceNameID.filter(d => selectedMachines.includes(d.name)).map(d => d.id);
+            const currentT = getShiftTimes(shifts, currentShiftInfo.shiftNo, currentShiftInfo.date);
+            if (!currentT?.from) return;
             const results = await Promise.all(ids.map(async (devId) => {
                 try {
-                    return { devId, data: await telemetrylatestdata(devId, 'DEVICE', POLL_KEYS) };
+                    return { devId, data: await telemetrykeydata(devId, 'DEVICE', POLL_KEYS, currentT.from, currentT.to) };
                 } catch(e) { return null; }
             }));
 
@@ -526,7 +527,7 @@ export default function OperatorPerformanceDashboard() {
         poll(); // run immediately on mount
         const interval = setInterval(poll, 30000);
         return () => clearInterval(interval);
-    }, [viewMode, selectedMachines, deviceNameID]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [viewMode, selectedMachines, deviceNameID, currentShiftInfo, shifts, getShiftTimes]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Common Card Component
     const RenderMachineCard = useCallback(({ m, rank }) => {
