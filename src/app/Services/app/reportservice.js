@@ -76,6 +76,19 @@ export const getIdleReasonReport = async (machine, shiftNo, fromTime, toTime, pa
   }
 };
 
+export const getAlarmReport = async (machine, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/report/alarm_report/${machine}/${shiftNo}/${fromTime}/${toTime}/${page + 1}/${limit}`;
+    const response = await axiosInstance.get(url);
+    console.log('Alarm Report response', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error during alarm report data:', error);
+    throw error;
+  }
+};
+
 export const getEfficiencyReport = async (machine, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
   try {
     const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
@@ -95,7 +108,8 @@ export const getReportDownloadLink = async (type, machine, shiftNo, fromTime, to
     part: "part_report_download",
     general: "general_report_download",
     oee: "oee_report_download",
-    idle_reason: "idle_report_download"
+    idle_reason: "idle_report_download1",
+    alarm: "alarm_report_download"
   };
   const endpoint = endpointMap[type];
   if (!endpoint) throw new Error(`Unknown report type: ${type}`);

@@ -19,7 +19,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
-import { getEfficiencyReport, getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportDownloadLink, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
+import { getAlarmReport, getEfficiencyReport, getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportDownloadLink, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
 import classNames from 'classnames';
 import { DownloadIcon } from "lucide-react";
 import Swal from "sweetalert2";
@@ -37,6 +37,7 @@ export default function MachineReport() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [idleReasonWithPercentage, setIdleReasonWithPercentage] = useState([]);
+  const [alarmWithPercentage, setAlarmWithPercentage] = useState([]);
   const [averageEfficiency, setAverageEfficiency] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,6 +71,10 @@ export default function MachineReport() {
     idle_reason: [
       "S.no", "Date", "Shift", "Machine Name",
       "Mode", "Category", "Reason", "Operator Name", "Component Name", "Duration"
+    ],
+    alarm: [
+      "S.no", "Date", "Shift", "Machine Name",
+      "Alarm Message", "Alarm Number", "Operator Name", "Component Name", "Duration"
     ],
     efficiency: [
       "S.no", "Component Number", "Component Name", "Total Parts", "Target Parts", "Efficiency(%)", "Run Time", "Idle/Stop Time", "Duration"
@@ -157,13 +162,24 @@ export default function MachineReport() {
       { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
       { key: "date", formatter: row => formatWithFallback(formatDate(row.date)) },
       { key: "shift_num", formatter: row => formatWithFallback(row.shift_num) },
-      { key: "device_name", formatter: row => formatWithFallback(row.device_name) },
-      { key: "mode", formatter: row => formatWithFallback(row.json_v.mode) },
-      { key: "category", formatter: row => formatDowntimeType(row.json_v.category) },
-      { key: "idle_reason_name", formatter: row => formatWithFallback(row.json_v.name) },
-      { key: "operator_name", formatter: row => formatWithFallback(row.json_v.operator_name) },
-      { key: "component_name", formatter: row => formatWithFallback(row.json_v.component_name) },
-      { key: "duration", formatter: row => formatTimeWithFallback(row.json_v.idle_duration) },
+      { key: "machine_name", formatter: row => formatWithFallback(row.machine_name) },
+      { key: "mode", formatter: row => formatWithFallback(row.mode) },
+      { key: "category", formatter: row => formatDowntimeType(row.category) },
+      { key: "idle_reason_name", formatter: row => formatWithFallback(row.name) },
+      { key: "operator_name", formatter: row => formatWithFallback(row.operator_name) },
+      { key: "component_name", formatter: row => formatWithFallback(row.component_name) },
+      { key: "duration", formatter: row => formatTimeWithFallback(row.idle_duration) },
+    ],
+    alarm: [
+      { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
+      { key: "date", formatter: row => formatWithFallback(formatDate(row.date)) },
+      { key: "shift_num", formatter: row => formatWithFallback(row.shift_num) },
+      { key: "machine_name", formatter: row => formatWithFallback(row.machine_name) },
+      { key: "alarm_message", formatter: row => formatWithFallback(row.alarm_message) },
+      { key: "alarm_number", formatter: row => formatWithFallback(row.alarm_number) },
+      { key: "operator_name", formatter: row => formatWithFallback(row.operator_name) },
+      { key: "component_name", formatter: row => formatWithFallback(row.component_name) },
+      { key: "duration", formatter: row => formatTimeWithFallback(row.alarm_duration) },
     ],
     efficiency: [
       { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
@@ -263,9 +279,16 @@ export default function MachineReport() {
           dateStr, dateEnd, pageNum, limit
         );
         setIdleReasonWithPercentage(response.idleReasonWithPercentage || [])
+      } else if (tab === "alarm") {
+        response = await getAlarmReport(
+          Array.isArray(machinesParam) ? machinesParam.join(",") : machinesParam,
+          shiftsParam,
+          dateStr, dateEnd, pageNum, limit
+        );
+        setAlarmWithPercentage(response.alarmWithPercentage || [])
       }
       setReportData(response.data || response);
-      setTotalCount(response.total || 0);
+      setTotalCount(response.total1 || response.total || 0);
     } catch (err) {
       console.error(`Failed to fetch ${tab} report`, err);
     }
@@ -406,7 +429,7 @@ export default function MachineReport() {
   const downloadCSV = async () => {
     const dateStr = startDate.format("YYYY-MM-DD");
     const dateEnd = endDate.format("YYYY-MM-DD");
-    const validTabs = ["part", "idle_reason", "general", "oee"];
+    const validTabs = ["part", "idle_reason", "general", "oee", "alarm"];
     if (!validTabs.includes(selectedTab)) {
       Swal.fire({
         icon: "warning",
@@ -458,6 +481,7 @@ export default function MachineReport() {
         <Tab label="General Report" value="general" />
         <Tab label="OEE Report" value="oee" />
         <Tab label="Idle Reason Report" value="idle_reason" />
+        <Tab label="Alarm Report" value="alarm" />
         <Tab label="Part Wise Report" value="part" />
       </Tabs>
 
@@ -914,6 +938,212 @@ export default function MachineReport() {
         </Box>
       )}
 
+      {selectedTab === 'alarm' && alarmWithPercentage.length > 0 && (
+        <Box
+          sx={{
+            mt: 3,
+            mb: 3,
+            p: 2.5,
+            borderRadius: 3,
+            background: "linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)",
+            border: "1px solid rgba(226, 232, 240, 0.7)",
+            boxShadow:
+              "0 4px 20px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.5)",
+            backdropFilter: "blur(6px)",
+            transition: "all 0.3s ease",
+            "&:hover": {
+              boxShadow:
+                "0 6px 24px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6)",
+            },
+          }}
+        >
+          {/* Header */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 2,
+              borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
+              pb: 1,
+            }}
+          >
+            <Typography
+              sx={{
+                fontWeight: 700,
+                fontSize: "1rem",
+                color: "#1a202c",
+                letterSpacing: "0.3px",
+              }}
+            >
+              🚨 Alarm Summary
+            </Typography>
+
+            <Typography
+              sx={{
+                fontWeight: 600,
+                fontSize: "0.85rem",
+                color: "#2d3748",
+                background: "linear-gradient(90deg, #f7fafc, #edf2f7)",
+                px: 1.5,
+                py: 0.5,
+                borderRadius: "8px",
+                boxShadow: "inset 0 1px 3px rgba(0,0,0,0.05)",
+              }}
+            >
+              Total:{" "}
+              <Box
+                component="span"
+                sx={{
+                  fontWeight: 700,
+                  color: "#2b6cb0",
+                }}
+              >
+                {formatTime(
+                  alarmWithPercentage.reduce(
+                    (sum, r) => sum + (r.total_alarm_duration || 0),
+                    0
+                  )
+                )}
+              </Box>
+            </Typography>
+          </Box>
+
+          {/* Inline Mini Progress Cards */}
+          <Box
+            sx={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 1.8,
+            }}
+          >
+            {alarmWithPercentage.map((item, index) => {
+              const COLORS = [
+                "#e53e3e",
+                "#3182ce",
+                "#38a169",
+                "#d69e2e",
+                "#805ad5",
+                "#00a5cf",
+                "#d53f8c",
+                "#0d9b6c",
+                "#dd6b20",
+                "#5a67d8",
+              ];
+              const pct = parseFloat(item.percentage) || 0;
+              const color = COLORS[index % COLORS.length];
+
+              return (
+                <Box
+                  key={index}
+                  sx={{
+                    flex: "1 1 220px",
+                    minWidth: "220px",
+                    maxWidth: "280px",
+                    borderRadius: 2,
+                    background: "rgba(255,255,255,0.8)",
+                    border: "1px solid rgba(226,232,240,0.6)",
+                    boxShadow:
+                      "0 2px 8px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.3)",
+                    p: 1.5,
+                    transition: "all 0.25s ease",
+                    "&:hover": {
+                      transform: "translateY(-2px)",
+                      boxShadow:
+                        "0 4px 14px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.4)",
+                    },
+                  }}
+                >
+                  {/* Title & Percentage */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 0.8,
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontWeight: 500,
+                        fontSize: "0.8rem",
+                        color: "#2d3748",
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={item.alarm_message}
+                    >
+                      {item.alarm_message}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "0.75rem",
+                        color: color,
+                        minWidth: "35px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {pct}%
+                    </Typography>
+                  </Box>
+
+                  {/* Progress Bar with Shimmer */}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box
+                      sx={{
+                        flex: 1,
+                        height: 5,
+                        borderRadius: 2,
+                        background:
+                          "linear-gradient(90deg, #edf2f7, #e2e8f0 40%, #edf2f7)",
+                        overflow: "hidden",
+                        position: "relative",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: `${pct}%`,
+                          height: "100%",
+                          background: `linear-gradient(90deg, ${color}, ${color}CC)`,
+                          borderRadius: 2,
+                          position: "relative",
+                          "&::after": {
+                            content: '""',
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "100%",
+                            height: "100%",
+                            background:
+                              "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
+                            animation: "shine 2.5s infinite",
+                          },
+                        }}
+                      />
+                    </Box>
+
+                    <Typography
+                      sx={{
+                        fontWeight: 500,
+                        fontSize: "0.7rem",
+                        color: "#718096",
+                        minWidth: "42px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {formatTime(item.total_alarm_duration)}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      )}
+
       {selectedTab === 'efficiency' && averageEfficiency && (
         <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
           <Typography
@@ -994,7 +1224,7 @@ export default function MachineReport() {
                           const rawData = col.formatter(row, index);
                           const displayData = rawData !== null && rawData !== undefined ? String(rawData) : "---";
                           const fullData = Array.isArray(row[col.key]) ? row[col.key].join(" | ") : row[col.key] || "---";
-                          return ['component_name', 'operator_name', 'component_number', 'machine_name', 'component_id', 'remark'].includes(col.key) ? (
+                          return ['component_name', 'operator_name', 'component_number', 'machine_name', 'component_id', 'remark', 'alarm_message'].includes(col.key) ? (
                             <Tooltip title={fullData}>
                               <span>{displayData}</span>
                             </Tooltip>
