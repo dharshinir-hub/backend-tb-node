@@ -291,7 +291,8 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
       return [{ value: "quality", label: "Quality Entry" }];
     }
 
-    return pageList.filter(p => !qualityValues.includes(p.value));
+    const generalValues = PAGE_LIST.map(p => p.value);
+    return pageList.filter(p => !qualityValues.includes(p.value) || generalValues.includes(p.value));
   }, [shiftForm.mode, pageList, customerId]);
 
 
