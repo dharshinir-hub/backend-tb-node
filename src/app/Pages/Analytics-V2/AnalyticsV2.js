@@ -11,6 +11,7 @@ import isoWeek from 'dayjs/plugin/isoWeek';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
+import { useUserRole } from '../../Shared/hooks/useUserRole';
 import { customerbasedshift, cleanCustomerId, telemetrykeydata } from '../../Services/app/operatorservice';
 import { fetchPartsCountStatusSummary } from '../../Shared/utils/partsdata';
 import { getAlarmByPeriod, getAlarmByPeriodTop, getMetricByPeriod, getPartsAnalytics, getIdleByPeriod, getIdleReasonByPeriod } from '../../Services/app/analyticsservice';
@@ -20,12 +21,12 @@ dayjs.extend(isoWeek);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const TABS = [
+const ALL_TABS = [
     { value: 'utilization', label: 'Utilization' },
     { value: 'oee', label: 'OEE' },
     { value: 'parts', label: 'Parts' },
-    { value: 'parts_summary', label: 'Parts Summary' },
-    { value: 'cycle_time', label: 'Cycle Time' },
+    { value: 'parts_summary', label: 'Parts Summary', restrictedToCustomer: true },
+    { value: 'cycle_time', label: 'Cycle Time', restrictedToCustomer: true },
     { value: 'downtime', label: 'Downtime' },
     { value: 'alarm', label: 'Alarm' },
 ];
@@ -70,6 +71,8 @@ const formatH = s => {
 
 export default function AnalyticsV2() {
     const customerId = localStorage.getItem('CustomerID');
+    const { isSuperAdmin } = useUserRole();
+    const TABS = ALL_TABS.filter(t => !t.restrictedToCustomer || isSuperAdmin);
 
     const {
         deviceNameID, machineGroups, availableMachines, selectedMachines, selectedGroups,
@@ -77,7 +80,7 @@ export default function AnalyticsV2() {
         handleGroupChange, handleMachineChange, setSelectedMachines,
     } = useMachineGroups(customerId);
 
-    const [tab, setTab] = useState('utilization');
+    const [tab, setTab] = useState(() => TABS[0]?.value || 'utilization');
     const [shifts, setShifts] = useState([]);
     const [selectedShift, setSelectedShift] = useState([]);
     const [fromDate, setFromDate] = useState(dayjs().subtract(7, 'day'));
