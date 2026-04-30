@@ -847,7 +847,8 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
 
 /* --- Job Info --- */
 .job-info {
-  margin-bottom: 1.5rem;
+  margin-Top: 0.5rem;
+  margin-bottom: 0.7rem;
 }
 
 .job-code {
@@ -981,6 +982,50 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
   }
 }
 
+.component-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #fff;
+  border: solid 1px #d0d0d0;
+  border-radius: 30px;
+  padding: 8px 24px;
+  min-width: 120px;
+  width: fit-content;
+}
+
+@media (min-width: 1440px) {
+  .component-section {
+    min-width: 200px;
+    padding: 10px 36px;
+    border-radius: 35px;
+  }
+
+  .component-section .MuiInputBase-root {
+    font-size: 1.2rem !important;
+  }
+
+  .component-section .MuiSvgIcon-root {
+    font-size: 28px !important;
+  }
+}
+
+@media (min-width: 1920px) {
+  .component-section {
+    min-width: 250px;
+    padding: 12px 44px;
+    border-radius: 40px;
+  }
+
+  .component-section .MuiInputBase-root {
+    font-size: 1.5rem !important;
+  }
+
+  .component-section .MuiSvgIcon-root {
+    font-size: 32px !important;
+  }
+}
+
 .button-wrapper {
   display: flex;
   justify-content: center;
@@ -1004,4 +1049,75 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
 .blue-card-button:hover {
   background: #2cb3f6;
   transform: translateY(-1px);
+}
+
+/* ── Plan Modal ──────────────────────────────────── */
+.plan-modal-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #f99022;
+  border-bottom: 2px solid #f990221a;
+  padding-bottom: 4px;
+  padding-Top: 14px;
+  margin-bottom: 12px;
+}
+
+.plan-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 16px;
+}
+
+.plan-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-modal-field--wide {
+  grid-column: span 2;
+}
+
+.plan-modal-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.plan-modal-field input,
+.plan-modal-select {
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  font-family: 'Poppins', sans-serif;
+  color: #222;
+  outline: none;
+  transition: border 0.2s;
+  width: 100%;
+  background: #fff;
+}
+
+.plan-modal-field input:focus,
+.plan-modal-select:focus {
+  border-color: #f99022;
+}
+
+.plan-modal-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-modal-time input {
+  width: 70px;
+  text-align: center;
+}
+
+.plan-modal-time span {
+  font-weight: 700;
+  color: #666;
+  font-size: 1rem;
 }

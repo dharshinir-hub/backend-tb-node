@@ -149,6 +149,74 @@ export const getReportToken = async (username, password) => {
   }
 };
 
+export const getAllPlans = async () => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/all`;
+  const response = await axiosInstance.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const updatePlan = async (id, payload) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/update/${id}`;
+  const response = await axiosInstance.put(url, payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  return response.data;
+};
+
+export const createPlan = async (payload) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/create`;
+  const response = await axiosInstance.post(url, payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  return response.data;
+};
+
+export const getCurrentMachinePlan = async (machineName, shiftNo, date) => {   //getting the current shift plan
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/current-machine?machine_name=${encodeURIComponent(machineName)}&shift_no=${encodeURIComponent(shiftNo)}&date=${encodeURIComponent(date)}`;
+  const response = await axiosInstance.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const getJobsByWorkname = async (workname, page = 1, limit = 10) => {    //scheduling plan
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/job/by-workname?workname=${workname}&page=${page}&limit=${limit}`;
+    const response = await axiosInstance.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching jobs by workname:', error);
+    throw error;
+  }
+};
+
+export const getPlanDetails = async (machineName, shiftNo, startDate, endDate) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/plan-details/${encodeURIComponent(machineName)}/${shiftNo}/${startDate}/${endDate}`;
+  const response = await axiosInstance.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
 export const getReportGenerate1 = async (device, date, currentshift, status) => {
   try {
     const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
@@ -172,4 +240,14 @@ export const getReportGenerate1 = async (device, date, currentshift, status) => 
     console.error("Error during report machine list data:", error);
     throw error;
   }
+};
+
+export const deletePlan = async (id) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/delete/${id}`;
+  const response = await axiosInstance.delete(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
 };
