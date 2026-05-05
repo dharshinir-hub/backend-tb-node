@@ -30,7 +30,7 @@ const GroupCard = ({ name, active, total, performance, target, actual, actualCol
                         position: "absolute",
                         top: "10px",
                         right: "10px",
-                        fontSize: "10px",
+                        fontSize: "12px",
                         fontWeight: 700,
                         background: "#3b82f6",
                         color: "#fff",
@@ -50,10 +50,10 @@ const GroupCard = ({ name, active, total, performance, target, actual, actualCol
                 }}
             >
                 <div>
-                    <div style={{ fontSize: "16px", fontWeight: 600 }}>
+                    <div style={{ fontSize: "18px", fontWeight: 600 }}>
                         {name}
                     </div>
-                    <div style={{ fontSize: "14px", color: "#6b7280" }}>
+                    <div style={{ fontSize: "15px", color: "#6b7280" }}>
                         {active}/{total} Machines Active
                     </div>
                 </div>
@@ -65,7 +65,7 @@ const GroupCard = ({ name, active, total, performance, target, actual, actualCol
             <div
                 style={{
                     marginTop: "14px",
-                    fontSize: "11px",
+                    fontSize: "12px",
                     fontWeight: 600,
                     color: "#6b7280",
                 }}
@@ -80,12 +80,12 @@ const GroupCard = ({ name, active, total, performance, target, actual, actualCol
                     marginTop: "4px",
                 }}
             >
-                <div style={{ fontSize: "22px", fontWeight: 700 }}>
+                <div style={{ fontSize: "23px", fontWeight: 700 }}>
                     {performance}
                 </div>
                 <div
                     style={{
-                        fontSize: "14px",
+                        fontSize: "15px",
                         color: "#6b7280",
                         textAlign: "right",
                     }}
@@ -93,11 +93,11 @@ const GroupCard = ({ name, active, total, performance, target, actual, actualCol
                     Target vs Actual
                     <br />
                     <b>
-                        <span style={{ color: targetColor }}>
+                        <span style={{ color: targetColor, fontSize: "18px" }}>
                             {target}
                         </span>{" "}
                         /{" "}
-                        <span style={{ color: actualColor }}>
+                        <span style={{ color: actualColor, fontSize: "18px" }}>
                             {actual}
                         </span>
                     </b>
@@ -312,6 +312,7 @@ export default function Metrics() {
                 "totalparts",
                 "targetparts",
                 "operations",
+                "oee",
             ];
             try {
                 const machineTelemetry = await Promise.all(
@@ -332,11 +333,12 @@ export default function Metrics() {
                             totalparts: 0,
                             targetparts: 0,
                             operations: 0,
+                            oee: 0,
                             performance: 0,
                         };
 
                         Object.entries(data || {}).forEach(([key, arr]) => {
-                            // Always take 0th index value
+                            // Always take 0th index value (latest value from current shift)
                             let value = Array.isArray(arr) && arr.length > 0
                                 ? arr[0].value
                                 : null;
@@ -353,8 +355,8 @@ export default function Metrics() {
                                 }
                             }
 
-                            // Convert numeric field safely
-                            if (key === "targetparts") {
+                            // Convert numeric fields safely
+                            if (key === "targetparts" || key === "oee") {
                                 value = Number(value) || 0;
                             }
 
@@ -366,7 +368,7 @@ export default function Metrics() {
                         const target = deviceTelemetry.targetparts || 0;
                         deviceTelemetry.performance =
                             target > 0
-                                ? Number(((shots / target) * 100).toFixed(1))
+                                ? Number(((shots / target) * 100).toFixed(0))
                                 : 0;
                         return deviceTelemetry;
                     })
@@ -404,7 +406,7 @@ export default function Metrics() {
         };
         fetchTelemetryData();
 
-           const interval = setInterval(() => {
+        const interval = setInterval(() => {
             fetchTelemetryData();
         }, 60 * 1000);
 
@@ -457,10 +459,10 @@ export default function Metrics() {
     console.log('machine groups', groups)
 
     useEffect(() => {
-        if (groupCards.length > 0) {
+        if (!selectedGroup && groupCards.length > 0) {
             setSelectedGroup(groupCards[0].name);
         }
-    }, [telemetryData]);
+    }, [groupCards, selectedGroup]);
 
     const getStatusLabel = (status) => {
         const map = {
@@ -539,18 +541,18 @@ export default function Metrics() {
             🔽
         </span>
     );
-    const menuStyle = {
-        position: "absolute",
-        top: "36px",
-        right: 0,
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
-        borderRadius: "8px",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-        padding: "10px 12px",
-        minWidth: "170px",
-        zIndex: 10,
-    };
+    // const menuStyle = {
+    //     position: "absolute",
+    //     top: "36px",
+    //     right: 0,
+    //     background: "#ffffff",
+    //     border: "1px solid #e5e7eb",
+    //     borderRadius: "8px",
+    //     boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    //     padding: "10px 12px",
+    //     minWidth: "170px",
+    //     zIndex: 10,
+    // };
 
 
     const menuItemRow = {
@@ -568,6 +570,42 @@ export default function Metrics() {
         cursor: "pointer",
     };
 
+    const tableContainer = {
+        width: "100%",
+        overflowX: "auto",
+        background: "#ffffff",
+        borderRadius: "14px",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+        border: "1px solid #e5e7eb",
+    };
+
+    const headerCell = {
+        padding: "14px 12px",
+        fontWeight: 600,
+        fontSize: "15px",
+        color: "#374151",
+        whiteSpace: "nowrap",
+    };
+
+    const bodyCell = {
+        padding: "14px 12px",
+        fontSize: "14px",
+        color: "#111827",
+    };
+
+    const menuStyle = {
+        position: "absolute",
+        top: "36px",
+        right: 0,
+        background: "#fff",
+        border: "1px solid #e5e7eb",
+        borderRadius: "10px",
+        padding: "10px",
+        boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
+        zIndex: 20,
+        minWidth: "160px",
+    };
+
 
 
     console.log('selected group', selectedGroup)
@@ -576,7 +614,7 @@ export default function Metrics() {
         <div style={{ backgroundColor: "#f6f4f4", minHeight: "100vh", width: "100%" }}>
             <div style={{ padding: "40px 32px 22px", backgroundColor: "#fff", marginBottom: "20px" }}>
                 <h4 style={{ margin: 0, fontWeight: 600 }}>Production Metrics</h4>
-                <div style={{ marginTop: "6px", fontSize: "13px", color: "#09090a" }}>
+                <div style={{ marginTop: "6px", fontSize: "15px", color: "#09090a" }}>
                     Shift {shiftNo} {" \u00B7 "}
                     {dateTime.toLocaleDateString("en-US", {
                         month: "short",
@@ -596,7 +634,7 @@ export default function Metrics() {
                     style={{
                         padding: "90px 32px",
                         textAlign: "center",
-                        fontSize: "14px",
+                        fontSize: "16px",
                         color: "#6b7280",
                     }}
                 >
@@ -652,11 +690,12 @@ export default function Metrics() {
 
                         const badgeStyle = (bgColor) => ({
                             display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            backgroundColor: bgColor + "33",
+                            padding: "2px 6px",
+                            borderRadius: "8px",
+                            backgroundColor: "transparent",
+                            border: `2px solid ${bgColor}`,
                             color: bgColor,
-                            fontSize: "16px",
+                            fontSize: "14px",
                             fontWeight: 600,
                             marginLeft: "6px",
                         });
@@ -670,7 +709,7 @@ export default function Metrics() {
                                     marginTop: "0px",
                                     marginBottom: "20px",
                                     fontWeight: 600,
-                                    fontSize: "16px",
+                                    fontSize: "18px",
                                 }}
                             >
                                 <span>{selectedGroup} Details</span>
@@ -745,7 +784,7 @@ export default function Metrics() {
                                                                 gap: "8px",
                                                                 padding: "6px 2px",
                                                                 cursor: "pointer",
-                                                                fontSize: "14px",
+                                                                fontSize: "15px",
                                                             }}
                                                         >
                                                             <input
@@ -761,7 +800,7 @@ export default function Metrics() {
                                         </th>
 
 
-                                        <th style={{ padding: "12px" }}>Current Part</th>
+                                        <th style={{ padding: "12px" }}>Component</th>
                                         <th style={{ padding: "12px" }}>Target / Actual</th>
 
                                         {/* PERFORMANCE */}
@@ -787,7 +826,7 @@ export default function Metrics() {
                                                             style={{
                                                                 padding: "6px",
                                                                 cursor: "pointer",
-                                                                fontSize: "14px",
+                                                                fontSize: "16px",
                                                                 borderRadius: "6px",
                                                                 background:
                                                                     performanceSort === opt.value ? "#f3f4f6" : "transparent",
@@ -826,7 +865,7 @@ export default function Metrics() {
                                                             style={{
                                                                 padding: "6px",
                                                                 cursor: "pointer",
-                                                                fontSize: "14px",
+                                                                fontSize: "16px",
                                                                 borderRadius: "6px",
                                                                 background:
                                                                     oeeSort === opt.value ? "#f3f4f6" : "transparent",
@@ -860,14 +899,14 @@ export default function Metrics() {
                                                 ? `${machine.performance}%`
                                                 : "0%";
 
-                                        const oee = machine.operations?.oee || 0;
+                                        const oee = machine.oee || 0;
 
                                         return (
                                             <tr
                                                 key={i}
                                                 style={{
                                                     borderBottom: "1px solid #e5e7eb",
-                                                    fontSize: "14px",
+                                                    fontSize: "15px",
                                                 }}
                                             >
                                                 <td style={{ padding: "12px" }}>
@@ -885,7 +924,7 @@ export default function Metrics() {
                                                 <td style={{ padding: "12px", width: "180px" }}>
                                                     <div
                                                         style={{
-                                                            fontSize: "12px",
+                                                            fontSize: "14px",
                                                             marginBottom: "4px",
                                                         }}
                                                     >
@@ -896,8 +935,8 @@ export default function Metrics() {
 
                                                 <td
                                                     style={{
-                                                        fontSize: "14px",
-                                                        padding: "12px",
+                                                        fontSize: "16px",
+                                                        padding: "13px",
                                                         color: "#22c55e",
                                                         fontWeight: 600,
                                                     }}
@@ -905,7 +944,7 @@ export default function Metrics() {
                                                     {performance}
                                                 </td>
 
-                                                <td style={{ padding: "12px" }}>
+                                                <td style={{ padding: "12px", fontSize: "16px" }}>
                                                     <span>{oee}%</span>
                                                     <OEEBar value={oee} />
                                                 </td>
@@ -913,7 +952,6 @@ export default function Metrics() {
                                         );
                                     })}
                                 </tbody>
-
                             </table>
                         )}
                     </div>

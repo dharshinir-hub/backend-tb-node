@@ -49,7 +49,7 @@ export default function OnePageDashboard() {
         handleMachineChange,
         getDeviceObjectsForMachines
     } = useMachineGroups(customerId);
-        const navigate = useNavigate();
+    const navigate = useNavigate();
 
     useEffect(() => {
         const handler = (event) => {
@@ -399,11 +399,22 @@ export default function OnePageDashboard() {
                 const validMachines = allMachineData.filter((m) => m.oee > 0);
                 const sorted = [...validMachines].sort((a, b) => b.oee - a.oee);
 
+                let bestMachines, worstMachines;
+
+                if (validMachines.length === 1) {
+                  bestMachines = sorted;
+                  const machineWithoutData = allMachineData.find((m) => m.oee === 0);
+                  worstMachines = machineWithoutData ? [{ ...machineWithoutData, oee: 0 }] : [{ ...sorted[0], oee: 0 }];
+                } else {
+                  bestMachines = sorted.filter((m) => m.oee === sorted[0]?.oee);
+                  worstMachines = sorted.filter((m) => m.oee === sorted.at(-1)?.oee);
+                }
+
                 return {
                     machinePerformance: {
                         allMachines: sorted,
-                        bestMachines: sorted.filter((m) => m.oee === sorted[0]?.oee),
-                        worstMachines: sorted.filter((m) => m.oee === sorted.at(-1)?.oee),
+                        bestMachines,
+                        worstMachines,
                         highestOee: sorted[0]?.oee || 0,
                         lowestOee: sorted.at(-1)?.oee || 0
                     }
@@ -553,14 +564,8 @@ export default function OnePageDashboard() {
 
         let adjustedDuration = 0;
 
-        if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) {
-            const shiftTimes = getShiftTimes(shifts, selectedShift, startDate);
-            const from = shiftTimes.from || Date.now() - 24 * 60 * 60 * 1000;
-            const to = shiftTimes.to || Date.now();
-            const durationInSeconds = Math.floor((to - from) / 1000);
-            adjustedDuration = durationInSeconds * selectedMachines.length;
-        } else {
-            // Calculate total adjusted duration across the date range
+        if (cleanCustomerId(customerId) === window._env_.CUSTOMER_ID || cleanCustomerId(customerId) === window._env_.SMC_CUSTOMER_ID ) {
+            // Calculate total adjusted duration with breaktime removed across date range
             const totalDays = endDate.diff(startDate, 'day') + 1;
 
             const perDayShiftSeconds = selectedShift === "allshift"
@@ -590,6 +595,33 @@ export default function OnePageDashboard() {
                         0,
                         rawSecs - timeToSeconds(shiftData.break_time || "00:00:00")
                     );
+                })();
+
+            adjustedDuration = perDayShiftSeconds * totalDays * selectedMachines.length;
+
+        } else {
+            // Calculate total shift duration without breaktime removal across date range
+            const totalDays = endDate.diff(startDate, 'day') + 1;
+
+            const perDayShiftSeconds = selectedShift === "allshift"
+                ? shifts.reduce((sum, s) => {
+                    const singleShiftTimes = getShiftTimes(shifts, String(s.shift_no), startDate);
+                    const rawSecs = singleShiftTimes.from && singleShiftTimes.to
+                        ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
+                        : 0;
+                    return sum + rawSecs;
+                }, 0)
+                : (() => {
+                    const shiftData = shifts.find(
+                        s => String(s.shift_no) === String(selectedShift)
+                    );
+                    if (!shiftData) return 0;
+
+                    const singleShiftTimes = getShiftTimes(shifts, selectedShift, startDate);
+                    const rawSecs = singleShiftTimes.from && singleShiftTimes.to
+                        ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
+                        : 0;
+                    return rawSecs;
                 })();
 
             adjustedDuration = perDayShiftSeconds * totalDays * selectedMachines.length;

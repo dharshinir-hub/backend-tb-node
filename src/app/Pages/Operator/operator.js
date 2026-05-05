@@ -101,6 +101,9 @@ function Operator() {
     const [showBlueCardNotif, setShowBlueCardNotif] = useState(false);
     const prevComponentCodeRef = useRef(null);
     const notifBellRef = useRef(null);
+    const prevShiftRef = useRef(null);
+    const lastPostedOperatorRef = useRef(null);
+   
 
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
@@ -373,6 +376,14 @@ function Operator() {
                 liveOperatorCode,
                 liveOperator
             });
+
+             if (!lastPostedOperatorRef.current && liveOperator && liveOperator.ts) {
+                lastPostedOperatorRef.current = {
+                    ts: liveOperator.ts,
+                    value: liveOperator.value,
+                    deviceId
+                };
+            }
             return filteredData;
         } catch (err) {
             console.error("Telemetry fetch failed", err);
@@ -1455,6 +1466,7 @@ function Operator() {
         if (confirmType === "machine") {
             setSelectedMachine(pendingMachine);
             localStorage.setItem("selectedMachine", pendingMachine);
+            lastPostedOperatorRef.current = null;
         } else if (confirmType === "operator") {
             setSelectedOperator(pendingOperator);
             postOperator(pendingOperator);
@@ -1470,18 +1482,22 @@ function Operator() {
         setPendingOperator("");
     };
 
-    const postOperator = async (pendingOperator) => {
+   const postOperator = async (pendingOperator) => {
         try {
             const deviceId = deviceNameIdJson[selectedMachine];
             const startTime = dayjs().valueOf();
             const operatorName = operators.find(res => res.id == pendingOperator)?.name;
             const previousOperatorData =
-                telemetry.liveOperator && Object.keys(telemetry.liveOperator).length > 0
-                    ? telemetry.liveOperator
-                    : JSON.parse(localStorage.getItem('operator_details'));
+                lastPostedOperatorRef.current
+                    ? lastPostedOperatorRef.current
+                    : (telemetry.liveOperator && Object.keys(telemetry.liveOperator).length > 0
+                        ? telemetry.liveOperator
+                        : JSON.parse(localStorage.getItem('operator_details')));
             if (previousOperatorData) {
                 const prevValue = previousOperatorData.value || previousOperatorData;
                 const prevTs = previousOperatorData.ts || dayjs().valueOf();
+                // Use the device ID the previous operator was posted to, not the current machine
+                const prevDeviceId = previousOperatorData.deviceId || deviceId;
                 if (prevValue.start_time) {
                     const updatedPrevOperator = {
                         ...prevValue,
@@ -1492,7 +1508,7 @@ function Operator() {
                         ts: prevTs,
                         values: { live_operator: updatedPrevOperator }
                     };
-                    await operatorTelemetry('DEVICE', deviceId, prevPayload);
+                    await operatorTelemetry('DEVICE', prevDeviceId, prevPayload);
                 }
             }
             const payload = {
@@ -1508,8 +1524,9 @@ function Operator() {
                 }
             };
             await operatorTelemetry('DEVICE', deviceId, payload);
-            const payload2 = { ts: payload.ts, value: payload.values.live_operator };
+            const payload2 = { ts: payload.ts, value: payload.values.live_operator, deviceId };
             localStorage.setItem('operator_details', JSON.stringify(payload2));
+            lastPostedOperatorRef.current = payload2;
         } catch (err) {
             console.error('operator api failure', err);
         }

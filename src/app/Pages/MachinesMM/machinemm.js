@@ -413,8 +413,8 @@ export default function MachineDashboard() {
               return h * 3600 + m * 60 + s;
             };
 
-            const isPMIorGPLAST =
-              [window._env_.CUSTOMER_ID, window._env_.GPLAST_CUSTOMER_ID].includes(
+            const isPMIorSMC =
+              [window._env_.CUSTOMER_ID, window._env_.SMC_CUSTOMER_ID].includes(
                 cleanCustomerId(customerId)
               );
 
@@ -422,14 +422,7 @@ export default function MachineDashboard() {
               cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
 
             const getNumerator = (run, idle) =>
-              isPMIorGPLAST ? run : run + idle;
-
-            // ✅ BREAK TIME CONFIG (IMPORTANT)
-            const BREAKS = {
-              "1": 30 * 60, // 30 min
-              "2": 30 * 60,
-              "3": 20 * 60,
-            };
+              run;
 
             const getShiftNetSeconds = (shiftCfg) => {
               if (!shiftCfg) return 0;
@@ -440,7 +433,7 @@ export default function MachineDashboard() {
               let duration = endSec - startSec;
               if (duration < 0) duration += 24 * 3600;
 
-              const breakSec = BREAKS[String(shiftCfg.shift_no)] || 0;
+              const breakSec = shiftCfg.break_time ? parseHMS(shiftCfg.break_time) : 0;
 
               return Math.max(0, duration - breakSec);
             };
@@ -549,9 +542,16 @@ export default function MachineDashboard() {
                   (s) => String(s.shift_no) === String(range.shiftNo)
                 );
 
-                const shiftSecs = isGPLAST
-                  ? getShiftGrossSeconds(shiftCfg)
-                  : getShiftNetSeconds(shiftCfg);
+                const shiftSecs = isPMIorSMC
+                  ? getShiftNetSeconds(shiftCfg)
+                  : getShiftGrossSeconds(shiftCfg);
+
+                console.log(`📊 Shift ${range.shiftNo} Duration:`, {
+                  break_time: shiftCfg?.break_time,
+                  shiftSecs,
+                  isPMIorSMC,
+                });
+
                 totalShiftSecs += shiftSecs;
               }
 
