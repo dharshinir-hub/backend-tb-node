@@ -2211,6 +2211,9 @@ function Operator() {
 
     const currentTimeTarget = (() => {
         if (!currentShift || !telemetry.targetParts) return 0;
+        if (!telemetry.jobName || telemetry.jobName === "Route card not assigned") {
+            return telemetry.targetParts;
+        }
         const { shiftStart, shiftEnd } = getShiftEpoch(currentShift.start_time, currentShift.end_time);
         if (!shiftStart || !shiftEnd) return 0;
         const elapsed = Math.max(0, Date.now() - shiftStart);
