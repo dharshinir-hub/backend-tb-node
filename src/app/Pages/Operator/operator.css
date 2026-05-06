@@ -944,7 +944,7 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
 }
 
 .current-target-label {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: #888;
   text-transform: uppercase;
@@ -952,7 +952,7 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
 }
 
 .current-target-value {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 700;
 }
 
