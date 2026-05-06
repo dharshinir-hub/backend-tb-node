@@ -103,8 +103,6 @@ function Operator() {
     const notifBellRef = useRef(null);
     const prevShiftRef = useRef(null);
     const lastPostedOperatorRef = useRef(null);
-   
-
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
             return window._env_.CUSTOMER_ID;
@@ -137,6 +135,10 @@ function Operator() {
     const isGplastCondition =
         location.pathname === "/gplast_operator_awe6tc" ||
         cleanCustomerId(getCustomerId()) === window._env_.GPLAST_CUSTOMER_ID;
+
+    const isAtechCondition =
+        location.pathname === "/atech_operator_atc67" ||
+        cleanCustomerId(getCustomerId()) === window._env_.ATECH_CUSTOMER_ID;
 
     const fetchDevices = async () => {
         try {
@@ -377,7 +379,7 @@ function Operator() {
                 liveOperator
             });
 
-             if (!lastPostedOperatorRef.current && liveOperator && liveOperator.ts) {
+            if (!lastPostedOperatorRef.current && liveOperator && liveOperator.ts) {
                 lastPostedOperatorRef.current = {
                     ts: liveOperator.ts,
                     value: liveOperator.value,
@@ -1482,7 +1484,7 @@ function Operator() {
         setPendingOperator("");
     };
 
-   const postOperator = async (pendingOperator) => {
+    const postOperator = async (pendingOperator) => {
         try {
             const deviceId = deviceNameIdJson[selectedMachine];
             const startTime = dayjs().valueOf();
@@ -2219,6 +2221,15 @@ function Operator() {
 `;
 
     const totalShotsNum = Number(telemetry?.totalShots || 0);
+
+    const currentTimeTarget = (() => {
+        if (!currentShift || !telemetry.targetParts) return 0;
+        const { shiftStart, shiftEnd } = getShiftEpoch(currentShift.start_time, currentShift.end_time);
+        if (!shiftStart || !shiftEnd) return 0;
+        const elapsed = Math.max(0, Date.now() - shiftStart);
+        const totalDuration = shiftEnd - shiftStart;
+        return Math.min(telemetry.targetParts, Math.round((elapsed / totalDuration) * telemetry.targetParts));
+    })();
     const blueCardPushCount = blueCardLogs.filter(log => log.device_name === selectedMachine &&
         log.component === telemetry.jobName).length;
     const isBlueCardLimitReached = blueCardPushCount >= totalShotsNum && totalShotsNum != 0;
@@ -2469,6 +2480,24 @@ function Operator() {
                     </div>
                 </div>
             </div>
+            {isAtechCondition && deviceNameIdJson[selectedMachine] && currentShift && (() => {
+                const { shiftStart, shiftEnd } = getShiftEpoch(currentShift.start_time, currentShift.end_time);
+                if (!shiftStart || !shiftEnd) return null;
+                const bearerToken = encodeURIComponent('Bearer+' + localStorage.getItem('token1'));
+                const deviceId = deviceNameIdJson[selectedMachine];
+                const grafanaUrl = window._env_.GRAFANA_URL;
+                const serverUrl = window._env_.SERVER_URL;
+                const iframeSrc = `${grafanaUrl}d/dfl4xwf27vp4we/machine-status-timeline?orgId=1&var-token=${bearerToken}&var-deviceId=${deviceId}&var-url=${serverUrl}&var-grafanaurl=${grafanaUrl}&from=${shiftStart}&to=now&theme=light&kiosk`;
+                return (
+                    <iframe
+                        key={`grafana-mchstat-${currentShift.shift_no}-${selectedMachine}`}
+                        src={iframeSrc}
+                        style={{ display: 'block', width: '100%', height: '100px', border: 'none' }}
+                        scrolling="no"
+                        title="Machine Status Timeline"
+                    />
+                );
+            })()}
             <div className="content">
                 <div className="contect-section" style={{ width: '10rem' }}>
                     <VerticalProgress
@@ -2544,6 +2573,11 @@ function Operator() {
                         <p className="actual-label">Actual vs Target</p>
                         <p className="actual-value">
                             {telemetry.totalShots ?? 0}/{telemetry.targetParts ?? 0}
+                            {isAtechCondition && currentTimeTarget > 0 && (
+                                <span style={{ fontSize: '0.78em', color: (telemetry.totalShots ?? 0) >= currentTimeTarget ? '#16a34a' : '#dc2626', marginLeft: '6px', verticalAlign: 'middle' }}>
+                                    ({currentTimeTarget})
+                                </span>
+                            )}
                         </p>
                     </div>
 
