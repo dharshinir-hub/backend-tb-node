@@ -2573,12 +2573,18 @@ function Operator() {
                         <p className="actual-label">Actual vs Target</p>
                         <p className="actual-value">
                             {telemetry.totalShots ?? 0}/{telemetry.targetParts ?? 0}
-                            {isAtechCondition && currentTimeTarget > 0 && (
-                                <span style={{ fontSize: '0.78em', color: (telemetry.totalShots ?? 0) >= currentTimeTarget ? '#16a34a' : '#dc2626', marginLeft: '6px', verticalAlign: 'middle' }}>
-                                    ({currentTimeTarget})
-                                </span>
-                            )}
                         </p>
+                        {isAtechCondition && currentTimeTarget > 0 && (
+                            <div
+                                className="current-target-row"
+                                style={{ background: (telemetry.totalShots ?? 0) >= currentTimeTarget ? '#16a34a' : '#dc2626' }}
+                            >
+                                <span className="current-target-label" style={{ color: '#fff' }}>Current Target</span>
+                                <span className="current-target-value" style={{ color: '#fff' }}>
+                                    {currentTimeTarget}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Blue card button */}
