@@ -71,6 +71,7 @@ function Operator() {
         jobName: "",
         jobCode: "",
     });
+    const [currentOperator, setCurrentOperator] = useState(null);
     const [pendingMachine, setPendingMachine] = useState("");
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
@@ -101,8 +102,6 @@ function Operator() {
     const [showBlueCardNotif, setShowBlueCardNotif] = useState(false);
     const prevComponentCodeRef = useRef(null);
     const notifBellRef = useRef(null);
-    const prevShiftRef = useRef(null);
-    const lastPostedOperatorRef = useRef(null);
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
             return window._env_.CUSTOMER_ID;
@@ -378,13 +377,8 @@ function Operator() {
                 liveOperatorCode,
                 liveOperator
             });
-
-            if (!lastPostedOperatorRef.current && liveOperator && liveOperator.ts) {
-                lastPostedOperatorRef.current = {
-                    ts: liveOperator.ts,
-                    value: liveOperator.value,
-                    deviceId
-                };
+            if (liveOperator?.value) {
+                setCurrentOperator({ ...liveOperator.value, ts: liveOperator.ts });
             }
             return filteredData;
         } catch (err) {
@@ -1468,7 +1462,6 @@ function Operator() {
         if (confirmType === "machine") {
             setSelectedMachine(pendingMachine);
             localStorage.setItem("selectedMachine", pendingMachine);
-            lastPostedOperatorRef.current = null;
         } else if (confirmType === "operator") {
             setSelectedOperator(pendingOperator);
             postOperator(pendingOperator);
@@ -1489,46 +1482,40 @@ function Operator() {
             const deviceId = deviceNameIdJson[selectedMachine];
             const startTime = dayjs().valueOf();
             const operatorName = operators.find(res => res.id == pendingOperator)?.name;
-            const previousOperatorData =
-                lastPostedOperatorRef.current
-                    ? lastPostedOperatorRef.current
-                    : (telemetry.liveOperator && Object.keys(telemetry.liveOperator).length > 0
-                        ? telemetry.liveOperator
-                        : JSON.parse(localStorage.getItem('operator_details')));
-            if (previousOperatorData) {
-                const prevValue = previousOperatorData.value || previousOperatorData;
-                const prevTs = previousOperatorData.ts || dayjs().valueOf();
-                // Use the device ID the previous operator was posted to, not the current machine
-                const prevDeviceId = previousOperatorData.deviceId || deviceId;
-                if (prevValue.start_time) {
-                    const updatedPrevOperator = {
-                        ...prevValue,
-                        end_time: startTime,
-                        duration: Math.floor((startTime - prevValue.start_time) / 1000)
-                    };
-                    const prevPayload = {
-                        ts: prevTs,
-                        values: { live_operator: updatedPrevOperator }
-                    };
-                    await operatorTelemetry('DEVICE', prevDeviceId, prevPayload);
-                }
+
+            if (currentOperator && currentOperator.start_time) {
+                const updatedPrevOperator = {
+                    ...currentOperator,
+                    end_time: startTime,
+                    duration: Math.floor((startTime - currentOperator.start_time) / 1000)
+                };
+                const prevPayload = {
+                    ts: currentOperator.ts || dayjs().valueOf(),
+                    values: { live_operator: updatedPrevOperator }
+                };
+                await operatorTelemetry('DEVICE', deviceId, prevPayload);
             }
+
+            const newOperatorData = {
+                name: operatorName,
+                code: pendingOperator,
+                start_time: startTime,
+                end_time: 0,
+                duration: 0,
+                ts: startTime
+            };
+
             const payload = {
-                ts: dayjs().valueOf(),
+                ts: startTime,
                 values: {
-                    live_operator: {
-                        name: operatorName,
-                        code: pendingOperator,
-                        start_time: startTime,
-                        end_time: 0,
-                        duration: 0
-                    }
+                    live_operator: newOperatorData
                 }
             };
+
             await operatorTelemetry('DEVICE', deviceId, payload);
-            const payload2 = { ts: payload.ts, value: payload.values.live_operator, deviceId };
+            setCurrentOperator(newOperatorData);
+            const payload2 = { ts: payload.ts, value: payload.values.live_operator };
             localStorage.setItem('operator_details', JSON.stringify(payload2));
-            lastPostedOperatorRef.current = payload2;
         } catch (err) {
             console.error('operator api failure', err);
         }
