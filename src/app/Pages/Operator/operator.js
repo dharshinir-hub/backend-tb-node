@@ -71,6 +71,7 @@ function Operator() {
         jobName: "",
         jobCode: "",
     });
+    const [currentOperator, setCurrentOperator] = useState(null);
     const [pendingMachine, setPendingMachine] = useState("");
     const [pendingOperator, setPendingOperator] = useState("");
     const [confirmType, setConfirmType] = useState(null);
@@ -137,6 +138,10 @@ const getCustomerId = () => {
     const isGplastCondition =
         location.pathname === "/gplast_operator_awe6tc" ||
         cleanCustomerId(getCustomerId()) === window._env_.GPLAST_CUSTOMER_ID;
+
+    const isAtechCondition =
+        location.pathname === "/atech_operator_atc67" ||
+        cleanCustomerId(getCustomerId()) === window._env_.ATECH_CUSTOMER_ID;
 
     const fetchDevices = async () => {
         try {
@@ -383,6 +388,9 @@ const getCustomerId = () => {
                 liveOperatorCode,
                 liveOperator
             });
+            if (liveOperator?.value) {
+                setCurrentOperator({ ...liveOperator.value, ts: liveOperator.ts });
+            }
             return filteredData;
         } catch (err) {
             console.error("Telemetry fetch failed", err);
@@ -1577,39 +1585,38 @@ const getCustomerId = () => {
             const deviceId = deviceNameIdJson[selectedMachine];
             const startTime = dayjs().valueOf();
             const operatorName = operators.find(res => res.id == pendingOperator)?.name;
-            const previousOperatorData =
-                telemetry.liveOperator && Object.keys(telemetry.liveOperator).length > 0
-                        ? telemetry.liveOperator
-                    : JSON.parse(localStorage.getItem('operator_details'));
-            if (previousOperatorData) {
-                const prevValue = previousOperatorData.value || previousOperatorData;
-                const prevTs = previousOperatorData.ts || dayjs().valueOf();
-                if (prevValue.start_time) {
-                    const updatedPrevOperator = {
-                        ...prevValue,
-                        end_time: startTime,
-                        duration: Math.floor((startTime - prevValue.start_time) / 1000)
-                    };
-                    const prevPayload = {
-                        ts: prevTs,
-                        values: { live_operator: updatedPrevOperator }
-                    };
-                    await operatorTelemetry('DEVICE', deviceId, prevPayload);
-                }
+
+            if (currentOperator && currentOperator.start_time) {
+                const updatedPrevOperator = {
+                    ...currentOperator,
+                    end_time: startTime,
+                    duration: Math.floor((startTime - currentOperator.start_time) / 1000)
+                };
+                const prevPayload = {
+                    ts: currentOperator.ts || dayjs().valueOf(),
+                    values: { live_operator: updatedPrevOperator }
+                };
+                await operatorTelemetry('DEVICE', deviceId, prevPayload);
             }
+
+            const newOperatorData = {
+                name: operatorName,
+                code: pendingOperator,
+                start_time: startTime,
+                end_time: 0,
+                duration: 0,
+                ts: startTime
+            };
+
             const payload = {
-                ts: dayjs().valueOf(),
+                ts: startTime,
                 values: {
-                    live_operator: {
-                        name: operatorName,
-                        code: pendingOperator,
-                        start_time: startTime,
-                        end_time: 0,
-                        duration: 0
-                    }
+                    live_operator: newOperatorData
                 }
             };
+
             await operatorTelemetry('DEVICE', deviceId, payload);
+            setCurrentOperator(newOperatorData);
             const payload2 = { ts: payload.ts, value: payload.values.live_operator };
             localStorage.setItem('operator_details', JSON.stringify(payload2));
         } catch (err) {
@@ -2474,6 +2481,18 @@ const getCustomerId = () => {
 `;
 
     const totalShotsNum = Number(telemetry?.totalShots || 0);
+
+    const currentTimeTarget = (() => {
+        if (!currentShift || !telemetry.targetParts) return 0;
+        if (!telemetry.jobName || telemetry.jobName === "Route card not assigned") {
+            return telemetry.targetParts;
+        }
+        const { shiftStart, shiftEnd } = getShiftEpoch(currentShift.start_time, currentShift.end_time);
+        if (!shiftStart || !shiftEnd) return 0;
+        const elapsed = Math.max(0, Date.now() - shiftStart);
+        const totalDuration = shiftEnd - shiftStart;
+        return Math.min(telemetry.targetParts, Math.round((elapsed / totalDuration) * telemetry.targetParts));
+    })();
     const blueCardPushCount = blueCardLogs.filter(log => log.device_name === selectedMachine &&
         log.component === telemetry.jobName).length;
     const isBlueCardLimitReached = blueCardPushCount >= totalShotsNum && totalShotsNum != 0;
@@ -2724,6 +2743,24 @@ const getCustomerId = () => {
                     </div>
                 </div>
             </div>
+            {isAtechCondition && deviceNameIdJson[selectedMachine] && currentShift && (() => {
+                const { shiftStart, shiftEnd } = getShiftEpoch(currentShift.start_time, currentShift.end_time);
+                if (!shiftStart || !shiftEnd) return null;
+                const bearerToken = encodeURIComponent('Bearer+' + localStorage.getItem('token1'));
+                const deviceId = deviceNameIdJson[selectedMachine];
+                const grafanaUrl = window._env_.GRAFANA_URL;
+                const serverUrl = window._env_.SERVER_URL;
+                const iframeSrc = `${grafanaUrl}d/dfl4xwf27vp4we/machine-status-timeline?orgId=1&var-token=${bearerToken}&var-deviceId=${deviceId}&var-url=${serverUrl}&var-grafanaurl=${grafanaUrl}&from=${shiftStart}&to=now&theme=light&kiosk`;
+                return (
+                    <iframe
+                        key={`grafana-mchstat-${currentShift.shift_no}-${selectedMachine}`}
+                        src={iframeSrc}
+                        style={{ display: 'block', width: '100%', height: '100px', border: 'none' }}
+                        scrolling="no"
+                        title="Machine Status Timeline"
+                    />
+                );
+            })()}
             <div className="content">
                 <div className="contect-section" style={{ width: '10rem' }}>
                     <VerticalProgress
@@ -2854,6 +2891,17 @@ const getCustomerId = () => {
                         <p className="actual-value">
                             {telemetry.totalShots ?? 0}/{telemetry.targetParts ?? 0}
                         </p>
+                        {isAtechCondition && currentTimeTarget > 0 && (
+                            <div
+                                className="current-target-row"
+                                style={{ background: (telemetry.totalShots ?? 0) >= currentTimeTarget ? '#16a34a' : '#dc2626' }}
+                            >
+                                <span className="current-target-label" style={{ color: '#fff' }}>Current Target</span>
+                                <span className="current-target-value" style={{ color: '#fff' }}>
+                                    {currentTimeTarget}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Blue card button */}

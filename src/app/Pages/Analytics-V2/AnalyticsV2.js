@@ -906,6 +906,8 @@ export default function AnalyticsV2() {
             : 0;
         rows.push({ label: 'Total', actual: totalActual, target: totalTarget, metric: totalMetric });
 
+        const maxBarVal = Math.max(...rows.map(r => Math.max(r.target, r.actual)), 0);
+
         const firstLabel = rows.length > 1 ? rows[0].label : '';
         const lastLabel = rows.length > 1 ? rows[rows.length - 2].label : '';
         const subtitle = `Actual Vs Target Output (${firstLabel} - ${lastLabel} + Total)`;
@@ -937,12 +939,12 @@ export default function AnalyticsV2() {
             yaxis: [
                 {
                     seriesName: 'Target',
-                    min: 0,
+                    min: 0, max: maxBarVal,
                     title: { text: 'Units', style: { fontSize: '11px', color: '#888' } },
                     labels: { style: { fontSize: '11px' } },
                     axisBorder: { show: false },
                 },
-                { seriesName: 'Actual', show: false },
+                { seriesName: 'Actual', show: false, min: 0, max: maxBarVal },
                 {
                     seriesName: metricLabel,
                     opposite: true,
