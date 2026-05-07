@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Button,
   FormControl,
@@ -13,15 +13,19 @@ import {
   CardActions,
   Tooltip,
   Typography,
-  CircularProgress
+  CircularProgress,
+  IconButton,
+  Autocomplete,
+  TextField
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
-import { getAlarmReport, getEfficiencyReport, getGeneralReport, getIdleReasonReport, getOeeReport, getPartReport, getReportDownloadLink, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
+import { getAlarmReport, getEfficiencyReport, getGeneralReport, getIdleReasonReport, getOeeReport,getOperatorReport, getPartReport, getReportDownloadLink, getReportMachineList, getReportShifts } from "../../Services/app/reportservice";
+import { customerbasedshift, cleanCustomerId } from "../../Services/app/operatorservice";
 import classNames from 'classnames';
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, ChevronDown, ChevronUp } from "lucide-react";
 import Swal from "sweetalert2";
 import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
 
@@ -41,6 +45,9 @@ export default function MachineReport() {
   const [averageEfficiency, setAverageEfficiency] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [operators, setOperators] = useState([]);
+  const [selectedOperators, setSelectedOperators] = useState([]);
+  const [expandedRows, setExpandedRows] = useState({});
 
   const customerId = localStorage.getItem("CustomerID");
   const {
@@ -52,7 +59,8 @@ export default function MachineReport() {
     handleGroupChange,
     handleMachineChange: handleGroupedMachineChange,
     loading: machineGroupLoading,
-    isAllMachinesSelected
+    isAllMachinesSelected,
+    deviceNameID
   } = useMachineGroups(customerId, selectedTab === "efficiency");
 
   const REPORT_HEADERS = {
@@ -64,7 +72,7 @@ export default function MachineReport() {
     ],
     oee: ["S.no", "Date", "Shift", "Machine Name", "Availability(%)", "Performance(%)", "Quality(%)", "OEE(%)"],
     part: [
-      "S.no", "Date", "Shift", "Machine Name", "Component Name", "Operator Name","Total Parts",
+      "S.no", "Date", "Shift", "Machine Name", "Component Name", "Operator Name", "Total Parts",
       "Actual Parts", "Start Time", "End Time", "Run Time", "Idle/Stop Time",
       "Machine OFF Time", "Duration", "Remarks"
     ],
@@ -78,6 +86,9 @@ export default function MachineReport() {
     ],
     efficiency: [
       "S.no", "Component Number", "Component Name", "Total Parts", "Target Parts", "Efficiency(%)", "Run Time", "Idle/Stop Time", "Duration"
+    ],
+    operator_wise: [
+      "S.no", "Date", "Shift", "Operator", "Machine Name", "Component Name", "Target Parts", "Actual Parts", "Efficiency"
     ]
   };
 
@@ -199,6 +210,17 @@ export default function MachineReport() {
       { key: "idle_time", formatter: row => formatTimeWithFallback(row.idle_time) },
       { key: "duration", formatter: row => formatTimeWithFallback(row.durtation) },
     ],
+    operator_wise: [
+      { key: "index", formatter: (_, i) => (page) * rowsPerPage + i + 1 },
+      { key: "date", formatter: row => formatWithFallback(row.date) },
+      { key: "shift_num", formatter: row => formatWithFallback(row.shift_num) },
+      { key: "operator", formatter: row => formatWithFallback(row.operator) },
+      { key: "machine_name", formatter: row => formatWithFallback(row.machine_name) },
+      { key: "route_card", formatter: row => formatWithFallback(row.route_card) },
+      { key: "target", formatter: row => formatWithFallback(row.target) },
+      { key: "part_count", formatter: row => formatWithFallback(row.part_count) },
+      { key: "opr_eff", formatter: row => formatNumberSmart(row.opr_eff) },
+    ],
   };
 
   const [reportTableHeaders, setReportTableHeaders] = useState(REPORT_HEADERS['general']);
@@ -211,11 +233,31 @@ export default function MachineReport() {
   })
 
   const formatNumberSmart = (value) => {
-  if (value === null || value === undefined || value === "") return "---";
-  const num = Number(value);
-  if (isNaN(num)) return value;
-  return Number.isInteger(num) ? num : Number(num.toFixed(2));
-};
+    if (value === null || value === undefined || value === "") return "---";
+    const num = Number(value);
+    if (isNaN(num)) return value;
+    return Number.isInteger(num) ? num : Number(num.toFixed(2));
+  };
+
+  const handleOperatorChange = (event) => {
+    const value = event.target.value;
+    if (value.includes("all")) {
+      if (selectedOperators.length === operators.length) {
+        setSelectedOperators([]);
+      } else {
+        setSelectedOperators(operators.map((op) => op.name));
+      }
+      return;
+    }
+    setSelectedOperators(typeof value === 'string' ? value.split(',') : value);
+  };
+
+  const toggleRowExpansion = (index) => {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -231,6 +273,15 @@ export default function MachineReport() {
           ...prev,
           shifts: selectedShifts.length === 0 || selectedShifts[0] === undefined,
         }));
+
+        // Fetch operators
+        const opResult = await customerbasedshift(customerId, "alloperator");
+        const allOpData = opResult?.[0]?.value || [];
+        const opList = allOpData
+          .filter(o => o?.mode?.toLowerCase() === 'operator')
+          .map(op => ({ id: op.operatorid, name: op.operatorname }));
+        setOperators(opList);
+        setSelectedOperators(opList.map(op => op.name));
       } catch (err) {
         console.error("Error fetching initial data:", err);
       }
@@ -286,6 +337,13 @@ export default function MachineReport() {
           dateStr, dateEnd, pageNum, limit
         );
         setAlarmWithPercentage(response.alarmWithPercentage || [])
+      } else if (tab === "operator_wise") {
+        response = await getOperatorReport(
+          Array.isArray(machinesParam) ? machinesParam.join(",") : machinesParam,
+          Array.isArray(selectedOperators) ? selectedOperators.join(",") : selectedOperators,
+          shiftsParam,
+          dateStr, dateEnd, pageNum, limit
+        );
       }
       setReportData(response.data || response);
       setTotalCount(response.total1 || response.total || 0);
@@ -429,7 +487,7 @@ export default function MachineReport() {
   const downloadCSV = async () => {
     const dateStr = startDate.format("YYYY-MM-DD");
     const dateEnd = endDate.format("YYYY-MM-DD");
-    const validTabs = ["part", "idle_reason", "general", "oee", "alarm"];
+    const validTabs = ["part", "idle_reason", "general", "oee", "alarm", "operator_wise"];
     if (!validTabs.includes(selectedTab)) {
       Swal.fire({
         icon: "warning",
@@ -446,7 +504,8 @@ export default function MachineReport() {
         Array.isArray(groupedMachines) ? groupedMachines.join(",") : groupedMachines,
         selectedShift,
         dateStr,
-        dateEnd
+        dateEnd,
+        selectedTab === "operator_wise" ? (Array.isArray(selectedOperators) ? selectedOperators.join(",") : selectedOperators) : ""
       );
       const filename = `${selectedTab}_report_${dateStr}_${dateEnd}.csv`;
       triggerDownload(response, filename);
@@ -483,15 +542,33 @@ export default function MachineReport() {
         <Tab label="Idle Reason Report" value="idle_reason" />
         <Tab label="Alarm Report" value="alarm" />
         <Tab label="Part Wise Report" value="part" />
+       
+        {cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && (
+          <Tab label="Operator Wise Report" value="operator_wise" />
+        )}
       </Tabs>
 
+
       {/* Filters */}
-      <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", my: 3, }}>
+      <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", my: 3, }}>
         {/* Machine Group Field */}
         {showMachineGroupsDropdown && (
           <FormControl
             size="small"
-            sx={{ background: "#fff", width: 200 }}
+            sx={{
+              background: "#fff",
+              width: 200,
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderColor: "rgba(0, 0, 0, 0.23)",
+              },
+              "&:hover .MuiOutlinedInput-notchedOutline": {
+                borderColor: "rgba(0, 0, 0, 0.87) !important",
+              },
+              "& .Mui-focused .MuiOutlinedInput-notchedOutline": {
+                borderColor: "#f47803 !important",
+                borderWidth: "1px !important",
+              }
+            }}
           >
             <InputLabel sx={{ background: "#fff" }}>Machine Group</InputLabel>
             <Select
@@ -527,7 +604,20 @@ export default function MachineReport() {
         <FormControl
           error={errorMsg.machines}
           size="small"
-          sx={{ background: "#fff", width: 200 }}
+          sx={{
+            background: "#fff",
+            width: 200,
+            "& .MuiOutlinedInput-notchedOutline": {
+              borderColor: "rgba(0, 0, 0, 0.23)",
+            },
+            "&:hover .MuiOutlinedInput-notchedOutline": {
+              borderColor: "rgba(0, 0, 0, 0.87) !important",
+            },
+            "& .Mui-focused .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#f47803 !important",
+              borderWidth: "1px !important",
+            }
+          }}
         >
           <InputLabel sx={{ background: "#fff" }}>Machine *</InputLabel>
           {selectedTab === "efficiency" ? (
@@ -581,11 +671,125 @@ export default function MachineReport() {
           )}
         </FormControl>
 
+        {selectedTab === "operator_wise" && (
+          <Autocomplete
+            multiple
+            size="small"
+            id="operator-select"
+            options={[{ id: 'all', name: 'Select All' }, ...operators]}
+            getOptionLabel={(option) => option.name}
+            filterOptions={(options, { inputValue }) => {
+              const searchTerm = inputValue.toLowerCase();
+              return options.filter(
+                (option) =>
+                  option.id === 'all' ||
+                  option.name.toLowerCase().includes(searchTerm) ||
+                  option.id.toString().toLowerCase().includes(searchTerm)
+              );
+            }}
+            value={operators.filter(op => selectedOperators.includes(op.name))}
+            onChange={(event, newValue, reason) => {
+              if (reason === 'clear') {
+                setSelectedOperators([]);
+              } else if (newValue.some(op => op.id === 'all')) {
+                if (selectedOperators.length === operators.length) {
+                  setSelectedOperators([]);
+                } else {
+                  setSelectedOperators(operators.map(op => op.name));
+                }
+              } else {
+                setSelectedOperators(newValue.filter(op => op.id !== 'all').map(op => op.name));
+              }
+            }}
+            disableCloseOnSelect
+            renderTags={(value) => {
+              if (value.length === 0) return null;
+              if (value.length === operators.length && operators.length > 0) return "All Operators";
+              if (value.length > 1) {
+                return (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: "0.85rem",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: "230px"
+                    }}
+                  >
+                    {value.slice(0, 1).map(v => v.name).join(", ")} +{value.length - 1}
+                  </Typography>
+                );
+              }
+              return (
+                <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+                  {value.map(v => v.name).join(", ")}
+                </Typography>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                variant="outlined"
+                label="Operators"
+                placeholder={selectedOperators.length === 0 ? "Search Names or IDs" : ""}
+                sx={{
+                  background: "#fff",
+                  "& .MuiInputBase-root": {
+                    backgroundColor: "#fff",
+                    height: '40px',
+                    padding: '0 8px !important',
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "rgba(0, 0, 0, 0.23)",
+                  },
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "rgba(0, 0, 0, 0.87) !important",
+                  },
+                  "& .Mui-focused .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "#f47803 !important",
+                    borderWidth: "1px !important",
+                  },
+                  "& .MuiInputLabel-root": {
+                    fontSize: "0.85rem",
+                    background: "#fff",
+                    padding: "0 4px",
+                  }
+                }}
+              />
+            )}
+            renderOption={(props, option, { selected }) => (
+              <li {...props}>
+                <Checkbox
+                  checked={option.id === 'all' ? (selectedOperators.length === operators.length && operators.length > 0) : selected}
+                  style={{ marginRight: 8 }}
+                  sx={{ "&.Mui-checked": { color: "#f47803ff" } }}
+                />
+                {option.id === 'all' ? <strong>{option.name}</strong> : `${option.id} - ${option.name}`}
+              </li>
+            )}
+            sx={{ width: 300 }}
+          />
+        )}
+
         {/* Shift Field */}
         <FormControl
           error={errorMsg.shifts}
           size="small"
-          sx={{ background: "#fff", width: 160 }}
+          sx={{
+            background: "#fff",
+            width: 160,
+            "& .MuiOutlinedInput-notchedOutline": {
+              borderColor: "rgba(0, 0, 0, 0.23)",
+            },
+            "&:hover .MuiOutlinedInput-notchedOutline": {
+              borderColor: "rgba(0, 0, 0, 0.87) !important",
+            },
+            "& .Mui-focused .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#f47803 !important",
+              borderWidth: "1px !important",
+            }
+          }}
         >
           <InputLabel sx={{ background: "#fff" }}>Shift *</InputLabel>
           {selectedTab === "efficiency" ? (
@@ -646,7 +850,20 @@ export default function MachineReport() {
               slotProps={{
                 textField: {
                   size: "small",
-                  style: { background: "#fff", minWidth: 160 },
+                  sx: {
+                    background: "#fff",
+                    minWidth: 160,
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(0, 0, 0, 0.23)",
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(0, 0, 0, 0.87) !important",
+                    },
+                    "& .Mui-focused .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#f47803 !important",
+                      borderWidth: "1px !important",
+                    }
+                  },
                   error: !efficiencyDate,
                 },
               }}
@@ -664,7 +881,20 @@ export default function MachineReport() {
                 slotProps={{
                   textField: {
                     size: "small",
-                    style: { background: "#fff", minWidth: 160 },
+                    sx: {
+                      background: "#fff",
+                      minWidth: 160,
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "rgba(0, 0, 0, 0.23)",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "rgba(0, 0, 0, 0.87) !important",
+                      },
+                      "& .Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#f47803 !important",
+                        borderWidth: "1px !important",
+                      }
+                    },
                     error: errorMsg.startDate || errorMsg.dateRange,
                   },
                 }}
@@ -681,7 +911,20 @@ export default function MachineReport() {
                 slotProps={{
                   textField: {
                     size: "small",
-                    style: { background: "#fff", minWidth: 160 },
+                    sx: {
+                      background: "#fff",
+                      minWidth: 160,
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "rgba(0, 0, 0, 0.23)",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "rgba(0, 0, 0, 0.87) !important",
+                      },
+                      "& .Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#f47803 !important",
+                        borderWidth: "1px !important",
+                      }
+                    },
                     error: errorMsg.endDate || errorMsg.dateRange,
                   },
                 }}
@@ -704,7 +947,7 @@ export default function MachineReport() {
           )}
         </Button>
 
-        {reportData.length > 0 && (
+        {selectedTab !== "operator_wise" && reportData.length > 0 && (
           <Button
             variant="outlined"
             startIcon={<DownloadIcon />}
@@ -1206,35 +1449,86 @@ export default function MachineReport() {
               </TableHead>
               <TableBody>
                 {reportData.map((row, index) => (
-                  <TableRow key={index}>
-                    {columns[selectedTab].map((col, i) => (
-                      <TableCell
-                        key={i}
-                        align="center"
-                        style={{ background: index % 2 === 0 ? '#efefef' : '#f8f8f8' }}
-                        sx={{
-                          whiteSpace: "nowrap",
-                          minWidth: "fit-content",
-                          maxWidth: "200px",
-                          textOverflow: "ellipsis",
-                          overflow: "hidden",
+                  <React.Fragment key={index}>
+                    <TableRow
+                      sx={{
+                        cursor: selectedTab === 'operator_wise' && row.machine_breakdown?.length > 1 ? 'pointer' : 'default',
+                        transition: 'background-color 0.2s',
+                        '&:hover': {
+                          backgroundColor: 'rgba(0, 0, 0, 0.04) !important',
+                        }
+                      }}
+                      onClick={() => selectedTab === 'operator_wise' && row.machine_breakdown?.length > 1 && toggleRowExpansion(index)}
+                    >
+                      {columns[selectedTab].map((col, i) => (
+                        <TableCell
+                          key={i}
+                          align="center"
+                          style={{ background: index % 2 === 0 ? '#efefef' : '#f8f8f8' }}
+                          sx={{
+                            whiteSpace: "nowrap",
+                            minWidth: "fit-content",
+                            maxWidth: "200px",
+                            textOverflow: "ellipsis",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {i === 0 && selectedTab === 'operator_wise' && row.machine_breakdown?.length > 1 && (
+                            <IconButton
+                              size="small"
+                              sx={{ mr: 0.5, p: 0.5, color: '#f47803' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleRowExpansion(index);
+                              }}
+                            >
+                              {expandedRows[index] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </IconButton>
+                          )}
+                          {(() => {
+                            const rawData = col.formatter(row, index);
+                            const displayData = rawData !== null && rawData !== undefined ? String(rawData) : "---";
+                            const fullData = Array.isArray(row[col.key]) ? row[col.key].join(" | ") : row[col.key] || "---";
+                            return ['component_name', 'operator_name', 'component_number', 'machine_name', 'component_id', 'remark', 'operator', 'route_card'].includes(col.key) ? (
+                              <Tooltip title={fullData}>
+                                <span>{displayData}</span>
+                              </Tooltip>
+                            ) : (
+                              <span>{displayData}</span>
+                            );
+                          })()}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {selectedTab === 'operator_wise' && expandedRows[index] && row.machine_breakdown?.map((breakdown, bIdx) => (
+                      <TableRow 
+                        key={`breakdown-${index}-${bIdx}`} 
+                        style={{ 
+                          backgroundColor: '#f9fafb',
+                          borderLeft: '4px solid #f47803',
                         }}
                       >
-                        {(() => {
-                          const rawData = col.formatter(row, index);
-                          const displayData = rawData !== null && rawData !== undefined ? String(rawData) : "---";
-                          const fullData = Array.isArray(row[col.key]) ? row[col.key].join(" | ") : row[col.key] || "---";
-                          return ['component_name', 'operator_name', 'component_number', 'machine_name', 'component_id', 'remark', 'alarm_message'].includes(col.key) ? (
-                            <Tooltip title={fullData}>
-                              <span>{displayData}</span>
-                            </Tooltip>
-                          ) : (
-                            <span>{displayData}</span>
-                          );
-                        })()}
-                      </TableCell>
+                        {columns[selectedTab].map((col, i) => (
+                          <TableCell
+                            key={`bcell-${i}`}
+                            align="center"
+                            style={{ 
+                              backgroundColor: '#f9fafb',
+                              paddingTop: '6px',
+                              paddingBottom: '6px'
+                            }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              color: '#475569',
+                              borderBottom: '1px dashed #e2e8f0',
+                            }}
+                          >
+                            {i === 0 ? "" : (i === 1 ? `↳ ${col.formatter(breakdown, bIdx)}` : col.formatter(breakdown, bIdx))}
+                          </TableCell>
+                        ))}
+                      </TableRow>
                     ))}
-                  </TableRow>
+                  </React.Fragment>
                 ))}
                 {reportData.length === 0 && (
                   <TableRow>
