@@ -153,7 +153,7 @@ function ErpJson() {
     const fetchPlans = async () => {
         setLoadingPlans(true);
         try {
-            await getReportToken("pmi", "pmi");
+            await getReportToken("gd", "gd");
             const data = await getAllPlans();
             console.log("Plan/all response:", data);
             const list = Array.isArray(data) ? data
@@ -311,7 +311,7 @@ function ErpJson() {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    await getReportToken("pmi", "pmi");
+                    await getReportToken("gd", "gd");
                     await deletePlan(planId);
                     Swal.fire({
                         icon: "success",
@@ -346,7 +346,7 @@ function ErpJson() {
         setJsonPreview(payload);
         setSubmitting(true);
         try {
-            await getReportToken("pmi", "pmi");
+            await getReportToken("gd", "gd");
             if (view === "edit") {
                 await updatePlan(editId, payload);
             } else {
