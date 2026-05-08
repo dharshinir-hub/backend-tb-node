@@ -174,7 +174,7 @@ export default function PersistentDrawerLeft({ children }) {
         name: "Production",
         icon: <BsList style={{ fontSize: "20px", color: "black" }} />,
         children: [
-          // { path: "/production-overview", name: "Overview", icon: <BsKanban style={{ fontSize: "20px", color: "black" }} /> },
+          ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID ? [{ path: "/production-overview", name: "Overview", icon: <BsKanban style={{ fontSize: "20px", color: "black" }} /> }] : []),
           { path: "/production-metrics", name: "Metrics", icon: <BsGraphUp style={{ fontSize: "20px", color: "black" }} /> }
         ]
       },

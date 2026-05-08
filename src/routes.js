@@ -118,45 +118,10 @@ const AppRoutes = () => {
         )}
 
       </Route>
-
-      {/* <Route path="/" element={<Layout />}>
-      <Route path="andon-dashboard" element={<Andondashboard />} />
-      <Route path="/shift" element={<Shift />} />
-      <Route path="/machine-card" element={<MachineCard />} />
-      <Route path="/shift-registration" element={<ShiftRegistration />} />
-      <Route path="/component-registration" element={<ComponentRegistration />} />
-      <Route path="/operator-registration" element={<OperatorRegistration />} />
-      <Route path="/user-registration" element={<UserRegistration />} />
-      <Route path="/reason-registration" element={<ReasonRegistration />} />
-      <Route path="/machines" element={<MachineList />} />
-      <Route path="/machines-group" element={<MachineGroup />} />
-      <Route path="/company" element={<Company />} />
-      <Route path="/CurrentShift" element={<CurrentShift />} />
-      <Route path="/analytics" element={<NewAnalytics />} />
-      <Route path="/allocation" element={<Allocation />} />
-      <Route path="/operator-details" element={<OperatorDetails />} />
-      <Route path="/machinemm" element={<GrafanaEmbed />} />
-      <Route path="/report" element={<MachineReport />} />
-      <Route path="/machineutilization" element={<MachineUtilization />} />
-      <Route path="/deviceoee" element={
-          <NewDeviceOee />
-      } />
-    </Route> */}
       <Route path="*" element={<Navigate to={'/'} replace />} />
     </Routes>
   )
 }
-//       <Route path="/production-analysis" element={<Analytics />} />
-//       <Route path="/cycletime" element={<Cycletime />} />
-//       <Route path="/production-summary" element={<Component />} />
-//       <Route path="/production-runs" element={<Component1 />} />
-//       <Route path="/summary" element={<Summary />} />
-//       <Route path="/inprogresscycle" element={<Inprogress />} />
-//       <Route path="/analyticoee" element={<AnalyticOee />} />
-
-//     </Route>
-//   </Routes>
-// );
 
 export default AppRoutes;
 
