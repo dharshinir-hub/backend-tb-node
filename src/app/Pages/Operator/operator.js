@@ -1695,12 +1695,12 @@ function Operator() {
         const totalCavity = cavities.reduce((sum, c) => sum + (Number(c) || 0), 0);
 
         const liveComponentEntry = {
-            plan_id: selectedPlan?.id ?? selectedPlan?.plan_id ?? null,
+            plan_id: selectedPlan?.id ?? selectedPlan?.plan_id ?? '-',
             plan_no: selectedPlan?.plan_no,
-            unit_desc: selectedPlan?.unit_desc ?? null,
-            type: selectedPlan?.type ?? selectedPlan?.Type ?? null,
-            line: selectedDetail?.line ?? null,
-            machine_name: selectedDetail?.machine_name ?? selectedMachine ?? null,
+            unit_desc: selectedPlan?.unit_desc ?? '-',
+            type: selectedPlan?.type ?? selectedPlan?.Type ?? '-',
+            line: selectedDetail?.line ?? '-',
+            machine_name: selectedDetail?.machine_name ?? selectedMachine ?? '-',
             Cavity: cavities,
             Item: itemIds,
             ItemDesc: itemDescs,
@@ -1711,12 +1711,12 @@ function Operator() {
             end_time: shiftEnd,
             duration: Math.floor((shiftEnd - now) / 1000),
             cycle_time: selectedDetail?.CycleTime
-                ? `${String(selectedDetail.CycleTime.Hours ?? 0).padStart(2,'0')}:${String(selectedDetail.CycleTime.Minutes ?? 0).padStart(2,'0')}:${String(selectedDetail.CycleTime.Seconds ?? 0).padStart(2,'0')}`
+                ? `${String(selectedDetail.CycleTime.Hours ?? 0).padStart(2, '0')}:${String(selectedDetail.CycleTime.Minutes ?? 0).padStart(2, '0')}:${String(selectedDetail.CycleTime.Seconds ?? 0).padStart(2, '0')}`
                 : "00:00:00",
             handling_time: "00:00:00",
             setup_time: "00:00:00",
-            factorval: totalCavity || null,
-            factor: "single factor",
+            factorval: totalCavity || '-',
+            factor: "Multiplication Factor",
         };
 
         try {
@@ -1726,23 +1726,27 @@ function Operator() {
                     values: {
                         live_plan: {
                             name: 'No Operations',
-                            code: '',
+                            code: '-',
                             start_time: shiftStart,
                             end_time: now,
                             duration: Math.floor((now - shiftStart) / 1000),
                             cycle_time: "00:00:00",
                             handling_time: "00:00:00",
                             setup_time: "00:00:00",
+                            factorval: 1,
+                            factor: "Multiplication Factor",
                         },
                         live_component: {
                             name: 'No Operations',
-                            code: '',
+                            code: '-',
                             start_time: shiftStart,
                             end_time: now,
                             duration: Math.floor((now - shiftStart) / 1000),
                             cycle_time: "00:00:00",
                             handling_time: "00:00:00",
                             setup_time: "00:00:00",
+                            factorval: 1,
+                            factor: "Multiplication Factor",
                         }
                     }
                 });
