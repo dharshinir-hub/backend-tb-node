@@ -106,7 +106,7 @@ function Operator() {
     const [prevLiveComp, setPrevLiveComp] = useState(null);
     const prevShiftRef = useRef(null);
     const [currentMachinePlan, setCurrentMachinePlan] = useState(null);
-const getCustomerId = () => {
+    const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
             return window._env_.CUSTOMER_ID;
         } else if (location.pathname === "/smc_operator_bf9tz") {
@@ -1730,6 +1730,9 @@ const getCustomerId = () => {
                             start_time: shiftStart,
                             end_time: now,
                             duration: Math.floor((now - shiftStart) / 1000),
+                            cycle_time: "00:00:00",
+                            handling_time: "00:00:00",
+                            setup_time: "00:00:00",
                         },
                         live_component: {
                             name: 'No Operations',
@@ -1737,6 +1740,9 @@ const getCustomerId = () => {
                             start_time: shiftStart,
                             end_time: now,
                             duration: Math.floor((now - shiftStart) / 1000),
+                            cycle_time: "00:00:00",
+                            handling_time: "00:00:00",
+                            setup_time: "00:00:00",
                         }
                     }
                 });
@@ -2778,95 +2784,95 @@ const getCustomerId = () => {
                         partsRejects={telemetry.scrap}
                         status={telemetry.machineStatus}
                     />
-                        <div className="username-section">
-                            <FormControl
-                                variant="standard"
-                                sx={{
-                                    minWidth: 140,
-                                    "& .MuiInputBase-root": { color: "#f99022", fontWeight: 600 },
-                                    "& .MuiSvgIcon-root": { color: "#f99022" },
+                    <div className="username-section">
+                        <FormControl
+                            variant="standard"
+                            sx={{
+                                minWidth: 140,
+                                "& .MuiInputBase-root": { color: "#f99022", fontWeight: 600 },
+                                "& .MuiSvgIcon-root": { color: "#f99022" },
+                            }}
+                        >
+                            <Select
+                                value={selectedOperator || ""}
+                                onChange={(e) => {
+                                    setPendingOperator(e.target.value);
+                                    setConfirmType("operator");
                                 }}
+                                displayEmpty
+                                renderValue={(selected) => {
+                                    if (!selected) {
+                                        return <span style={{ color: "#f99022" }}>No operator assigned</span>;
+                                    }
+                                    const operator = operators.find(op => String(op.id) === String(selected));
+                                    return operator ? `${operator.id} - ${operator.name}` : "";
+                                }}
+                                disableUnderline
                             >
-                                <Select
-                                    value={selectedOperator || ""}
-                                    onChange={(e) => {
-                                        setPendingOperator(e.target.value);
-                                        setConfirmType("operator");
-                                    }}
-                                    displayEmpty
-                                    renderValue={(selected) => {
-                                        if (!selected) {
-                                            return <span style={{ color: "#f99022" }}>No operator assigned</span>;
-                                        }
-                                        const operator = operators.find(op => String(op.id) === String(selected));
-                                        return operator ? `${operator.id} - ${operator.name}` : "";
-                                    }}
-                                    disableUnderline
-                                >
-                                    <MenuItem disabled value="">
-                                        No operator assigned
+                                <MenuItem disabled value="">
+                                    No operator assigned
+                                </MenuItem>
+                                {operators.map((op) => (
+                                    <MenuItem key={op.id} value={op.id}>
+                                        {op?.id} - {op?.name}
                                     </MenuItem>
-                                    {operators.map((op) => (
-                                        <MenuItem key={op.id} value={op.id}>
-                                            {op?.id} - {op?.name}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
+                                ))}
+                            </Select>
+                        </FormControl>
                     </div>
                 </div>
                 <div className="contect-section">
                     {isGplastCondition ? (
-                    <div className="job-info">
-                        <div className="component-section">
-                            <FormControl
-                                variant="standard"
-                                sx={{
-                                    minWidth: 120,
-                                    "& .MuiInputBase-root": { color: "#444", fontWeight: 600, fontSize: "0.96rem" },
-                                    "& .MuiSvgIcon-root": { color: "#888", fontSize: "1.1rem" },
-                                }}
-                            >
-                                <Select
-                                    value={liveCompSelected || ""}
-                                    onChange={(e) => handleLiveComponentChange(e.target.value)}
-                                    displayEmpty
-                                    disableUnderline
-                                    renderValue={(selected) => {
-                                        if (!selected) {
-                                            return <span style={{ color: "#aaa", fontWeight: 400 }}>No component</span>;
-                                        }
-
-                                        const [selPlanNo, selIdxStr] = (selected || "").split("|");
-                                        const selIdx = parseInt(selIdxStr, 10);
-                                        const planList = Array.isArray(currentMachinePlan) ? currentMachinePlan : [];
-                                        const selPlan = planList.find(p => p.plan_no === selPlanNo);
-                                        const selDetail = Array.isArray(selPlan?.details) ? selPlan.details[selIdx] : null;
-                                        if (selPlan && selDetail) {
-                                            return buildDetailLabel(selPlan, selDetail);
-                                        }
-                                        // plan list still loading — show stored label from telemetry
-                                        const storedName = telemetry?.liveComponent?.name;
-                                        if (storedName) return storedName;
-                                        return <span style={{ color: "#aaa", fontWeight: 400 }}>No component</span>;
+                        <div className="job-info">
+                            <div className="component-section">
+                                <FormControl
+                                    variant="standard"
+                                    sx={{
+                                        minWidth: 120,
+                                        "& .MuiInputBase-root": { color: "#444", fontWeight: 600, fontSize: "0.96rem" },
+                                        "& .MuiSvgIcon-root": { color: "#888", fontSize: "1.1rem" },
                                     }}
                                 >
-                                    <MenuItem disabled value="">
-                                        No component selected
-                                    </MenuItem>
-                                    {(Array.isArray(currentMachinePlan) ? [...currentMachinePlan] : [])
-                                        .sort((a, b) => String(a.plan_no).localeCompare(String(b.plan_no), undefined, { numeric: true }))
-                                        .flatMap((plan) =>
-                                            (Array.isArray(plan?.details) ? plan.details : []).map((detail, dIdx) => (
-                                                <MenuItem key={`${plan.plan_no}|${dIdx}`} value={`${plan.plan_no}|${dIdx}`}>
-                                                    {buildDetailLabel(plan, detail)}
-                                                </MenuItem>
-                                            ))
-                                        )}
-                                </Select>
-                            </FormControl>
+                                    <Select
+                                        value={liveCompSelected || ""}
+                                        onChange={(e) => handleLiveComponentChange(e.target.value)}
+                                        displayEmpty
+                                        disableUnderline
+                                        renderValue={(selected) => {
+                                            if (!selected) {
+                                                return <span style={{ color: "#aaa", fontWeight: 400 }}>No component</span>;
+                                            }
+
+                                            const [selPlanNo, selIdxStr] = (selected || "").split("|");
+                                            const selIdx = parseInt(selIdxStr, 10);
+                                            const planList = Array.isArray(currentMachinePlan) ? currentMachinePlan : [];
+                                            const selPlan = planList.find(p => p.plan_no === selPlanNo);
+                                            const selDetail = Array.isArray(selPlan?.details) ? selPlan.details[selIdx] : null;
+                                            if (selPlan && selDetail) {
+                                                return buildDetailLabel(selPlan, selDetail);
+                                            }
+                                            // plan list still loading — show stored label from telemetry
+                                            const storedName = telemetry?.liveComponent?.name;
+                                            if (storedName) return storedName;
+                                            return <span style={{ color: "#aaa", fontWeight: 400 }}>No component</span>;
+                                        }}
+                                    >
+                                        <MenuItem disabled value="">
+                                            No component selected
+                                        </MenuItem>
+                                        {(Array.isArray(currentMachinePlan) ? [...currentMachinePlan] : [])
+                                            .sort((a, b) => String(a.plan_no).localeCompare(String(b.plan_no), undefined, { numeric: true }))
+                                            .flatMap((plan) =>
+                                                (Array.isArray(plan?.details) ? plan.details : []).map((detail, dIdx) => (
+                                                    <MenuItem key={`${plan.plan_no}|${dIdx}`} value={`${plan.plan_no}|${dIdx}`}>
+                                                        {buildDetailLabel(plan, detail)}
+                                                    </MenuItem>
+                                                ))
+                                            )}
+                                    </Select>
+                                </FormControl>
+                            </div>
                         </div>
-                    </div>
                     ) : (
 
                         <div className="job-info">
