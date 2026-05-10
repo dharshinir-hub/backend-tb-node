@@ -1,6 +1,7 @@
 // src/Routes.js
 import React, { useContext, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import * as Sentry from '@sentry/react';
 import Layout from './app/Nav/layout';
 import Login from './app/Pages/Login/login';
 import Andondashboard from './app/Pages/Andon-Dashboard/andondashboard';
@@ -58,6 +59,24 @@ const AppRoutes = () => {
 
   if (!initialized) return null;
 
+  function PageErrorFallback({ error, resetError }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', minHeight: '60vh', color: '#fff',
+      fontFamily: 'sans-serif', gap: '12px', textAlign: 'center', padding: '24px'
+    }}>
+      <h3 style={{ margin: 0 }}>This page ran into an error</h3>
+      <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>{error?.message}</p>
+      <button onClick={resetError} style={{
+        padding: '7px 18px', background: '#3b82f6', color: '#fff',
+        border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px'
+      }}>
+        Retry
+      </button>
+    </div>
+  );
+}
   return (
     <Routes>
       <Route path="/" element={<Login />} />
@@ -91,7 +110,11 @@ const AppRoutes = () => {
               path={`/${page}`}
               element={
                 <ProtectedRoute allowed={pageList.includes(page)}>
-                  <Component />
+                  <Sentry.ErrorBoundary fallback={({ error, resetError }) => (
+                    <PageErrorFallback error={error} resetError={resetError} />
+                  )}>
+                    <Component />
+                  </Sentry.ErrorBoundary>
                 </ProtectedRoute>
               }
             />

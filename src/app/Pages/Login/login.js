@@ -15,6 +15,8 @@ import { getCustomerTitle, getOperatorDetails, Loginapi, startTokenAutoRefresh, 
 import { decryptText } from '../../Shared/utils/cryptoUtils';
 import { ROLE_OPERATOR } from '../../Shared/constants/role';
 import { UserDetailsContext } from '../../Shared/context/UserDetailsContext';
+import * as Sentry from '@sentry/react';
+import posthog from 'posthog-js';
 
 function LoginForm() {
   const { register, handleSubmit, formState: { errors }, trigger } = useForm();
@@ -99,8 +101,24 @@ function LoginForm() {
             console.error("Failed to store user description:", err);
             localStorage.setItem("userDetails", "{}");
           }
+
           const customerTitle = await getCustomerTitle(userResponse.customerId.id);
           localStorage.setItem("customerTitle", customerTitle);
+          const customerId = userResponse.customerId.id;
+          const email = data.email;
+          const env = window._env_ || {};
+          posthog.identify(customerId, {
+            email,
+            customer: customerTitle,
+            environment: window.location.hostname === 'smart.yantra24x7.com' ? 'production' : 'development',
+          });
+          Sentry.setUser({
+            id: customerId,
+            email,
+            customer: customerTitle,
+            environment: window.location.hostname === 'smart.yantra24x7.com' ? 'production' : 'development',
+          });
+          posthog.capture('user_login', { customer: customerTitle });
           await tenantLogin();
 
           const secondUserResponse = await Userapi1();

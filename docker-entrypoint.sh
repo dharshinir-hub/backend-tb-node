@@ -16,6 +16,8 @@
 : ${TENANT_PASSWORD:="pmspms"}
 : ${LOGO:="b0coVWpU9C1Ztg9CrjtkHgi87ia4gFxH"}
 : ${BG_IMAGE:="76qC9HzBmPBNFqTBaHGwF40Wka0Ri03C"}
+: ${SENTRY_DSN:=""}
+: ${POSTHOG_KEY:=""}
 
 # Replace placeholders in the template with actual environment variables
 # Note: Use -u to only replace variables that have a value set (or use defaults above)
