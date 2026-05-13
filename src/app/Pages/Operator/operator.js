@@ -1,6 +1,6 @@
 import './operator.css';
 import logo from '../../../assets/yantraimage.png';
-import { FaRegClock, FaRegCalendarAlt, FaBell } from "react-icons/fa";
+import { FaRegClock, FaRegCalendarAlt, FaBell, FaSun, FaMoon } from "react-icons/fa";
 import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
 import React, { useEffect, useRef, useState } from "react";
@@ -98,6 +98,34 @@ function Operator() {
     const [openBlueCardResponse, setOpenBlueCardResponse] = useState(false);
     const [blueCardResponseData, setBlueCardResponseData] = useState(null);
     const prevRequestPayloadRef = useRef([]);
+    const [isDark, setIsDark] = useState(() => localStorage.getItem('operatorTheme') === 'dark');
+
+    useEffect(() => {
+        document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    }, [isDark]);
+
+    const toggleTheme = () => {
+        setIsDark(prev => {
+            const next = !prev;
+            localStorage.setItem('operatorTheme', next ? 'dark' : 'light');
+            return next;
+        });
+    };
+
+    const t = {
+        bg:          isDark ? '#22262e' : '#ffffff',
+        bgCard:      isDark ? '#2a2f3a' : '#f5f6fa',
+        bgRow:       isDark ? '#2a2f3a' : '#fafafa',
+        text:        isDark ? '#f1f5f9' : '#111827',
+        textSub:     isDark ? '#94a3b8' : '#6b7280',
+        border:      isDark ? '#334155' : '#e5e7eb',
+        borderTable: isDark ? '#334155' : '#ccc',
+        borderLight: isDark ? '#334155' : '#e0e0e0',
+        borderRow:   isDark ? '#334155' : '#f0f0f0',
+        tableHeader: isDark ? '#2a2f3a' : '#f2f2f2',
+        dialogContent: isDark ? '#22262e' : '#fff',
+        headerBorder:  isDark ? '#334155' : '#e8eaf0',
+    };
     const [blueCardNotifications, setBlueCardNotifications] = useState([]);
     const [showBlueCardNotif, setShowBlueCardNotif] = useState(false);
     const prevComponentCodeRef = useRef(null);
@@ -2311,7 +2339,7 @@ function Operator() {
     };
 
     return (
-        <div className="operator-screen">
+        <div className="operator-screen" data-theme={isDark ? 'dark' : 'light'}>
             <div className="header">
                 <img className="Logo" src={logo} alt="Logo" />
                 <div className="header-text-element">
@@ -2323,16 +2351,16 @@ function Operator() {
                 <div className="calendar-container">
                     <div className="calendar">
                         <FaRegCalendarAlt className="icon" style={{ color: '#F99022' }} />
-                        <p className='date-label'>Date: </p>
                         <p className='date-label'>{date}</p>
                     </div>
 
                     <div className="calendar">
                         <FaRegClock className='icon' style={{ color: '#F99022' }} />
-                        <p className='date-label'>Time: </p>
                         <p className='date-label'>{time}</p>
                     </div>
-
+  <button className="theme-toggle" onClick={toggleTheme} title={isDark ? 'Switch to Light' : 'Switch to Dark'}>
+                        {isDark ? <FaSun /> : <FaMoon />}
+                    </button>
                     {/* Blue Card Notification Bell */}
                     {isPMIBlueCardPage && (
 
@@ -2356,20 +2384,20 @@ function Operator() {
                             {showBlueCardNotif && (
                                 <div style={{
                                     position: 'absolute', top: '110%', right: 0, zIndex: 1100,
-                                    background: 'white', border: '1px solid #e5e7eb',
-                                    borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+                                    background: t.bg, border: `1px solid ${t.border}`,
+                                    borderRadius: '10px', boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.5)' : '0 8px 24px rgba(0,0,0,0.14)',
                                     minWidth: 320, maxHeight: 360, overflowY: 'auto',
                                 }}>
-                                    <div style={{ padding: '10px 16px', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #f3f4f6', color: '#111827' }}>
+                                    <div style={{ padding: '10px 16px', fontWeight: 700, fontSize: 14, borderBottom: `1px solid ${t.border}`, color: t.text }}>
                                         Blue Card Responses
                                         {telemetry?.liveComponent?.name && (
-                                            <span style={{ fontWeight: 400, fontSize: 12, color: '#6b7280', marginLeft: 8 }}>
+                                            <span style={{ fontWeight: 400, fontSize: 12, color: t.textSub, marginLeft: 8 }}>
                                                 ({telemetry.liveComponent.name})
                                             </span>
                                         )}
                                     </div>
                                     {blueCardNotifications.length === 0 ? (
-                                        <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+                                        <div style={{ padding: '24px 16px', textAlign: 'center', color: t.textSub, fontSize: 13 }}>
                                             No responses yet for this component
                                         </div>
                                     ) : (
@@ -2383,24 +2411,25 @@ function Operator() {
                                             })();
                                             return (
                                                 <div key={i} style={{
-                                                    padding: '10px 16px', borderBottom: '1px solid #f3f4f6',
-                                                    background: i === 0 ? '#fafafa' : 'white',
+                                                    padding: '10px 16px', borderBottom: `1px solid ${t.border}`,
+                                                    background: i === 0 ? t.bgRow : t.bg,
+                                                    color: t.text,
                                                 }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                                                         <span style={{ fontWeight: 600, fontSize: 14, color: n.status === 'OK' ? '#16a34a' : '#dc2626' }}>
                                                             {n.status === 'OK' ? '✓ Approved' : '✗ Rejected'} — {n.device_name || '-'}
                                                         </span>
-                                                        <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', marginLeft: 8 }}>
+                                                        <span style={{ fontSize: 11, color: t.textSub, whiteSpace: 'nowrap', marginLeft: 8 }}>
                                                             {relTime}
                                                         </span>
                                                     </div>
                                                     {n.status === 'NOK' && n.reason && (
-                                                        <div style={{ fontSize: 12, color: '#374151', marginBottom: 2 }}>
+                                                        <div style={{ fontSize: 12, color: t.text, marginBottom: 2 }}>
                                                             <strong>Reason:</strong> {Array.isArray(n.reason) ? n.reason.join(', ') : n.reason}
                                                         </div>
                                                     )}
                                                     {n.status === 'NOK' && n.remarks && n.remarks !== '-' && (
-                                                        <div style={{ fontSize: 12, color: '#374151' }}>
+                                                        <div style={{ fontSize: 12, color: t.text }}>
                                                             <strong>Remark:</strong> {n.remarks}
                                                         </div>
                                                     )}
@@ -2412,7 +2441,7 @@ function Operator() {
                             )}
                         </div>
                     )}
-
+                  
                 </div>
             </div>
             <div className="header-2" style={{ background: telemetry.machineColor }}>
@@ -2477,7 +2506,7 @@ function Operator() {
                 const deviceId = deviceNameIdJson[selectedMachine];
                 const grafanaUrl = window._env_.GRAFANA_URL;
                 const serverUrl = window._env_.SERVER_URL;
-                const iframeSrc = `${grafanaUrl}d/dfl4xwf27vp4we/machine-status-timeline?orgId=1&var-token=${bearerToken}&var-deviceId=${deviceId}&var-url=${serverUrl}&var-grafanaurl=${grafanaUrl}&from=${shiftStart}&to=now&theme=light&kiosk`;
+                const iframeSrc = `${grafanaUrl}d/dfl4xwf27vp4we/machine-status-timeline?orgId=1&var-token=${bearerToken}&var-deviceId=${deviceId}&var-url=${serverUrl}&var-grafanaurl=${grafanaUrl}&from=${shiftStart}&to=now&theme=${isDark ? 'dark' : 'light'}&kiosk`;
                 return (
                     <iframe
                         key={`grafana-mchstat-${currentShift.shift_no}-${selectedMachine}`}
@@ -2520,6 +2549,7 @@ function Operator() {
                                     setPendingOperator(e.target.value);
                                     setConfirmType("operator");
                                 }}
+                                MenuProps={{ PaperProps: { className: "operator-select-menu" } }}
                                 displayEmpty
                                 renderValue={(selected) => {
                                     if (!selected) {
@@ -3030,22 +3060,22 @@ function Operator() {
                                     <col style={{ width: '36%' }} />
                                 </colgroup>
                                 <thead>
-                                    <tr style={{ backgroundColor: '#f2f2f2' }}>
-                                        <th style={{ border: '1px solid #ccc', padding: '8px' }}>Start Time (IST)</th>
-                                        <th style={{ border: '1px solid #ccc', padding: '8px' }}>End Time (IST)</th>
-                                        <th style={{ border: '1px solid #ccc', padding: '8px' }}>Duration</th>
-                                        <th style={{ border: '1px solid #ccc', padding: '8px' }}>Status</th>
-                                        {(getCustomerId() === window._env_.GPLAST_CUSTOMER_ID) && (<th style={{ border: '1px solid #ccc', padding: '8px' }}>Group</th>)}
-                                        <th style={{ border: '1px solid #ccc', padding: '8px' }}>Reason</th>
+                                    <tr style={{ backgroundColor: t.tableHeader }}>
+                                        <th style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>Start Time (IST)</th>
+                                        <th style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>End Time (IST)</th>
+                                        <th style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>Duration</th>
+                                        <th style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>Status</th>
+                                        {(getCustomerId() === window._env_.GPLAST_CUSTOMER_ID) && (<th style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>Group</th>)}
+                                        <th style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>Reason</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredResult.map((item, index) => (
                                         <tr key={index}>
-                                            <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatEpochToIST(item.start)}</td>
-                                            <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatEpochToIST(item.end)}</td>
-                                            <td style={{ border: '1px solid #ccc', padding: '8px' }}>{formatDuration(item.duration)}</td>
-                                            <td style={{ border: '1px solid #ccc', padding: '8px' }}>{item.status}</td>
+                                            <td style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>{formatEpochToIST(item.start)}</td>
+                                            <td style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>{formatEpochToIST(item.end)}</td>
+                                            <td style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>{formatDuration(item.duration)}</td>
+                                            <td style={{ border: `1px solid ${t.borderTable}`, padding: '8px', color: t.text }}>{item.status}</td>
                                             {(getCustomerId() === window._env_.GPLAST_CUSTOMER_ID) && (
                                                 <td>
                                                     <CustomDaySelect
@@ -3111,20 +3141,21 @@ function Operator() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    borderBottom: "1px solid #e8eaf0",
+                    borderBottom: `1px solid ${t.headerBorder}`,
+                    background: t.bg,
                 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <span style={{ fontSize: "22px" }}>🚫</span>
-                        <span style={{ fontSize: "20px", fontWeight: "600", color: "#212121", letterSpacing: "0.4px" }}>
+                        <span style={{ fontSize: "20px", fontWeight: "600", color: t.text, letterSpacing: "0.4px" }}>
                             Reject Parts Entry
                         </span>
                         {selectedRow?.machineName && (
-                            <span style={{ fontSize: "20px", fontWeight: "600", color: "#212121" }}>
+                            <span style={{ fontSize: "20px", fontWeight: "600", color: t.text }}>
                                 - {selectedRow.machineName}
                             </span>
                         )}
                         {selectedRow?.op?.operation_name && selectedRow.op.operation_name !== "No Operations" && (
-                            <span style={{ fontSize: "15px", fontWeight: "500", color: "#555", marginLeft: "4px" }}>
+                            <span style={{ fontSize: "15px", fontWeight: "500", color: t.textSub, marginLeft: "4px" }}>
                                 ({selectedRow.op.operation_name})
                             </span>
                         )}
@@ -3134,7 +3165,7 @@ function Operator() {
                 <DialogContent
                     sx={{
                         padding: "20px 24px",
-                        background: "#fff",
+                        background: t.dialogContent,
                         maxHeight: "70vh",
                         overflowY: "auto",
                         display: "flex",
@@ -3171,7 +3202,7 @@ function Operator() {
 
                             <div
                                 style={{
-                                    border: "1px solid #e0e0e0",
+                                    border: `1px solid ${t.borderLight}`,
                                     borderRadius: "8px",
                                     overflow: "hidden",
                                     flexShrink: 0
@@ -3182,8 +3213,8 @@ function Operator() {
                                     style={{
                                         display: "grid",
                                         gridTemplateColumns: "100px 1fr 1fr",
-                                        background: "#f5f6fa",
-                                        borderBottom: "1px solid #e0e0e0"
+                                        background: t.bgCard,
+                                        borderBottom: `1px solid ${t.borderLight}`
                                     }}
                                 >
                                     {["Count", "Reason", "Remark"].map((h, i) => (
@@ -3194,7 +3225,8 @@ function Operator() {
                                                 fontWeight: "600",
                                                 fontSize: "15px",
                                                 textAlign: "center",
-                                                borderRight: i !== 2 ? "1px solid #e0e0e0" : "none"
+                                                color: t.text,
+                                                borderRight: i !== 2 ? `1px solid ${t.borderLight}` : "none"
                                             }}
                                         >
                                             {h}
@@ -3213,10 +3245,9 @@ function Operator() {
                                         style={{
                                             display: "grid",
                                             gridTemplateColumns: "100px 1fr 1fr",
-                                            borderBottom: "1px solid #e0e0e0",
+                                            borderBottom: `1px solid ${t.borderLight}`,
                                             alignItems: "center",
                                             minHeight: "65px",
-
                                         }}
                                     >
                                         <div
@@ -3225,7 +3256,8 @@ function Operator() {
                                                 textAlign: "center",
                                                 fontSize: "15px",
                                                 fontWeight: "500",
-                                                borderRight: "1px solid #e0e0e0",
+                                                color: t.text,
+                                                borderRight: `1px solid ${t.borderLight}`,
                                                 display: "flex",
                                                 justifyContent: "center",
                                                 alignItems: "center"
@@ -3239,7 +3271,8 @@ function Operator() {
                                                 padding: "14px",
                                                 fontSize: "15px",
                                                 fontWeight: "500",
-                                                borderRight: "1px solid #e0e0e0",
+                                                color: t.text,
+                                                borderRight: `1px solid ${t.borderLight}`,
                                                 whiteSpace: "normal",
                                                 wordBreak: "break-word",
                                                 textAlign: "center"
@@ -3255,6 +3288,7 @@ function Operator() {
                                                 padding: "14px",
                                                 fontSize: "15px",
                                                 fontWeight: "500",
+                                                color: t.text,
                                                 whiteSpace: "normal",
                                                 wordBreak: "break-word",
                                                 textAlign: "center"
@@ -3268,7 +3302,7 @@ function Operator() {
                         </>
                     )}
 
-                    <div style={{ fontWeight: 600, fontSize: "16px" }}>Add New Reject Parts</div>
+                    <div style={{ fontWeight: 600, fontSize: "16px", color: t.text }}>Add New Reject Parts</div>
 
                     {rejectRows.map((row, idx) => {
                         if (row.isExisting) return null;
@@ -3277,7 +3311,7 @@ function Operator() {
                         const usedByOthers = rejectRows.reduce((sum, r, i) => i !== idx && !r.isExisting ? sum + Number(r.count || 0) : sum, 0);
                         const remaining = Math.max(0, allowed - usedByOthers);
                         return (
-                            <div key={idx} style={{ display: "grid", gridTemplateColumns: "80px 260px 1fr 50px", borderBottom: "1px solid #f0f0f0", alignItems: "center", gap: "8px", padding: "6px 8px" }}>
+                            <div key={idx} style={{ display: "grid", gridTemplateColumns: "80px 260px 1fr 50px", borderBottom: `1px solid ${t.borderRow}`, alignItems: "center", gap: "8px", padding: "6px 8px" }}>
                                 <div>
                                     <TextField
                                         type="number"

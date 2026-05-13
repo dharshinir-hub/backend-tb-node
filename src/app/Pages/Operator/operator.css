@@ -38,6 +38,7 @@ div {
 }
 
 .header {
+  position: relative;
   display: flex;
   width: 100vw;
   align-items: center;
@@ -47,11 +48,19 @@ div {
   border-bottom: solid 1px #D1D1D1;
 }
 
+.header-text-element {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
 .header-text-element h5 {
   color: #89969F;
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 0;
+  white-space: nowrap;
 }
 
 .span-1 {
@@ -1043,4 +1052,405 @@ div:where(.swal2-container).swal2-center>.swal2-popup {
 .blue-card-button:hover {
   background: #2cb3f6;
   transform: translateY(-1px);
+}
+
+/* ─── Operator dropdown thin scrollbar ─── */
+.operator-select-menu ul::-webkit-scrollbar,
+.operator-select-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.operator-select-menu ul::-webkit-scrollbar-track,
+.operator-select-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.operator-select-menu ul::-webkit-scrollbar-thumb,
+.operator-select-menu::-webkit-scrollbar-thumb {
+  background: #f99022;
+  border-radius: 4px;
+}
+
+/* ─── Theme Toggle Button ─── */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  background-color: #f3f4f6;
+  color: #374151;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  background-color: #e5e7eb;
+}
+
+/* ─── CSS Variables (light = default) ─── */
+.operator-screen {
+  --bg-primary:        #ffffff;
+  --bg-surface:        #f9fafb;
+  --bg-card:           #ffffff;
+  --text-primary:      #111827;
+  --text-secondary:    #4b5563;
+  --text-muted:        #9ca3af;
+  --border-color:      #e5e7eb;
+  --footer-hover-bg:   #f3f4f6;
+  --time-label-color:  #374151;
+  --progress-bg:       #f0f0f0;
+}
+
+/* ─── Dark palette — warm slate, easy on the eyes ─── */
+.operator-screen[data-theme="dark"] {
+  --bg-primary:        #1a1d23;
+  --bg-surface:        #22262e;
+  --bg-card:           #2a2f3a;
+  --text-primary:      #f1f5f9;
+  --text-secondary:    #94a3b8;
+  --text-muted:        #64748b;
+  --border-color:      #334155;
+  --footer-hover-bg:   #2d3340;
+  --time-label-color:  #cbd5e1;
+  --progress-bg:       #2d3340;
+}
+
+/* ─── Apply variables to operator-screen elements ─── */
+.operator-screen {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.operator-screen .header {
+  border-bottom-color: var(--border-color);
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+.operator-screen[data-theme="dark"] .header {
+  background-color: var(--bg-surface);
+}
+
+.operator-screen .header-text-element h5 {
+  color: var(--text-muted);
+}
+
+.operator-screen .calendar p,
+.operator-screen .date-label {
+  color: var(--text-primary);
+}
+
+.operator-screen .footer-left,
+.operator-screen .footer-right {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  transition: background-color 0.2s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.operator-screen .footer-left:hover,
+.operator-screen .footer-right:hover {
+  background-color: var(--footer-hover-bg);
+  border-color: #F99022;
+}
+
+.operator-screen .time-label,
+.operator-screen .login-time-label {
+  color: var(--time-label-color);
+}
+
+.operator-screen .job-stats-section p {
+  color: var(--text-primary);
+}
+
+.operator-screen .actual {
+  color: var(--text-secondary);
+}
+
+.operator-screen .contect-section {
+  color: var(--text-primary);
+}
+
+.operator-screen .job-code {
+  color: var(--text-primary);
+}
+
+.operator-screen .job-name {
+  color: var(--text-secondary);
+}
+
+.operator-screen .time-item span {
+  color: var(--text-primary);
+}
+
+.operator-screen .time-item p {
+  color: var(--time-label-color);
+}
+
+.operator-screen .actual-label {
+  color: var(--text-secondary);
+}
+
+.operator-screen .progress-wrapper,
+.operator-screen .progress-bar {
+  background-color: var(--progress-bg);
+}
+
+/* ─── Dark toggle button ─── */
+.operator-screen[data-theme="dark"] .theme-toggle {
+  background-color: #334155;
+  color: #fbbf24;
+}
+
+.operator-screen[data-theme="dark"] .theme-toggle:hover {
+  background-color: #3d4f66;
+}
+
+/* ═══════════════════════════════════════════════════
+   GLOBAL DARK — MUI portals + SweetAlert2
+   Portals render outside .operator-screen so we scope
+   to body[data-theme="dark"] set by useEffect
+   ═══════════════════════════════════════════════════ */
+
+/* ─── MUI Select / Autocomplete dropdown ─── */
+body[data-theme="dark"] .MuiPaper-root,
+body[data-theme="dark"] .MuiPopover-paper,
+body[data-theme="dark"] .MuiMenu-paper,
+body[data-theme="dark"] .MuiAutocomplete-paper {
+  background-color: #22262e !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+body[data-theme="dark"] .MuiMenuItem-root {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiMenuItem-root:hover,
+body[data-theme="dark"] .MuiMenuItem-root.Mui-focusVisible {
+  background-color: #2d3340 !important;
+}
+
+body[data-theme="dark"] .MuiMenuItem-root.Mui-selected {
+  background-color: rgba(249, 144, 34, 0.15) !important;
+  color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiMenuItem-root.Mui-selected:hover {
+  background-color: rgba(249, 144, 34, 0.25) !important;
+}
+
+body[data-theme="dark"] .MuiAutocomplete-option {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiAutocomplete-option:hover,
+body[data-theme="dark"] .MuiAutocomplete-option[aria-selected="true"] {
+  background-color: #2d3340 !important;
+}
+
+body[data-theme="dark"] .MuiAutocomplete-noOptions {
+  color: #94a3b8 !important;
+  background-color: #22262e !important;
+}
+
+/* ─── MUI Dialog ─── */
+body[data-theme="dark"] .MuiDialog-paper {
+  background-color: #22262e !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155;
+}
+
+body[data-theme="dark"] .MuiDialogTitle-root {
+  color: #f1f5f9 !important;
+  border-bottom: 1px solid #334155;
+}
+
+body[data-theme="dark"] .MuiDialogContent-root {
+  color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .MuiDialogActions-root {
+  border-top: 1px solid #334155;
+}
+
+body[data-theme="dark"] .MuiDialogContentText-root {
+  color: #94a3b8 !important;
+}
+
+/* ─── MUI TextField / Input inside dialogs ─── */
+body[data-theme="dark"] .MuiOutlinedInput-root {
+  background-color: #2a2f3a !important;
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiOutlinedInput-notchedOutline {
+  border-color: #334155 !important;
+}
+
+body[data-theme="dark"] .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiInputLabel-root {
+  color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] .MuiInputLabel-root.Mui-focused {
+  color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiInputBase-input {
+  color: #f1f5f9 !important;
+}
+
+/* Select displayed value text — target every class combination MUI uses */
+body[data-theme="dark"] .MuiSelect-select,
+body[data-theme="dark"] .MuiSelect-outlined,
+body[data-theme="dark"] .MuiSelect-select.MuiInputBase-input,
+body[data-theme="dark"] .MuiSelect-select.MuiOutlinedInput-input,
+body[data-theme="dark"] .MuiSelect-select.MuiSelect-outlined.MuiInputBase-input,
+body[data-theme="dark"] .MuiInputBase-root .MuiSelect-select,
+body[data-theme="dark"] .MuiOutlinedInput-root .MuiSelect-select,
+body[data-theme="dark"] .MuiSelect-nativeInput {
+  color: #f1f5f9 !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+}
+
+/* Dropdown arrow icon */
+body[data-theme="dark"] .MuiSelect-icon,
+body[data-theme="dark"] .MuiSvgIcon-root.MuiSelect-icon {
+  color: #94a3b8 !important;
+}
+
+/* FormLabel / InputLabel (used in CustomDaySelect) */
+body[data-theme="dark"] .MuiFormLabel-root,
+body[data-theme="dark"] .MuiInputLabel-root,
+body[data-theme="dark"] .MuiFormLabel-root.MuiInputLabel-root {
+  color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] .MuiFormLabel-root.Mui-focused,
+body[data-theme="dark"] .MuiInputLabel-root.Mui-focused {
+  color: #f99022 !important;
+}
+
+/* ─── MUI Checkbox ─── */
+body[data-theme="dark"] .MuiCheckbox-root {
+  color: #64748b !important;
+}
+
+body[data-theme="dark"] .MuiCheckbox-root.Mui-checked {
+  color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiListItemText-primary {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiListItemText-secondary {
+  color: #94a3b8 !important;
+}
+
+/* ─── MUI Button in dialogs ─── */
+body[data-theme="dark"] .MuiButton-root {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiButton-contained {
+  background-color: #f99022 !important;
+  color: #fff !important;
+}
+
+body[data-theme="dark"] .MuiButton-contained:hover {
+  background-color: #e07d10 !important;
+}
+
+/* ─── MUI Divider ─── */
+body[data-theme="dark"] .MuiDivider-root {
+  border-color: #334155 !important;
+}
+
+/* ─── SweetAlert2 ─── */
+body[data-theme="dark"] .swal2-popup {
+  background-color: #22262e !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155 !important;
+  outline: none !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+}
+
+body[data-theme="dark"] .swal2-title {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .swal2-content,
+body[data-theme="dark"] .swal2-html-container {
+  color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .swal2-input,
+body[data-theme="dark"] .swal2-select,
+body[data-theme="dark"] .swal2-textarea {
+  background-color: #2a2f3a !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155 !important;
+}
+
+body[data-theme="dark"] .swal2-input:focus,
+body[data-theme="dark"] .swal2-select:focus,
+body[data-theme="dark"] .swal2-textarea:focus {
+  border-color: #f99022 !important;
+  box-shadow: 0 0 0 3px rgba(249, 144, 34, 0.2) !important;
+}
+
+body[data-theme="dark"] .swal2-confirm {
+  background-color: #f99022 !important;
+  color: #fff !important;
+}
+
+body[data-theme="dark"] .swal2-cancel {
+  background-color: #374151 !important;
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .swal2-deny {
+  background-color: #dc2626 !important;
+  color: #fff !important;
+}
+
+body[data-theme="dark"] .swal2-validation-message {
+  background-color: #2a2f3a !important;
+  color: #f87171 !important;
+  border-color: #dc2626 !important;
+}
+
+body[data-theme="dark"] .swal2-close {
+  color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] .swal2-close:hover {
+  color: #f1f5f9 !important;
+}
+
+/* ─── Blue card notification dropdown ─── */
+body[data-theme="dark"] .operator-screen .header .calendar-container > div[style] {
+  background-color: #22262e !important;
+  border-color: #334155 !important;
+}
+
+/* ─── MUI Backdrop ─── */
+body[data-theme="dark"] .MuiBackdrop-root {
+  background-color: rgba(0, 0, 0, 0.7) !important;
 }
