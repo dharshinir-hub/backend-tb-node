@@ -50,13 +50,20 @@ const Settings = () => {
     const [deviceMap, setDeviceMap] = useState({});
     const [allDevices, setAllDevices] = useState([]);
     const [ungroupedDevices, setUngroupedDevices] = useState([]); // ✅ non-grouped
+    const [isGplastCustomer, setIsGplastCustomer] = useState(false);
     const customerId = localStorage.getItem("CustomerID");
-    const isGplastCustomer = cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
-    
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+ useEffect(() => {
+    if (customerId) {
+        const cleaned1 = cleanCustomerId(customerId);
+        const cleaned2 = cleanCustomerId(String(window._env_?.GPLAST_CUSTOMER_ID || ""));
+        console.log("cleaned customerId:", cleaned1);
+        console.log("cleaned GPLAST_CUSTOMER_ID:", cleaned2);
+        console.log("isMatch:", cleaned1 === cleaned2);
+        setIsGplastCustomer(cleaned1 === cleaned2);
+    }
+    fetchData();
+}, [customerId]);
 
     const fetchData = async () => {
         try {
