@@ -394,7 +394,7 @@ function Operator() {
             const liveComponent = getLatest("live_component", true);
             const livePlanTs = filteredData.live_plan?.[0]?.ts || null;
             const liveComponentTs = filteredData.live_component?.[0]?.ts || null;
-            const shouldUseGplastPlan = isGplastCondition && (deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949");
+            const shouldUseGplastPlan = isGplastCondition && window._env_.GPLAST_DEVICE_IDS?.includes(deviceId);
             const jobName = (shouldUseGplastPlan ? livePlan.name : liveComponent.name) || "Route card not assigned";
             const jobCode = (shouldUseGplastPlan ? livePlan.code : liveComponent.code) || "";
             const liveOperator = getLatestWithTs("live_operator", true);
@@ -688,7 +688,7 @@ function Operator() {
     useEffect(() => {
         if(!selectedMachine || !currentShift?.shift_no || !planDate ) return;
         const deviceId = deviceNameIdJson[selectedMachine];
-        const shouldUseGplastPlan = isGplastCondition && (deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949");
+        const shouldUseGplastPlan = isGplastCondition && window._env_.GPLAST_DEVICE_IDS?.includes(deviceId);
         if (!shouldUseGplastPlan) return;
         const fetchCurrentMachinePlan = async () => {
             try {
@@ -1737,7 +1737,7 @@ function Operator() {
             Item: itemIds,
             ItemDesc: itemDescs,
             PlanQty: totalPlanQty,
-            name: itemDescs,
+            name: `(${itemIds})`,
             code: itemIds,
             start_time: now,
             end_time: shiftEnd,
@@ -1820,7 +1820,7 @@ function Operator() {
                 }
             });
 
-            setPrevLiveComp({ ...newEntry, ts: now });
+            setPrevLiveComp({ ...liveComponentEntry, ts: now });
             setLiveCompSelected(selectedValue);
 
             Swal.fire({

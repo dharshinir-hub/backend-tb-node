@@ -11,6 +11,7 @@ window._env_ = {
     HITECH_CUSTOMER_ID: "84fd0f90-9ac4-11f0-a20b-db03187ae4d2",
     GPLAST_CUSTOMER_ID: "9e435d50-e0b6-11f0-915f-9f39a11b7cf8",
     DEMO_CUSTOMER_ID: "006dc270-fb3f-11f0-9e22-affd28d5654a",
+    GPLAST_DEVICE_IDS: ["e8b1e300-ebb7-11f0-b2b4-8333520c8949"],
     TENANT_GMAIL: "pms@gmail.com",
     TENANT_PASSWORD: "pmspms",
     LOGO: "b0coVWpU9C1Ztg9CrjtkHgi87ia4gFxH",
