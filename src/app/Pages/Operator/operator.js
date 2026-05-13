@@ -35,7 +35,7 @@ import VerticalProgress from '../../Shared/Pages/verticalprogress/verticalprogre
 import { useLocation } from 'react-router-dom';
 import { cleanCustomerId, shiftadd } from '../../Services/app/masterservice';
 import DynamicSlidingKeyboard from '../../Shared/Pages/dynamicSlidingKeyboard/dynamicSlidingKeyboard';
-import { getReportGenerate1, getReportToken } from '../../Services/app/reportservice';
+import { getReportGenerate1, getReportToken, getCurrentMachinePlan } from '../../Services/app/reportservice';
 
 function Operator() {
     const [date, setDate] = useState(dayjs().format("DD-MM-YYYY"));
@@ -130,6 +130,10 @@ function Operator() {
     const [showBlueCardNotif, setShowBlueCardNotif] = useState(false);
     const prevComponentCodeRef = useRef(null);
     const notifBellRef = useRef(null);
+    const [liveCompSelected, setLiveCompSelected] = useState('');
+    const [prevLiveComp, setPrevLiveComp] = useState(null);
+    const prevShiftRef = useRef(null);
+    const [currentMachinePlan, setCurrentMachinePlan] = useState(null);
     const getCustomerId = () => {
         if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
             return window._env_.CUSTOMER_ID;
@@ -327,6 +331,7 @@ function Operator() {
                 { key: "totalparts", isJson: true },
                 { key: "live_operator", isJson: true },
                 { key: "live_component", isJson: true },
+                { key: "live_plan", isJson: true },
             ];
             const data = await getFirstMachineActive("DEVICE", deviceId, {
                 keys: keysConfig.map(k => k.key).join(","),
@@ -336,7 +341,7 @@ function Operator() {
             const filteredData = {
                 ...data,
                 live_operator: (data.live_operator || []).filter(item => item.ts <= now),
-                live_component: (data.live_component || []).filter(item => item.ts <= now),
+                live_plan: (data.live_plan || []).filter(item => item.ts <= now),
             };
             const getLatest = (key, isJson = false) => {
                 const arr = filteredData[key];
@@ -385,9 +390,13 @@ function Operator() {
             const targetParts = parseInt(getLatest("targetparts") || 0, 10);
             const totalParts = getLatest("totalparts", true);
             const { totalshots = 0, goodparts = 0, scrap = 0, ncr = 0 } = totalParts;
+            const livePlan = getLatest("live_plan", true);
             const liveComponent = getLatest("live_component", true);
-            const jobName = liveComponent.name || "Route card not assigned";
-            const jobCode = liveComponent.code || "";
+            const livePlanTs = filteredData.live_plan?.[0]?.ts || null;
+            const liveComponentTs = filteredData.live_component?.[0]?.ts || null;
+            const shouldUseGplastPlan = isGplastCondition && (deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949");
+            const jobName = (shouldUseGplastPlan ? livePlan.name : liveComponent.name) || "Route card not assigned";
+            const jobCode = (shouldUseGplastPlan ? livePlan.code : liveComponent.code) || "";
             const liveOperator = getLatestWithTs("live_operator", true);
             const liveOperatorCode = liveOperator?.value?.code || null;
             setTelemetry({
@@ -401,7 +410,10 @@ function Operator() {
                 ncr,
                 jobName,
                 jobCode,
+                livePlan,
+                livePlanTs,
                 liveComponent,
+                liveComponentTs,
                 liveOperatorCode,
                 liveOperator
             });
@@ -651,6 +663,47 @@ function Operator() {
         };
     }, [selectedMachine]);
 
+    const getShiftDate = (shift) => {
+        const now = new Date();
+        const [startH, startM] = shift.start_time.split(':').map(Number);
+        const [endH, endM] = shift.end_time.split(':').map(Number);
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        const startMins = startH * 60 + startM;
+        const endMins = endH * 60 + endM;
+        // Midnight-crossing shift: end time is earlier than start time (e.g. 22:00 → 06:00)
+        const isMidnightShift = endMins <= startMins;
+        const shiftDate = new Date(now);
+        if (isMidnightShift && nowMins < endMins) {
+            // We're in the early-morning portion — shift started yesterday
+            shiftDate.setDate(shiftDate.getDate() - 1);
+        }
+        const yyyy = shiftDate.getFullYear();
+        const mm = String(shiftDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(shiftDate.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const planDate = currentShift ? getShiftDate(currentShift) : null;
+
+    useEffect(() => {
+        if(!selectedMachine || !currentShift?.shift_no || !planDate ) return;
+        const deviceId = deviceNameIdJson[selectedMachine];
+        const shouldUseGplastPlan = isGplastCondition && (deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949");
+        if (!shouldUseGplastPlan) return;
+        const fetchCurrentMachinePlan = async () => {
+            try {
+                const credential = isGplastCondition ? "gd" : "gd";
+                await getReportToken(credential, credential);
+                const data = await getCurrentMachinePlan(selectedMachine, currentShift.shift_no, planDate);
+                const planList = Array.isArray(data) ? data : (data?.plans || []);
+                setCurrentMachinePlan(planList);
+                console.log('Current machine plan:', planList);
+            } catch (err) {
+                console.error('Error fetching current machine plan:', err);
+            }
+        };
+        fetchCurrentMachinePlan();
+    }, [selectedMachine, currentShift?.shift_no, planDate]);
 
     const openDownTime = async (devicename, deviceid) => {
         const customerId = getCustomerId();
@@ -1341,6 +1394,29 @@ function Operator() {
         }
     }, [telemetry.liveOperatorCode, operators]);
 
+    useEffect(() => {
+        if (!currentShift) return;
+        const code = telemetry?.liveComponent?.code || '';
+        if (!code) {
+            setLiveCompSelected('');
+            return;
+        }
+        // Only auto-select if the component belongs to the current shift
+        const compStartTime = telemetry.liveComponent?.start_time;
+        const { shiftStart, shiftEnd } = getShiftEpoch(currentShift.start_time, currentShift.end_time);
+        if (!compStartTime || compStartTime < shiftStart || compStartTime > shiftEnd) {
+            setLiveCompSelected('');
+            return;
+        }
+        setLiveCompSelected(code);
+        if (!prevLiveComp && telemetry.liveComponentTs) {
+            setPrevLiveComp({
+                ...telemetry.liveComponent,
+                ts: telemetry.liveComponentTs,
+            });
+        }
+    }, [telemetry.liveComponent, currentShift]);
+
     const cancelreason = async () => {
         setopenDownTimeModal(false);
     }
@@ -1467,6 +1543,37 @@ function Operator() {
         prevComponentCodeRef.current = currentCode;
     }, [telemetry.liveComponent]);
 
+    // When shift changes, close running component with shift end_time, then reset fresh
+    useEffect(() => {
+        if (!currentShift || !isGplastCondition || (deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949  " && deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949")) return;
+        const prev = prevShiftRef.current;
+        prevShiftRef.current = currentShift;
+        if (!prev || prev.shift_no === currentShift.shift_no) return;
+
+        // Shift has crossed — immediately reset dropdown, then close out the running component
+        setLiveCompSelected('');
+        setPrevLiveComp(null);
+
+        if (!prevLiveComp) return;
+        const { shiftEnd } = getShiftEpoch(prev.start_time, prev.end_time);
+        const deviceId = deviceNameIdJson[selectedMachine];
+        if (!deviceId || !shiftEnd) return;
+
+        const duration = Math.floor((shiftEnd - prevLiveComp.start_time) / 1000);
+        const { ts: _shiftTs, ...prevLiveCompDataShift } = prevLiveComp;
+        operatorTelemetry('DEVICE', deviceId, {
+            ts: prevLiveComp.ts,
+            values: {
+                live_plan: {
+                    ...prevLiveCompDataShift,
+                    end_time: shiftEnd,
+                    duration,
+                }
+            }
+        })
+            .catch(err => console.error('Error closing component on shift change:', err));
+    }, [currentShift, isGplastCondition, selectedMachine, deviceNameIdJson]);
+
     // Click outside handler for notification dropdown
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -1546,6 +1653,186 @@ function Operator() {
             localStorage.setItem('operator_details', JSON.stringify(payload2));
         } catch (err) {
             console.error('operator api failure', err);
+        }
+    };
+
+    const buildPlanLabel = (plan) => {
+        // Support both `details` (array) and legacy `detail` (single object)
+        const details = Array.isArray(plan?.details)
+            ? plan.details
+            : plan?.detail ? [plan.detail] : [];
+
+        const isMachining = (plan?.type || plan?.Type || "").toLowerCase() === "machining";
+
+        if (isMachining) {
+            // Machining: label from Process[] → ProcessId & ProcessDesc
+            const processParts = details.flatMap(detail =>
+                (detail?.Process || []).map(p => `(${p.ProcessId} - ${p.ProcessDesc})`)
+            );
+            return `${plan.plan_no} - ${processParts.length ? processParts.map(p => `[ ${p} ]`).join(' , ') : '[]'}`;
+        }
+
+        // Non-Machining: existing logic using Item[]
+        const detailParts = details.map(detail => {
+            const items = detail?.Item || [];
+            if (items.length === 1) {
+                return `(${items[0].Item} - ${items[0].ItemDesc})`;
+            }
+            const ids = items.map(i => i.Item).join(' & ');
+            const descs = items.map(i => i.ItemDesc).join(' & ');
+            return `(${ids}) - (${descs})`;
+        });
+        return `${plan.plan_no} - ${detailParts.length ? detailParts.map(p => `[ ${p} ]`).join(' , ') : '[]'}`;
+    };
+
+    const buildDetailLabel = (plan, detail) => {
+        const items = (detail?.Item || []).map(i => ({ id: i.Item, desc: i.ItemDesc }));
+        const ids = items.map(i => i.id).filter(Boolean).join(' & ');
+        const descs = items.map(i => i.desc).filter(Boolean).join(' & ');
+        return `${plan.plan_no}: (${ids}) - (${descs})`;
+    };
+
+    const buildPlanCombinedLabel = (plan) => {
+        const details = Array.isArray(plan?.details) ? plan.details : [];
+        const items = details.flatMap(d => (d?.Item || []).map(i => ({ id: i.Item, desc: i.ItemDesc })));
+        const ids = items.map(i => i.id).filter(Boolean).join(' & ');
+        const descs = items.map(i => i.desc).filter(Boolean).join(' & ');
+        return `${plan.plan_no}: (${ids}) - (${descs})`;
+    };
+
+    // selectedValue format: "PLANNO|DETAILIDX"
+    const handleLiveComponentChange = async (selectedValue) => {
+        if (!isGplastCondition || (deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949" && deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949")) return;
+        const [planNo, detailIdxStr] = (selectedValue || "").split("|");
+        const detailIdx = parseInt(detailIdxStr, 10);
+        const planList = Array.isArray(currentMachinePlan) ? currentMachinePlan : [];
+        const selectedPlan = planList.find(p => p.plan_no === planNo);
+        const planDetails = Array.isArray(selectedPlan?.details) ? selectedPlan.details : [];
+        const selectedDetail = planDetails[detailIdx];
+        if (!selectedPlan || !selectedDetail) return;
+
+        const detailLabel = buildDetailLabel(selectedPlan, selectedDetail);
+        const selectedComp = { name: detailLabel, code: selectedValue };
+
+        const deviceId = deviceNameIdJson[selectedMachine];
+        const now = Date.now();
+        const { shiftStart, shiftEnd } = getShiftEpoch(currentShift?.start_time, currentShift?.end_time);
+
+        // Build live_component entry from selected detail's items
+        const allItems = Array.isArray(selectedDetail?.Item) ? selectedDetail.Item : [];
+        const itemIds = allItems.map(i => i.Item).join(' & ');
+        const itemDescs = allItems.map(i => i.ItemDesc).join(' & ');
+        const totalPlanQty = allItems.reduce((sum, i) => sum + (Number(i.PlanQty) || 0), 0);
+        const cavities = allItems.map(i => i.Cavity ?? null);
+        const totalCavity = cavities.reduce((sum, c) => sum + (Number(c) || 0), 0);
+
+        const liveComponentEntry = {
+            plan_id: selectedPlan?.id ?? selectedPlan?.plan_id ?? '-',
+            plan_no: selectedPlan?.plan_no,
+            unit_desc: selectedPlan?.unit_desc ?? '-',
+            type: selectedPlan?.type ?? selectedPlan?.Type ?? '-',
+            line: selectedDetail?.line ?? '-',
+            machine_name: selectedDetail?.machine_name ?? selectedMachine ?? '-',
+            Cavity: cavities,
+            Item: itemIds,
+            ItemDesc: itemDescs,
+            PlanQty: totalPlanQty,
+            name: itemDescs,
+            code: itemIds,
+            start_time: now,
+            end_time: shiftEnd,
+            duration: Math.floor((shiftEnd - now) / 1000),
+            cycle_time: selectedDetail?.CycleTime
+                ? `${String(selectedDetail.CycleTime.Hours ?? 0).padStart(2, '0')}:${String(selectedDetail.CycleTime.Minutes ?? 0).padStart(2, '0')}:${String(selectedDetail.CycleTime.Seconds ?? 0).padStart(2, '0')}`
+                : "00:00:00",
+            handling_time: "00:00:00",
+            setup_time: "00:00:00",
+            factorval: totalCavity || '-',
+            factor: "Multiplication Factor",
+        };
+
+        try {
+            if (!liveCompSelected) {
+                await operatorTelemetry('DEVICE', deviceId, {
+                    ts: shiftStart,
+                    values: {
+                        live_plan: {
+                            name: 'No Operations',
+                            code: '-',
+                            start_time: shiftStart,
+                            end_time: now,
+                            duration: Math.floor((now - shiftStart) / 1000),
+                            cycle_time: "00:00:00",
+                            handling_time: "00:00:00",
+                            setup_time: "00:00:00",
+                            factorval: 1,
+                            factor: "Multiplication Factor",
+                        },
+                        live_component: {
+                            name: 'No Operations',
+                            code: '-',
+                            start_time: shiftStart,
+                            end_time: now,
+                            duration: Math.floor((now - shiftStart) / 1000),
+                            cycle_time: "00:00:00",
+                            handling_time: "00:00:00",
+                            setup_time: "00:00:00",
+                            factorval: 1,
+                            factor: "Multiplication Factor",
+                        }
+                    }
+                });
+            } else if (prevLiveComp) {
+                const duration = Math.floor((now - prevLiveComp.start_time) / 1000);
+                const { ts: _ts, ...prevLiveCompData } = prevLiveComp;
+                await operatorTelemetry('DEVICE', deviceId, {
+                    ts: prevLiveComp.ts,
+                    values: {
+                        live_plan: {
+                            ...prevLiveCompData,
+                            end_time: now,
+                            duration,
+                        },
+                        live_component: {
+                            ...prevLiveCompData,
+                            end_time: now,
+                            duration,
+                        }
+                    }
+                });
+            }
+
+            const newEntry = {
+                ...selectedPlan,
+                name: selectedComp.name,
+                code: selectedComp.code,
+                start_time: now,
+                end_time: shiftEnd,
+                duration: Math.floor((shiftEnd - now) / 1000),
+                ShiftDesc: currentShift?.shift_name || 'SHIFT1',
+            };
+
+            await operatorTelemetry('DEVICE', deviceId, {
+                ts: now,
+                values: {
+                    live_plan: newEntry,
+                    live_component: { ...liveComponentEntry, ShiftDesc: currentShift?.shift_name || 'SHIFT1' },
+                }
+            });
+
+            setPrevLiveComp({ ...newEntry, ts: now });
+            setLiveCompSelected(selectedValue);
+
+            Swal.fire({
+                title: 'Success',
+                text: `Component changed to "${selectedComp.name}" successfully.`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false,
+            });
+        } catch (error) {
+            console.error('Error changing component:', error);
+            Swal.fire('Error', 'Failed to change component.', 'error');
         }
     };
 
@@ -2573,10 +2860,64 @@ function Operator() {
                     </div>
                 </div>
                 <div className="contect-section">
-                    <div className="job-info">
-                        <p className="job-code">{telemetry.jobCode || ""}</p>
-                        <p className="job-name">{telemetry.jobName || "—"}</p>
-                    </div>
+                    {isGplastCondition && (deviceNameIdJson[selectedMachine] === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceNameIdJson[selectedMachine] === "e8b1e300-ebb7-11f0-b2b4-8333520c8949") ? (
+                        <div className="job-info">
+                            <div className="component-section">
+                                <FormControl
+                                    variant="standard"
+                                    sx={{
+                                        minWidth: 120,
+                                        "& .MuiInputBase-root": { color: "#444", fontWeight: 600, fontSize: "0.96rem" },
+                                        "& .MuiSvgIcon-root": { color: "#888", fontSize: "1.1rem" },
+                                    }}
+                                >
+                                    <Select
+                                        value={liveCompSelected || ""}
+                                        onChange={(e) => handleLiveComponentChange(e.target.value)}
+                                        displayEmpty
+                                        disableUnderline
+                                        renderValue={(selected) => {
+                                            if (!selected) {
+                                                return <span style={{ color: "#aaa", fontWeight: 400 }}>No component</span>;
+                                            }
+
+                                            const [selPlanNo, selIdxStr] = (selected || "").split("|");
+                                            const selIdx = parseInt(selIdxStr, 10);
+                                            const planList = Array.isArray(currentMachinePlan) ? currentMachinePlan : [];
+                                            const selPlan = planList.find(p => p.plan_no === selPlanNo);
+                                            const selDetail = Array.isArray(selPlan?.details) ? selPlan.details[selIdx] : null;
+                                            if (selPlan && selDetail) {
+                                                return buildDetailLabel(selPlan, selDetail);
+                                            }
+                                            // plan list still loading — show stored label from telemetry
+                                            const storedName = telemetry?.liveComponent?.name;
+                                            if (storedName) return storedName;
+                                            return <span style={{ color: "#aaa", fontWeight: 400 }}>No component</span>;
+                                        }}
+                                    >
+                                        <MenuItem disabled value="">
+                                            No component selected
+                                        </MenuItem>
+                                        {(Array.isArray(currentMachinePlan) ? [...currentMachinePlan] : [])
+                                            .sort((a, b) => String(a.plan_no).localeCompare(String(b.plan_no), undefined, { numeric: true }))
+                                            .flatMap((plan) =>
+                                                (Array.isArray(plan?.details) ? plan.details : []).map((detail, dIdx) => (
+                                                    <MenuItem key={`${plan.plan_no}|${dIdx}`} value={`${plan.plan_no}|${dIdx}`}>
+                                                        {buildDetailLabel(plan, detail)}
+                                                    </MenuItem>
+                                                ))
+                                            )}
+                                    </Select>
+                                </FormControl>
+                            </div>
+                        </div>
+                    ) : (
+
+                        <div className="job-info">
+                            <p className="job-code">{telemetry.jobCode || ""}</p>
+                            <p className="job-name">{telemetry.jobName || "—"}</p>
+                        </div>
+                    )}
 
                     <div className="time-wrapper">
                         <div className="time-item">
@@ -3420,10 +3761,9 @@ function Operator() {
             {confirmType && handleConfirmAlert()}
 
             <DynamicSlidingKeyboard touchEnabled={true} />
+
         </div>
     );
 }
 
 export default Operator;
-
-

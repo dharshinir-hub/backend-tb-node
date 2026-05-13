@@ -194,6 +194,9 @@ export default function PersistentDrawerLeft({ children }) {
 
         ]
       },
+      { path: "/erpjson", name: "ERP", icon: <MdAssessment /> },
+      { path: "/erpreport", name: "ERP Report", icon: <MdAssessment /> },
+      { path: "/erpreportschedule", name: "ERP Schedule", icon: <MdAssessment /> },
       {
         name: "Quality",
         icon: <FiCheckSquare size={20} />,

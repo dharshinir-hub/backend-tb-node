@@ -27,6 +27,9 @@ import BluecardReport from '../../Pages/BlueCardScreen/bluecardreport';
 import MachineStatusDashboard from '../../Pages/MachineStatusDashboard/MachineStatusDashboard';
 import OperatorPerformanceDashboard from '../../Pages/Operator-Performance-Dashboard/OperatorPerformanceDashboard';
 import AnalyticsV2 from '../../Pages/Analytics-V2/AnalyticsV2';
+import ErpJson from '../../Pages/ErpjsonBuild/erpjson';
+import ErpReportSchedule from '../../Pages/ErpReportSchedules/erpreportschedule';
+import ErpReport from '../../Pages/Erpreport/erpreport';
 
 
 
@@ -58,7 +61,8 @@ export const COMPONENT_REGISTRY = {
   "bluecarddetails" : BluecardDetails,
   "bluecardreport" : BluecardReport,
   "machine-status": MachineStatusDashboard,
-  "operator-performance": OperatorPerformanceDashboard
-
-
+  "operator-performance": OperatorPerformanceDashboard,
+  "erpreport": ErpReport,
+  "erpjson": ErpJson,
+  "erpreportschedule": ErpReportSchedule
 };

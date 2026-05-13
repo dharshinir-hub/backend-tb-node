@@ -102,18 +102,38 @@ export const getEfficiencyReport = async (machine, shiftNo, fromTime, toTime, pa
   }
 };
 
-export const getReportDownloadLink = async (type, machine, shiftNo, fromTime, toTime) => {
+export const getOperatorReport = async (machine, operators, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+
+    const url = `${baseUrl}/report/operator_report/${machine}/${shiftNo}/${operators}/${fromTime}/${toTime}/${page + 1}/${limit}`;
+    const response = await axiosInstance.get(url);
+    console.log('Operator Report response', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error during operator report data:', error);
+    throw error;
+  }
+};
+
+export const getReportDownloadLink = async (type, machine, shiftNo, fromTime, toTime, operators = "") => {
   const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
   const endpointMap = {
     part: "part_report_download",
     general: "general_report_download",
     oee: "oee_report_download",
     idle_reason: "idle_report_download1",
-    alarm: "alarm_report_download"
+    alarm: "alarm_report_download",
+    operator_wise: "operator_report_download"
   };
   const endpoint = endpointMap[type];
   if (!endpoint) throw new Error(`Unknown report type: ${type}`);
-  const url = `${baseUrl}/report/${endpoint}/${machine}/${shiftNo}/${fromTime}/${toTime}`;
+
+  let url = `${baseUrl}/report/${endpoint}/${machine}/${shiftNo}/${fromTime}/${toTime}`;
+  if (type === "operator_wise") {
+    url = `${baseUrl}/report/${endpoint}/${machine}/${shiftNo}/${operators}/${fromTime}/${toTime}`;
+  }
+
   return await axiosInstance.get(url, { responseType: "blob" });
 };
 
@@ -149,6 +169,74 @@ export const getReportToken = async (username, password) => {
   }
 };
 
+export const getAllPlans = async () => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/all`;
+  const response = await axiosInstance.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const updatePlan = async (id, payload) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/update/${id}`;
+  const response = await axiosInstance.put(url, payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  return response.data;
+};
+
+export const createPlan = async (payload) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/create`;
+  const response = await axiosInstance.post(url, payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  return response.data;
+};
+
+export const getCurrentMachinePlan = async (machineName, shiftNo, date) => {   //getting the current shift plan
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/current-machine?machine_name=${encodeURIComponent(machineName)}&shift_no=${encodeURIComponent(shiftNo)}&date=${encodeURIComponent(date)}`;
+  const response = await axiosInstance.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
+export const getJobsByWorkname = async (workname, page = 1, limit = 10) => {    //scheduling plan
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/job/by-workname?workname=${workname}&page=${page}&limit=${limit}`;
+    const response = await axiosInstance.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching jobs by workname:', error);
+    throw error;
+  }
+};
+
+export const getPlanDetails = async (machineName, shiftNo, startDate, endDate) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/plan-details/${encodeURIComponent(machineName)}/${shiftNo}/${startDate}/${endDate}`;
+  const response = await axiosInstance.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
+
 export const getReportGenerate1 = async (device, date, currentshift, status) => {
   try {
     const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
@@ -172,4 +260,14 @@ export const getReportGenerate1 = async (device, date, currentshift, status) => 
     console.error("Error during report machine list data:", error);
     throw error;
   }
+};
+
+export const deletePlan = async (id) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/Plan/delete/${id}`;
+  const response = await axiosInstance.delete(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
 };

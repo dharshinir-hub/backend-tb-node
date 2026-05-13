@@ -26,9 +26,10 @@ import Swal from "sweetalert2";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import SaveIcon from "@mui/icons-material/Save";
 
-import { customerbasedshift, customerbaseddevices, Deviceattributeget } from "../../Services/app/operatorservice";
+import { customerbasedshift, customerbaseddevices, Deviceattributeget, cleanCustomerId } from "../../Services/app/operatorservice";
 import { Downtimeadd } from "../../Services/app/masterservice";
 import "../../Pages/Machines/machine.css";
+import EmailConfig from "../EmailConfiguration/emailconfig";
 
 const TabPanel = ({ children, value, index }) => (
     <div hidden={value !== index}>
@@ -50,6 +51,8 @@ const Settings = () => {
     const [allDevices, setAllDevices] = useState([]);
     const [ungroupedDevices, setUngroupedDevices] = useState([]); // ✅ non-grouped
     const customerId = localStorage.getItem("CustomerID");
+    const isGplastCustomer = cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
+    
 
     useEffect(() => {
         fetchData();
@@ -194,11 +197,19 @@ const Settings = () => {
                 <Box sx={{ borderBottom: 1, borderColor: "divider", mt: 2 }}>
                     <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} textColor="inherit" TabIndicatorProps={{ sx: { backgroundColor: "orange" } }}>
                         <Tab label="Notification" />
+                        {isGplastCustomer && <Tab label="Email Configuration" />}
                     </Tabs>
                 </Box>
 
                 <TabPanel value={activeTab} index={0}>
-                    <p style={{ color: "#666", fontSize: "0.85rem", marginBottom: "0.8rem" }}>
+                    <p style={{
+                        color: "#666",
+                        fontSize: "0.85rem",
+                        marginBottom: "0.3rem",
+                        width: "100%",
+                        padding: "0.5rem 0.75rem",
+                        boxSizing: "border-box"
+                    }}>
                         Configure notification alerts for each machine (Idle, Disconnect, Alarm).
                     </p>
 
@@ -404,6 +415,12 @@ const Settings = () => {
                         </div>
                     )}
                 </TabPanel>
+
+                {isGplastCustomer && (
+                    <TabPanel value={activeTab} index={1}>
+                        <EmailConfig />
+                    </TabPanel>
+                )}
 
                 {/* ✅ Time Dialog with validation */}
                 <Dialog open={openTimeDialog} onClose={() => setOpenTimeDialog(false)} maxWidth="xs" fullWidth>
