@@ -13,5 +13,7 @@ window._env_ = {
     TENANT_GMAIL: "${TENANT_GMAIL}",
     TENANT_PASSWORD: "${TENANT_PASSWORD}",
     LOGO: "${LOGO}",
-    BG_IMAGE: "${BG_IMAGE}"
+    BG_IMAGE: "${BG_IMAGE}",
+    SENTRY_DSN: "${SENTRY_DSN}",
+    POSTHOG_KEY: "${POSTHOG_KEY}"
 };

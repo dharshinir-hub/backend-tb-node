@@ -1,6 +1,7 @@
 // src/Routes.js
 import React, { useContext, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import * as Sentry from '@sentry/react';
 import Layout from './app/Nav/layout';
 import Login from './app/Pages/Login/login';
 import Andondashboard from './app/Pages/Andon-Dashboard/andondashboard';
@@ -58,6 +59,24 @@ const AppRoutes = () => {
 
   if (!initialized) return null;
 
+  function PageErrorFallback({ error, resetError }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', minHeight: '60vh', color: '#fff',
+      fontFamily: 'sans-serif', gap: '12px', textAlign: 'center', padding: '24px'
+    }}>
+      <h3 style={{ margin: 0 }}>This page ran into an error</h3>
+      <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>{error?.message}</p>
+      <button onClick={resetError} style={{
+        padding: '7px 18px', background: '#3b82f6', color: '#fff',
+        border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px'
+      }}>
+        Retry
+      </button>
+    </div>
+  );
+}
   return (
     <Routes>
       <Route path="/" element={<Login />} />
@@ -91,7 +110,11 @@ const AppRoutes = () => {
               path={`/${page}`}
               element={
                 <ProtectedRoute allowed={pageList.includes(page)}>
-                  <Component />
+                  <Sentry.ErrorBoundary fallback={({ error, resetError }) => (
+                    <PageErrorFallback error={error} resetError={resetError} />
+                  )}>
+                    <Component />
+                  </Sentry.ErrorBoundary>
                 </ProtectedRoute>
               }
             />
@@ -118,45 +141,10 @@ const AppRoutes = () => {
         )}
 
       </Route>
-
-      {/* <Route path="/" element={<Layout />}>
-      <Route path="andon-dashboard" element={<Andondashboard />} />
-      <Route path="/shift" element={<Shift />} />
-      <Route path="/machine-card" element={<MachineCard />} />
-      <Route path="/shift-registration" element={<ShiftRegistration />} />
-      <Route path="/component-registration" element={<ComponentRegistration />} />
-      <Route path="/operator-registration" element={<OperatorRegistration />} />
-      <Route path="/user-registration" element={<UserRegistration />} />
-      <Route path="/reason-registration" element={<ReasonRegistration />} />
-      <Route path="/machines" element={<MachineList />} />
-      <Route path="/machines-group" element={<MachineGroup />} />
-      <Route path="/company" element={<Company />} />
-      <Route path="/CurrentShift" element={<CurrentShift />} />
-      <Route path="/analytics" element={<NewAnalytics />} />
-      <Route path="/allocation" element={<Allocation />} />
-      <Route path="/operator-details" element={<OperatorDetails />} />
-      <Route path="/machinemm" element={<GrafanaEmbed />} />
-      <Route path="/report" element={<MachineReport />} />
-      <Route path="/machineutilization" element={<MachineUtilization />} />
-      <Route path="/deviceoee" element={
-          <NewDeviceOee />
-      } />
-    </Route> */}
       <Route path="*" element={<Navigate to={'/'} replace />} />
     </Routes>
   )
 }
-//       <Route path="/production-analysis" element={<Analytics />} />
-//       <Route path="/cycletime" element={<Cycletime />} />
-//       <Route path="/production-summary" element={<Component />} />
-//       <Route path="/production-runs" element={<Component1 />} />
-//       <Route path="/summary" element={<Summary />} />
-//       <Route path="/inprogresscycle" element={<Inprogress />} />
-//       <Route path="/analyticoee" element={<AnalyticOee />} />
-
-//     </Route>
-//   </Routes>
-// );
 
 export default AppRoutes;
 

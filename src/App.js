@@ -11,6 +11,40 @@ import { UserDetailsContext } from './app/Shared/context/UserDetailsContext';
 import { useContext, useEffect, useState } from 'react';
 import DynamicSlidingKeyboard from './app/Shared/Pages/dynamicSlidingKeyboard/dynamicSlidingKeyboard';
 import { getMachineInfo } from './app/Services/app/operatorservice';
+import * as Sentry from '@sentry/react';
+
+function ErrorFallback({ error, resetError }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', height: '100vh', background: '#0f172a',
+      color: '#fff', fontFamily: 'sans-serif', gap: '16px',
+      padding: '24px', textAlign: 'center'
+    }}>
+      <h2 style={{ fontSize: '22px', margin: 0 }}>Something went wrong</h2>
+      <p style={{ color: '#94a3b8', fontSize: '14px', maxWidth: '400px', margin: 0 }}>
+        An unexpected error occurred. Our team has been notified automatically.
+      </p>
+      <p style={{ color: '#ef4444', fontSize: '12px', maxWidth: '500px', margin: 0 }}>
+        {error?.message}
+      </p>
+      <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+        <button onClick={resetError} style={{
+          padding: '8px 20px', background: '#3b82f6', color: '#fff',
+          border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px'
+        }}>
+          Try Again
+        </button>
+        <button onClick={() => { window.location.href = '/'; }} style={{
+          padding: '8px 20px', background: '#1e293b', color: '#94a3b8',
+          border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '14px'
+        }}>
+          Go to Login
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const navigate = useNavigate();
@@ -65,11 +99,15 @@ const [touchEnabled, setTouchEnabled] = useState(false);
     <div className="App">
       <DynamicSlidingKeyboard touchEnabled={touchEnabled}/>
       <header className="App-header">
-        <AppRoutes />
+        <Sentry.ErrorBoundary fallback={({ error, resetError }) => (
+          <ErrorFallback error={error} resetError={resetError} />
+        )}>
+          <AppRoutes />
+        </Sentry.ErrorBoundary>
         <ToastContainer />
       </header>
     </div>
   );
 }
 
-export default App;
+export default Sentry.withProfiler(App);

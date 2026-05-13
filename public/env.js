@@ -14,7 +14,9 @@ window._env_ = {
     TENANT_GMAIL: "pms@gmail.com",
     TENANT_PASSWORD: "pmspms",
     LOGO: "b0coVWpU9C1Ztg9CrjtkHgi87ia4gFxH",
-    BG_IMAGE: "76qC9HzBmPBNFqTBaHGwF40Wka0Ri03C"
+    BG_IMAGE: "76qC9HzBmPBNFqTBaHGwF40Wka0Ri03C",
+    SENTRY_DSN: "https://4b05c60253c96b9a99a5eb5c9eb8f2ce@o4511364231725056.ingest.us.sentry.io/4511364234018816",
+    POSTHOG_KEY: "phc_CRdiMdoJNRMLj6q3KE4BCBxjx7xkqwSFFA6itGtSnR9r"
 };
 
 //local 2
@@ -30,5 +32,7 @@ window._env_ = {
 //     TENANT_GMAIL: "pms@gmail.com",
 //     TENANT_PASSWORD: "pmspms",
 //     LOGO: "hvLm7vcg5L9Kd56WP18gVIjFHMvUdA3X",
-//     BG_IMAGE: "wS6A4Yz8vYSjv5shILNHjVQfwUm3INWw"
+//     BG_IMAGE: "wS6A4Yz8vYSjv5shILNHjVQfwUm3INWw",
+//     SENTRY_DSN: "REPLACE_WITH_YOUR_SENTRY_DSN",
+//     POSTHOG_KEY: "REPLACE_WITH_YOUR_POSTHOG_KEY"
 // };

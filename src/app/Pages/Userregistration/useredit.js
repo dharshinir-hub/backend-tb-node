@@ -292,7 +292,10 @@ export default function UserEdit({ open, handleClose, handleAdd, dialogOpenCount
     }
 
     const generalValues = PAGE_LIST.map(p => p.value);
-    return pageList.filter(p => !qualityValues.includes(p.value) || generalValues.includes(p.value));
+    return pageList.filter(p => 
+      (!qualityValues.includes(p.value) || generalValues.includes(p.value)) &&
+      (p.value !== "production-overview" || customer === window._env_.GPLAST_CUSTOMER_ID)
+    );
   }, [shiftForm.mode, pageList, customerId]);
 
 
