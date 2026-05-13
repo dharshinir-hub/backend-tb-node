@@ -1410,8 +1410,29 @@ function Operator() {
         }
         setLiveCompSelected(code);
         if (!prevLiveComp && telemetry.liveComponentTs) {
+            const { plan_id, plan_no, unit_desc, type, line, machine_name, Cavity, Item, ItemDesc, PlanQty, name, code: compCode, start_time, end_time, duration, cycle_time, handling_time, setup_time, factorval, factor, ShiftDesc } = telemetry.liveComponent || {};
             setPrevLiveComp({
-                ...telemetry.liveComponent,
+                plan_id,
+                plan_no,
+                unit_desc,
+                type,
+                line,
+                machine_name,
+                Cavity,
+                Item,
+                ItemDesc,
+                PlanQty,
+                name,
+                code: compCode,
+                start_time,
+                end_time,
+                duration,
+                cycle_time,
+                handling_time,
+                setup_time,
+                factorval,
+                factor,
+                ShiftDesc,
                 ts: telemetry.liveComponentTs,
             });
         }
@@ -1545,7 +1566,7 @@ function Operator() {
 
     // When shift changes, close running component with shift end_time, then reset fresh
     useEffect(() => {
-        if (!currentShift || !isGplastCondition || (deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949  " && deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949")) return;
+        if (!currentShift || !isGplastCondition || !window._env_.GPLAST_DEVICE_IDS?.includes(deviceNameIdJson[selectedMachine])) return;
         const prev = prevShiftRef.current;
         prevShiftRef.current = currentShift;
         if (!prev || prev.shift_no === currentShift.shift_no) return;
@@ -1702,7 +1723,7 @@ function Operator() {
 
     // selectedValue format: "PLANNO|DETAILIDX"
     const handleLiveComponentChange = async (selectedValue) => {
-        if (!isGplastCondition || (deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949" && deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949")) return;
+        if (!isGplastCondition || !window._env_.GPLAST_DEVICE_IDS?.includes(deviceNameIdJson[selectedMachine])) return;
         const [planNo, detailIdxStr] = (selectedValue || "").split("|");
         const detailIdx = parseInt(detailIdxStr, 10);
         const planList = Array.isArray(currentMachinePlan) ? currentMachinePlan : [];
@@ -1737,7 +1758,7 @@ function Operator() {
             Item: itemIds,
             ItemDesc: itemDescs,
             PlanQty: totalPlanQty,
-            name: `(${itemIds})`,
+            name: itemDescs,
             code: itemIds,
             start_time: now,
             end_time: shiftEnd,
@@ -1753,33 +1774,24 @@ function Operator() {
 
         try {
             if (!liveCompSelected) {
+                const noOpsEntry = {
+                    name: 'No Operations',
+                    code: '',
+                    start_time: shiftStart,
+                    end_time: now,
+                    duration: Math.floor((now - shiftStart) / 1000),
+                    cycle_time: "00:00:00",
+                    handling_time: "00:00:00",
+                    setup_time: "00:00:00",
+                    factorval: 1,
+                    factor: "Multiplication Factor",
+                    ShiftDesc: currentShift?.shift_name || 'SHIFT1',
+                };
                 await operatorTelemetry('DEVICE', deviceId, {
                     ts: shiftStart,
                     values: {
-                        live_plan: {
-                            name: 'No Operations',
-                            code: '-',
-                            start_time: shiftStart,
-                            end_time: now,
-                            duration: Math.floor((now - shiftStart) / 1000),
-                            cycle_time: "00:00:00",
-                            handling_time: "00:00:00",
-                            setup_time: "00:00:00",
-                            factorval: 1,
-                            factor: "Multiplication Factor",
-                        },
-                        live_component: {
-                            name: 'No Operations',
-                            code: '-',
-                            start_time: shiftStart,
-                            end_time: now,
-                            duration: Math.floor((now - shiftStart) / 1000),
-                            cycle_time: "00:00:00",
-                            handling_time: "00:00:00",
-                            setup_time: "00:00:00",
-                            factorval: 1,
-                            factor: "Multiplication Factor",
-                        }
+                        live_plan: noOpsEntry,
+                        live_component: noOpsEntry,
                     }
                 });
             } else if (prevLiveComp) {
@@ -1803,9 +1815,7 @@ function Operator() {
             }
 
             const newEntry = {
-                ...selectedPlan,
-                name: selectedComp.name,
-                code: selectedComp.code,
+                ...liveComponentEntry,
                 start_time: now,
                 end_time: shiftEnd,
                 duration: Math.floor((shiftEnd - now) / 1000),
@@ -2860,7 +2870,7 @@ function Operator() {
                     </div>
                 </div>
                 <div className="contect-section">
-                    {isGplastCondition && (deviceNameIdJson[selectedMachine] === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceNameIdJson[selectedMachine] === "e8b1e300-ebb7-11f0-b2b4-8333520c8949") ? (
+                    {isGplastCondition && window._env_.GPLAST_DEVICE_IDS?.includes(deviceNameIdJson[selectedMachine]) ? (
                         <div className="job-info">
                             <div className="component-section">
                                 <FormControl
