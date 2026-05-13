@@ -20,7 +20,7 @@ const REPORT_KEYS = [
 
 const FORMAT_OPTIONS = ["csv", "pdf"];
 const DAY_OPTIONS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function emptyReports() {
@@ -222,7 +222,21 @@ function MailConfigForm({ initialData, onSave, onCancel }) {
         });
     };
 
+    const isFormValid = () => {
+        if (!form.subject.trim()) return false;
+        if (!form.to.length) return false;
+        const hasAnyTrigger = TRIGGER_TYPES.some(({ key }) => form.triggers[key].enabled)
+            || form.triggers.customSchedules.length > 0;
+        if (!hasAnyTrigger) return false;
+        const customInvalid = form.triggers.customSchedules.find(s => !s.day || !s.time);
+        if (customInvalid) return false;
+        return true;
+    };
+
     const handleSave = () => {
+        if (!form.subject.trim()) {
+            Swal.fire("Validation", "Please enter a subject.", "warning"); return;
+        }
         if (!form.to.length) {
             Swal.fire("Validation", "Please add at least one To email.", "warning"); return;
         }
@@ -244,7 +258,7 @@ function MailConfigForm({ initialData, onSave, onCancel }) {
             <div className="ec-section">
                 <span className="ec-section-title" style={{ display:"block", marginBottom:10 }}>Mail Details</span>
                 <div className="ec-field-group">
-                    <label className="ec-label">Subject</label>
+                    <label className="ec-label">Subject <span style={{ color:"#ef4444" }}>*</span></label>
                     <input
                         className="ec-input"
                         value={form.subject}
@@ -252,14 +266,14 @@ function MailConfigForm({ initialData, onSave, onCancel }) {
                         placeholder="Email subject"
                     />
                 </div>
-                <MultiEmailInput label="To"  emails={form.to}  onChange={(to)  => setForm(p => ({ ...p, to  }))} />
-                <MultiEmailInput label="CC"  emails={form.cc}  onChange={(cc)  => setForm(p => ({ ...p, cc  }))} />
-                <MultiEmailInput label="BCC" emails={form.bcc} onChange={(bcc) => setForm(p => ({ ...p, bcc }))} />
+                <MultiEmailInput label={<><span>To</span> <span style={{ color:"#ef4444" }}>*</span></>} emails={form.to}  onChange={(to)  => setForm(p => ({ ...p, to  }))} />
+                <MultiEmailInput label={<><span>CC</span> <span style={{ color:"#999", fontSize:"0.85em" }}>(optional)</span></>} emails={form.cc}  onChange={(cc)  => setForm(p => ({ ...p, cc  }))} />
+                <MultiEmailInput label={<><span>BCC</span> <span style={{ color:"#999", fontSize:"0.85em" }}>(optional)</span></>} emails={form.bcc} onChange={(bcc) => setForm(p => ({ ...p, bcc }))} />
             </div>
 
             {/* Triggers */}
             <div className="ec-section">
-                <span className="ec-section-title" style={{ display:"block", marginBottom:10 }}>Triggers</span>
+                <span className="ec-section-title" style={{ display:"block", marginBottom:10 }}>Triggers <span style={{ color:"#ef4444" }}>*</span></span>
 
                 {/* Vertical trigger list */}
                 <div className="ec-trigger-list">
@@ -331,7 +345,7 @@ function MailConfigForm({ initialData, onSave, onCancel }) {
 
             <div className="ec-form-actions">
                 {onCancel && <button type="button" className="ec-cancel-btn" onClick={onCancel}>Cancel</button>}
-                <button type="button" className="ec-save-btn" onClick={handleSave}>Save</button>
+                <button type="button" className="ec-save-btn" onClick={handleSave} disabled={!isFormValid()}>Save</button>
             </div>
         </div>
     );

@@ -366,8 +366,9 @@ function Operator() {
             const liveComponent = getLatest("live_component", true);
             const livePlanTs = filteredData.live_plan?.[0]?.ts || null;
             const liveComponentTs = filteredData.live_component?.[0]?.ts || null;
-            const jobName = (isGplastCondition ? livePlan.name : liveComponent.name) || "Route card not assigned";
-            const jobCode = (isGplastCondition ? livePlan.code : liveComponent.code) || "";
+            const shouldUseGplastPlan = isGplastCondition && (deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949");
+            const jobName = (shouldUseGplastPlan ? livePlan.name : liveComponent.name) || "Route card not assigned";
+            const jobCode = (shouldUseGplastPlan ? livePlan.code : liveComponent.code) || "";
             const liveOperator = getLatestWithTs("live_operator", true);
             const liveOperatorCode = liveOperator?.value?.code || null;
             setTelemetry({
@@ -657,7 +658,10 @@ function Operator() {
     const planDate = currentShift ? getShiftDate(currentShift) : null;
 
     useEffect(() => {
-        if (!selectedMachine || !currentShift?.shift_no || !planDate) return;
+        if(!selectedMachine || !currentShift?.shift_no || !planDate ) return;
+        const deviceId = deviceNameIdJson[selectedMachine];
+        const shouldUseGplastPlan = isGplastCondition && (deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceId === "e8b1e300-ebb7-11f0-b2b4-8333520c8949");
+        if (!shouldUseGplastPlan) return;
         const fetchCurrentMachinePlan = async () => {
             try {
                 const credential = isGplastCondition ? "gd" : "gd";
@@ -1513,7 +1517,7 @@ function Operator() {
 
     // When shift changes, close running component with shift end_time, then reset fresh
     useEffect(() => {
-        if (!currentShift || !isGplastCondition) return;
+        if (!currentShift || !isGplastCondition || (deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949  " && deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949")) return;
         const prev = prevShiftRef.current;
         prevShiftRef.current = currentShift;
         if (!prev || prev.shift_no === currentShift.shift_no) return;
@@ -1540,7 +1544,7 @@ function Operator() {
             }
         })
             .catch(err => console.error('Error closing component on shift change:', err));
-    }, [currentShift, isGplastCondition]);
+    }, [currentShift, isGplastCondition, selectedMachine, deviceNameIdJson]);
 
     // Click outside handler for notification dropdown
     useEffect(() => {
@@ -1670,7 +1674,7 @@ function Operator() {
 
     // selectedValue format: "PLANNO|DETAILIDX"
     const handleLiveComponentChange = async (selectedValue) => {
-        if (!isGplastCondition) return;
+        if (!isGplastCondition || (deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949" && deviceNameIdJson[selectedMachine] !== "e8b1e300-ebb7-11f0-b2b4-8333520c8949")) return;
         const [planNo, detailIdxStr] = (selectedValue || "").split("|");
         const detailIdx = parseInt(detailIdxStr, 10);
         const planList = Array.isArray(currentMachinePlan) ? currentMachinePlan : [];
@@ -2826,7 +2830,7 @@ function Operator() {
                     </div>
                 </div>
                 <div className="contect-section">
-                    {isGplastCondition ? (
+                    {isGplastCondition && (deviceNameIdJson[selectedMachine] === "e8b1e300-ebb7-11f0-b2b4-8333520c8949" || deviceNameIdJson[selectedMachine] === "e8b1e300-ebb7-11f0-b2b4-8333520c8949") ? (
                         <div className="job-info">
                             <div className="component-section">
                                 <FormControl
