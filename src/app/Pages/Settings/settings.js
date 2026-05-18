@@ -29,7 +29,6 @@ import SaveIcon from "@mui/icons-material/Save";
 import { customerbasedshift, customerbaseddevices, Deviceattributeget, cleanCustomerId } from "../../Services/app/operatorservice";
 import { Downtimeadd } from "../../Services/app/masterservice";
 import "../../Pages/Machines/machine.css";
-import EmailConfig from "../EmailConfiguration/emailconfig";
 
 const TabPanel = ({ children, value, index }) => (
     <div hidden={value !== index}>
@@ -204,7 +203,6 @@ const Settings = () => {
                 <Box sx={{ borderBottom: 1, borderColor: "divider", mt: 2 }}>
                     <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} textColor="inherit" TabIndicatorProps={{ sx: { backgroundColor: "orange" } }}>
                         <Tab label="Notification" />
-                        {isGplastCustomer && <Tab label="Email Configuration" />}
                     </Tabs>
                 </Box>
 
@@ -423,11 +421,7 @@ const Settings = () => {
                     )}
                 </TabPanel>
 
-                {isGplastCustomer && (
-                    <TabPanel value={activeTab} index={1}>
-                        <EmailConfig />
-                    </TabPanel>
-                )}
+               
 
                 {/* ✅ Time Dialog with validation */}
                 <Dialog open={openTimeDialog} onClose={() => setOpenTimeDialog(false)} maxWidth="xs" fullWidth>

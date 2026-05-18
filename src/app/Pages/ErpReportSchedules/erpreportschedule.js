@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Box, Tabs, Tab } from "@mui/material";
 import { getJobsByWorkname } from "../../Services/app/reportservice";
+import EmailConfig from "../EmailConfiguration/emailconfig";
 import "./erpreportschedule.css";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const TOP_TABS = ["Auto-Report Schedule", "Email-Report Schedule"];
+const TOP_TABS = ["Email Configuration","Email-Report Schedule"];
 
 const EMAIL_TABS = [
     { key: "shiftwise", label: "Shift End" },
@@ -202,7 +203,7 @@ export default function ErpReportSchedule() {
     return (
         <div className="pages ers-page">
             <div className="pagecontents">
-                <h2 className="ers-main-title">ERP Schedule</h2>
+                <h2 className="ers-main-title">Email Schedule</h2>
 
                 {/* Top-level tabs */}
                 <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
@@ -218,12 +219,9 @@ export default function ErpReportSchedule() {
                     </Tabs>
                 </Box>
 
-                {/* Auto-Report Schedule */}
+                {/* Email Configuration */}
                 <TabPanel value={topTab} index={0}>
-                    <div className="ers-empty">
-                        <span className="ers-empty-icon">🗓️</span>
-                        <span className="ers-empty-text">Auto-Report Schedule coming soon.</span>
-                    </div>
+                    <EmailConfig />
                 </TabPanel>
 
                 {/* Email-Report Schedule */}
