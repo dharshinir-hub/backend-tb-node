@@ -37,7 +37,7 @@ import { BsGraphUp, BsJustify } from "react-icons/bs";
 import { BsKanban, BsList } from "react-icons/bs";
 import { MdVerifiedUser, MdRule } from "react-icons/md";
 import { cleanCustomerId } from '../Services/app/operatorservice';
-
+import { BsCalendarCheckFill } from "react-icons/bs";
 
 
 const handleConfigurationClick = () => {
@@ -70,6 +70,11 @@ export default function PersistentDrawerLeft({ children }) {
   const showReportChildren =
     ["quality", "superadmin", "admin"].includes(normalizedMode) &&
     cleanCustomerId(customerId) === window._env_.CUSTOMER_ID;
+
+  const showReportChildren1 =
+    ["superadmin", "admin"].includes(normalizedMode) &&
+    cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
+
 
   useEffect(() => {
     const parsed = typeof userDetails === 'string' ? JSON.parse(userDetails) : userDetails;
@@ -195,8 +200,6 @@ export default function PersistentDrawerLeft({ children }) {
         ]
       },
       { path: "/erpjson", name: "ERP", icon: <MdAssessment /> },
-      { path: "/erpreport", name: "ERP Report", icon: <MdAssessment /> },
-      { path: "/erpreportschedule", name: "ERP Schedule", icon: <MdAssessment /> },
       {
         name: "Quality",
         icon: <FiCheckSquare size={20} />,
@@ -216,9 +219,20 @@ export default function PersistentDrawerLeft({ children }) {
             ],
           },
         ]
-        : [
-          { path: "/reports", name: "Reports", icon: <MdAssessment /> },
-        ]),
+        : showReportChildren1 ?
+          [
+            {
+              name: "Reports",
+              icon: <TbReportAnalytics size={22} />,
+              children: [
+                { path: "/reports", name: "Reports", icon: <MdAssessment /> },
+                { path: "/erpreport", name: "ERP Report", icon: <BiBarChartAlt2 size={20} /> }
+              ],
+            },
+          ]
+          : [
+            { path: "/reports", name: "Reports", icon: <MdAssessment /> },
+          ]),
       {
         name: "Operation",
         icon: <AiTwotoneProfile />,
@@ -239,6 +253,7 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/settings", name: "Settings", icon: <TbSettings /> },
         ],
       },
+      { path: "/erpreportschedule", name: "Email Schedule", icon: <BsCalendarCheckFill size={20} /> },
       { path: "/notification-center", name: "Notification Center", icon: <RiNotificationBadgeLine /> },
     ];
     return baseItems

@@ -8,8 +8,13 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { IconButton } from "@mui/material";
 import { customerbaseddevices } from "../../Services/app/operatorservice";
-import { getReportToken, createPlan, updatePlan, getAllPlans, deletePlan } from "../../Services/app/reportservice";
+import { getReportToken, createPlan, updatePlan, getAllPlans, deletePlan, getErpJson } from "../../Services/app/reportservice";
 import Swal from "sweetalert2";
+import CloseIcon from "@mui/icons-material/Close";
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button } from "@mui/material";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
 // ── Defaults ─────────────────────────────────────────────────────
 const emptyItem = () => ({
@@ -122,8 +127,12 @@ function ErpJson() {
     const [details, setDetails] = useState([emptyDetail()]);
     const [jsonPreview, setJsonPreview] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+    const [saveError, setSaveError] = useState("");
 
     const [expandedPlans, setExpandedPlans] = useState({});
+    const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+    const [jsonDialogData, setJsonDialogData] = useState(null);
+    const [loadingJsonData, setLoadingJsonData] = useState(false);
 
     const toggleExpand = (id) =>
         setExpandedPlans((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -167,6 +176,30 @@ function ErpJson() {
         } finally {
             setLoadingPlans(false);
         }
+    };
+
+    const handleViewJson = async (planNo) => {
+        setLoadingJsonData(true);
+        try {
+            const jsonData = await getErpJson(planNo);
+            setJsonDialogData(jsonData);
+            setJsonDialogOpen(true);
+        } catch (err) {
+            console.error("Failed to fetch JSON data:", err);
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: "Failed to fetch JSON data. Please try again.",
+                confirmButtonColor: "#f99022",
+            });
+        } finally {
+            setLoadingJsonData(false);
+        }
+    };
+
+    const handleCloseJsonDialog = () => {
+        setJsonDialogOpen(false);
+        setJsonDialogData(null);
     };
 
     // ── Plan form handlers ────────────────────────────────────────
@@ -345,6 +378,7 @@ function ErpJson() {
         const payload = buildJson();
         setJsonPreview(payload);
         setSubmitting(true);
+        setSaveError("");
         try {
             await getReportToken("gd", "gd");
             if (view === "edit") {
@@ -352,23 +386,17 @@ function ErpJson() {
             } else {
                 await createPlan(payload);
             }
+            fetchPlans();
+            setView("list");
             Swal.fire({
                 icon: "success",
                 title: view === "edit" ? "Plan Updated" : "Plan Created",
                 text: `Plan has been successfully ${view === "edit" ? "updated" : "submitted"}.`,
                 confirmButtonColor: "#f99022",
-            }).then(() => {
-                fetchPlans();
-                setView("list");
             });
         } catch (err) {
             console.error("Plan save failed:", err);
-            Swal.fire({
-                icon: "error",
-                title: "Failed",
-                text: err?.response?.data?.message || "Failed to save plan. Please try again.",
-                confirmButtonColor: "#f99022",
-            });
+            setSaveError(err?.response?.data?.message || "Failed to save plan. Please try again.");
         } finally {
             setSubmitting(false);
         }
@@ -414,11 +442,13 @@ function ErpJson() {
                                     <tr>
                                         <th>ID</th>
                                         <th>Plan No</th>
+                                        <th>Shift No</th>
                                         <th className="erpjson-th-machine">Machine Name</th>
                                         <th>Plan Date</th>
                                         <th>Type</th>
                                         <th>Item List</th>
                                         <th>Action</th>
+                                        <th>JSON View</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -431,6 +461,7 @@ function ErpJson() {
                                                 <tr>
                                                     <td>{plan.id}</td>
                                                     <td>{plan.plan_no}</td>
+                                                    <td>{plan.shift_id || "—"}</td>
                                                     <td className="erpjson-td-machine">{machineNames || "—"}</td>
                                                     <td>{fmtDate(plan.plan_date + "T00:00:00")}</td>
                                                     <td>{plan.type}</td>
@@ -462,10 +493,20 @@ function ErpJson() {
                                                             <DeleteOutlineIcon fontSize="small" />
                                                         </IconButton>
                                                     </td>
+                                                    <td>
+                                                        <button
+                                                            className="erpjson-json-view-btn"
+                                                            onClick={() => handleViewJson(plan.plan_no)}
+                                                            title="View JSON"
+                                                            disabled={loadingJsonData}
+                                                        >
+                                                            JSON View
+                                                        </button>
+                                                    </td>
                                                 </tr>
                                                 {isExpanded && (
                                                     <tr className="erpjson-details-row">
-                                                        <td colSpan={7}>
+                                                        <td colSpan={9}>
                                                             <div className="erpjson-details-section">
                                                                 <div className="erpjson-details-section-title">Details</div>
                                                                 {details.length === 0 ? (
@@ -503,6 +544,44 @@ function ErpJson() {
                         </div>
                     )}
                 </div>
+
+                {/* ── JSON DIALOG ──────────────────────────────────── */}
+                <Dialog
+                    open={jsonDialogOpen}
+                    onClose={handleCloseJsonDialog}
+                    maxWidth="md"
+                    fullWidth
+                    className="erpjson-dialog"
+                >
+                    <DialogTitle sx={{ backgroundColor: "#f99022", color: "#fff" }}>
+                        ERP JSON Data
+                    </DialogTitle>
+                    <DialogContent sx={{ pt: 2 }}>
+                        {loadingJsonData ? (
+                            <div className="erpjson-loading">Loading JSON data...</div>
+                        ) : jsonDialogData && !jsonDialogData.message ? (
+                            <pre style={{
+                                backgroundColor: "#f5f5f5",
+                                padding: "12px",
+                                borderRadius: "4px",
+                                overflow: "auto",
+                                maxHeight: "400px",
+                                fontSize: "12px",
+                                marginTop:"14px",
+                                fontFamily: "monospace"
+                            }}>
+                                {JSON.stringify(jsonDialogData, null, 2)}
+                            </pre>
+                        ) : (
+                            <div className="erpjson-empty">No JSON data</div>
+                        )}
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button onClick={handleCloseJsonDialog} variant="contained" sx={{ backgroundColor: "#f99022", "&:hover": { backgroundColor: "#f99022" } }}>
+                            Close
+                        </Button>
+                    </DialogActions>
+                </Dialog>
             </div>
         );
     }
@@ -527,6 +606,28 @@ function ErpJson() {
                     </div>
                 </div>
 
+                {/* ── ERROR MESSAGE ────────────────────────────────── */}
+                {saveError && (
+                    <div style={{
+                        backgroundColor: "#ffebee",
+                        border: "1px solid #f44336",
+                        borderRadius: "4px",
+                        padding: "12px 16px",
+                        marginBottom: "16px",
+                        color: "#c62828",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                    }}>
+                        <span>{saveError}</span>
+                        <CloseIcon
+                            fontSize="small"
+                            onClick={() => setSaveError("")}
+                            style={{ cursor: "pointer", marginLeft: "8px" }}
+                        />
+                    </div>
+                )}
+
                 {/* ── PLAN DETAILS ─────────────────────────────────── */}
                 <div className="erpjson-section-title">Plan Details</div>
                 <div className="erpjson-grid">
@@ -541,10 +642,22 @@ function ErpJson() {
                         <input type="date" value={planForm.DocumentDate} readOnly
                             style={{ background: "#f5f5f5", cursor: "default" }} />
                     </div>
-                    <div className="erpjson-field">
-                        <label>Plan Date</label>
-                        <input type="date" value={planForm.PlanDate}
-                            onChange={(e) => onPlanChange("PlanDate", e.target.value)} />
+                    <div style={{ paddingTop: '20px' }}>
+                        <LocalizationProvider dateAdapter={AdapterDayjs}>
+                            <DatePicker
+                                label="Plan Date"
+                                value={planForm.PlanDate ? dayjs(planForm.PlanDate) : dayjs()}
+                                onChange={(val) => onPlanChange("PlanDate", val.format("YYYY-MM-DD"))}
+                                format="DD-MM-YYYY"
+                                maxDate={dayjs()}
+                                slotProps={{
+                                    textField: {
+                                        fullWidth: true,
+                                        size: "small"
+                                    }
+                                }}
+                            />
+                        </LocalizationProvider>
                     </div>
                     <div className="erpjson-field">
                         <label>Unit ID</label>

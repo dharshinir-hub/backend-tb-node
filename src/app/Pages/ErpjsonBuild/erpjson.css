@@ -423,6 +423,31 @@
   color: #e55 !important;
 }
 
+/* ── JSON View button in table ────────────────────── */
+.erpjson-json-view-btn {
+  display: inline-block;
+  padding: 10px 12px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  color: #fff;
+  background: #f99022;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.18s, opacity 0.18s;
+  white-space: nowrap;
+}
+
+.erpjson-json-view-btn:hover:not(:disabled) {
+  background: #e08529;
+}
+
+.erpjson-json-view-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Details expanded row ──────────────────────────── */
 .erpjson-details-row td {
   background: #fffaf4;
@@ -493,8 +518,7 @@
 }
 
 .erpjson-pre {
-  margin: 0;
-  padding: 16px;
+  padding: 16px 16px 16px 0px;
   font-size: 0.78rem;
   background: #fafafa;
   overflow-x: auto;

@@ -4,14 +4,18 @@ import {
     Checkbox, ListItemText, CircularProgress,
     Table, TableBody, TableCell, TableHead, TableRow,
     TablePagination, Card, CardContent, CardActions, Box,
+    Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { customerbasedshift } from '../../Services/app/companyservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
-import { getPlanDetails } from '../../Services/app/reportservice';
+import { getPlanDetails, getErpJson } from '../../Services/app/reportservice';
+import ErpPlannerDialog from './erpplanner';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtDate = (val) => (val ? dayjs(val).format('DD-MM-YYYY') : '—');
@@ -36,6 +40,7 @@ const HEADERS = [
     { label: 'Item',           level: 'item'    },
     { label: 'Plan Qty',       level: 'item'    },
     { label: 'Prod. Order No', level: 'item'    },
+    { label: 'JSON View',      level: 'action'  },
 ];
 
 const headerBg = (label) => {
@@ -109,6 +114,10 @@ export default function ErpReport() {
     const [page,        setPage]        = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [totalCount,  setTotalCount]  = useState(0);
+    const [plannerDialogOpen, setPlannerDialogOpen] = useState(false);
+    const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+    const [jsonData, setJsonData] = useState(null);
+    const [jsonLoading, setJsonLoading] = useState(false);
 
     const {
         machineGroups,
@@ -200,6 +209,21 @@ export default function ErpReport() {
             setIsBeforeFirstShift(false);
         }
     }, [shifts]);
+
+    // ── JSON Dialog handler ───────────────────────────────────────────────────
+    const handleViewJson = useCallback(async (planNo) => {
+        setJsonLoading(true);
+        try {
+            const data = await getErpJson(planNo);
+            setJsonData(data);
+            setJsonDialogOpen(true);
+        } catch (err) {
+            console.error('Failed to fetch ERP JSON', err);
+            alert('Failed to load JSON data');
+        } finally {
+            setJsonLoading(false);
+        }
+    }, []);
 
     // ── Fetch ─────────────────────────────────────────────────────────────────
     const fetchReport = useCallback(async (pageNum = 0, limit = 10) => {
@@ -339,16 +363,16 @@ export default function ErpReport() {
                         if (pgIdx === 0 && planEIdx === 0) {
                             cells.push(
                                 <TableCell key="sno"  rowSpan={totalRows} align="center" style={{ background: bg }} sx={CELL}>{sno}</TableCell>,
-                                <TableCell key="mach" rowSpan={totalRows} align="center" style={{ background: bg }} sx={CELL}>{machineName}</TableCell>,
+                                <TableCell key="mach" rowSpan={totalRows} align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{machineName}</TableCell>,
                             );
                         }
 
                         if (planEIdx === 0) {
                             cells.push(
                                 <TableCell key="pno"  rowSpan={planRowCount} align="center" style={{ background: bg }} sx={CELL}>{safe(pg.planInfo.plan_no)}</TableCell>,
-                                <TableCell key="pdt"  rowSpan={planRowCount} align="center" style={{ background: bg }} sx={CELL}>{fmtDate(pg.planInfo.plan_date)}</TableCell>,
+                                <TableCell key="pdt"  rowSpan={planRowCount} align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{fmtDate(pg.planInfo.plan_date)}</TableCell>,
                                 <TableCell key="shft" rowSpan={planRowCount} align="center" style={{ background: bg }} sx={CELL}>{safe(pg.planInfo.shift_id)}</TableCell>,
-                                <TableCell key="type" rowSpan={planRowCount} align="center" style={{ background: bg }} sx={CELL}>{safe(pg.planInfo.type)}</TableCell>,
+                                <TableCell key="type" rowSpan={planRowCount} align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{safe(pg.planInfo.type)}</TableCell>,
                             );
                         }
 
@@ -361,10 +385,40 @@ export default function ErpReport() {
                         cells.push(
                             <TableCell key="cav"  align="center" style={{ background: bg }} sx={CELL}>{entry.cavity}</TableCell>,
                             <TableCell key="ct"   align="center" style={{ background: bg, color: '#207A24', fontWeight: 600 }} sx={CELL}>{entry.cycleTime}</TableCell>,
-                            <TableCell key="item" align="center" style={{ background: bg }} sx={{ ...CELL, maxWidth: 240, wordBreak: 'break-word', whiteSpace: 'normal' }}>{entry.line.item}</TableCell>,
-                            <TableCell key="qty"  align="center" style={{ background: bg }} sx={CELL}>{entry.line.planQty}</TableCell>,
-                            <TableCell key="po"   align="center" style={{ background: bg }} sx={CELL}>{entry.line.prodOrderNo}</TableCell>,
+                            <TableCell key="item" align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.line.item}</TableCell>,
+                            <TableCell key="qty"  align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.line.planQty}</TableCell>,
+                            <TableCell key="po"   align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.line.prodOrderNo}</TableCell>,
                         );
+
+                        if (planEIdx === 0) {
+                            cells.push(
+                                <TableCell key="json" rowSpan={planRowCount} align="center" style={{ background: bg }} sx={CELL}>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<VisibilityIcon />}
+                                        onClick={() => handleViewJson(pg.planInfo.plan_no)}
+                                        disabled={jsonLoading}
+                                        sx={{
+                                            textTransform: 'none',
+                                            fontSize: '12px',
+                                            color: '#f47803',
+                                            borderColor: '#f47803',
+                                            '&:hover': {
+                                                borderColor: '#e06d00',
+                                                backgroundColor: 'rgba(244, 120, 3, 0.04)',
+                                            },
+                                            '&.Mui-disabled': {
+                                                color: '#f4780380',
+                                                borderColor: '#f4780380',
+                                            },
+                                        }}
+                                    >
+                                        View
+                                    </Button>
+                                </TableCell>,
+                            );
+                        }
 
                         rows.push(<TableRow key={`m-${machineName}-pg${pgIdx}-lg${lgIdx}-e${eIdx}`}>{cells}</TableRow>);
                         planEIdx++;
@@ -392,7 +446,7 @@ export default function ErpReport() {
         }}>
             {/* ── Filters ── */}
             <div style={{ marginBottom: '24px' }}>
-                <h4 style={{ margin: '0 0 18px 0' }}><b>Erp Planner</b></h4>
+                <h4 style={{ margin: '0 0 18px 0' }}><b>Erp Report</b></h4>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
 
                     {showMachineGroupsDropdown && (
@@ -507,6 +561,20 @@ export default function ErpReport() {
                         {isLoading && <CircularProgress size={16} sx={{ color: '#fff' }} />}
                         {isLoading ? 'Loading...' : 'Submit'}
                     </Button>
+                    <Button
+                        variant="contained"
+                        onClick={() => setPlannerDialogOpen(true)}
+                        startIcon={<AddIcon />}
+                        sx={{
+                            minWidth: 160, height: 40,
+                            background: '#f47803ff',
+                            '&:hover': { background: '#e06d00ff' },
+                            '&.Mui-disabled': { background: '#f4780380' },
+                            textTransform: 'none', fontWeight: 'bold', gap: '8px',
+                        }}
+                    >
+                        Create New Plan
+                    </Button>
                 </div>
             </div>
 
@@ -572,6 +640,68 @@ export default function ErpReport() {
                     />
                 </CardActions>
             </Card>
+
+            {/* Create Plan Dialog */}
+            <ErpPlannerDialog
+                open={plannerDialogOpen}
+                onClose={() => setPlannerDialogOpen(false)}
+                onSave={() => {
+                    setPlannerDialogOpen(false);
+                    if (selectedShift && groupedMachines.length > 0) {
+                        handleSubmit();
+                    }
+                }}
+            />
+
+            {/* JSON View Dialog */}
+            <Dialog
+                open={jsonDialogOpen}
+                onClose={() => setJsonDialogOpen(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        maxHeight: '80vh',
+                        overflow: 'auto',
+                    }
+                }}
+            >
+                <DialogTitle sx={{ fontWeight: 'bold', fontSize: '16px', color: '#f47803' }}>
+                    ERP JSON Data
+                </DialogTitle>
+                <DialogContent sx={{ pt: 2 }}>
+                    {jsonData ? (
+                        <pre style={{
+                            background: '#f5f5f5',
+                            padding: '16px',
+                            borderRadius: '4px',
+                            overflow: 'auto',
+                            fontSize: '12px',
+                            fontFamily: 'monospace',
+                            maxHeight: '60vh',
+                            margin: 0,
+                        }}>
+                            {JSON.stringify(jsonData, null, 2)}
+                        </pre>
+                    ) : (
+                        <p>No data available</p>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button
+                        onClick={() => setJsonDialogOpen(false)}
+                        variant="contained"
+                        sx={{
+                            background: '#f47803',
+                            '&:hover': {
+                                background: '#e06d00',
+                            },
+                        }}
+                    >
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }
