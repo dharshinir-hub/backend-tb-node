@@ -16,6 +16,7 @@ import { customerbasedshift } from '../../Services/app/companyservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
 import { getPlanDetails, getErpJson } from '../../Services/app/reportservice';
 import ErpPlannerDialog from './erpplanner';
+import Swal from 'sweetalert2';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtDate = (val) => (val ? dayjs(val).format('DD-MM-YYYY') : '—');
@@ -219,7 +220,11 @@ export default function ErpReport() {
             setJsonDialogOpen(true);
         } catch (err) {
             console.error('Failed to fetch ERP JSON', err);
-            alert('Failed to load JSON data');
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load JSON data'
+            });
         } finally {
             setJsonLoading(false);
         }
