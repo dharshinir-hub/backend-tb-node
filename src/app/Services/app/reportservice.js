@@ -271,3 +271,13 @@ export const deletePlan = async (id) => {
   });
   return response.data;
 };
+
+export const getErpJson = async (planNo) => {
+  const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, "");
+  const token = localStorage.getItem("reportToken");
+  const url = `${baseUrl}/reportGenerate/erpGet?plan_no=${encodeURIComponent(planNo)}`;
+  const response = await axiosInstance.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};
