@@ -135,7 +135,10 @@ function Operator() {
     const prevShiftRef = useRef(null);
     const [currentMachinePlan, setCurrentMachinePlan] = useState(null);
     const getCustomerId = () => {
-        if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
+        const queryCustomerId = new URLSearchParams(location.search).get('customer_id');
+        if (queryCustomerId) {
+            return queryCustomerId;
+        } else if (location.pathname === "/wP7n_AqZ9-rtY4X8jvS2T6eK0uL3MhQxGdN5oRc~1fHbJiV") {
             return window._env_.CUSTOMER_ID;
         } else if (location.pathname === "/smc_operator_bf9tz") {
             return window._env_.SMC_CUSTOMER_ID;
