@@ -30,6 +30,7 @@ import AnalyticsV2 from '../../Pages/Analytics-V2/AnalyticsV2';
 import ErpJson from '../../Pages/ErpjsonBuild/erpjson';
 import ErpReportSchedule from '../../Pages/ErpReportSchedules/erpreportschedule';
 import ErpReport from '../../Pages/Erpreport/erpreport';
+import HolidayList from '../../Pages/Holiday-List/HolidayList';
 
 
 
@@ -64,5 +65,6 @@ export const COMPONENT_REGISTRY = {
   "operator-performance": OperatorPerformanceDashboard,
   "erpreport": ErpReport,
   "erpjson": ErpJson,
-  "erpreportschedule": ErpReportSchedule
+  "erpreportschedule": ErpReportSchedule,
+  "holiday-list": HolidayList
 };
