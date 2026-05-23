@@ -180,7 +180,8 @@ export default function PersistentDrawerLeft({ children }) {
         icon: <BsList style={{ fontSize: "20px", color: "black" }} />,
         children: [
           ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID ? [{ path: "/production-overview", name: "Overview", icon: <BsKanban style={{ fontSize: "20px", color: "black" }} /> }] : []),
-          { path: "/production-metrics", name: "Metrics", icon: <BsGraphUp style={{ fontSize: "20px", color: "black" }} /> }
+          { path: "/production-metrics", name: "Metrics", icon: <BsGraphUp style={{ fontSize: "20px", color: "black" }} /> },
+          { path: "/holiday-list", name: "Holiday Calendar", icon: <BsCalendarCheckFill style={{ fontSize: "18px", color: "black" }} /> }
         ]
       },
       {

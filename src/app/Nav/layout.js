@@ -49,6 +49,7 @@ const Layout = () => {
     location.pathname === '/erpjson' ||
     location.pathname === '/erpreportschedule' ||
     location.pathname === '/erpreport' ||
+    location.pathname === '/holiday-list' ||
     location.pathname === '/operator-performance';
 
   return (

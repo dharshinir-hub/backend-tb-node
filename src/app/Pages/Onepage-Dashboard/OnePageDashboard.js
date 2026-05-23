@@ -89,7 +89,8 @@ export default function OnePageDashboard() {
         parts: {
             targetParts: 0,
             totalParts: { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 }
-        }
+        },
+        machinesWithZeroRunDuration: []
     });
 
 
@@ -224,9 +225,26 @@ export default function OnePageDashboard() {
         }
         if (allRanges.length === 0) return;
 
-        // Overall range: first shift start of startDate → last shift end of endDate
-        const overallFrom = allRanges[0].from;
-        const overallTo = allRanges[allRanges.length - 1].to;
+        // Build full-day ranges (all shifts) for holiday detection — always needed regardless of selectedShift
+        const allRangesAllShiftsForFetch = [];
+        {
+            let d = startDate.startOf('day');
+            const last = endDate.startOf('day');
+            while (!d.isAfter(last)) {
+                const dayRanges = getShiftTimeRanges(shifts, "allshift", d);
+                allRangesAllShiftsForFetch.push(...dayRanges.filter(r => r.from && r.to));
+                d = d.add(1, 'day');
+            }
+        }
+
+        // Overall range: cover ALL shifts for the full date range so holiday detection has all-shift data.
+        // filterByShift() is used everywhere, so the extra data won't bleed into single-shift calculations.
+        const overallFrom = allRangesAllShiftsForFetch.length > 0
+            ? allRangesAllShiftsForFetch[0].from
+            : allRanges[0].from;
+        const overallTo = allRangesAllShiftsForFetch.length > 0
+            ? allRangesAllShiftsForFetch[allRangesAllShiftsForFetch.length - 1].to
+            : allRanges[allRanges.length - 1].to;
 
         const telemetryKeys = [
             "oee",
@@ -242,17 +260,30 @@ export default function OnePageDashboard() {
             .filter((d) => selectedMachines.includes(d.name))
             .map((d) => d.id);
 
+        // All machine IDs in the system — used for holiday detection
+        const allDeviceIds = deviceNameID.map((d) => d.id);
+
         console.log(deviceNameID, "device name list");
         console.log(selectedMachines, "calling apis for");
 
-        // ONE API call per machine covering the full date range
+        // ONE API call per selected machine covering the full date range (all shifts)
         const machineDataMap = new Map();
-        await Promise.all(
-            selectedDeviceIds.map(async (deviceId) => {
+        // Separate map for ALL machines — only total_duration needed for holiday detection
+        const allMachineDataMap = new Map();
+
+        await Promise.all([
+            ...selectedDeviceIds.map(async (deviceId) => {
                 const data = await fetchTelemetryData(deviceId, "DEVICE", telemetryKeys, overallFrom, overallTo);
                 machineDataMap.set(deviceId, data);
-            })
-        );
+                allMachineDataMap.set(deviceId, data); // reuse, already fetched
+            }),
+            ...allDeviceIds
+                .filter((id) => !selectedDeviceIds.includes(id))
+                .map(async (deviceId) => {
+                    const data = await fetchTelemetryData(deviceId, "DEVICE", ["total_duration"], overallFrom, overallTo);
+                    allMachineDataMap.set(deviceId, data);
+                })
+        ]);
 
         // Filter telemetry data points to within a single shift window.
         // shiftTo - 1 ensures the end boundary is exclusive (epochMs - 1).
@@ -345,26 +376,274 @@ export default function OnePageDashboard() {
                     total_settings_duration: 0
                 };
 
+                const machineTotalRunDuration = new Map();
+                const machineShiftZeroRuntimes = new Map(); // Track machine-shift combos with zero runtime
+                const machineAlarmIdleDurations = new Map(); // Track machine-date alarm/idle durations
+
                 for (const deviceId of selectedDeviceIds) {
+                    let totalRunForMachine = 0;
                     const rawData = machineDataMap.get(deviceId);
+                    const shiftZeros = [];
+                    const dateAlarmIdleMap = new Map(); // { date: { alarmSum, idleSum } }
+
                     for (const shiftRange of allRanges) {
                         const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
-                        const raw = data?.total_duration?.[0]?.value;
-                        if (!raw) continue;
+
+                        // Get latest data point for this shift-date range
+                        const latestDataPoint = getLatestDataPoint(data?.total_duration);
+                        const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
+
+                       
 
                         try {
-                            const parsed = JSON.parse(raw);
+                            const parsed = JSON.parse(latestDataPoint.value);
                             Object.keys(totalDurations).forEach((key) => {
                                 totalDurations[key] += parsed[key] || 0;
                             });
+
+                            const runDur = parsed.total_run_duration;
+                            const alarmDur = parsed.total_alarm_duration || 0;
+                            const idleDur = parsed.total_idle_duration || 0;
+                            const disconnectDur = parsed.total_disconnect_duration || 0;
+
+                            totalRunForMachine += runDur || 0;
+
+                            // Track alarm, idle, and disconnect durations by date
+                            if (!dateAlarmIdleMap.has(shiftDate)) {
+                                dateAlarmIdleMap.set(shiftDate, { alarmSum: 0, idleSum: 0, disconnectSum: 0 });
+                            }
+                            const dateData = dateAlarmIdleMap.get(shiftDate);
+                            dateData.alarmSum += alarmDur;
+                            dateData.idleSum += idleDur;
+                            dateData.disconnectSum += disconnectDur;
+
+                           
                         } catch (err) {
                             console.error(`Error parsing total_duration for ${deviceId}`, err);
                         }
                     }
+
+                    machineTotalRunDuration.set(deviceId, totalRunForMachine);
+                    machineShiftZeroRuntimes.set(deviceId, shiftZeros);
+                    machineAlarmIdleDurations.set(deviceId, dateAlarmIdleMap);
+                    console.log(`📊 Device: ${deviceId}, Total Run Duration: ${totalRunForMachine}`);
                 }
 
-                console.log("✅ Combined Durations:", totalDurations);
-                return { durations: totalDurations };
+                // Track per-date run duration for each machine
+                const machineRunByDate = new Map(); // { deviceId-date: runDuration }
+
+                for (const deviceId of selectedDeviceIds) {
+                    const rawData = machineDataMap.get(deviceId);
+                    for (const shiftRange of allRanges) {
+                        const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
+                        const latestDataPoint = getLatestDataPoint(data?.total_duration);
+                        const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
+
+                        if (latestDataPoint?.value) {
+                            try {
+                                const parsed = JSON.parse(latestDataPoint.value);
+                                const runDur = parsed.total_run_duration || 0;
+                                const key = `${deviceId}-${shiftDate}`;
+
+                                if (!machineRunByDate.has(key)) {
+                                    machineRunByDate.set(key, 0);
+                                }
+                                machineRunByDate.set(key, machineRunByDate.get(key) + runDur);
+                            } catch (err) {
+                                // Handle parse error
+                            }
+                        }
+                    }
+                }
+
+                // ============================================================
+                // CONDITION CHECK: Remove target if run <= 20% AND (alarm/idle/disconnect > 20h)
+                // Holiday detection always uses ALL shifts (full day), regardless of selected shift.
+                // ============================================================
+                const TWENTY_HOURS_SECONDS = 20 * 3600; // 72000 seconds
+                const machinesWithZeroRunDuration = [];
+                const dateRunExceeded = new Map(); // Track machines excluded for specific dates
+
+                // Use the pre-built full-day ranges (all shifts) for holiday detection
+                const allRangesAllShifts = allRangesAllShiftsForFetch;
+
+                // Step 1: Collect all unique dates from full-day ranges
+                const allDatesInRange = new Set();
+                for (const shiftRange of allRangesAllShifts) {
+                    const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
+                    allDatesInRange.add(shiftDate);
+                }
+
+                // Build full-day run/alarm/idle maps using ALL machines + ALL shifts for holiday detection
+                const fullDayRunByDate = new Map(); // { deviceId-date: runDuration }
+                const fullDayAlarmIdleByDevice = new Map(); // { deviceId: Map<date, {alarmSum,idleSum,disconnectSum}> }
+
+                for (const deviceId of allDeviceIds) {
+                    const rawData = allMachineDataMap.get(deviceId);
+                    const dateAlarmIdleMap = new Map();
+
+                    for (const shiftRange of allRangesAllShifts) {
+                        const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
+                        const latestDataPoint = getLatestDataPoint(data?.total_duration);
+                        const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
+
+                        if (latestDataPoint?.value) {
+                            try {
+                                const parsed = JSON.parse(latestDataPoint.value);
+                                const runDur = parsed.total_run_duration || 0;
+                                const alarmDur = parsed.total_alarm_duration || 0;
+                                const idleDur = parsed.total_idle_duration || 0;
+                                const disconnectDur = parsed.total_disconnect_duration || 0;
+
+                                const runKey = `${deviceId}-${shiftDate}`;
+                                fullDayRunByDate.set(runKey, (fullDayRunByDate.get(runKey) || 0) + runDur);
+
+                                if (!dateAlarmIdleMap.has(shiftDate)) {
+                                    dateAlarmIdleMap.set(shiftDate, { alarmSum: 0, idleSum: 0, disconnectSum: 0 });
+                                }
+                                const dd = dateAlarmIdleMap.get(shiftDate);
+                                dd.alarmSum += alarmDur;
+                                dd.idleSum += idleDur;
+                                dd.disconnectSum += disconnectDur;
+                            } catch (err) { /* ignore parse errors */ }
+                        }
+                    }
+                    fullDayAlarmIdleByDevice.set(deviceId, dateAlarmIdleMap);
+                }
+
+                // Step 1: Calculate TOTAL run duration per date across ALL machines (full day)
+                const totalRunDurationByDate = new Map();
+                for (const date of allDatesInRange) {
+                    let totalRun = 0;
+                    for (const deviceId of allDeviceIds) {
+                        const runKey = `${deviceId}-${date}`;
+                        totalRun += fullDayRunByDate.get(runKey) || 0;
+                    }
+                    if (totalRun > 0) {
+                        totalRunDurationByDate.set(date, totalRun);
+                    }
+                }
+
+                // Step 1b: Calculate TOTAL expected shift time per date using ALL shifts × ALL machines
+                const expectedShiftTimeByDate = new Map();
+                for (const shiftRange of allRangesAllShifts) {
+                    const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
+                    const rawShiftDurationSecs = Math.floor((shiftRange.to - shiftRange.from) / 1000);
+
+                    const shiftNo = shiftRange.shiftNo;
+                    const shiftData = shifts.find(s => String(s.shift_no) === String(shiftNo));
+                    const breakTimeSecs = shiftData ? Math.floor(timeToSeconds(shiftData.break_time || "00:00:00")) : 0;
+                    const shiftDurationWithoutBreak = Math.max(0, rawShiftDurationSecs - breakTimeSecs);
+
+                    if (!expectedShiftTimeByDate.has(shiftDate)) {
+                        expectedShiftTimeByDate.set(shiftDate, 0);
+                    }
+                    expectedShiftTimeByDate.set(
+                        shiftDate,
+                        expectedShiftTimeByDate.get(shiftDate) + (shiftDurationWithoutBreak * allDeviceIds.length)
+                    );
+                }
+
+                // Step 2: Sum alarm, idle, disconnect per date across ALL machines (full day)
+                const totalAlarmByDate = new Map();
+                const totalIdleByDate = new Map();
+                const totalDisconnectByDate = new Map();
+
+                for (const deviceId of allDeviceIds) {
+                    const dateAlarmIdle = fullDayAlarmIdleByDevice.get(deviceId);
+                    if (!dateAlarmIdle) continue;
+
+                    for (const [date, { alarmSum, idleSum, disconnectSum }] of dateAlarmIdle) {
+                        if (!totalAlarmByDate.has(date)) totalAlarmByDate.set(date, 0);
+                        totalAlarmByDate.set(date, totalAlarmByDate.get(date) + alarmSum);
+
+                        if (!totalIdleByDate.has(date)) totalIdleByDate.set(date, 0);
+                        totalIdleByDate.set(date, totalIdleByDate.get(date) + idleSum);
+
+                        if (!totalDisconnectByDate.has(date)) totalDisconnectByDate.set(date, 0);
+                        totalDisconnectByDate.set(date, totalDisconnectByDate.get(date) + disconnectSum);
+                    }
+                }
+
+                // Step 3: Check condition for each date
+                // Condition: run % <= 20% AND (alarm + idle + disconnect) > 20h
+                const datesToCheck = new Set([
+                    ...totalAlarmByDate.keys(),
+                    ...totalIdleByDate.keys(),
+                    ...totalDisconnectByDate.keys(),
+                    ...totalRunDurationByDate.keys()
+                ]);
+
+                const conditionCheckResults = [];
+                const datesExcluded = [];
+                const sortedDates = Array.from(datesToCheck).sort();
+
+                for (const date of sortedDates) {
+                    // Get values for this date
+                    const totalRunForDate = totalRunDurationByDate.get(date) || 0;
+                    const expectedTimeForDate = expectedShiftTimeByDate.get(date) || 1;
+                    const totalAlarm = totalAlarmByDate.get(date) || 0;
+                    const totalIdle = totalIdleByDate.get(date) || 0;
+                    const totalDisconnect = totalDisconnectByDate.get(date) || 0;
+
+                    // Calculate run percentage
+                    const runPercentage = (totalRunForDate / expectedTimeForDate) * 100;
+
+                    // Check conditions
+                    const runConditionMet = runPercentage <= 20;
+                    const summedAlarmIdleDisconnect = totalAlarm + totalIdle + totalDisconnect;
+                    const alarmConditionMet = summedAlarmIdleDisconnect > TWENTY_HOURS_SECONDS;
+                    const conditionMet = runConditionMet && alarmConditionMet;
+
+                    // Track for table
+                    conditionCheckResults.push({
+                        Date: date,
+                        'Run %': runPercentage.toFixed(2),
+                        'Run Hrs': (totalRunForDate/3600).toFixed(2),
+                        'Alarm Hrs': (totalAlarm/3600).toFixed(2),
+                        'Idle Hrs': (totalIdle/3600).toFixed(2),
+                        'Disc Hrs': (totalDisconnect/3600).toFixed(2),
+                        'Sum Hrs': (summedAlarmIdleDisconnect/3600).toFixed(2),
+                        'Result': conditionMet ? '🔴 EXCLUDED' : '✅ INCLUDED'
+                    });
+
+                    // If condition met, add ALL machines to exclusion list for this date
+                    if (conditionMet) {
+                        datesExcluded.push(date);
+                        for (const deviceId of selectedDeviceIds) {
+                            if (!dateRunExceeded.has(deviceId)) {
+                                dateRunExceeded.set(deviceId, []);
+                            }
+                            if (!dateRunExceeded.get(deviceId).includes(date)) {
+                                dateRunExceeded.get(deviceId).push(date);
+                            }
+                        }
+                    }
+                }
+
+                // For backwards compatibility, keep this for machines completely excluded
+                // (empty for now since we're doing per-date exclusion)
+                const fullyExcludedMachines = [];
+                machinesWithZeroRunDuration.push(...fullyExcludedMachines);
+
+                // Compute new_total_run_duration: subtract run duration for excluded dates
+                let runDurationForExcludedDates = 0;
+                for (const date of datesExcluded) {
+                    for (const deviceId of selectedDeviceIds) {
+                        const key = `${deviceId}-${date}`;
+                        runDurationForExcludedDates += machineRunByDate.get(key) || 0;
+                    }
+                }
+                const new_total_run_duration = Math.max(0, totalDurations.total_run_duration - runDurationForExcludedDates);
+
+                return {
+                    durations: { ...totalDurations, new_total_run_duration },
+                    machinesWithZeroRunDuration,
+                    machineShiftZeroRuntimes,
+                    machineAlarmIdleDurations,
+                    dateRunExceeded,
+                    machineRunByDate
+                };
             })()
         );
 
@@ -471,7 +750,6 @@ export default function OnePageDashboard() {
                 result.targetParts = Math.round(totalTarget);
                 result.totalParts = { ...totalPartsAccumulator, ts: new Date().toISOString() };
 
-                console.log("✅ Final Parts Data:", result);
                 return { parts: result };
             })()
         );
@@ -509,11 +787,6 @@ export default function OnePageDashboard() {
         );
 
 
-
-
-        /* ------------------------------------------------------------------ */
-        /* Execute all sections in parallel                                   */
-        /* ------------------------------------------------------------------ */
         try {
             const results = await Promise.all(promises);
             const combined = results.reduce((acc, r) => ({ ...acc, ...r }), {});
@@ -563,72 +836,621 @@ export default function OnePageDashboard() {
         const to = endDate.endOf('day').valueOf();
 
         let adjustedDuration = 0;
+        let newadjustedDuration = 0;
+
+        const machineCountWithRunDuration = selectedMachines.length - data.machinesWithZeroRunDuration.length;
+
+        // Create a set of machine-shift combos with zero runtime for quick lookup
+        const zeroRuntimeSet = new Set();
+        const selectedDeviceIds = deviceNameID
+            .filter((d) => selectedMachines.includes(d.name))
+            .map((d) => d.id);
+
+        if (data.machineShiftZeroRuntimes) {
+            for (const [deviceId, shifts] of data.machineShiftZeroRuntimes.entries()) {
+                for (const { date, shift } of shifts) {
+                    zeroRuntimeSet.add(`${deviceId}-${date}-${shift}`);
+                }
+            }
+        }
+
+        // Helper to check if a specific date should be excluded for a machine
+        // Excludes ONLY if BOTH conditions are true:
+        // 1. Machine has zero run duration FOR THAT DATE AND
+        // 2. Date has alarm or idle > 20 hours
+        const isDateExceededFor20Hours = (deviceId, dateStr) => {
+            // Check if this machine-date combo is in the exclusion list
+            if (data.dateRunExceeded && data.dateRunExceeded.has(deviceId)) {
+                const excludedDates = data.dateRunExceeded.get(deviceId);
+                return excludedDates.includes(dateStr);
+            }
+            return false;
+        };
+
+        // Helper: check if machine has zero run duration for a specific date
+        const hasZeroRunForDate = (deviceId, dateStr) => {
+            const key = `${deviceId}-${dateStr}`;
+            const runDuration = data.machineRunByDate ? data.machineRunByDate.get(key) : undefined;
+            return runDuration === 0;
+        };
 
         if (cleanCustomerId(customerId) === window._env_.CUSTOMER_ID || cleanCustomerId(customerId) === window._env_.SMC_CUSTOMER_ID ) {
-            // Calculate total adjusted duration with breaktime removed across date range
-            const totalDays = endDate.diff(startDate, 'day') + 1;
+            // Calculate duration1 and duration2 with breaktime removed across date range
+            let duration1Adjusted = 0;
+            let duration2Adjusted = 0;
+            let duration2RemovedDueToCap = 0;
+            let currentDay = startDate.startOf('day');
+            const lastDay = endDate.startOf('day');
 
-            const perDayShiftSeconds = selectedShift === "allshift"
-                ? shifts.reduce((sum, s) => {
-                    const singleShiftTimes = getShiftTimes(shifts, String(s.shift_no), startDate);
-                    const rawSecs = singleShiftTimes.from && singleShiftTimes.to
-                        ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
+            const shiftsToProcess = selectedShift === "allshift"
+                ? shifts.map(s => String(s.shift_no))
+                : [String(selectedShift)];
+
+            const dateWiseBreakdown = new Map(); // { date: { totalHours, removedHours, actualHours, excludedMachines } }
+
+            while (!currentDay.isAfter(lastDay)) {
+                const currentDateStr = currentDay.format('YYYY-MM-DD');
+
+                // Initialize date entry
+                if (!dateWiseBreakdown.has(currentDateStr)) {
+                    dateWiseBreakdown.set(currentDateStr, {
+                        totalHours: 0,
+                        removedHours: 0,
+                        actualHours: 0,
+                        excludedMachines: []
+                    });
+                }
+                const dateData = dateWiseBreakdown.get(currentDateStr);
+
+                // Check if this date exceeds 20 hours for any selected machine
+                const isDateExceededForAnyMachine = selectedDeviceIds.some(
+                    deviceId => isDateExceededFor20Hours(deviceId, currentDateStr)
+                );
+
+                for (const shiftNo of shiftsToProcess) {
+                    const shiftData = shifts.find(s => String(s.shift_no) === shiftNo);
+                    if (!shiftData) continue;
+
+                    const shiftTimes = getShiftTimes(shifts, shiftNo, currentDay);
+                    const rawSecs = shiftTimes.from && shiftTimes.to
+                        ? Math.floor((shiftTimes.to - shiftTimes.from) / 1000)
                         : 0;
+                    const shiftSecsMinusBreak = Math.max(0, rawSecs - timeToSeconds(shiftData.break_time || "00:00:00"));
 
-                    return sum + Math.max(
-                        0,
-                        rawSecs - timeToSeconds(s.break_time || "00:00:00")
-                    );
-                }, 0)
-                : (() => {
-                    const shiftData = shifts.find(
-                        s => String(s.shift_no) === String(selectedShift)
-                    );
-                    if (!shiftData) return 0;
+                    // Count machines with non-zero runtime (excluding machines with zero run duration globally)
+                    let machinesWithRuntimeCount = 0;
+                    let machinesRemovedCount = 0;
+                    let machineNamesIncluded = [];
+                    let machineNamesRemoved = [];
 
-                    const singleShiftTimes = getShiftTimes(shifts, selectedShift, startDate);
-                    const rawSecs = singleShiftTimes.from && singleShiftTimes.to
-                        ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
-                        : 0;
+                    for (const deviceId of selectedDeviceIds) {
+                        const key = `${deviceId}-${currentDateStr}-${shiftNo}`;
+                        const deviceName = deviceNameID.find(d => d.id === deviceId)?.name || deviceId;
 
-                    return Math.max(
-                        0,
-                        rawSecs - timeToSeconds(shiftData.break_time || "00:00:00")
-                    );
-                })();
+                        // Check if this machine is excluded for this date (regardless of runtime for this specific shift)
+                        const isExcludedForDate = isDateExceededFor20Hours(deviceId, currentDateStr);
 
-            adjustedDuration = perDayShiftSeconds * totalDays * selectedMachines.length;
+                        if (!zeroRuntimeSet.has(key)) {
+                            // Machine has non-zero runtime for this shift
+                            if (!isExcludedForDate) {
+                                machinesWithRuntimeCount++;
+                                machineNamesIncluded.push(deviceName);
+                            } else {
+                                // Machine has runtime but is excluded for this date - REMOVE IT
+                                machinesRemovedCount++;
+                                machineNamesRemoved.push(deviceName);
+                            }
+                        } else if (isExcludedForDate) {
+                            // Machine has zero runtime for this shift BUT is excluded for this date - REMOVE IT
+                            machinesRemovedCount++;
+                            machineNamesRemoved.push(deviceName);
+                        }
+                    }
+
+                    const machinesExcludedForThisDate = selectedDeviceIds.filter(id =>
+                        isDateExceededFor20Hours(id, currentDateStr)
+                    ).length;
+                    // Only remove hours for machines excluded for 20h (not zero-runtime machines)
+                    const shiftRemovedDueToThreshold = shiftSecsMinusBreak * machinesExcludedForThisDate;
+                    const shiftDuration2Actual = shiftSecsMinusBreak * machinesWithRuntimeCount;
+                    const shiftRemoved = shiftRemovedDueToThreshold;
+
+                    // duration1: include all selected machines
+                    const shiftDuration1 = shiftSecsMinusBreak * selectedDeviceIds.length;
+                    duration1Adjusted += shiftDuration1;
+                    dateData.totalHours += shiftDuration1;
+
+                    // duration2: only include machines with non-zero runtime and not excluded by date threshold
+                    duration2Adjusted += shiftDuration2Actual;
+                    dateData.actualHours += shiftDuration2Actual;
+                    duration2RemovedDueToCap += shiftRemoved;
+                    dateData.removedHours += shiftRemoved;
+
+                    if (machinesRemovedCount > 0) {
+                        dateData.excludedMachines.push({
+                            shift: shiftNo,
+                            removedMachines: machineNamesRemoved,
+                            includedMachines: machineNamesIncluded,
+                            shiftHoursRemoved: (shiftRemoved / 3600).toFixed(2)
+                        });
+                    }
+                }
+
+                currentDay = currentDay.add(1, 'day');
+            }
+
+            adjustedDuration = duration1Adjusted;
+            newadjustedDuration = duration2Adjusted;
+
+            // Show excluded dates and their impact
+            const excludedDatesList = [];
+            dateWiseBreakdown.forEach((data, date) => {
+                if (data.removedHours > 0) {
+                    const removedHrs = parseFloat((data.removedHours / 3600).toFixed(2));
+                    excludedDatesList.push({
+                        'Excluded Date': date,
+                        'Hours Removed': removedHrs.toFixed(2),
+                        'From newadjustedDuration': removedHrs.toFixed(2) + ' hrs'
+                    });
+                }
+            });
+            if (excludedDatesList.length > 0) {
+                const totalRemovedFromDuration = excludedDatesList.reduce((sum, item) => sum + parseFloat(item['Hours Removed']), 0);
+            } else {
+                console.log("No dates excluded - all target hours are included");
+            }
+
+            // Create table data
+            const tableData = [];
+            // Accumulate raw seconds to avoid rounding drift from .toFixed(2) per date
+            let grandTotalSeconds1 = 0, grandRemovedSeconds1 = 0, grandActualSeconds1 = 0;
+
+            // Get machines excluded for this date
+            const getMachinesExcludedForDate = (dateStr) => {
+                const excluded = [];
+                for (const deviceId of selectedDeviceIds) {
+                    if (isDateExceededFor20Hours(deviceId, dateStr)) {
+                        excluded.push(deviceId);
+                    }
+                }
+                return excluded;
+            };
+
+            dateWiseBreakdown.forEach((data, date) => {
+                const totalHrs = parseFloat((data.totalHours / 3600).toFixed(2));
+                const totalRemoved = parseFloat((data.removedHours / 3600).toFixed(2));
+                const actualHrs = parseFloat((totalHrs - totalRemoved).toFixed(2));
+
+                tableData.push({
+                    Date: date,
+                    'Total Hours': totalHrs.toFixed(2),
+                    'Removed Hours': totalRemoved.toFixed(2),
+                    'Actual Hours': actualHrs.toFixed(2),
+                    'Formula': `${totalHrs.toFixed(2)} - ${totalRemoved.toFixed(2)} = ${actualHrs.toFixed(2)}`
+                });
+
+                grandTotalSeconds1 += data.totalHours;
+                grandRemovedSeconds1 += data.removedHours;
+                grandActualSeconds1 += (data.totalHours - data.removedHours);
+            });
+
+            const grandTotalHours = grandTotalSeconds1 / 3600;
+            const grandRemovedHours = grandRemovedSeconds1 / 3600;
+            const grandActualHours = grandActualSeconds1 / 3600;
+
+            // Add total row to table
+            tableData.push({
+                Date: '🔵 TOTAL',
+                'Total Hours': grandTotalHours.toFixed(2),
+                'Removed Hours': grandRemovedHours.toFixed(2),
+                'Actual Hours': grandActualHours.toFixed(2),
+                'Formula': `${grandTotalHours.toFixed(2)} - ${grandRemovedHours.toFixed(2)} = ${grandActualHours.toFixed(2)}`
+            });
+
+            console.table(tableData);
+
+            // Date-wise TARGET, REMOVED, ACTUAL breakdown
+            const dateWiseDetailedBreakdown = [];
+            dateWiseBreakdown.forEach((data, date) => {
+                const targetHours = parseFloat((data.totalHours / 3600).toFixed(2));
+                const removedHours = parseFloat((data.removedHours / 3600).toFixed(2));
+                const actualHours = parseFloat(((data.totalHours - data.removedHours) / 3600).toFixed(2));
+                const targetMinusRemoved = parseFloat((targetHours - removedHours).toFixed(2));
+
+                dateWiseDetailedBreakdown.push({
+                    'Date': date,
+                    'Target': targetHours.toFixed(2),
+                    'Removed': removedHours.toFixed(2),
+                    'Actual': actualHours.toFixed(2),
+                    'Formula': `${targetHours.toFixed(2)} - ${removedHours.toFixed(2)} = ${actualHours.toFixed(2)}`,
+                    'Target - Removed': targetMinusRemoved.toFixed(2)
+                });
+            });
+
+            // Add total row
+            dateWiseDetailedBreakdown.push({
+                'Date': '🔵 TOTAL',
+                'Target': grandTotalHours.toFixed(2),
+                'Removed': grandRemovedHours.toFixed(2),
+                'Actual': grandActualHours.toFixed(2),
+                'Formula': `${grandTotalHours.toFixed(2)} - ${grandRemovedHours.toFixed(2)} = ${grandActualHours.toFixed(2)}`,
+                'Target - Removed': (grandTotalHours - grandRemovedHours).toFixed(2)
+            });
+
+            console.table(dateWiseDetailedBreakdown);
+
+            // Use raw accumulated seconds — no rounding drift
+            const beforeExclusionDuration = duration2Adjusted / 3600;
+            newadjustedDuration = grandActualSeconds1;
+            const afterExclusionDuration = grandActualSeconds1 / 3600;
+            const totalHoursRemovedFromDuration = beforeExclusionDuration - afterExclusionDuration;
+
+            // Summary breakdown of removed hours by category
+            const removedHoursSummary = new Map();
+            dateWiseBreakdown.forEach((data, date) => {
+                // data.removedHours already includes all removed hours
+                const key = (data.removedHours / 3600).toFixed(2);
+                removedHoursSummary.set(key, (removedHoursSummary.get(key) || 0) + 1);
+            });
+
+            const sortedSummary = Array.from(removedHoursSummary.entries()).sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]));
+            if (sortedSummary.length === 0 || (sortedSummary.length === 1 && sortedSummary[0][0] === '0.00')) {
+                console.log(`%c  No machines removed (condition not met)`, "color: #4CAF50; font-weight: bold;");
+            } else {
+                sortedSummary.forEach(([hours, count]) => {
+                    if (hours !== '0.00') {
+                        console.log(`  %c${hours} hrs removed: ${count} date(s)`, "color: #FF5722; font-weight: bold;");
+                    }
+                });
+            }
+
+            // Detailed excluded machines by date with table format
+            if (dateWiseBreakdown.size > 0) {
+                const hasExclusions = Array.from(dateWiseBreakdown.values()).some(d => d.excludedMachines.length > 0);
+                if (hasExclusions) {
+
+                    // Build table data for removed shifts - show all shifts for excluded dates
+                    const removedShiftsTable = [];
+
+                    // Determine all shifts to show based on selection
+                    const allShiftsToShow = selectedShift === "allshift"
+                        ? shifts.map(s => String(s.shift_no))
+                        : [String(selectedShift)];
+
+                    // For each excluded date, show ALL shifts with all machines removed
+                    dateWiseBreakdown.forEach((data, date) => {
+                        if (data.removedHours > 0) {
+                            const machineNames = selectedMachines.join(", ");
+                            const hoursPerShift = (data.totalHours / allShiftsToShow.length / 3600).toFixed(2);
+
+                            // Show ALL shifts for this date
+                            allShiftsToShow.forEach(shiftNo => {
+                                removedShiftsTable.push({
+                                    'Date': date,
+                                    'Shift': shiftNo,
+                                    'Removed Machines': machineNames,
+                                    'Included Machines': '—',
+                                    'Hours Removed': hoursPerShift,
+                                    'Reason': 'All machines excluded (Run <= 20% AND (Alarm+Idle+Disconnect > 20h))'
+                                });
+                            });
+                        }
+                    });
+
+                    if (removedShiftsTable.length > 0) {
+          
+                        const dateWiseSummary = [];
+                        dateWiseBreakdown.forEach((data, date) => {
+                            if (data.excludedMachines.length > 0) {
+                                const allRemovedPerDate = [];
+                                const shiftsAffected = [];
+                                data.excludedMachines.forEach(exc => {
+                                    shiftsAffected.push(exc.shift);
+                                    allRemovedPerDate.push(...exc.removedMachines);
+                                });
+                                const uniqueRemoved = [...new Set(allRemovedPerDate)];
+                                dateWiseSummary.push({
+                                    'Date': date,
+                                    'Shifts': shiftsAffected.join(", "),
+                                    'Removed': uniqueRemoved.join(", "),
+                                    'All Machines': selectedMachines.join(", "),
+                                    'Count': `${uniqueRemoved.length}/${selectedMachines.length}`
+                                });
+                            }
+                        });
+                        if (dateWiseSummary.length > 0) {
+                            console.table(dateWiseSummary);
+                        }
+
+            
+                        const masterTable = [];
+                        dateWiseBreakdown.forEach((data, date) => {
+                            if (data.excludedMachines.length > 0) {
+                                data.excludedMachines.forEach((exc, idx) => {
+                                    masterTable.push({
+                                        'Date': date,
+                                        'Shift': exc.shift,
+                                        'Removed Machines': exc.removedMachines.join(", "),
+                                        'Included Machines': exc.includedMachines?.length > 0 ? exc.includedMachines.join(", ") : '—',
+                                        'Hours Removed': `${exc.shiftHoursRemoved} hrs`,
+                                        'Reason': 'Run <= 20% & (Alarm + Idle + Disconnect > 20h)'
+                                    });
+                                });
+                            }
+                        });
+                        if (masterTable.length > 0) {
+                            console.table(masterTable);
+                        }
+                    }
+                } else {
+                    console.log("\n");
+                    console.log("%c✅ NO MACHINES EXCLUDED (All machines meet the condition criteria)", "color: #4CAF50; font-weight: bold; font-size: 12px;");
+                }
+            }
 
         } else {
-            // Calculate total shift duration without breaktime removal across date range
-            const totalDays = endDate.diff(startDate, 'day') + 1;
+            // Calculate duration1 and duration2 without breaktime removal across date range
+            let duration1Adjusted = 0;
+            let duration2Adjusted = 0;
+            let duration2RemovedDueToCap = 0;
+            let currentDay = startDate.startOf('day');
+            const lastDay = endDate.startOf('day');
 
-            const perDayShiftSeconds = selectedShift === "allshift"
-                ? shifts.reduce((sum, s) => {
-                    const singleShiftTimes = getShiftTimes(shifts, String(s.shift_no), startDate);
-                    const rawSecs = singleShiftTimes.from && singleShiftTimes.to
-                        ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
+            const shiftsToProcess = selectedShift === "allshift"
+                ? shifts.map(s => String(s.shift_no))
+                : [String(selectedShift)];
+
+            const dateWiseBreakdown = new Map(); // { date: { totalHours, removedHours, actualHours, excludedMachines } }
+
+            while (!currentDay.isAfter(lastDay)) {
+                const currentDateStr = currentDay.format('YYYY-MM-DD');
+
+                // Initialize date entry
+                if (!dateWiseBreakdown.has(currentDateStr)) {
+                    dateWiseBreakdown.set(currentDateStr, {
+                        totalHours: 0,
+                        removedHours: 0,
+                        actualHours: 0,
+                        excludedMachines: []
+                    });
+                }
+                const dateData = dateWiseBreakdown.get(currentDateStr);
+
+                for (const shiftNo of shiftsToProcess) {
+                    const shiftTimes = getShiftTimes(shifts, shiftNo, currentDay);
+                    const shiftSecs = shiftTimes.from && shiftTimes.to
+                        ? Math.floor((shiftTimes.to - shiftTimes.from) / 1000)
                         : 0;
-                    return sum + rawSecs;
-                }, 0)
-                : (() => {
-                    const shiftData = shifts.find(
-                        s => String(s.shift_no) === String(selectedShift)
-                    );
-                    if (!shiftData) return 0;
 
-                    const singleShiftTimes = getShiftTimes(shifts, selectedShift, startDate);
-                    const rawSecs = singleShiftTimes.from && singleShiftTimes.to
-                        ? Math.floor((singleShiftTimes.to - singleShiftTimes.from) / 1000)
-                        : 0;
-                    return rawSecs;
-                })();
+                    // Count machines with non-zero runtime (excluding machines with zero run duration globally)
+                    let machinesWithRuntimeCount = 0;
+                    let machinesRemovedCount = 0;
+                    let machineNamesIncluded = [];
+                    let machineNamesRemoved = [];
 
-            adjustedDuration = perDayShiftSeconds * totalDays * selectedMachines.length;
+                    for (const deviceId of selectedDeviceIds) {
+                        const key = `${deviceId}-${currentDateStr}-${shiftNo}`;
+                        const deviceName = deviceNameID.find(d => d.id === deviceId)?.name || deviceId;
+
+                        if (!zeroRuntimeSet.has(key) &&
+                            !isDateExceededFor20Hours(deviceId, currentDateStr)) {
+                            machinesWithRuntimeCount++;
+                            machineNamesIncluded.push(deviceName);
+                        } else if (!zeroRuntimeSet.has(key) &&
+                                   isDateExceededFor20Hours(deviceId, currentDateStr)) {
+                            machinesRemovedCount++;
+                            machineNamesRemoved.push(deviceName);
+                        }
+                    }
+
+                    const machinesExcludedForThisDate = selectedDeviceIds.filter(id =>
+                        isDateExceededFor20Hours(id, currentDateStr)
+                    ).length;
+                    const shiftDuration2WithoutRemoval = shiftSecs * (selectedDeviceIds.length - machinesExcludedForThisDate);
+                    const shiftDuration2Actual = shiftSecs * machinesWithRuntimeCount;
+                    const shiftRemoved = shiftDuration2WithoutRemoval - shiftDuration2Actual;
+
+                    // duration1: include all selected machines
+                    const shiftDuration1 = shiftSecs * selectedDeviceIds.length;
+                    duration1Adjusted += shiftDuration1;
+                    dateData.totalHours += shiftDuration1;
+
+                    // duration2: only include machines with non-zero runtime and not excluded by date threshold
+                    duration2Adjusted += shiftDuration2Actual;
+                    dateData.actualHours += shiftDuration2Actual;
+                    duration2RemovedDueToCap += shiftRemoved;
+                    dateData.removedHours += shiftRemoved;
+
+                    if (machinesRemovedCount > 0) {
+                        dateData.excludedMachines.push({
+                            shift: shiftNo,
+                            removedMachines: machineNamesRemoved,
+                            includedMachines: machineNamesIncluded,
+                            shiftHoursRemoved: (shiftRemoved / 3600).toFixed(2)
+                        });
+                    }
+                }
+
+                currentDay = currentDay.add(1, 'day');
+            }
+
+            adjustedDuration = duration1Adjusted;
+            newadjustedDuration = duration2Adjusted;
+
+            // Create table data
+            const tableData = [];
+            // Accumulate raw seconds to avoid rounding drift from .toFixed(2) per date
+            let grandTotalSeconds = 0, grandRemovedSeconds = 0, grandActualSeconds = 0;
+
+            // Get machines excluded for this date
+            const getMachinesExcludedForDate = (dateStr) => {
+                const excluded = [];
+                for (const deviceId of selectedDeviceIds) {
+                    if (isDateExceededFor20Hours(deviceId, dateStr)) {
+                        excluded.push(deviceId);
+                    }
+                }
+                return excluded;
+            };
+
+            dateWiseBreakdown.forEach((data, date) => {
+                const totalHrs = parseFloat((data.totalHours / 3600).toFixed(2));
+                const actualHrs = parseFloat((data.actualHours / 3600).toFixed(2));
+                const totalRemoved = parseFloat(((data.totalHours - data.actualHours) / 3600).toFixed(2));
+
+                tableData.push({
+                    Date: date,
+                    'Total Hours': totalHrs.toFixed(2),
+                    'Removed Hours': totalRemoved.toFixed(2),
+                    'Actual Hours': actualHrs.toFixed(2),
+                    'Formula': `${totalHrs.toFixed(2)} - ${totalRemoved.toFixed(2)} = ${actualHrs.toFixed(2)}`
+                });
+
+                // Accumulate raw seconds (not rounded hours) to preserve precision
+                grandTotalSeconds += data.totalHours;
+                grandRemovedSeconds += (data.totalHours - data.actualHours);
+                grandActualSeconds += data.actualHours;
+            });
+
+            // Derive display-only hour values from the raw second totals
+            const grandTotalHours = grandTotalSeconds / 3600;
+            const grandRemovedHours = grandRemovedSeconds / 3600;
+            const grandActualHours = grandActualSeconds / 3600;
+
+            // Add total row to table
+            tableData.push({
+                Date: '🔵 TOTAL',
+                'Total Hours': grandTotalHours.toFixed(2),
+                'Removed Hours': grandRemovedHours.toFixed(2),
+                'Actual Hours': grandActualHours.toFixed(2),
+                'Formula': `${grandTotalHours.toFixed(2)} - ${grandRemovedHours.toFixed(2)} = ${grandActualHours.toFixed(2)}`
+            });
+
+            // Date-wise TARGET, REMOVED, ACTUAL breakdown
+            const dateWiseDetailedBreakdown = [];
+            dateWiseBreakdown.forEach((data, date) => {
+                const targetHours = parseFloat((data.totalHours / 3600).toFixed(2));
+                const removedHours = parseFloat(((data.totalHours - data.actualHours) / 3600).toFixed(2));
+                const actualHours = parseFloat((data.actualHours / 3600).toFixed(2));
+                const machinesExcluded = (data.dateRunExceeded?.has(date)) ? 'YES' : 'NO';
+
+                dateWiseDetailedBreakdown.push({
+                    'Date': date,
+                    'Target Hours': targetHours.toFixed(2),
+                    'Removed Hours': removedHours.toFixed(2),
+                    'Actual Hours': actualHours.toFixed(2),
+                    'Excluded': machinesExcluded,
+                    'Percentage Used': removedHours > 0 ? ((actualHours / targetHours) * 100).toFixed(1) + '%' : '100%'
+                });
+            });
+
+            // Use raw accumulated seconds — no rounding drift
+            newadjustedDuration = grandActualSeconds;
+
+            // Summary breakdown of removed hours by category
+            const removedHoursSummary = new Map();
+            dateWiseBreakdown.forEach((data, date) => {
+                // data.totalHours - data.actualHours gives total removed (both zero-runtime and AND condition)
+                const key = ((data.totalHours - data.actualHours) / 3600).toFixed(2);
+                removedHoursSummary.set(key, (removedHoursSummary.get(key) || 0) + 1);
+            });
+
+            const sortedSummary = Array.from(removedHoursSummary.entries()).sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]));
+            sortedSummary.forEach(([hours, count]) => {
+                console.log(`  ${hours} hrs removed: ${count} date(s)`);
+            });
+
+            // Detailed excluded machines by date with table format
+            if (dateWiseBreakdown.size > 0) {
+                const hasExclusions = Array.from(dateWiseBreakdown.values()).some(d => d.excludedMachines.length > 0);
+                if (hasExclusions) {
+
+                    // Build table data for removed shifts - show all shifts for excluded dates
+                    const removedShiftsTable = [];
+
+                    // Determine all shifts to show based on selection
+                    const allShiftsToShow = selectedShift === "allshift"
+                        ? shifts.map(s => String(s.shift_no))
+                        : [String(selectedShift)];
+
+
+                    // For each excluded date, show ALL shifts with all machines removed
+                    dateWiseBreakdown.forEach((data, date) => {
+                        if (data.removedHours > 0) {
+                            const machineNames = selectedMachines.join(", ");
+                            const hoursPerShift = (data.totalHours / allShiftsToShow.length / 3600).toFixed(2);
+
+                            // Show ALL shifts for this date
+                            allShiftsToShow.forEach(shiftNo => {
+                                removedShiftsTable.push({
+                                    'Date': date,
+                                    'Shift': shiftNo,
+                                    'Removed Machines': machineNames,
+                                    'Included Machines': '—',
+                                    'Hours Removed': hoursPerShift,
+                                    'Reason': 'All machines excluded (Run <= 20% AND (Alarm+Idle+Disconnect > 20h))'
+                                });
+                            });
+                        }
+                    });
+
+                    if (removedShiftsTable.length > 0) {
+                      
+                        const dateWiseSummary = [];
+                        dateWiseBreakdown.forEach((data, date) => {
+                            if (data.excludedMachines.length > 0) {
+                                const allRemovedPerDate = [];
+                                const shiftsAffected = [];
+                                data.excludedMachines.forEach(exc => {
+                                    shiftsAffected.push(exc.shift);
+                                    allRemovedPerDate.push(...exc.removedMachines);
+                                });
+                                const uniqueRemoved = [...new Set(allRemovedPerDate)];
+                                dateWiseSummary.push({
+                                    'Date': date,
+                                    'Shifts': shiftsAffected.join(", "),
+                                    'Removed': uniqueRemoved.join(", "),
+                                    'All Machines': selectedMachines.join(", "),
+                                    'Count': `${uniqueRemoved.length}/${selectedMachines.length}`
+                                });
+                            }
+                        });
+                        if (dateWiseSummary.length > 0) {
+                            console.table(dateWiseSummary);
+                        }
+                        // Master consolidated table with all details
+                        const masterTable = [];
+                        dateWiseBreakdown.forEach((data, date) => {
+                            if (data.excludedMachines.length > 0) {
+                                data.excludedMachines.forEach((exc, idx) => {
+                                    masterTable.push({
+                                        'Date': date,
+                                        'Shift': exc.shift,
+                                        'Removed Machines': exc.removedMachines.join(", "),
+                                        'Included Machines': exc.includedMachines?.length > 0 ? exc.includedMachines.join(", ") : '—',
+                                        'Hours Removed': `${exc.shiftHoursRemoved} hrs`,
+                                        'Reason': 'Run <= 20% & (Alarm + Idle + Disconnect > 20h)'
+                                    });
+                                });
+                            }
+                        });
+                        if (masterTable.length > 0) {
+                            console.table(masterTable);
+                        }
+                    }
+
+                } else {
+                    console.log("\n");
+                    console.log("%c✅ NO MACHINES EXCLUDED (All machines meet the condition criteria)", "color: #4CAF50; font-weight: bold; font-size: 12px;");
+                }
+            }
         }
 
         const baseUrl = window._env_?.SERVER_URL || '';
         const GRAFANA_URL = window._env_?.GRAFANA_URL || '';
+
+        // Always use the actual targetParts regardless of excluded dates
+        const adjustedTargetParts = data.parts.targetParts || 0;
 
         const grafanaData = {
             oee: oeeVar,
@@ -636,12 +1458,15 @@ export default function OnePageDashboard() {
             performance: performanceVar,
             duration: data.durations,
             machineStatus: data.machineStatus,
-            targetParts: data.parts.targetParts || 0,
+            targetParts: adjustedTargetParts,
             totalParts: data.parts.totalParts || { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 },
             machinePerformance: data.machinePerformance
         };
 
-        console.log(grafanaData, 'overallShiftData');
+    
+        if (newadjustedDuration < adjustedDuration) {
+            const diff = (adjustedDuration - newadjustedDuration) / 3600;
+        }
         const fromDateStr = startDate.format("YYYY-MM-DD");
         const toDateStr = endDate.format("YYYY-MM-DD");
         const shiftParam =
@@ -651,7 +1476,10 @@ export default function OnePageDashboard() {
         const encodedData = encodeURIComponent(JSON.stringify(grafanaData));
         const reporturl = `${window._env_.SERVER_URL2}report/idle_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000000000000`;
         console.log(reporturl, 'reporturl');
-        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${adjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
+        // Round to nearest minute to eliminate sub-minute drift from break_time seconds accumulation
+        const roundedAdjustedDuration = Math.round(adjustedDuration / 60) * 60;
+        const roundedNewadjustedDuration = Math.round(newadjustedDuration / 60) * 60;
+        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${roundedAdjustedDuration}&var-duration1=${roundedNewadjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
 
         return { mainUrl };
     }, [customerId, token, selectedDevice, selectedShift, shifts, startDate, endDate, devices, getShiftTimes, selectedMachines]);
