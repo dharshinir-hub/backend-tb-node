@@ -1449,26 +1449,8 @@ export default function OnePageDashboard() {
         const baseUrl = window._env_?.SERVER_URL || '';
         const GRAFANA_URL = window._env_?.GRAFANA_URL || '';
 
-        // Adjust targetParts based on excluded dates
-        let adjustedTargetParts = data.parts.targetParts || 0;
-        if (data.dateRunExceeded && data.dateRunExceeded.size > 0) {
-            // If any machines are excluded for any dates, set targetParts to 0
-            adjustedTargetParts = 0;
-            const excludedDates = [...new Set(Array.from(data.dateRunExceeded.values()).flat())];
-
-            const targetRemovalByDate = [];
-            excludedDates.forEach(date => {
-                // Try to get total hours for the date from machineRunByDate or estimate from total durations
-                const estimatedHours = (data.durations.total_run_duration / 3600).toFixed(2);
-                targetRemovalByDate.push({
-                    'Date': date,
-                    'All Machines': 'ALL',
-                    'All Shifts': '1, 2, 3',
-                    'Target Hours Removed': estimatedHours + ' hrs',
-                    'New Target': '0 hrs'
-                });
-            });
-        }
+        // Always use the actual targetParts regardless of excluded dates
+        const adjustedTargetParts = data.parts.targetParts || 0;
 
         const grafanaData = {
             oee: oeeVar,
