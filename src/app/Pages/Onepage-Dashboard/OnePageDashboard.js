@@ -7,7 +7,9 @@ import {
     Button,
     Checkbox,
     ListItemText,
-    CircularProgress
+    CircularProgress,
+    Switch,
+    Tooltip
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -35,6 +37,7 @@ export default function OnePageDashboard() {
     const [mainGrafanaUrl, setMainGrafanaUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isBeforeFirstShift, setIsBeforeFirstShift] = useState(false);
+    const [holidayExcluded, setHolidayExcluded] = useState(true); // true = Holiday Excluded (ON), false = Holiday Included (OFF)
     const isInitialLoad = useRef(true);
     const {
         // devices,
@@ -519,15 +522,24 @@ export default function OnePageDashboard() {
                         const runKey = `${deviceId}-${date}`;
                         totalRun += fullDayRunByDate.get(runKey) || 0;
                     }
-                    if (totalRun > 0) {
-                        totalRunDurationByDate.set(date, totalRun);
-                    }
+                    // Always record the date (even if 0) so zero-data days are included in condition check
+                    totalRunDurationByDate.set(date, totalRun);
                 }
 
-                // Step 1b: Calculate TOTAL expected shift time per date using ALL shifts × ALL machines
+                // Step 1b: Calculate TOTAL expected shift time per date using ALL shifts × ALL machines.
+                // For today: only count shifts from the first shift start up to the current shift end
+                // (skip future shifts that haven't started yet) so a partially-elapsed day isn't
+                // incorrectly flagged as a holiday/leave day.
+                const todayDateStr = new Date().toISOString().split('T')[0];
+                const nowMs = Date.now();
+
                 const expectedShiftTimeByDate = new Map();
                 for (const shiftRange of allRangesAllShifts) {
                     const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
+
+                    // For today: skip any shift whose start time is still in the future
+                    if (shiftDate === todayDateStr && shiftRange.from > nowMs) continue;
+
                     const rawShiftDurationSecs = Math.floor((shiftRange.to - shiftRange.from) / 1000);
 
                     const shiftNo = shiftRange.shiftNo;
@@ -567,12 +579,9 @@ export default function OnePageDashboard() {
 
                 // Step 3: Check condition for each date
                 // Condition: run % <= 20% AND (alarm + idle + disconnect) > 20h
-                const datesToCheck = new Set([
-                    ...totalAlarmByDate.keys(),
-                    ...totalIdleByDate.keys(),
-                    ...totalDisconnectByDate.keys(),
-                    ...totalRunDurationByDate.keys()
-                ]);
+                // Always check every date in the selected range — including days where
+                // all telemetry values are 0 or null (no data = no production = exclude).
+                const datesToCheck = new Set(allDatesInRange);
 
                 const conditionCheckResults = [];
                 const datesExcluded = [];
@@ -593,7 +602,11 @@ export default function OnePageDashboard() {
                     const runConditionMet = runPercentage <= 20;
                     const summedAlarmIdleDisconnect = totalAlarm + totalIdle + totalDisconnect;
                     const alarmConditionMet = summedAlarmIdleDisconnect > TWENTY_HOURS_SECONDS;
-                    const conditionMet = runConditionMet && alarmConditionMet;
+                    // Condition met if:
+                    // (a) original rule: run <= 20% AND alarm+idle+disconnect > 20h, OR
+                    // (b) new rule:      both run AND alarm+idle+disconnect are 0/null (no data at all)
+                    const bothAreZero = totalRunForDate === 0 && summedAlarmIdleDisconnect === 0;
+                    const conditionMet = (runConditionMet && alarmConditionMet) || bothAreZero;
 
                     // Track for table
                     conditionCheckResults.push({
@@ -636,13 +649,51 @@ export default function OnePageDashboard() {
                 }
                 const new_total_run_duration = Math.max(0, totalDurations.total_run_duration - runDurationForExcludedDates);
 
+                // Compute new_targetparts and new_totalparts: exclude parts for dates meeting the condition
+                const excludedDatesSet = new Set(datesExcluded);
+                let new_targetparts = 0;
+                const new_totalparts_acc = { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0 };
+
+                for (const deviceId of selectedDeviceIds) {
+                    const rawData = machineDataMap.get(deviceId);
+                    for (const shiftRange of allRanges) {
+                        const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
+                        if (excludedDatesSet.has(shiftDate)) continue; // skip excluded dates
+
+                        const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
+
+                        const latestTarget = getLatestDataPoint(data?.targetparts);
+                        if (latestTarget) {
+                            const val = parseFloat(latestTarget.value);
+                            if (!isNaN(val)) new_targetparts += val;
+                        }
+
+                        const latestTotal = getLatestDataPoint(data?.totalparts);
+                        if (latestTotal?.value) {
+                            try {
+                                const parsed = JSON.parse(latestTotal.value);
+                                Object.keys(new_totalparts_acc).forEach((key) => {
+                                    new_totalparts_acc[key] += parsed[key] || 0;
+                                });
+                            } catch (err) {
+                                console.error(`Error parsing totalparts for new_totalparts ${deviceId}`, err);
+                            }
+                        }
+                    }
+                }
+
+                const new_totalparts = { ...new_totalparts_acc, ts: new Date().toISOString() };
+                console.log('✅ new_targetparts:', Math.round(new_targetparts), '| new_totalparts:', new_totalparts);
+
                 return {
                     durations: { ...totalDurations, new_total_run_duration },
                     machinesWithZeroRunDuration,
                     machineShiftZeroRuntimes,
                     machineAlarmIdleDurations,
                     dateRunExceeded,
-                    machineRunByDate
+                    machineRunByDate,
+                    new_targetparts: Math.round(new_targetparts),
+                    new_totalparts
                 };
             })()
         );
@@ -813,7 +864,7 @@ export default function OnePageDashboard() {
 
 
     // Memoized Grafana URL generation
-    const generateGrafanaUrls = useCallback((data) => {
+    const generateGrafanaUrls = useCallback((data, holidayExcludedParam) => {
         if (!customerId || !selectedShift) return { mainUrl: '' };
         const machineParam = selectedMachines.join(",");
         const cleanedId = cleanCustomerId(customerId);
@@ -1460,6 +1511,8 @@ export default function OnePageDashboard() {
             machineStatus: data.machineStatus,
             targetParts: adjustedTargetParts,
             totalParts: data.parts.totalParts || { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 },
+            new_targetparts: data.new_targetparts ?? adjustedTargetParts,
+            new_totalparts: data.new_totalparts ?? data.parts.totalParts ?? { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 },
             machinePerformance: data.machinePerformance
         };
 
@@ -1479,7 +1532,8 @@ export default function OnePageDashboard() {
         // Round to nearest minute to eliminate sub-minute drift from break_time seconds accumulation
         const roundedAdjustedDuration = Math.round(adjustedDuration / 60) * 60;
         const roundedNewadjustedDuration = Math.round(newadjustedDuration / 60) * 60;
-        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${roundedAdjustedDuration}&var-duration1=${roundedNewadjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
+        const holidayVar = holidayExcludedParam ? 'excluded' : 'included';
+        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${roundedAdjustedDuration}&var-duration1=${roundedNewadjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&var-holiday=${holidayVar}&kiosk&theme=light&refresh=20s`;
 
         return { mainUrl };
     }, [customerId, token, selectedDevice, selectedShift, shifts, startDate, endDate, devices, getShiftTimes, selectedMachines]);
@@ -1531,13 +1585,13 @@ export default function OnePageDashboard() {
         try {
             const data = await fetchAllDashboardData();
             if (data) {
-                const { mainUrl } = generateGrafanaUrls(data);
+                const { mainUrl } = generateGrafanaUrls(data, holidayExcluded);
                 setMainGrafanaUrl(mainUrl);
             }
         } finally {
             setIsLoading(false);
         }
-    }, [fetchAllDashboardData, generateGrafanaUrls]);
+    }, [fetchAllDashboardData, generateGrafanaUrls, holidayExcluded]);
 
     useEffect(() => {
         const currentShift = getCurrentShift(shifts);
@@ -1807,6 +1861,68 @@ export default function OnePageDashboard() {
                                 }}
                             />
                         </LocalizationProvider>
+
+                        {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID && (
+                        <Tooltip
+                            title={holidayExcluded ? "Holidays excluded from calculations" : "Holidays included in calculations"}
+                            arrow
+                            placement="bottom"
+                        >
+                            <div
+                                onClick={() => setHolidayExcluded(v => !v)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    padding: '0px 12px 0px 10px',
+                                    borderRadius: '6px',
+                                    border: `1px solid ${holidayExcluded ? '#f47803' : '#bdbdbd'}`,
+                                    background: '#ffffff',
+                                    transition: 'border-color 0.2s ease',
+                                    minWidth: 160,
+                                    height: 40,
+                                    boxShadow: 'none',
+                                }}
+                            >
+                                <span style={{
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: holidayExcluded ? '#f47803' : '#9e9e9e',
+                                    whiteSpace: 'nowrap',
+                                    letterSpacing: '0.01em',
+                                    transition: 'color 0.2s',
+                                    flex: 1,
+                                }}>
+                                    Holiday Excluded
+                                </span>
+                                {/* Mini toggle track */}
+                                <span style={{
+                                    display: 'inline-flex',
+                                    width: 30,
+                                    height: 16,
+                                    borderRadius: 8,
+                                    background: holidayExcluded ? '#f47803' : '#bdbdbd',
+                                    position: 'relative',
+                                    flexShrink: 0,
+                                    transition: 'background 0.2s',
+                                }}>
+                                    <span style={{
+                                        position: 'absolute',
+                                        top: 2,
+                                        left: holidayExcluded ? 14 : 2,
+                                        width: 12,
+                                        height: 12,
+                                        borderRadius: '50%',
+                                        background: '#fff',
+                                        transition: 'left 0.18s cubic-bezier(.4,0,.2,1)',
+                                        boxShadow: 'none',
+                                    }} />
+                                </span>
+                            </div>
+                        </Tooltip>
+                        )}
 
                         <Button
                             variant="contained"
