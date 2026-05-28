@@ -116,14 +116,14 @@ async function getRoutecards(jwt, deviceId, startTs, endTs) {
   const res = await axiosTb.get(url, {
     headers: { "X-Authorization": `Bearer ${jwt}` },
     params: {
-      keys: "routecard_id",
+      keys: "route_card",
       startTs,
       endTs,
       limit: 1000,
       useStrictDataTypes: false,
     },
   });
-  const list = res.data?.routecard_id || [];
+  const list = res.data?.route_card || [];
   return Array.isArray(list) ? list : [];
 }
 
@@ -132,14 +132,14 @@ async function getReasonIds(jwt, deviceId, startTs, endTs) {
   const res = await axiosTb.get(url, {
     headers: { "X-Authorization": `Bearer ${jwt}` },
     params: {
-      keys: "reason_id",
+      keys: "idle_reason",
       startTs,
       endTs,
       limit: 1000,
       useStrictDataTypes: false,
     },
   });
-  const list = res.data?.reason_id || [];
+  const list = res.data?.idle_reason || [];
   return Array.isArray(list) ? list : [];
 }
 
@@ -340,7 +340,7 @@ async function processEvent(deviceName, payload, ts) {
     const now = Date.now();
 
     // ROUTECARD EVENT: Fetch allShift + component
-    if (payload.routecard_id) {
+    if (payload.route_card) {
       const custAttrs = await getCustomerAttributes(token, customerId);
       const allShift = parseAttr(custAttrs, "allShift") || [];
       const component = parseAttr(custAttrs, "component") || [];
@@ -361,15 +361,15 @@ async function processEvent(deviceName, payload, ts) {
         state.componentProcessor.setShifts(allShift);
       }
 
-      // Handle both single routecard_id and array of component events
-      const routecardEvents = Array.isArray(payload.routecard_id)
-        ? payload.routecard_id
-        : [{ value: payload.routecard_id, ts }];
+      // Handle both single route_card and array of component events
+      const routecardEvents = Array.isArray(payload.route_card)
+        ? payload.route_card
+        : [{ value: payload.route_card, ts }];
 
       for (const rcEvent of routecardEvents) {
         const rcTs = Number(rcEvent.ts) || ts;
         const rcValue = rcEvent.value || rcEvent;
-        if (DEBUG) console.log(`[${deviceName}] routecard_id: ${rcValue}, ts: ${rcTs}`);
+        if (DEBUG) console.log(`[${deviceName}] route_card: ${rcValue}, ts: ${rcTs}`);
 
         // Check if routecard matches a known component
         const { components } = state.componentProcessor;
@@ -459,7 +459,7 @@ async function processEvent(deviceName, payload, ts) {
     }
 
     // REASON EVENT: Fetch allShift + reason + machine_status from device
-    if (payload.reason_id) {
+    if (payload.idle_reason) {
       const custAttrs = await getCustomerAttributes(token, customerId);
       const allShift = parseAttr(custAttrs, "allShift") || [];
       const reason = parseAttr(custAttrs, "reason") || [];
@@ -477,15 +477,15 @@ async function processEvent(deviceName, payload, ts) {
         state.reasonProcessor.setShifts(allShift);
       }
 
-      // Handle both single reason_id and array of reason events
-      const reasonEvents = Array.isArray(payload.reason_id)
-        ? payload.reason_id
-        : [{ value: payload.reason_id, ts }];
+      // Handle both single idle_reason and array of reason events
+      const reasonEvents = Array.isArray(payload.idle_reason)
+        ? payload.idle_reason
+        : [{ value: payload.idle_reason, ts }];
 
       for (const rEvent of reasonEvents) {
         const rTs = Number(rEvent.ts) || ts;
         const rValue = rEvent.value || rEvent;
-        if (DEBUG) console.log(`[${deviceName}] reason_id: ${rValue}, ts: ${rTs}`);
+        if (DEBUG) console.log(`[${deviceName}] idle_reason: ${rValue}, ts: ${rTs}`);
 
         const events = state.reasonProcessor.handleReason(
           { value: rValue, ts: rTs },
@@ -502,7 +502,7 @@ async function processEvent(deviceName, payload, ts) {
     if (payload.machine_status !== undefined) {
       if (DEBUG) console.log(`[${deviceName}] machine_status: ${payload.machine_status}, ts: ${ts}`);
 
-      // Initialize state if not exists (machine_status might arrive before reason_id)
+      // Initialize state if not exists (machine_status might arrive before idle_reason)
       if (!state) {
         const custAttrs = await getCustomerAttributes(token, customerId);
         const allShift = parseAttr(custAttrs, "allShift") || [];
