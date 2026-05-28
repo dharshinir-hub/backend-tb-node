@@ -101,6 +101,23 @@ export default function HolidayList() {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
+    // Manual holiday overrides — persisted to localStorage so KPI dashboard reads them
+    const MANUAL_HOLIDAY_KEY = `manualHolidays_${customerId}`;
+    const [manualHolidays, setManualHolidays] = useState(() => {
+        try { return new Set(JSON.parse(localStorage.getItem(`manualHolidays_${customerId}`) || '[]')); }
+        catch { return new Set(); }
+    });
+
+    const toggleManualHoliday = (date) => {
+        setManualHolidays(prev => {
+            const next = new Set(prev);
+            if (next.has(date)) next.delete(date);
+            else next.add(date);
+            localStorage.setItem(MANUAL_HOLIDAY_KEY, JSON.stringify(Array.from(next)));
+            return next;
+        });
+    };
+
     // AI suggestions
     const [aiOpen, setAiOpen] = useState(false);
     const [aiText, setAiText] = useState('');
@@ -275,27 +292,42 @@ export default function HolidayList() {
             totalDiscByDate.set(date, disc);
         }
 
-        // Expected shift time per date (break time removed, across ALL machines × ALL shifts)
+        // Expected shift time per date (break time removed, across ALL machines × ALL shifts).
+        // For today: only count shifts that have already started (skip future shifts so a
+        // partially-elapsed day isn't misclassified as holiday).
+        const todayDateStr = dayjs().format('YYYY-MM-DD');
+        const nowMs = Date.now();
+
+        // expectedForClassification: skips future shifts on today so today isn't wrongly classified as holiday
+        // expectedByDate: full shift hours for all days (used for Expected/Actual display totals)
+        const expectedForClassification = new Map();
         const expectedByDate = new Map();
         for (const r of allRangesAllShifts) {
             const rawSecs = Math.floor((r.to - r.from) / 1000);
             const sd = shifts.find(s => String(s.shift_no) === String(r.shiftNo));
             const breakSecs = sd ? timeToSeconds(sd.break_time || '00:00:00') : 0;
             const net = Math.max(0, rawSecs - breakSecs);
+
             expectedByDate.set(r.date, (expectedByDate.get(r.date) || 0) + net * allDeviceIds.length);
+
+            if (r.date === todayDateStr && r.from > nowMs) continue;
+            expectedForClassification.set(r.date, (expectedForClassification.get(r.date) || 0) + net * allDeviceIds.length);
         }
 
-        // Classify each date — same condition as OnePageDashboard
+        // Classify each date — same condition as OnePageDashboard + manual override
         const rows = [];
         for (const date of Array.from(allDates).sort()) {
             const run = totalRunByDate.get(date) || 0;
-            const expected = expectedByDate.get(date) || 1;
+            const expectedClassify = expectedForClassification.get(date) || 1;
+            const expectedFull = expectedByDate.get(date) || expectedClassify;
             const alarm = totalAlarmByDate.get(date) || 0;
             const idle = totalIdleByDate.get(date) || 0;
             const disc = totalDiscByDate.get(date) || 0;
             const downtime = alarm + idle + disc;
-            const runPct = (run / expected) * 100;
-            const isHoliday = runPct <= 20 && downtime > TWENTY_HOURS_SECONDS;
+            const runPct = (run / expectedClassify) * 100;
+            const autoHoliday = runPct <= 20 && downtime > TWENTY_HOURS_SECONDS;
+            const isHoliday = autoHoliday || manualHolidays.has(date);
+            const isManualOverride = !autoHoliday && manualHolidays.has(date);
 
             const dayObj = dayjs(date);
             rows.push({
@@ -303,9 +335,10 @@ export default function HolidayList() {
                 dayName: DAY_NAMES[dayObj.day()],
                 dayOfMonth: dayObj.date(),
                 targetExcluded: isHoliday,
+                isManualOverride,
                 month: dayObj.format('MMM YYYY'),
                 runSecs: run,
-                expectedSecs: expected,
+                expectedSecs: expectedFull,
                 runPct,
                 alarmSecs: alarm,
                 idleSecs: idle,
@@ -321,17 +354,20 @@ export default function HolidayList() {
         const productionDays = rows.length - holidayDays;
         const totalExpectedSecs = rows.reduce((s, r) => s + r.expectedSecs, 0);
         const excludedSecs = rows.filter(r => r.targetExcluded).reduce((s, r) => s + r.expectedSecs, 0);
+        const productionRows = rows.filter(r => r.status === 'production');
         setSummary({
             totalDays: rows.length,
             productionDays,
             holidayDays,
             totalRunHours: rows.reduce((s, r) => s + r.runSecs, 0),
             avgRunPct: rows.length ? rows.reduce((s, r) => s + r.runPct, 0) / rows.length : 0,
+            productionRunHours: productionRows.reduce((s, r) => s + r.runSecs, 0),
+            productionAvgRunPct: productionRows.length ? productionRows.reduce((s, r) => s + r.runPct, 0) / productionRows.length : 0,
             totalExpectedSecs,
             actualTotalSecs: totalExpectedSecs - excludedSecs,
             excludedSecs,
         });
-    }, [shifts, selectedShift, customerId, startDate, endDate, deviceNameID, fetchTelemetry, getShiftTimes]);
+    }, [shifts, selectedShift, customerId, startDate, endDate, deviceNameID, fetchTelemetry, getShiftTimes, manualHolidays]);
 
     const handleSubmit = useCallback(async () => {
         setIsLoading(true);
@@ -703,12 +739,9 @@ Be concise, practical, and structured with clear headings.`;
         { key: 'date', label: 'Date' },
         { key: 'dayName', label: 'Day' },
         { key: 'status', label: 'Status', align: 'center' },
+        { key: 'manualHoliday', label: 'Mark Holiday', align: 'center' },
         { key: 'runPct', label: 'Run %', align: 'right' },
         { key: 'runSecs', label: 'Run Hrs', align: 'right' },
-        { key: 'alarmSecs', label: 'Alarm Hrs', align: 'right' },
-        { key: 'idleSecs', label: 'Idle Hrs', align: 'right' },
-        { key: 'discSecs', label: 'Disconnect Hrs', align: 'right' },
-        { key: 'downtimeSecs', label: 'Downtime Hrs', align: 'right' },
         { key: 'expectedSecs', label: 'Expected Hrs', align: 'right' },
         { key: 'targetExcluded', label: 'Excluded Hrs', align: 'right' },
     ];
@@ -848,8 +881,8 @@ Be concise, practical, and structured with clear headings.`;
                                 { label: 'Total Days', value: summary.totalDays, color: '#2196F3', icon: '📅' },
                                 { label: 'Production Days', value: summary.productionDays, color: '#4CAF50', icon: '🏭' },
                                 { label: 'Holiday / Leave Days', value: summary.holidayDays, color: '#f44336', icon: '🔴' },
-                                { label: 'Total Run Hours', value: fmtHours(summary.totalRunHours), color: '#9C27B0', icon: '⏱️' },
-                                { label: 'Avg Run %', value: fmtPct(summary.avgRunPct), color: '#FF9800', icon: '📊' },
+                                { label: 'Total Run Hours', value: fmtHours(summary.productionRunHours), color: '#9C27B0', icon: '⏱️' },
+                                { label: 'Avg Run %', value: fmtPct(summary.productionAvgRunPct), color: '#FF9800', icon: '📊' },
                             ].map(card => (
                                 <div key={card.label} style={{
                                     background: '#fff',
@@ -863,6 +896,7 @@ Be concise, practical, and structured with clear headings.`;
                                     <div style={{ fontSize: 22, marginBottom: 4 }}>{card.icon}</div>
                                     <div style={{ fontSize: card.label === 'Total Run Hours' ? 20 : 24, fontWeight: 700, color: card.color }}>{card.value}</div>
                                     <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{card.label}</div>
+                                    <div style={{ fontSize: 11, color: '#bbb', marginTop: 2 }}>excl. holidays</div>
                                 </div>
                             ))}
                         </div>
@@ -958,8 +992,9 @@ Be concise, practical, and structured with clear headings.`;
                                                 title={
                                                     <span style={{ lineHeight: 1.7, fontSize: 12 }}>
                                                         <b>{row.date} ({row.dayName})</b><br />
-                                                        Status: <b>{s.label}</b><br />
-                                                        Run: {fmtPct(row.runPct)} ({fmtHours(row.runSecs)} hrs)<br />
+                                                        Status: <b>{s.label}</b>
+                                                        {row.isManualOverride && <span style={{ color: '#ffcc80' }}> (Manual Override)</span>}<br />
+                                                        Run: {fmtPct(row.runPct)} ({fmtHours(row.runSecs)} hrs){row.isManualOverride ? ' — zeroed' : ''}<br />
                                                         Alarm: {fmtHours(row.alarmSecs)} hrs<br />
                                                         Idle: {fmtHours(row.idleSecs)} hrs<br />
                                                         Disconnect: {fmtHours(row.discSecs)} hrs<br />
@@ -990,8 +1025,26 @@ Be concise, practical, and structured with clear headings.`;
 
                         {/* ── Detail Table ──────────────────────────────── */}
                         <div style={{ marginTop: 28 }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#444', marginBottom: 12 }}>
-                                Detailed Breakdown — {sortedRows.length} day{sortedRows.length !== 1 ? 's' : ''}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: '#444' }}>
+                                    Detailed Breakdown — {sortedRows.length} day{sortedRows.length !== 1 ? 's' : ''}
+                                </div>
+                                {manualHolidays.size > 0 && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: 8, padding: '6px 14px' }}>
+                                        <span style={{ fontSize: 12, color: '#d84315', fontWeight: 600 }}>
+                                            🔴 {manualHolidays.size} manual holiday{manualHolidays.size !== 1 ? 's' : ''} set — run hours zeroed, excluded from KPI Dashboard
+                                        </span>
+                                        <button
+                                            onClick={() => {
+                                                setManualHolidays(new Set());
+                                                localStorage.removeItem(MANUAL_HOLIDAY_KEY);
+                                            }}
+                                            style={{ fontSize: 11, color: '#d84315', background: 'none', border: '1px solid #d84315', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontWeight: 600 }}
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: '0 1px 8px rgba(0,0,0,0.07)', overflowX: 'auto' }}>
                                 <Table size="small" stickyHeader sx={{ minWidth: 900 }}>
@@ -1024,22 +1077,41 @@ Be concise, practical, and structured with clear headings.`;
                                                     '&:hover': { background: '#f0f4ff' },
                                                 }}
                                             >
-                                                <TableCell sx={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 1, background: 'inherit' }}>{row.date}</TableCell>
+                                                <TableCell sx={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 1, background: 'inherit' }}>
+                                                    {row.date}
+                                                    {manualHolidays.has(row.date) && (
+                                                        <span style={{ marginLeft: 6, fontSize: 10, background: '#d84315', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 700, verticalAlign: 'middle' }}>
+                                                            Manual
+                                                        </span>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell sx={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap' }}>{row.dayName}</TableCell>
                                                 <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}><StatusPill status={row.status} /></TableCell>
+                                                <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                                                    <Tooltip title={manualHolidays.has(row.date) ? 'Remove manual holiday — KPI dashboard will include this day' : 'Mark as holiday — KPI dashboard will exclude this day'} arrow>
+                                                        <button
+                                                            onClick={() => toggleManualHoliday(row.date)}
+                                                            style={{
+                                                                cursor: 'pointer',
+                                                                border: `2px solid ${manualHolidays.has(row.date) ? '#d84315' : '#ccc'}`,
+                                                                borderRadius: 20,
+                                                                padding: '3px 12px',
+                                                                fontSize: 11,
+                                                                fontWeight: 700,
+                                                                background: manualHolidays.has(row.date) ? '#fff3e0' : '#f9f9f9',
+                                                                color: manualHolidays.has(row.date) ? '#d84315' : '#aaa',
+                                                                transition: 'all 0.2s',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                        >
+                                                            {manualHolidays.has(row.date) ? '🔴 Holiday ON' : '⚪ Mark Holiday'}
+                                                        </button>
+                                                    </Tooltip>
+                                                </TableCell>
                                                 <TableCell align="right" sx={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', color: row.runPct <= 20 ? '#d84315' : '#1e7e34' }}>
                                                     {fmtPct(row.runPct)}
                                                 </TableCell>
                                                 <TableCell align="right" sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{fmtHours(row.runSecs)}</TableCell>
-                                                <TableCell align="right" sx={{ fontSize: 12, whiteSpace: 'nowrap', color: row.alarmSecs > 0 ? '#d84315' : '#aaa' }}>{fmtHours(row.alarmSecs)}</TableCell>
-                                                <TableCell align="right" sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{fmtHours(row.idleSecs)}</TableCell>
-                                                <TableCell align="right" sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{fmtHours(row.discSecs)}</TableCell>
-                                                <TableCell align="right" sx={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', color: row.downtimeSecs > TWENTY_HOURS_SECONDS ? '#d84315' : '#555' }}>
-                                                    {fmtHours(row.downtimeSecs)}
-                                                    {row.downtimeSecs > TWENTY_HOURS_SECONDS && (
-                                                        <span style={{ marginLeft: 4, fontSize: 10, color: '#d84315' }}>⚠ &gt;20h</span>
-                                                    )}
-                                                </TableCell>
                                                 <TableCell align="right" sx={{ fontSize: 12, whiteSpace: 'nowrap', color: '#888' }}>{fmtHours(row.expectedSecs)}</TableCell>
                                                 <TableCell align="right" sx={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', color: row.targetExcluded ? '#d84315' : '#aaa' }}>
                                                     {row.targetExcluded ? fmtHours(row.expectedSecs) : '—'}
@@ -1055,12 +1127,11 @@ Be concise, practical, and structured with clear headings.`;
                                                     {sortedRows.filter(r => r.status === 'production').length}P &nbsp;/&nbsp;
                                                     {sortedRows.filter(r => r.status === 'holiday').length}H
                                                 </TableCell>
+                                                <TableCell align="center" sx={{ fontSize: 11, color: '#d84315' }}>
+                                                    {manualHolidays.size > 0 ? `${manualHolidays.size} manual` : '—'}
+                                                </TableCell>
                                                 <TableCell align="right">{fmtPct(sortedRows.reduce((s, r) => s + r.runPct, 0) / (sortedRows.length || 1))}</TableCell>
                                                 <TableCell align="right">{fmtHours(sortedRows.reduce((s, r) => s + r.runSecs, 0))}</TableCell>
-                                                <TableCell align="right">{fmtHours(sortedRows.reduce((s, r) => s + r.alarmSecs, 0))}</TableCell>
-                                                <TableCell align="right">{fmtHours(sortedRows.reduce((s, r) => s + r.idleSecs, 0))}</TableCell>
-                                                <TableCell align="right">{fmtHours(sortedRows.reduce((s, r) => s + r.discSecs, 0))}</TableCell>
-                                                <TableCell align="right">{fmtHours(sortedRows.reduce((s, r) => s + r.downtimeSecs, 0))}</TableCell>
                                                 <TableCell align="right">{fmtHours(sortedRows.reduce((s, r) => s + r.expectedSecs, 0))}</TableCell>
                                                 <TableCell align="right" sx={{ fontSize: 12, fontWeight: 700, color: '#d84315' }}>
                                                     {fmtHours(sortedRows.filter(r => r.targetExcluded).reduce((s, r) => s + r.expectedSecs, 0))}
