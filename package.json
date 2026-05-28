@@ -1,0 +1,23 @@
+{
+  "name": "tb-code",
+  "version": "1.0.0",
+  "description": "ThingsBoard monitoring and macro processing services",
+  "main": "index.js",
+  "scripts": {
+    "start": "concurrently \"npm start --prefix macro_component\" \"node status_threshold/status_monitor/monitor.js\"",
+    "macro": "npm start --prefix macro_component",
+    "status": "node status_threshold/status_monitor/monitor.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.16.1",
+    "dotenv": "^17.4.2",
+    "mqtt": "^5.0.0",
+    "ws": "^8.20.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
