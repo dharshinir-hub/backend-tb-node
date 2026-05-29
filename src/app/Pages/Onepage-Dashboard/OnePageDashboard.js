@@ -639,6 +639,16 @@ export default function OnePageDashboard() {
                 const fullyExcludedMachines = [];
                 machinesWithZeroRunDuration.push(...fullyExcludedMachines);
 
+                // Merge manually-marked holidays from HolidayList (stored in localStorage)
+                // Must happen BEFORE run-duration and parts calculations so manual dates are fully excluded
+                try {
+                    const manualHolidayKey = `manualHolidays_${customerId}`;
+                    const manualDates = JSON.parse(localStorage.getItem(manualHolidayKey) || '[]');
+                    for (const d of manualDates) {
+                        if (!datesExcluded.includes(d)) datesExcluded.push(d);
+                    }
+                } catch { /* ignore */ }
+
                 // Compute new_total_run_duration: subtract run duration for excluded dates
                 let runDurationForExcludedDates = 0;
                 for (const date of datesExcluded) {
@@ -868,6 +878,13 @@ export default function OnePageDashboard() {
         if (!customerId || !selectedShift) return { mainUrl: '' };
         const machineParam = selectedMachines.join(",");
         const cleanedId = cleanCustomerId(customerId);
+
+        // Read manually-marked holidays from localStorage (set by HolidayList)
+        let manualHolidaySet = new Set();
+        try {
+            const stored = JSON.parse(localStorage.getItem(`manualHolidays_${customerId}`) || '[]');
+            manualHolidaySet = new Set(stored);
+        } catch { /* ignore */ }
         const bearerToken = encodeURIComponent(`Bearer+${token}`);
         const entityType = 'CUSTOMER';
         const isAllMachinesSelected = selectedDevice === 'all';
@@ -941,6 +958,24 @@ export default function OnePageDashboard() {
 
             while (!currentDay.isAfter(lastDay)) {
                 const currentDateStr = currentDay.format('YYYY-MM-DD');
+
+                const isManualHoliday = manualHolidaySet.has(currentDateStr);
+
+                // For manual holidays, still accumulate duration1Adjusted (adjustedDuration) but skip actual hours
+                if (isManualHoliday) {
+                    for (const shiftNo of shiftsToProcess) {
+                        const shiftData = shifts.find(s => String(s.shift_no) === shiftNo);
+                        if (!shiftData) continue;
+                        const shiftTimes = getShiftTimes(shifts, shiftNo, currentDay);
+                        const rawSecs = shiftTimes.from && shiftTimes.to
+                            ? Math.floor((shiftTimes.to - shiftTimes.from) / 1000)
+                            : 0;
+                        const shiftSecsMinusBreak = Math.max(0, rawSecs - timeToSeconds(shiftData.break_time || "00:00:00"));
+                        duration1Adjusted += shiftSecsMinusBreak * selectedDeviceIds.length;
+                    }
+                    currentDay = currentDay.add(1, 'day');
+                    continue;
+                }
 
                 // Initialize date entry
                 if (!dateWiseBreakdown.has(currentDateStr)) {
@@ -1256,6 +1291,21 @@ export default function OnePageDashboard() {
             while (!currentDay.isAfter(lastDay)) {
                 const currentDateStr = currentDay.format('YYYY-MM-DD');
 
+                const isManualHoliday = manualHolidaySet.has(currentDateStr);
+
+                // For manual holidays, still accumulate duration1Adjusted (adjustedDuration) but skip actual hours
+                if (isManualHoliday) {
+                    for (const shiftNo of shiftsToProcess) {
+                        const shiftTimes = getShiftTimes(shifts, shiftNo, currentDay);
+                        const shiftSecs = shiftTimes.from && shiftTimes.to
+                            ? Math.floor((shiftTimes.to - shiftTimes.from) / 1000)
+                            : 0;
+                        duration1Adjusted += shiftSecs * selectedDeviceIds.length;
+                    }
+                    currentDay = currentDay.add(1, 'day');
+                    continue;
+                }
+
                 // Initialize date entry
                 if (!dateWiseBreakdown.has(currentDateStr)) {
                     dateWiseBreakdown.set(currentDateStr, {
@@ -1503,6 +1553,11 @@ export default function OnePageDashboard() {
         // Always use the actual targetParts regardless of excluded dates
         const adjustedTargetParts = data.parts.targetParts || 0;
 
+        // Calculate total days in range minus manual holidays
+        const totalDaysInRange = endDate.startOf('day').diff(startDate.startOf('day'), 'day') + 1;
+        const manualHolidayCount = manualHolidaySet.size;
+        const effectiveDays = Math.max(0, totalDaysInRange - manualHolidayCount);
+
         const grafanaData = {
             oee: oeeVar,
             availability: availabilityVar,
@@ -1513,7 +1568,9 @@ export default function OnePageDashboard() {
             totalParts: data.parts.totalParts || { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 },
             new_targetparts: data.new_targetparts ?? adjustedTargetParts,
             new_totalparts: data.new_totalparts ?? data.parts.totalParts ?? { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 },
-            machinePerformance: data.machinePerformance
+            machinePerformance: data.machinePerformance,
+            manualHolidayDays: manualHolidayCount,
+            effectiveDays,
         };
 
     
