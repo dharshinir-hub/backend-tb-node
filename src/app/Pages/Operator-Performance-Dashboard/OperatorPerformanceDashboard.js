@@ -14,14 +14,17 @@ import {
     LinearProgress,
     Tooltip,
     IconButton,
-    Stack
+    Popover,
+    Divider,
 } from '@mui/material';
 import {
     Fullscreen as FullscreenIcon,
     FullscreenExit as FullscreenExitIcon,
-    EmojiEvents as TrophyIcon,
+    Settings as SettingsIcon,
+    Inventory2 as ProducedIcon,
+    TrackChanges as TargetIcon,
+    TrendingUp as ProjectedIcon,
 } from '@mui/icons-material';
-import { Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
 import dayjs from 'dayjs';
 import {
     customerbasedshift,
@@ -64,12 +67,12 @@ export default function OperatorPerformanceDashboard() {
     // --- Persistent Settings ---
     const [settings, setSettings] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
-        const defaults = { thresholds: { bad: 60, normal: 75 }, sortOrder: 'asc' };
+        const defaults = { thresholds: { bad: 60, normal: 75 }, sortOrder: 'asc', showMetrics: true, showStatusBar: true };
         return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
     });
 
     // Destructure for easy access
-    const { thresholds, sortOrder } = settings;
+    const { thresholds, sortOrder, showMetrics, showStatusBar } = settings;
 
     // Persist settings on every change
     const updateSettings = (patch) => {
@@ -80,11 +83,18 @@ export default function OperatorPerformanceDashboard() {
         });
     };
 
-    // Status filter — 'All' or a specific status string
-    const [statusFilter, setStatusFilter] = useState('All');
 
     const [isFullscreen, setIsFullscreen] = useState(false);
     const dashboardRef = useRef(null);
+
+    // Auto-scroll
+    const [autoScroll, setAutoScroll] = useState(() => {
+        const saved = localStorage.getItem('opd_autoScroll');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
+    const [scrollDelay, setScrollDelay] = useState(15000);
+    const contentRef = useRef(null);
+    const firstLoad = useRef(true);
 
     const [viewMode, setViewMode] = useState('Current'); // 'Current' or 'Previous'
     const [shifts, setShifts] = useState([]);
@@ -109,7 +119,7 @@ export default function OperatorPerformanceDashboard() {
     }), [currentShiftOee, prevShiftOee]);
     const [tick, setTick] = useState(0);
     const [lastUpdatedTime, setLastUpdatedTime] = useState(null);
-    const [activeTab, setActiveTab] = useState('machines');
+    const [settingsAnchor, setSettingsAnchor] = useState(null);
     const getAchievement = (actual, target) => {
         if (!target || target === 0) return 0;
         const percent = Math.round((actual / target) * 100);
@@ -128,6 +138,51 @@ export default function OperatorPerformanceDashboard() {
         const interval = setInterval(() => setTick(t => t + 1), 1000);
         return () => clearInterval(interval);
     }, [viewMode]);
+
+    // Persist auto-scroll preference
+    useEffect(() => {
+        localStorage.setItem('opd_autoScroll', JSON.stringify(autoScroll));
+    }, [autoScroll]);
+
+    // Fetch scroll delay from server config
+    useEffect(() => {
+        const fetchDelay = async () => {
+            try {
+                const res = await customerbasedshift(customerId, 'oeeScrollDuration');
+                const val = Number(res[0]?.value);
+                if (!isNaN(val) && val > 0) setScrollDelay(val * 1000);
+            } catch (e) {}
+        };
+        if (customerId) fetchDelay();
+    }, [customerId]);
+
+    // Main auto-scroll
+    useEffect(() => {
+        if (!contentRef.current || !autoScroll) return;
+        const container = contentRef.current;
+        const step = 445;
+        let scrollInterval;
+        const startScrolling = () => {
+            scrollInterval = setInterval(() => {
+                if (!container) return;
+                const maxScrollTop = container.scrollHeight - container.clientHeight;
+                if (container.scrollTop >= maxScrollTop - 5) {
+                    container.scrollTo({ top: 0, behavior: 'smooth' });
+                } else if (maxScrollTop - container.scrollTop < step) {
+                    container.scrollTo({ top: maxScrollTop, behavior: 'smooth' });
+                } else {
+                    container.scrollBy({ top: step, behavior: 'smooth' });
+                }
+            }, scrollDelay);
+        };
+        let delayTimer;
+        if (firstLoad.current) {
+            delayTimer = setTimeout(() => { startScrolling(); firstLoad.current = false; }, 15000);
+        } else {
+            startScrolling();
+        }
+        return () => { clearTimeout(delayTimer); clearInterval(scrollInterval); };
+    }, [autoScroll, scrollDelay]);
 
     const formatElapsed = useCallback((tsMs) => {
         if (!tsMs) return null;
@@ -153,16 +208,41 @@ export default function OperatorPerformanceDashboard() {
             .slice(0, 3);
     }, [dashboardData]);
 
-    // Sorting by Performance Ratio (Dynamic Order & Status Filter)
+    // Sorting by Performance Ratio
     const filteredAndSortedData = useMemo(() => {
-        return [...dashboardData]
-            .filter(m => statusFilter === 'All' || m.status === statusFilter)
-            .sort((a, b) => {
-                const perfA = getAchievement(a.actual, a.target);
-                const perfB = getAchievement(b.actual, b.target);
-                return sortOrder === 'asc' ? perfA - perfB : perfB - perfA;
-            });
-    }, [dashboardData, sortOrder, statusFilter]);
+        return [...dashboardData].sort((a, b) => {
+            const perfA = getAchievement(a.actual, a.target);
+            const perfB = getAchievement(b.actual, b.target);
+            return sortOrder === 'asc' ? perfA - perfB : perfB - perfA;
+        });
+    }, [dashboardData, sortOrder]);
+
+    // Shift elapsed fraction (break-aware), updates every second via tick
+    const shiftFraction = useMemo(() => {
+        if (viewMode !== 'Current' || !currentShiftInfo || !shifts.length) return 1;
+        const dateStr = dayjs(currentShiftInfo.date).format("YYYY-MM-DD");
+        const s = shifts.find(s => String(s.shift_no) === String(currentShiftInfo.shiftNo));
+        if (!s) return 1;
+        const from = dayjs(`${dateStr}T${s.start_time}`).add((Number(s.start_day) || 1) - 1, 'day').valueOf();
+        const to   = dayjs(`${dateStr}T${s.end_time}`).add((Number(s.end_day)   || 1) - 1, 'day').valueOf();
+        const now  = Date.now();
+        const breaks = (s.break_details || []).map(b => {
+            let bStart = dayjs(`${dateStr}T${b.start_time}`).add((Number(s.start_day) || 1) - 1, 'day');
+            let bEnd   = dayjs(`${dateStr}T${b.end_time}`).add((Number(s.start_day)   || 1) - 1, 'day');
+            if (bStart.valueOf() < from) { bStart = bStart.add(1, 'day'); bEnd = bEnd.add(1, 'day'); }
+            return { start: bStart.valueOf(), end: bEnd.valueOf() };
+        });
+        const totalBreakMs  = breaks.reduce((sum, b) => sum + (b.end - b.start), 0);
+        const netDuration   = (to - from) - totalBreakMs;
+        const clockElapsed  = Math.max(0, now - from);
+        const elapsedBreakMs = breaks.reduce((sum, b) => {
+            if (now <= b.start) return sum;
+            if (now >= b.end)   return sum + (b.end - b.start);
+            return sum + (now - b.start);
+        }, 0);
+        const netElapsed = clockElapsed - elapsedBreakMs;
+        return netDuration > 0 ? Math.min(netElapsed / netDuration, 1) : 0;
+    }, [viewMode, currentShiftInfo, shifts, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Aggregated header metrics
     const headerMetrics = useMemo(() => {
@@ -530,516 +610,427 @@ export default function OperatorPerformanceDashboard() {
     }, [viewMode, selectedMachines, deviceNameID, currentShiftInfo, shifts, getShiftTimes]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Common Card Component
-    const RenderMachineCard = useCallback(({ m, rank }) => {
-        const achievement = getAchievement(m.actual, m.target);
-        const perfColor = getPerformanceColor(achievement);
-        const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
-        const statusColor = COLORS[m.status.toUpperCase()] || COLORS.DISCONNECTED;
-        const rawGap = m.target - m.actual;
-        const isOnTarget = rawGap === 0;
-        const isAhead = rawGap < 0;
-        const gapLabel = isOnTarget ? '=' : isAhead ? `+${Math.abs(rawGap)}` : `-${rawGap}`;
-        const gapColor = isAhead ? COLORS.RUNNING : isOnTarget ? COLORS.TEXT_SUB : COLORS.ALARM;
-        const gapTitle = isOnTarget ? 'On Target' : isAhead ? 'Ahead' : 'Gap';
-        const elapsedLabel = viewMode === 'Current' && m.statusTs ? formatElapsed(m.statusTs) : null;
+    const RenderMachineCard = useCallback(({ m }) => {
+        // Current time target: proportional to elapsed shift fraction (mirrors operator.js logic)
+        const currentTimeTarget = viewMode === 'Current' && m.target > 0 && shiftFraction > 0
+            ? Math.min(m.target, Math.round(shiftFraction * m.target))
+            : m.target;
 
-        const oeeColor = getPerformanceColor(m.currentOee);
+        const achievement = getAchievement(m.actual, currentTimeTarget);
+        const statusColor = COLORS[m.status.toUpperCase()] || COLORS.DISCONNECTED;
+        const performanceColor = getPerformanceColor(achievement);
+
         return (
             <Card sx={{
-                borderRadius: '10px', overflow: 'hidden',
+                borderRadius: 0, overflow: 'hidden',
                 display: 'flex', flexDirection: 'column', height: '100%',
-                backgroundColor: '#fff',
-                border: `2px solid ${perfColor}`,
-                boxShadow: rank === 1 ? `0 0 18px ${COLORS.GOLD}44` : '0 1px 6px rgba(0,0,0,0.08)',
+                backgroundColor: performanceColor,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+                border: 'none',
             }}>
-                {/* Top accent bar */}
-                <Box sx={{ height: 4, backgroundColor: perfColor, flexShrink: 0 }} />
 
-                <Box sx={{ p: '12px 14px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    {/* Row 1: Machine name + Status */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflow: 'hidden', flex: 1, mr: 1 }}>
-                            {rank && <Typography sx={{ fontSize: '1rem', flexShrink: 0 }}>{medals[rank]}</Typography>}
-                            <Tooltip title={m.name} arrow placement="top" disableHoverListener={m.name.length <= 20}>
-                                <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: COLORS.TEXT_MAIN, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</Typography>
-                            </Tooltip>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                            {elapsedLabel && m.status !== 'Running' && (
-                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: statusColor, fontVariantNumeric: 'tabular-nums' }}>{elapsedLabel}</Typography>
-                            )}
-                            <Box sx={{ backgroundColor: statusColor, color: '#fff', px: 1, py: 0.3, borderRadius: '5px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{m.status}</Box>
-                        </Box>
-                    </Box>
-
-                    {/* Row 2: Operator name */}
-                    <Tooltip title={m.operator} arrow placement="top" disableHoverListener={m.operator.length <= 34}>
-                        <Typography sx={{ fontSize: '0.88rem', fontWeight: 700, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mb: 1, cursor: 'default', pb: 0.7, borderBottom: '1px dashed #e0e0e0' }}>{m.operator}</Typography>
+                {/* ── Header: status color bg — machine name + operator ── */}
+                <Box sx={{ backgroundColor: statusColor, px: 'clamp(10px, 1.2vw, 18px)', pt: 'clamp(10px, 1.2vw, 16px)', pb: 'clamp(8px, 1vw, 12px)', flexShrink: 0, borderBottom: '2px solid rgba(255,255,255,0.25)' }}>
+                    <Tooltip title={m.name} arrow placement="top" disableHoverListener={m.name.length <= 14}>
+                        <Typography sx={{ fontWeight: 900, fontSize: 'clamp(1.1rem, 1.8vw, 2.2rem)', color: '#fff', lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                            {m.name}
+                        </Typography>
                     </Tooltip>
+                    <Tooltip title={m.operator} arrow placement="top" disableHoverListener={m.operator.length <= 28}>
+                        <Typography sx={{ fontSize: 'clamp(0.78rem, 1.1vw, 1.3rem)', fontWeight: 700, color: 'rgba(255,255,255,0.92)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.3 }}>
+                            {m.operator}
+                        </Typography>
+                    </Tooltip>
+                </Box>
 
-                    {/* Row 3: Achievement % + progress bar */}
-                    <Typography sx={{ fontWeight: 900, fontSize: '2rem', lineHeight: 1, color: perfColor, mb: 0.5 }}>{achievement}%</Typography>
-                    <LinearProgress
-                        variant="determinate"
-                        value={Math.min(achievement, 100)}
-                        sx={{ height: 8, borderRadius: 4, backgroundColor: `${perfColor}22`, mb: 1.2, '& .MuiLinearProgress-bar': { backgroundColor: perfColor, borderRadius: 4 } }}
-                    />
+                {/* ── Body: Performance hero (left) + Metrics (right) ── */}
+                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
 
-                    {/* Row 4: Target | Actual | Gap | OEE */}
-                    <Box sx={{ display: 'flex', mt: 'auto', border: '1px solid #ebebeb', borderRadius: '8px', overflow: 'hidden' }}>
+                    {/* LEFT — Circular Performance Progress */}
+                    {(() => {
+                        const r = 46, sw = 7, cx = 56, cy = 56;
+                        const norm = 2 * Math.PI * r;
+                        const dash = (Math.min(achievement, 100) / 100) * norm;
+                        const angle = -Math.PI / 2 + (Math.min(achievement, 100) / 100) * 2 * Math.PI;
+                        const dotX = cx + r * Math.cos(angle);
+                        const dotY = cy + r * Math.sin(angle);
+                        return (
+                            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', py: 'clamp(12px, 2vw, 28px)', px: 'clamp(8px, 1.2vw, 16px)' }}>
+                                <Box sx={{ position: 'relative', width: 'clamp(110px, 13.5vw, 190px)', height: 'clamp(110px, 13.5vw, 190px)' }}>
+                                    <svg viewBox="0 0 112 112" style={{ width: '100%', height: '100%' }}>
+                                        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={sw} />
+                                        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#fff" strokeWidth={sw}
+                                            strokeDasharray={`${dash} ${norm}`} strokeLinecap="round"
+                                            transform={`rotate(-90 ${cx} ${cy})`} />
+                                        <circle cx={dotX} cy={dotY} r={4.5} fill="#fff" stroke={performanceColor} strokeWidth={1.5} />
+                                    </svg>
+                                    <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>
+                                        <Typography sx={{ fontWeight: 900, fontSize: 'clamp(1.8rem, 2.8vw, 3.6rem)', color: '#fff', lineHeight: 1, letterSpacing: '-1px' }}>
+                                            {achievement}<span style={{ fontSize: 'clamp(0.9rem, 1.4vw, 1.8rem)', fontWeight: 800 }}>%</span>
+                                        </Typography>
+                                        <Typography sx={{ fontSize: 'clamp(0.48rem, 0.65vw, 0.78rem)', fontWeight: 900, color: 'rgba(255,255,255,0.7)', letterSpacing: '1.4px', mt: 0.4, textTransform: 'uppercase' }}>
+                                            Performance
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Box>
+                        );
+                    })()}
+
+                    {/* RIGHT — Actual / Cur.Tgt / Target / OEE stacked */}
+                    <Box sx={{ borderLeft: '1px solid rgba(255,255,255,0.18)', backgroundColor: 'rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', px: 'clamp(10px, 1.3vw, 18px)', py: 'clamp(6px, 1vw, 14px)', minWidth: 'clamp(80px, 10vw, 125px)', flexShrink: 0 }}>
                         {[
-                            { label: 'Target', value: m.target,           color: COLORS.TEXT_MAIN },
-                            { label: 'Actual', value: m.actual,           color: COLORS.TEXT_MAIN },
-                            { label: gapTitle, value: gapLabel,           color: gapColor },
-                            { label: 'OEE',    value: `${m.currentOee}%`, color: oeeColor, bg: `${oeeColor}12` },
-                        ].map((stat, i) => (
-                            <Box key={stat.label} sx={{ flex: 1, textAlign: 'center', py: 0.7, backgroundColor: stat.bg || 'transparent', borderRight: i < 3 ? '1px solid #ebebeb' : 'none' }}>
-                                <Typography sx={{ fontSize: '0.65rem', color: i === 2 ? gapColor : i === 3 ? oeeColor : COLORS.TEXT_SUB, fontWeight: 700, textTransform: 'uppercase', lineHeight: 1.3 }}>{stat.label}</Typography>
-                                <Typography sx={{ fontSize: '1rem', fontWeight: 900, color: stat.color, lineHeight: 1.2 }}>{stat.value}</Typography>
+                            { label: 'Actual',  value: m.actual,           color: '#fff' },
+                            { label: 'Cur.Tgt', value: currentTimeTarget,  color: viewMode === 'Current' && currentTimeTarget > 0 ? (m.actual >= currentTimeTarget ? '#b9f6ca' : '#ffcdd2') : '#fff' },
+                            { label: 'Target',  value: m.target,           color: '#fff' },
+                            { label: 'OEE',     value: `${m.currentOee}%`, color: '#fff' },
+                        ].map(({ label, value, color }) => (
+                            <Box key={label}>
+                                <Typography sx={{ fontSize: 'clamp(0.55rem, 0.75vw, 0.9rem)', fontWeight: 800, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
+                                    {label}
+                                </Typography>
+                                <Typography sx={{ fontSize: 'clamp(1.3rem, 2vw, 2.5rem)', fontWeight: 900, color, lineHeight: 1.15, mt: 0.15 }}>
+                                    {value}
+                                </Typography>
                             </Box>
                         ))}
                     </Box>
                 </Box>
             </Card>
         );
-    }, [getPerformanceColor, viewMode, tick, formatElapsed]);
+    }, [getPerformanceColor, viewMode, tick, formatElapsed, shiftFraction]);
 
     return (
         <Box ref={dashboardRef} sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 65px)', backgroundColor: COLORS.BG, overflow: 'hidden'}}>
+            {/* ── Main Header ── */}
             <Box sx={{
-                padding: '8px 20px',
-                borderBottom: '1px solid #e0e0e0',
-                backgroundColor: COLORS.HEADER_BG,
+                px: 3, py: 1.4,
+                borderBottom: '2px solid #e8e8e8',
+                backgroundColor: '#fff',
                 marginTop: isFullscreen ? '0px' : '35px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1,
+                justifyContent: 'space-between',
             }}>
-                {/* --- LEFT: Live status / shift info --- */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', flexShrink: 0, minWidth: 200 }}>
-                    <Typography sx={{ fontSize: '0.72rem', color: wsConnected ? COLORS.RUNNING : COLORS.TEXT_SUB, fontWeight: 700, lineHeight: 1.3 }}>
-                        {viewMode === 'Current'
-                            ? (wsConnected ? '● Live' : '⏱ Connecting…')
-                            : '📋 Previous Shift'}
+                {/* LEFT: live + shift + updated time */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 320 }}>
+                    <Typography sx={{ fontSize: '1.05rem', fontWeight: 900, color: wsConnected ? COLORS.RUNNING : COLORS.TEXT_SUB }}>
+                        {viewMode === 'Current' ? (wsConnected ? '● Live' : '⏱ Connecting…') : '📋 Prev Shift'}
                     </Typography>
-                    <Typography sx={{ fontSize: '0.78rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>
-                        {viewMode === 'Current'
-                            ? `Shift ${currentShiftInfo?.shiftNo ?? ''} · Updated ${lastUpdatedTime || '–'}`
-                            : `Shift ${prevShiftInfo?.shiftNo ?? ''}${lastUpdatedTime ? ` · ${lastUpdatedTime}` : ''}`}
+                    <Typography sx={{ fontSize: '1.05rem', color: '#ccc', fontWeight: 700 }}>|</Typography>
+                    <Typography sx={{ fontSize: '1.05rem', fontWeight: 900, color: COLORS.PRIMARY }}>
+                        Shift {viewMode === 'Current' ? (currentShiftInfo?.shiftNo ?? '–') : (prevShiftInfo?.shiftNo ?? '–')}
                     </Typography>
+                    <>
+                        <Typography sx={{ fontSize: '1.05rem', color: '#ccc', fontWeight: 700 }}>|</Typography>
+                        <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: COLORS.TEXT_SUB, fontVariantNumeric: 'tabular-nums' }}>
+                            {dayjs().format('DD MMM HH:mm:ss')}
+                        </Typography>
+                    </>
                 </Box>
 
-                {/* --- CENTER: Title --- */}
+                {/* CENTER: Title */}
                 <Box sx={{ flex: 1, textAlign: 'center' }}>
-                    <Typography sx={{ fontWeight: 900, fontSize: '1.1rem', color: COLORS.TEXT_MAIN, letterSpacing: '-0.3px' }}>
+                    <Typography sx={{ fontWeight: 900, fontSize: '1.7rem', color: COLORS.TEXT_MAIN, lineHeight: 1.1, letterSpacing: '-0.5px', textTransform: 'uppercase' }}>
                         Operator Performance
                     </Typography>
                 </Box>
 
-                {/* --- RIGHT: Controls --- */}
-                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexShrink: 0, minWidth: 200, justifyContent: 'flex-end' }}>
-                    <FormControl size="small" sx={{ minWidth: 140 }}>
-                        <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>View Shift</InputLabel>
-                        <Select
-                            value={viewMode}
-                            onChange={(e) => setViewMode(e.target.value)}
-                            label="View Shift"
-                            sx={{ height: 38, fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#fff' }}
-                            MenuProps={{ container: dashboardRef.current }}
-                        >
-                            <MenuItem value="Current">Current Shift</MenuItem>
-                            <MenuItem value="Previous">Previous Shift</MenuItem>
-                        </Select>
-                    </FormControl>
-
-                    {showMachineGroupsDropdown && (
-                        <FormControl size="small" sx={{ minWidth: 180 }}>
-                            <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>Machine Group</InputLabel>
+                {/* RIGHT: Controls with labels above */}
+                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end' }}>
+                    {/* Shift dropdown */}
+                    <Box>
+                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.4, ml: 0.5 }}>Shift</Typography>
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
                             <Select
-                                multiple
-                                value={selectedGroups}
-                                onChange={(e) => handleGroupChange(e.target.value)}
-                                label="Machine Group"
-                                sx={{ height: 38, fontSize: '0.85rem', fontWeight: 600, backgroundColor: '#fff' }}
-                                renderValue={(sel) => sel.length === machineGroups.length ? "All Groups" : sel.join(", ")}
+                                value={viewMode}
+                                onChange={(e) => setViewMode(e.target.value)}
+                                sx={{ height: 38, fontSize: '0.9rem', fontWeight: 700, backgroundColor: '#fff', borderRadius: '8px' }}
                                 MenuProps={{ container: dashboardRef.current }}
                             >
-                                <MenuItem value="all"><Checkbox checked={selectedGroups.length === machineGroups.length} size="small" /><ListItemText primary="All" /></MenuItem>
-                                {machineGroups.map((g) => (<MenuItem key={g.name} value={g.name}><Checkbox checked={selectedGroups.includes(g.name)} size="small" /><ListItemText primary={g.name} /></MenuItem>))}
+                                <MenuItem value="Current" sx={{ fontSize: '0.9rem', fontWeight: 600 }}>Current Shift</MenuItem>
+                                <MenuItem value="Previous" sx={{ fontSize: '0.9rem', fontWeight: 600 }}>Previous Shift</MenuItem>
                             </Select>
                         </FormControl>
+                    </Box>
+
+                    {/* Group dropdown */}
+                    {showMachineGroupsDropdown && (
+                        <Box>
+                            <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.4, ml: 0.5 }}>Group</Typography>
+                            <FormControl size="small" sx={{ minWidth: 160 }}>
+                                <Select
+                                    multiple
+                                    value={selectedGroups}
+                                    onChange={(e) => handleGroupChange(e.target.value)}
+                                    sx={{ height: 38, fontSize: '0.9rem', fontWeight: 700, backgroundColor: '#fff', borderRadius: '8px' }}
+                                    renderValue={(sel) => sel.length === machineGroups.length ? 'All Groups' : sel.join(', ')}
+                                    MenuProps={{ container: dashboardRef.current }}
+                                >
+                                    <MenuItem value="all"><Checkbox checked={selectedGroups.length === machineGroups.length} size="small" /><ListItemText primary="All" /></MenuItem>
+                                    {machineGroups.map((g) => (
+                                        <MenuItem key={g.name} value={g.name}><Checkbox checked={selectedGroups.includes(g.name)} size="small" /><ListItemText primary={g.name} /></MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Box>
                     )}
 
-                    <Tooltip title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
-                        <IconButton onClick={toggleFullscreen} size="small" sx={{ border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#fff' }}>
-                            {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+                    {/* Settings */}
+                    <Tooltip title="Sort & Thresholds">
+                        <IconButton onClick={(e) => setSettingsAnchor(e.currentTarget)}
+                            sx={{ border: `1px solid ${settingsAnchor ? COLORS.PRIMARY : '#e0e0e0'}`, borderRadius: '8px', backgroundColor: settingsAnchor ? `${COLORS.PRIMARY}12` : '#fff', width: 38, height: 38, transition: 'all 0.15s' }}>
+                            <SettingsIcon sx={{ fontSize: '1.3rem', color: settingsAnchor ? COLORS.PRIMARY : COLORS.TEXT_SUB }} />
                         </IconButton>
                     </Tooltip>
 
-                    {isLoading && <CircularProgress size={20} sx={{ color: COLORS.PRIMARY }} />}
+                    {/* Fullscreen */}
+                    <Tooltip title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
+                        <IconButton onClick={toggleFullscreen} sx={{ border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#fff', width: 38, height: 38 }}>
+                            {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: '1.3rem' }} /> : <FullscreenIcon sx={{ fontSize: '1.3rem' }} />}
+                        </IconButton>
+                    </Tooltip>
+
+                    {isLoading && <CircularProgress size={22} sx={{ color: COLORS.PRIMARY }} />}
                 </Box>
             </Box>
 
-            {/* --- Row 2: Metrics Badges (moved from header) --- */}
-            <Box sx={{ px: 2, py: 0.8, backgroundColor: '#fff', borderBottom: '1px solid #e0e0e0', display: 'flex', alignItems: 'stretch', gap: 1, flexWrap: 'wrap' }}>
-                {/* OEE Current */}
+            {/* ── Row 2: Metrics Subheader — stretched equally across full width ── */}
+            {showMetrics && <Box sx={{ display: 'flex', alignItems: 'stretch', backgroundColor: '#fff', borderBottom: '2px solid #e8e8e8', overflowX: 'auto' }}>
+
+                {/* OEE – Current Shift */}
                 {(() => {
                     const val = summaryMetrics.currentShiftOee;
                     const color = getPerformanceColor(val);
-                    const r = 26, sw = 5, cx = 32, cy = 32, norm = 2 * Math.PI * r;
+                    const r = 28, sw = 6, cx = 32, cy = 32, norm = 2 * Math.PI * r;
                     const dash = (val / 100) * norm;
                     return (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.6 }}>
+                        <Box sx={{ flex: 1, minWidth: 160, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.2, borderRight: '1px solid #e8e8e8' }}>
+                            <Box>
+                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.8px', mb: 0.3 }}>Shift OEE</Typography>
+                                <Typography sx={{ fontSize: '2rem', fontWeight: 900, color, lineHeight: 1 }}>{val}<span style={{ fontSize: '1rem' }}>%</span></Typography>
+                            </Box>
                             <svg width={64} height={64} style={{ flexShrink: 0 }}>
                                 <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e8e8e8" strokeWidth={sw} />
                                 <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
                                     strokeDasharray={`${dash} ${norm}`} strokeLinecap="round"
                                     transform={`rotate(-90 ${cx} ${cy})`} />
-                                <text x={cx} y={cy + 5} textAnchor="middle" fontSize={14} fontWeight={800} fill={color}>{val}%</text>
                             </svg>
-                            <Typography sx={{ fontSize: '0.8rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>OEE – Current Shift</Typography>
                         </Box>
                     );
                 })()}
 
-                {/* OEE Previous Shift */}
+                {/* OEE – Prev Shift */}
                 {summaryMetrics.prevShiftOee > 0 && (() => {
                     const val = summaryMetrics.prevShiftOee;
                     const color = getPerformanceColor(val);
-                    const r = 26, sw = 5, cx = 32, cy = 32, norm = 2 * Math.PI * r;
+                    const diff = summaryMetrics.currentShiftOee - val;
+                    const r = 28, sw = 6, cx = 32, cy = 32, norm = 2 * Math.PI * r;
                     const dash = (val / 100) * norm;
                     return (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.6 }}>
+                        <Box sx={{ flex: 1, minWidth: 160, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.2, borderRight: '1px solid #e8e8e8' }}>
+                            <Box>
+                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.8px', mb: 0.3 }}>Prev Shift OEE</Typography>
+                                <Typography sx={{ fontSize: '2rem', fontWeight: 900, color, lineHeight: 1 }}>{val}<span style={{ fontSize: '1rem' }}>%</span></Typography>
+                                {diff !== 0 && (
+                                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: diff > 0 ? COLORS.RUNNING : COLORS.ALARM, mt: 0.2 }}>
+                                        {diff > 0 ? '▲' : '▼'} {Math.abs(diff)}% vs prev
+                                    </Typography>
+                                )}
+                            </Box>
                             <svg width={64} height={64} style={{ flexShrink: 0 }}>
                                 <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e8e8e8" strokeWidth={sw} />
                                 <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
                                     strokeDasharray={`${dash} ${norm}`} strokeLinecap="round"
                                     transform={`rotate(-90 ${cx} ${cy})`} />
-                                <text x={cx} y={cy + 5} textAnchor="middle" fontSize={14} fontWeight={800} fill={color}>{val}%</text>
                             </svg>
-                            <Typography sx={{ fontSize: '0.8rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>OEE – Prev Shift</Typography>
                         </Box>
                     );
                 })()}
 
-                {/* vs Prev Shift diff */}
-                {summaryMetrics.prevShiftOee > 0 && summaryMetrics.currentShiftOee !== summaryMetrics.prevShiftOee && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', backgroundColor: summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? '#e8f5e9' : '#fdecea', border: `1px solid ${summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? '#66bb6a' : COLORS.ALARM}`, borderRadius: '10px', px: 1.5, py: 0.5 }}>
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? '#2e7d32' : COLORS.ALARM, display: 'flex', alignItems: 'center', gap: 0.3 }}>
-                                {summaryMetrics.currentShiftOee > summaryMetrics.prevShiftOee ? '▲' : '▼'}
-                                {Math.abs(summaryMetrics.currentShiftOee - summaryMetrics.prevShiftOee)}%
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>vs Prev Shift</Typography>
-                        </Box>
+                {/* Produced */}
+                <Box sx={{ flex: 1, minWidth: 150, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.2, borderRight: '1px solid #e8e8e8' }}>
+                    <Box>
+                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.8px', mb: 0.3 }}>Produced</Typography>
+                        <Typography sx={{ fontSize: '2rem', fontWeight: 900, color: COLORS.TEXT_MAIN, lineHeight: 1 }}>{headerMetrics.totalProduced.toLocaleString()}</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.TEXT_SUB, mt: 0.2 }}>PCS</Typography>
                     </Box>
-                )}
-
-                <Box sx={{ width: '1px', backgroundColor: '#e0e0e0', mx: 0.5, alignSelf: 'stretch' }} />
+                    <ProducedIcon sx={{ fontSize: '2.4rem', color: '#b0bec5' }} />
+                </Box>
 
                 {/* Shift Target */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.5, minWidth: 80 }}>
-                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>Shift Target</Typography>
-                    <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: COLORS.TEXT_MAIN }}>{headerMetrics.totalTarget.toLocaleString()}</Typography>
-                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>pcs</Typography>
-                </Box>
-
-                {/* Produced */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.5, minWidth: 80 }}>
-                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>Produced</Typography>
-                    <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: COLORS.TEXT_MAIN }}>{headerMetrics.totalProduced.toLocaleString()}</Typography>
-                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>pcs</Typography>
-                </Box>
-
-                {/* Achievement */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', px: 1.5, py: 0.5, minWidth: 80 }}>
-                    <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>Achievement</Typography>
-                    <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: getPerformanceColor(headerMetrics.achievement) }}>{headerMetrics.achievement}%</Typography>
+                <Box sx={{ flex: 1, minWidth: 150, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.2, borderRight: '1px solid #e8e8e8' }}>
+                    <Box>
+                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.8px', mb: 0.3 }}>Shift Target</Typography>
+                        <Typography sx={{ fontSize: '2rem', fontWeight: 900, color: COLORS.TEXT_MAIN, lineHeight: 1 }}>{headerMetrics.totalTarget.toLocaleString()}</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.TEXT_SUB, mt: 0.2 }}>PCS</Typography>
+                    </Box>
+                    <TargetIcon sx={{ fontSize: '2.4rem', color: '#b0bec5' }} />
                 </Box>
 
                 {/* Projected */}
                 {headerMetrics.projected !== null && viewMode === 'Current' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', backgroundColor: headerMetrics.willMissTarget ? '#fff8e1' : '#f8f9fa', border: `1px solid ${headerMetrics.willMissTarget ? '#f1a014' : '#e0e0e0'}`, borderRadius: '10px', px: 1.5, py: 0.5, minWidth: 80 }}>
-                        <Typography sx={{ fontSize: '0.72rem', color: COLORS.TEXT_SUB, fontWeight: 700 }}>Projected</Typography>
-                        <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: headerMetrics.willMissTarget ? COLORS.IDLE : COLORS.RUNNING }}>{headerMetrics.projected.toLocaleString()}</Typography>
-                        {headerMetrics.willMissTarget && <Typography sx={{ fontSize: '0.72rem', color: COLORS.IDLE, fontWeight: 800 }}>⚠ Will Miss Target</Typography>}
+                    <Box sx={{ flex: 1, minWidth: 150, display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, py: 1.2, backgroundColor: headerMetrics.willMissTarget ? '#fffde7' : 'transparent' }}>
+                        <Box>
+                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.8px', mb: 0.3 }}>Projected</Typography>
+                            <Typography sx={{ fontSize: '2rem', fontWeight: 900, color: headerMetrics.willMissTarget ? COLORS.IDLE : COLORS.RUNNING, lineHeight: 1 }}>{headerMetrics.projected.toLocaleString()}</Typography>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.TEXT_SUB, mt: 0.2 }}>PCS {headerMetrics.willMissTarget && <span style={{ color: COLORS.IDLE }}>⚠ Miss</span>}</Typography>
+                        </Box>
+                        <ProjectedIcon sx={{ fontSize: '2.4rem', color: headerMetrics.willMissTarget ? COLORS.IDLE : '#b0bec5' }} />
                     </Box>
                 )}
+            </Box>}
 
-                {/* Spacer */}
-                <Box sx={{ flex: 1 }} />
+            {/* Settings Popover */}
+            <Popover
+                open={Boolean(settingsAnchor)}
+                anchorEl={settingsAnchor}
+                onClose={() => setSettingsAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                container={dashboardRef.current}
+                PaperProps={{ sx: { borderRadius: '14px', boxShadow: '0 8px 32px rgba(0,0,0,0.14)', p: 2.5, minWidth: 300 } }}
+            >
+                <Typography sx={{ fontWeight: 900, fontSize: '0.95rem', color: COLORS.TEXT_MAIN, mb: 1.8 }}>⚙ Display Settings</Typography>
 
-                {/* Sort + Threshold Controls (moved here from fleet row) */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0, flexWrap: 'wrap' }}>
-                    {/* Sort */}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: COLORS.TEXT_SUB }}>Sort by Achievement</Typography>
-                        <Box sx={{ display: 'flex', border: '1px solid #e0e0e0', borderRadius: '8px', overflow: 'hidden' }}>
-                            {[{ val: 'asc', label: '↑ Low→High' }, { val: 'desc', label: '↓ High→Low' }].map(opt => (
-                                <Box key={opt.val} onClick={() => updateSettings({ sortOrder: opt.val })}
-                                    sx={{ px: 1.2, py: 0.5, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', backgroundColor: sortOrder === opt.val ? COLORS.PRIMARY : '#fafafa', color: sortOrder === opt.val ? '#fff' : COLORS.TEXT_SUB, transition: 'all 0.15s', '&:hover': { backgroundColor: sortOrder === opt.val ? COLORS.PRIMARY : '#f0f0f0' } }}
-                                >{opt.label}</Box>
-                            ))}
+                {/* Visibility Toggles */}
+                <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.6px', mb: 0.8 }}>Visible Sections</Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8, mb: 2 }}>
+                    {[
+                        { key: 'showMetrics',   label: 'Metrics Bar',                          value: showMetrics,   onToggle: () => updateSettings({ showMetrics: !showMetrics }) },
+                        { key: 'showStatusBar', label: 'Status Bar',                           value: showStatusBar, onToggle: () => updateSettings({ showStatusBar: !showStatusBar }) },
+                        { key: 'autoScroll', label: 'Auto Scroll', value: autoScroll, onToggle: () => setAutoScroll(v => !v) },
+                    ].map(({ key, label, value, onToggle }) => (
+                        <Box key={key} onClick={onToggle}
+                            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 0.9, borderRadius: '8px', border: '1px solid #e0e0e0', cursor: 'pointer', backgroundColor: value ? '#fff8f0' : '#fafafa', '&:hover': { backgroundColor: value ? '#fff3e0' : '#f0f0f0' } }}>
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.TEXT_MAIN }}>{label}</Typography>
+                            <Box sx={{ width: 36, height: 20, borderRadius: '10px', backgroundColor: value ? COLORS.PRIMARY : '#ccc', position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}>
+                                <Box sx={{ position: 'absolute', top: 2, left: value ? 18 : 2, width: 16, height: 16, borderRadius: '50%', backgroundColor: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.25)', transition: 'left 0.2s' }} />
+                            </Box>
+                        </Box>
+                    ))}
+
+                    {/* Scroll delay input — visible only when auto scroll is on */}
+                    {autoScroll && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 0.9, borderRadius: '8px', border: '1px solid #e0e0e0', backgroundColor: '#fafafa' }}
+                            onClick={e => e.stopPropagation()}>
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.TEXT_MAIN }}>Scroll Interval</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                                <input
+                                    type="number"
+                                    min={5} max={120}
+                                    value={scrollDelay / 1000}
+                                    onChange={e => {
+                                        const v = Math.max(5, Math.min(120, Number(e.target.value)));
+                                        if (!isNaN(v)) setScrollDelay(v * 1000);
+                                    }}
+                                    style={{ width: 52, border: `1px solid ${COLORS.PRIMARY}55`, borderRadius: 6, background: '#fff', fontSize: '0.9rem', fontWeight: 900, color: COLORS.PRIMARY, outline: 'none', textAlign: 'center', padding: '4px' }}
+                                />
+                                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.TEXT_SUB }}>sec</Typography>
+                            </Box>
+                        </Box>
+                    )}
+                </Box>
+
+                <Divider sx={{ mb: 2 }} />
+
+                {/* Sort */}
+                <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.6px', mb: 0.8 }}>Sort by Achievement</Typography>
+                <Box sx={{ display: 'flex', border: '1px solid #e0e0e0', borderRadius: '8px', overflow: 'hidden', mb: 2 }}>
+                    {[{ val: 'asc', label: '↑ Low → High' }, { val: 'desc', label: '↓ High → Low' }].map(opt => (
+                        <Box key={opt.val} onClick={() => updateSettings({ sortOrder: opt.val })}
+                            sx={{ flex: 1, textAlign: 'center', px: 1.5, py: 1, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', backgroundColor: sortOrder === opt.val ? COLORS.PRIMARY : '#fafafa', color: sortOrder === opt.val ? '#fff' : COLORS.TEXT_SUB, transition: 'all 0.15s', '&:hover': { backgroundColor: sortOrder === opt.val ? COLORS.PRIMARY : '#f0f0f0' } }}
+                        >{opt.label}</Box>
+                    ))}
+                </Box>
+
+                <Divider sx={{ mb: 2 }} />
+
+                {/* Thresholds */}
+                <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.6px', mb: 1 }}>Performance Thresholds</Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fdecea', border: '1px solid #f4433633', borderRadius: '8px', px: 1.5, py: 0.8 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: COLORS.ALARM }} />
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.ALARM }}>Red below</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <input type="number" value={thresholds.bad}
+                                onChange={(e) => updateSettings({ thresholds: { ...thresholds, bad: Number(e.target.value) } })}
+                                style={{ width: 52, border: '1px solid #f4433655', borderRadius: 6, background: '#fff', fontSize: '0.9rem', fontWeight: 900, color: COLORS.ALARM, outline: 'none', textAlign: 'center', padding: '4px' }} />
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.ALARM }}>%</Typography>
                         </Box>
                     </Box>
-
-                    {/* Thresholds */}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: COLORS.TEXT_SUB }}>Thresholds (%)</Typography>
-                        <Box sx={{ display: 'flex', gap: 0.8, alignItems: 'center' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, backgroundColor: '#fdecea', border: '1px solid #f4433633', borderRadius: '6px', px: 1, py: 0.4 }}>
-                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: COLORS.ALARM, flexShrink: 0 }} />
-                                <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: COLORS.ALARM, whiteSpace: 'nowrap' }}>Red &lt;</Typography>
-                                <input type="number" value={thresholds.bad}
-                                    onChange={(e) => updateSettings({ thresholds: { ...thresholds, bad: Number(e.target.value) } })}
-                                    style={{ width: 38, border: 'none', background: 'transparent', fontSize: '0.78rem', fontWeight: 800, color: COLORS.ALARM, outline: 'none', textAlign: 'center' }} />
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, backgroundColor: '#fff8e1', border: '1px solid #f1a01433', borderRadius: '6px', px: 1, py: 0.4 }}>
-                                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: COLORS.IDLE, flexShrink: 0 }} />
-                                <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: COLORS.IDLE, whiteSpace: 'nowrap' }}>Yellow &lt;</Typography>
-                                <input type="number" value={thresholds.normal}
-                                    onChange={(e) => updateSettings({ thresholds: { ...thresholds, normal: Number(e.target.value) } })}
-                                    style={{ width: 38, border: 'none', background: 'transparent', fontSize: '0.78rem', fontWeight: 800, color: COLORS.IDLE, outline: 'none', textAlign: 'center' }} />
-                            </Box>
-                            {/* Threshold legend */}
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, pl: 0.5, borderLeft: '1px solid #e0e0e0', ml: 0.3 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                                    <Box sx={{ width: 8, height: 8, borderRadius: '2px', backgroundColor: COLORS.ALARM }} />
-                                    <Typography sx={{ fontSize: '0.67rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>Bad &lt; {thresholds.bad}%</Typography>
-                                </Box>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                                    <Box sx={{ width: 8, height: 8, borderRadius: '2px', backgroundColor: COLORS.IDLE }} />
-                                    <Typography sx={{ fontSize: '0.67rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>{thresholds.bad}–{thresholds.normal}% Normal</Typography>
-                                </Box>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                                    <Box sx={{ width: 8, height: 8, borderRadius: '2px', backgroundColor: COLORS.RUNNING }} />
-                                    <Typography sx={{ fontSize: '0.67rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>≥ {thresholds.normal}% Good</Typography>
-                                </Box>
-                            </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff8e1', border: '1px solid #f1a01433', borderRadius: '8px', px: 1.5, py: 0.8 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: COLORS.IDLE }} />
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.IDLE }}>Yellow below</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <input type="number" value={thresholds.normal}
+                                onChange={(e) => updateSettings({ thresholds: { ...thresholds, normal: Number(e.target.value) } })}
+                                style={{ width: 52, border: '1px solid #f1a01455', borderRadius: 6, background: '#fff', fontSize: '0.9rem', fontWeight: 900, color: COLORS.IDLE, outline: 'none', textAlign: 'center', padding: '4px' }} />
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.IDLE }}>%</Typography>
                         </Box>
                     </Box>
                 </Box>
-            </Box>
 
-            {/* --- Row 3: Fleet Status Cards + Machines/Line Tabs (combined) --- */}
-            {(() => {
-                const counts = dashboardData.length > 0
-                    ? dashboardData.reduce((acc, m) => { acc[m.status] = (acc[m.status] || 0) + 1; return acc; }, {})
-                    : {};
-                const cards = [
-                    { key: 'All',          label: 'Total',      count: dashboardData.length,         color: '#1565c0', bg: '#e3f2fd', icon: '🖥' },
-                    { key: 'Running',      label: 'Running',    count: counts['Running'] || 0,        color: '#2e7d32', bg: '#e8f5e9', icon: '📈' },
-                    { key: 'Idle',         label: 'Idle',       count: counts['Idle'] || 0,           color: '#bf360c', bg: '#fff3e0', icon: '⚙' },
-                    { key: 'Alarm',        label: 'Alarm',      count: counts['Alarm'] || 0,          color: '#b71c1c', bg: '#fdecea', icon: '⚠' },
-                    { key: 'Disconnected', label: 'Disconnect', count: counts['Disconnected'] || 0,   color: '#424242', bg: '#f5f5f5', icon: '🚫' },
+                {/* Legend */}
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                    {[
+                        { color: COLORS.ALARM,   label: `< ${thresholds.bad}% Bad` },
+                        { color: COLORS.IDLE,    label: `${thresholds.bad}–${thresholds.normal}% Normal` },
+                        { color: COLORS.RUNNING, label: `≥ ${thresholds.normal}% Good` },
+                    ].map(l => (
+                        <Box key={l.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box sx={{ width: 10, height: 10, borderRadius: '3px', backgroundColor: l.color }} />
+                            <Typography sx={{ fontSize: '0.75rem', color: COLORS.TEXT_SUB, fontWeight: 600 }}>{l.label}</Typography>
+                        </Box>
+                    ))}
+                </Box>
+            </Popover>
+
+            {/* ── Row 3: Fleet Status Bar — 5 equal columns, display only ── */}
+            {showStatusBar && (() => {
+                const counts = dashboardData.reduce((acc, m) => { acc[m.status] = (acc[m.status] || 0) + 1; return acc; }, {});
+                const total = dashboardData.length;
+                const cols = [
+                    { label: 'Total',        count: total,                  color: COLORS.PRIMARY },
+                    { label: 'Running',      count: counts['Running']      || 0, color: COLORS.RUNNING },
+                    { label: 'Idle',         count: counts['Idle']         || 0, color: COLORS.IDLE },
+                    { label: 'Alarm',        count: counts['Alarm']        || 0, color: COLORS.ALARM },
+                    { label: 'Disconnected', count: counts['Disconnected'] || 0, color: COLORS.DISCONNECTED },
                 ];
                 return (
-                    <Box sx={{ px: 2, backgroundColor: '#fff', borderBottom: '1px solid #e0e0e0', display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {/* Tabs — LEFT */}
-                        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: '0.8rem', fontWeight: 700, textTransform: 'none', py: 0 }, '& .MuiTabs-indicator': { backgroundColor: COLORS.PRIMARY } }}>
-                            <Tab value="machines" label="Machines" />
-                            <Tab value="line" label="Line View" />
-                        </Tabs>
-
-                        {/* Divider */}
-                        <Box sx={{ width: '1px', height: 36, backgroundColor: '#e0e0e0', mx: 0.5, flexShrink: 0 }} />
-
-                        {/* Fleet status clickable chips — RIGHT */}
-                        <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap', py: 0.5 }}>
-                            {cards.map(c => {
-                                const isActive = statusFilter === c.key;
-                                return (
-                                    <Box key={c.key}
-                                        onClick={() => setStatusFilter(isActive && c.key !== 'All' ? 'All' : c.key)}
-                                        sx={{
-                                            display: 'flex', alignItems: 'center', gap: 0.8,
-                                            backgroundColor: isActive ? c.color : '#fafafa',
-                                            border: `2px solid ${isActive ? c.color : '#e0e0e0'}`,
-                                            borderRadius: '10px', px: 1.2, py: 0.5,
-                                            cursor: 'pointer',
-                                            transition: 'all 0.18s ease',
-                                            boxShadow: isActive ? `0 3px 10px ${c.color}44` : 'none',
-                                            '&:hover': { border: `2px solid ${c.color}`, backgroundColor: isActive ? c.color : c.bg, transform: 'translateY(-1px)' },
-                                        }}
-                                    >
-                                        <Typography sx={{ fontSize: '0.9rem', lineHeight: 1 }}>{c.icon}</Typography>
-                                        <Typography sx={{ fontWeight: 900, fontSize: '1rem', color: isActive ? '#fff' : c.color, lineHeight: 1 }}>{c.count}</Typography>
-                                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: isActive ? 'rgba(255,255,255,0.85)' : c.color }}>{c.label}</Typography>
-                                    </Box>
-                                );
-                            })}
-                        </Box>
+                    <Box sx={{ backgroundColor: '#fff', borderBottom: '2px solid #e8e8e8', display: 'flex', alignItems: 'stretch' }}>
+                        {cols.map((c, i) => (
+                            <Box key={c.label} sx={{
+                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.2,
+                                py: 0.9,
+                                borderRight: i < cols.length - 1 ? '1px solid #e8e8e8' : 'none',
+                                borderBottom: `3px solid ${c.color}`,
+                            }}>
+                                <Box sx={{ width: 11, height: 11, borderRadius: '50%', backgroundColor: c.color, flexShrink: 0 }} />
+                                <Typography sx={{ fontWeight: 900, fontSize: '1.05rem', color: COLORS.TEXT_MAIN, lineHeight: 1 }}>{c.count}</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.7px' }}>{c.label}</Typography>
+                            </Box>
+                        ))}
                     </Box>
                 );
             })()}
 
-            {/* --- Main Content --- */}
-            <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {/* Machine Grid or Line View */}
-                <Box sx={{ flex: 1, padding: '16px', overflowY: 'auto' }}>
-                    {activeTab === 'machines' && (
-                        <Grid container spacing={1.5}>
-                            {filteredAndSortedData.map((m) => (
-                                <Grid item xs={12} sm={6} md={4} lg={4} xl={3} key={m.id}>
-                                    <RenderMachineCard m={m} rank={null} />
-                                </Grid>
-                            ))}
-                        </Grid>
-                    )}
-                    {activeTab === 'line' && (
-                        <Box sx={{ backgroundColor: '#fff', borderRadius: '10px', border: '1px solid #e0e0e0', overflow: 'hidden' }}>
-                            <Table stickyHeader>
-                                <TableHead>
-                                    <TableRow sx={{ '& th': { backgroundColor: '#f8f9fa', fontWeight: 800, fontSize: '0.88rem', color: COLORS.TEXT_SUB, borderBottom: '2px solid #e0e0e0', py: 1.2 } }}>
-                                        <TableCell>Machine</TableCell>
-                                        <TableCell>Operator</TableCell>
-                                        <TableCell>Status</TableCell>
-                                        <TableCell align="center">Target</TableCell>
-                                        <TableCell align="center">Actual</TableCell>
-                                        <TableCell align="center">Gap / Ahead</TableCell>
-                                        <TableCell align="center">Achievement</TableCell>
-                                        <TableCell align="center">OEE</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {filteredAndSortedData.map((m) => {
-                                        const ach = getAchievement(m.actual, m.target);
-                                        const rawGapLv = m.target - m.actual;
-                                        const isAheadLv = rawGapLv <= 0;
-                                        const gapLabelLv = isAheadLv ? `+${Math.abs(rawGapLv)}` : `-${rawGapLv}`;
-                                        const gapColorLv = isAheadLv ? COLORS.RUNNING : COLORS.ALARM;
-                                        const statusColor = COLORS[m.status.toUpperCase()] || COLORS.DISCONNECTED;
-                                        const elapsed = viewMode === 'Current' && m.statusTs ? formatElapsed(m.statusTs) : null;
-                                        return (
-                                            <TableRow key={m.id} sx={{ '&:hover': { backgroundColor: '#fafafa' }, '& td': { fontSize: '0.9rem', borderBottom: '1px solid #f0f0f0', py: 1.2 } }}>
-                                                <TableCell><Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: COLORS.TEXT_MAIN }}>{m.name}</Typography></TableCell>
-                                                <TableCell>
-                                                    <Tooltip title={m.operator} arrow placement="top">
-                                                        <Typography sx={{ fontSize: '0.88rem', color: COLORS.TEXT_SUB, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}>{m.operator}</Typography>
-                                                    </Tooltip>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                                                        <Box sx={{ backgroundColor: statusColor, color: '#fff', px: 1, py: 0.3, borderRadius: '5px', fontSize: '0.75rem', fontWeight: 800 }}>{m.status}</Box>
-                                                        {elapsed && m.status !== 'Running' && (
-                                                            <Tooltip title={`${m.status} for ${elapsed}`} arrow>
-                                                                <Typography sx={{ fontSize: '0.78rem', color: statusColor, fontWeight: 700, cursor: 'default', fontVariantNumeric: 'tabular-nums' }}>{elapsed}</Typography>
-                                                            </Tooltip>
-                                                        )}
-                                                    </Box>
-                                                </TableCell>
-                                                <TableCell align="center"><Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{m.target}</Typography></TableCell>
-                                                <TableCell align="center"><Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{m.actual}</Typography></TableCell>
-                                                <TableCell align="center">
-                                                    <Typography sx={{ fontWeight: 800, color: gapColorLv, fontSize: '0.9rem' }}>{isAheadLv ? 'Ahead ' : 'Gap '}{gapLabelLv}</Typography>
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
-                                                        <LinearProgress variant="determinate" value={Math.min(ach, 100)} sx={{ width: 64, height: 7, borderRadius: 3, backgroundColor: '#f0f0f0', '& .MuiLinearProgress-bar': { backgroundColor: getPerformanceColor(ach) } }} />
-                                                        <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: getPerformanceColor(ach) }}>{ach}%</Typography>
-                                                    </Box>
-                                                </TableCell>
-                                                <TableCell align="center"><Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: getPerformanceColor(m.currentOee) }}>{m.currentOee}%</Typography></TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </Box>
-                    )}
-                </Box>
+            {/* ── Main Content: Machine Grid — 5 columns ── */}
 
-                {/* Right Sidebar — Top Performers */}
-                <Box sx={{ width: 300, backgroundColor: '#fff', borderLeft: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column', overflowY: 'auto', flexShrink: 0 }}>
-                    <Box sx={{ p: 1.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.2 }}>
-                            <TrophyIcon sx={{ color: COLORS.GOLD, fontSize: '1.1rem' }} />
-                            <Typography sx={{ fontWeight: 800, color: COLORS.TEXT_MAIN, fontSize: '0.95rem' }}>
-                                Top Performers
-                                <Typography component="span" sx={{ fontSize: '0.78rem', color: COLORS.TEXT_SUB, fontWeight: 600, ml: 0.5 }}>(This Shift)</Typography>
-                            </Typography>
-                        </Box>
-                        <Stack spacing={1.2}>
-                            {topPerformers.length > 0 ? topPerformers.map((m, idx) => {
-                                const ach = getAchievement(m.actual, m.target);
-                                const rankColors = [
-                                    { bg: 'linear-gradient(135deg, #FFD700, #FFA000)', text: '#7a4f00', shadow: '#FFD70088' },
-                                    { bg: 'linear-gradient(135deg, #b0bec5, #78909c)', text: '#fff', shadow: '#90a4ae66' },
-                                    { bg: 'linear-gradient(135deg, #cd7f32, #a0522d)', text: '#fff', shadow: '#cd7f3266' },
-                                ];
-                                const rankStyle = rankColors[idx];
-                                const perfColor = getPerformanceColor(ach);
-                                const rawGapSb = m.target - m.actual;
-                                const isAheadSb = rawGapSb <= 0;
-                                const gapLabelSb = isAheadSb ? `+${Math.abs(rawGapSb)}` : `-${rawGapSb}`;
-                                const gapColorSb = isAheadSb ? COLORS.RUNNING : COLORS.ALARM;
-                                const gapTitleSb = isAheadSb ? 'Ahead' : 'Gap';
-                                const oeeColorSb = getPerformanceColor(m.currentOee);
-                                const elapsedSb = viewMode === 'Current' && m.statusTs ? formatElapsed(m.statusTs) : null;
-                                const statusColorSb = COLORS[m.status.toUpperCase()] || COLORS.DISCONNECTED;
-                                return (
-                                    <Box key={m.id} sx={{
-                                        borderRadius: '10px', overflow: 'hidden',
-                                        border: `2px solid ${perfColor}`,
-                                        boxShadow: idx === 0 ? `0 0 16px ${rankStyle.shadow}` : '0 1px 4px rgba(0,0,0,0.07)',
-                                        backgroundColor: '#fff',
-                                    }}>
-                                        {/* Accent bar */}
-                                        <Box sx={{ height: 4, backgroundColor: perfColor }} />
-                                        <Box sx={{ p: '10px 12px' }}>
-                                            {/* Row 1: Rank badge + name + status */}
-                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.4 }}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, overflow: 'hidden', flex: 1, mr: 0.5 }}>
-                                                    {/* Custom rank badge */}
-                                                    <Box sx={{
-                                                        flexShrink: 0,
-                                                        width: 26, height: 26, borderRadius: '7px',
-                                                        background: rankStyle.bg,
-                                                        boxShadow: `0 2px 6px ${rankStyle.shadow}`,
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    }}>
-                                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 900, color: rankStyle.text, lineHeight: 1 }}>#{idx + 1}</Typography>
-                                                    </Box>
-                                                    <Tooltip title={m.name} arrow placement="top" disableHoverListener={m.name.length <= 18}>
-                                                        <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: COLORS.TEXT_MAIN, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</Typography>
-                                                    </Tooltip>
-                                                </Box>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, flexShrink: 0 }}>
-                                                    {elapsedSb && m.status !== 'Running' && (
-                                                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: statusColorSb, fontVariantNumeric: 'tabular-nums' }}>{elapsedSb}</Typography>
-                                                    )}
-                                                    <Box sx={{ backgroundColor: statusColorSb, color: '#fff', px: 0.8, py: 0.2, borderRadius: '5px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>{m.status}</Box>
-                                                </Box>
-                                            </Box>
-                                            {/* Row 2: Operator */}
-                                            <Tooltip title={m.operator} arrow placement="top" disableHoverListener={m.operator.length <= 28}>
-                                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mb: 0.8, pb: 0.6, borderBottom: '1px dashed #e0e0e0', cursor: 'default' }}>{m.operator}</Typography>
-                                            </Tooltip>
-                                            {/* Row 3: Achievement % + progress bar */}
-                                            <Typography sx={{ fontWeight: 900, fontSize: '1.8rem', lineHeight: 1, color: perfColor, mb: 0.4 }}>{ach}%</Typography>
-                                            <LinearProgress variant="determinate" value={Math.min(ach, 100)} sx={{ height: 7, borderRadius: 4, backgroundColor: `${perfColor}22`, mb: 1, '& .MuiLinearProgress-bar': { backgroundColor: perfColor, borderRadius: 4 } }} />
-                                            {/* Row 4: Target | Actual | Gap | OEE */}
-                                            <Box sx={{ display: 'flex', border: '1px solid #ebebeb', borderRadius: '7px', overflow: 'hidden' }}>
-                                                {[
-                                                    { label: 'Target', value: m.target, color: COLORS.TEXT_MAIN },
-                                                    { label: 'Actual', value: m.actual, color: COLORS.TEXT_MAIN },
-                                                    { label: gapTitleSb, value: gapLabelSb, color: gapColorSb },
-                                                    { label: 'OEE', value: `${m.currentOee}%`, color: oeeColorSb, bg: `${oeeColorSb}12` },
-                                                ].map((stat, i) => (
-                                                    <Box key={stat.label} sx={{ flex: 1, textAlign: 'center', py: 0.6, backgroundColor: stat.bg || 'transparent', borderRight: i < 3 ? '1px solid #ebebeb' : 'none' }}>
-                                                        <Typography sx={{ fontSize: '0.62rem', color: i === 2 ? gapColorSb : i === 3 ? oeeColorSb : COLORS.TEXT_SUB, fontWeight: 700, textTransform: 'uppercase', lineHeight: 1.3 }}>{stat.label}</Typography>
-                                                        <Typography sx={{ fontSize: '0.9rem', fontWeight: 900, color: stat.color, lineHeight: 1.2 }}>{stat.value}</Typography>
-                                                    </Box>
-                                                ))}
-                                            </Box>
-                                        </Box>
-                                    </Box>
-                                );
-                            }) : (
-                                <Typography sx={{ textAlign: 'center', color: COLORS.TEXT_SUB, mt: 2, fontStyle: 'italic', fontSize: '0.78rem' }}>Calculating rankings...</Typography>
-                            )}
-                        </Stack>
-                    </Box>
+            <Box ref={contentRef} sx={{ flex: 1, padding: '14px', overflowY: 'auto' }}>
+                <Box sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, 1fr)',
+                    gridAutoRows: 'clamp(300px, 42vh, 520px)',
+                    gap: '12px'
+                }}>
+                    {filteredAndSortedData.map((m) => (
+                        <RenderMachineCard key={m.id} m={m} />
+                    ))}
                 </Box>
             </Box>
         </Box>
