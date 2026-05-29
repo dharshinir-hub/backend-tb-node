@@ -514,6 +514,7 @@ export default function OperatorPerformanceDashboard() {
                 id: devId,
                 name: deviceNameID.find(d => d.id === devId)?.name || 'Unknown',
                 operator: 'No Operator Assigned',
+                component: '',
                 status: 'Disconnected',
                 statusTs: null,
                 currentOee: 0,
@@ -539,7 +540,7 @@ export default function OperatorPerformanceDashboard() {
     useEffect(() => {
         if (viewMode !== 'Current' || !selectedMachines.length || !deviceNameID.length || !currentShiftInfo || !shifts.length) return;
 
-        const POLL_KEYS = 'machine_status,oee,targetparts,totalparts,live_operator';
+        const POLL_KEYS = 'machine_status,oee,targetparts,totalparts,live_operator,live_component';
 
         const poll = async () => {
             const ids = deviceNameID.filter(d => selectedMachines.includes(d.name)).map(d => d.id);
@@ -592,6 +593,14 @@ export default function OperatorPerformanceDashboard() {
                             const n = op.name || op.operator || 'Unknown';
                             const c = op.code || '';
                             updated.operator = c ? `${n} (${c})` : n;
+                        } catch(e) {}
+                    }
+
+                    const compV = getV('live_component');
+                    if (compV !== null) {
+                        try {
+                            const comp = JSON.parse(compV);
+                            updated.component = comp.name || comp.component || '';
                         } catch(e) {}
                     }
 
@@ -677,12 +686,11 @@ export default function OperatorPerformanceDashboard() {
                         );
                     })()}
 
-                    {/* RIGHT — Actual / Cur.Tgt / Target / OEE stacked */}
+                    {/* RIGHT — Actual / Cur.Tgt / OEE stacked */}
                     <Box sx={{ borderLeft: '1px solid rgba(255,255,255,0.18)', backgroundColor: 'rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', px: 'clamp(10px, 1.3vw, 18px)', py: 'clamp(6px, 1vw, 14px)', minWidth: 'clamp(80px, 10vw, 125px)', flexShrink: 0 }}>
                         {[
                             { label: 'Actual',  value: m.actual,           color: '#fff' },
                             { label: 'Cur.Tgt', value: currentTimeTarget,  color: viewMode === 'Current' && currentTimeTarget > 0 ? (m.actual >= currentTimeTarget ? '#b9f6ca' : '#ffcdd2') : '#fff' },
-                            { label: 'Target',  value: m.target,           color: '#fff' },
                             { label: 'OEE',     value: `${m.currentOee}%`, color: '#fff' },
                         ].map(({ label, value, color }) => (
                             <Box key={label}>
@@ -695,6 +703,16 @@ export default function OperatorPerformanceDashboard() {
                             </Box>
                         ))}
                     </Box>
+                </Box>
+
+                {/* ── Footer: Live Component ── */}
+                <Box sx={{ backgroundColor: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.12)', px: 'clamp(10px, 1.2vw, 16px)', py: 'clamp(6px, 0.8vw, 10px)', flexShrink: 0 }}>
+                    <Typography sx={{ fontSize: 'clamp(0.48rem, 0.62vw, 0.72rem)', fontWeight: 800, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
+                        Component
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.7rem, 1vw, 1.15rem)', fontWeight: 800, color: m.component ? '#fff' : 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.3, lineHeight: 1.1 }}>
+                        {m.component || 'Not Assigned'}
+                    </Typography>
                 </Box>
             </Card>
         );
