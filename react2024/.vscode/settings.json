@@ -1,0 +1,11 @@
+{
+    "files.autoSave": "afterDelay",
+    "editor.renderWhitespace": "boundary",
+    "editor.cursorStyle": "line-thin",
+    "editor.wordWrap": "on",
+    "editor.bracketPairColorization.enabled": true,
+    "cursor.cpp.enablePartialAccepts": true,
+    "editor.lightbulb.enabled": "on",
+    "files.simpleDialog.enable": true,
+    "workbench.editor.enablePreviewFromQuickOpen": false
+}

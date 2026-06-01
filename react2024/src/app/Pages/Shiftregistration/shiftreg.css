@@ -1,0 +1,417 @@
+.page{
+    /* text-align: center; */
+    transition: width 0.3s linear;
+    /* //overflow-y:scroll; */
+    width: 100%;
+    padding-block-start: 40px;
+    padding-bottom: 0px;
+    height:calc(100vh - 50px);
+    overflow-x: hidden;
+    scrollbar-width: thin;
+}
+.left-label h5{
+    text-align: center;
+    font-size: 20px;
+    font-family: Mulish, sans-serif;
+    font-weight: 600;
+}
+.mat-error {
+  color: red;
+  font-size: 0.75rem;
+}
+.left-label {
+    /* // display: flex; */
+     flex-direction: row;
+     justify-content: space-between;
+     align-items: center;
+     color: white;
+     width: 100%;
+     white-space: nowrap; /* Add this line to prevent line breaks */
+     overflow: hidden; /* Add this line to hide overflowing text */
+     text-overflow: ellipsis; /* Add this line to show ellipsis for long text */
+   
+   }
+.shift_card{
+    padding: 15px;
+    /* // background: url(../../../assets/images/bg_login.jpg) no-repeat; */
+    width: 800px;
+    margin-bottom: 15px;
+    background: #f7941e;
+    text-align: center;
+    color: #fff;
+    margin: auto;
+    position: relative;
+    height: auto;
+}
+.shift{
+    .edit{
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        cursor: pointer;
+    }
+   
+    h2{
+        font-size: 1.5rem;
+        margin-bottom: 0;
+    }
+    h3{
+        font-size: 70px;
+        font-weight: 100;
+        margin: 20px 0;
+    }
+    .status_icon{
+          -webkit-display: flex;
+-moz-display: flex;
+-ms-display: flex;
+-o-display: flex;
+ display: flex;
+ -webkit-justify-content: space-around;
+ -moz-justify-content: space-around;
+ -ms-justify-content: space-around;
+ -o-justify-content: space-around;
+justify-content: space-around;
+        .status{
+            width: calc(100% /1);
+            &:first-child{
+                border-right: 1px solid #ccc;
+            }
+            span{
+                color: #292929;
+                font-size: 24px;
+            }
+            p{
+                margin-top: 0px;
+                font-size: 18px;
+            
+        }
+        }
+     
+    }
+
+}
+
+.volkomn{
+width:100px;
+margin:auto;
+}  
+.right-label{
+    /* // width: calc(135% /2); */
+      /* margin: auto !important; */
+      margin-left:55px;
+      padding: 0;
+}
+     .shift-content{
+      flex-direction: row;
+      justify-content: flex-start;
+     display: flex;
+     width:100%;
+     margin:auto;
+     gap:5px;
+     }
+    
+     .card_sec {
+        border-radius: 0;
+        margin-top: 5px;
+      
+        table {
+            font-size: 0.9em;
+            color: #666;
+            position: relative;
+            overflow-x: auto;
+            /* z-index: 1200; */
+    
+            td {
+                /* // background-color: #1d1e23; */
+                font-size: 12px;
+                color: black;
+            }
+          
+            thead {
+                th {
+                    position: sticky;
+                    border-bottom: 1px solid rgba(224, 224, 224, 1);
+                    background-color: #ffffff;
+                    font-size:18px;
+                    font-weight: 500;
+                    color: black;
+                    font-family: 'Barlow Condensed', sans-serif;
+                    line-height: 20px;
+                    padding: 0.75rem;
+                    &.mat-header-cell {
+                        &:first-of-type {
+                            padding-left: 8px;
+                        }
+                    }
+                }
+            }
+    
+            tr {
+                height: 35px !important;
+                background-color: #3b25e6 !important;
+    
+                td {
+                    font-size: 14px;
+                    color:black;
+                    padding: 0.75rem;
+                    border-bottom: none;
+                    &.mat-cell,
+                    &.mat-footer-cell {
+                        /* // border-bottom: 1px solid #777b85; */
+                            border-bottom: transparent;
+                        &:first-of-type {
+                            padding-left: 8px;
+                        }
+                    }
+    
+                }
+            }
+        }
+    
+        .mat-paginator-container {
+            -webkit-justify-content: space-between;
+            -moz-justify-content: space-between;
+            -ms-justify-content: space-between;
+            -o-justify-content: space-between;
+            justify-content: space-between !important;
+            padding: 0 15px!important;
+    
+            button {
+                padding: 0.5rem 0.75rem;
+                line-height: 1.25;
+    
+                background-color: #ffffff;
+                border: 0;
+                border-radius: 0;
+                display: inline-block;
+                position: relative;
+    
+                &.mat-paginator-navigation-previous {
+                    border-top-left-radius: 5px;
+                    border-bottom-left-radius: 5px;
+                }
+    
+                &.mat-paginator-navigation-next {
+                    border-top-right-radius: 5px;
+                    border-bottom-right-radius: 5px;
+                }
+    
+                &:hover {
+                    color: #3b25e6;
+                    text-decoration: none;
+                    cursor: pointer;
+                    background-color: #2e2e2e;
+                    border-color: #ddd;
+                }
+    
+                span {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+    
+                    svg {
+                        fill: orange;
+                    }
+                }
+            }
+    
+        }
+    }
+    
+
+    .example-container {
+        height: 65vh;
+        overflow: auto;
+        scrollbar-width: thin;
+        background: #ffffff;
+
+
+      }
+      .MuiPaper-root.MuiPaper-elevation.MuiPaper-rounded.MuiPaper-elevation1.MuiCard-root.card_sec.css-bhp9pd-MuiPaper-root-MuiCard-root {
+        /* Your CSS rules here */
+        border:2px solid white;
+      }
+    .pagecontent{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    
+    }
+    .odd-row {
+        background-color:#f7f7f7;
+      }
+      
+      .even-row {
+        background-color:#ededed;
+      }
+      table td {
+        border-bottom: none; /* Remove the right border */
+      }
+      
+      table tr {
+        border-bottom: none; /* Remove the bottom border */
+      }
+     /* ... previous styles ... */
+
+/* ... previous styles ... */
+
+@media (max-width: 768px) {
+    .shift_card {
+      width: 70%;
+      position: static;
+    }
+  
+    .shift-content {
+      flex-direction: column;
+      width: 100%;
+    }
+  
+    .right-label {
+      margin: 20px 0 !important;
+      /* margin-left: 55px; */
+    }
+  
+    .page {
+      padding-left: 15px; /* Add some padding to the left */
+      padding-right: 15px; /* Add some padding to the right */
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .shift_card {
+      /* width: 100%;
+      margin: 10px;
+      box-sizing: border-box; */
+      display: none;
+    }
+  
+    /* .shift-content {
+      flex-direction: column;
+      align-items: center;
+    } */
+  
+    .right-label {
+      width: 100%;
+      margin: 20px 0 !important;
+    }
+  
+    .page {
+      padding-left: 10px; /* Reduce the left padding for smaller screens */
+      padding-right: 10px; /* Reduce the right padding for smaller screens */
+    }
+  }
+ /* styles.css */
+.machinedialog.mat-mdc-form-field-infix {
+  flex: auto;
+  min-width: 0;
+  width: 180px;
+  position: relative;
+  background-color: grey;
+  box-sizing: border-box;
+}
+.machinedialog.mat-form-field-appearance-outline .mat-form-field-outline {
+  background-color: #666 !important;
+  border-radius: 5px;
+  border: unset;
+}
+.machinedialog .mat-form-field-appearance-outline .mat-form-field-outline {
+  background-color: #202739 !important;
+  border-radius: 5px;
+  border: unset;
+}
+.form_sec_fields .form_field {
+  width: 32%;
+  margin-right: 10px;
+  margin-bottom: 10px;
+}
+.form_sec_fields .form_field.time_field_bg, .time_field_bg {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 20px;
+
+  
+}
+
+.form_sec_fields{
+  -webkit-display: flex;
+-moz-display: flex;
+-ms-display: flex;
+-o-display: flex;
+display: flex;
+ -webkit-flex-wrap: wrap;
+-moz-flex-wrap: wrap;
+-ms-flex-wrap: wrap;
+-o-flex-wrap: wrap;
+ flex-wrap: wrap;
+align-items: flex-end;
+margin-left: 15px ;
+.form_field {
+width: 31%;
+margin-right: 10px;
+margin-bottom: 10px;
+}
+.ngb-tp-input {
+padding: 0;
+font-size: 28px;
+
+}
+
+}
+.shift_form .form_field {
+  margin-bottom: 20px;
+  margin-right: 10px;
+}
+.css-e784if-MuiTypography-root {
+  color: black;
+}
+.close_modal {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: #a3a0a0;
+    mat-icon {
+        font-size: 20px;
+        color: #0e121b;
+        background-color:white;
+        align-items: center;
+
+    }
+}
+.error-message {
+  color: red;
+  font-size: 0.75rem;
+}
+.css-11u53oe-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input.css-11u53oe-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input.css-11u53oe-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input {
+  padding-right: 32px;
+  color: white;
+}
+ @media screen and (max-width:600px){
+  .form_field {
+    width: 100%;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    }
+    .form_sec_fields{
+      flex-direction: column;
+    }
+    .form_sec_fields .form_field.time_field_bg, .time_field_bg {
+     width:100%;
+    
+      
+    }
+    .form_sec_fields .form_field {
+      width: 100%;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+ }
+ /* .css-hfutr2-MuiSvgIcon-root-MuiSelect-icon {
+  color: white !important;
+ } */
+ .error-outline .MuiOutlinedInput-notchedOutline,
+.error-outline .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline,
+.error-outline .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: red !important;
+  color: white !important;
+}

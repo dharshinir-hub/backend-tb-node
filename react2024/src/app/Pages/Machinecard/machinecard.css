@@ -1,0 +1,47 @@
+.metrics-container {
+    align-self: end;
+    z-index: 10;
+    display: flex;
+    margin-top: 5px;
+    width: 100%;
+    max-width: 100%;
+    align-items: start;
+    gap: 20px;
+    font-family: Inter, sans-serif;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .metric-box {
+    border-radius: 5px;
+    display: flex;
+    align-items: start;
+    gap: 5px;
+    padding: 6px 9px;
+    border: 1px solid rgba(217, 217, 217, 1);
+  }
+  .metric-icon {
+    aspect-ratio: 1;
+    object-fit: contain;
+    object-position: center;
+    width: 21px;
+    border-radius: 4px;
+  }
+  .metric-content {
+    display: flex;
+    flex-direction: column;
+  }
+  .metric-value {
+    color: rgba(0, 0, 0, 1);
+    font-size: 15px;
+    text-align: center;
+    font-weight: 400;
+    z-index: 10;
+    background: white;
+  }
+  .metric-label {
+    color: black;
+    font-size: 18px;
+    font-weight: 500;
+    align-self: start;
+    background: white;
+  }

@@ -1,0 +1,1571 @@
+/* Import Poppins font */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.operator-screen {
+  width: 100vw;
+  height: 100vh;
+  background-color: white;
+  display: flex;
+  flex-direction: column;
+  font-family: "Poppins", serif;
+  font-weight: 400;
+  font-style: normal;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+li,
+ol,
+a,
+div {
+  font-family: "Poppins", serif;
+  font-weight: 400;
+  font-style: normal;
+  margin: 0;
+}
+
+.header {
+  position: relative;
+  display: flex;
+  width: 100vw;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background-color: transparent;
+  border-bottom: solid 1px #D1D1D1;
+}
+
+.header-text-element {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.header-text-element h5 {
+  color: #89969F;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.span-1 {
+  color: #F99022;
+}
+
+.span-2 {
+  position: relative;
+  color: #fff;
+  z-index: 2;
+  background-color: #f99022;
+  padding: 0 3px;
+  border-radius: 5px;
+}
+
+.calendar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  font-weight: bold;
+}
+
+.calendar p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.calendar-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  font-size: 1rem;
+  color: white;
+  transition: background-color 0.3s ease;
+}
+
+.icon {
+  font-size: 1.3rem !important;
+  margin-right: 0 !important;
+}
+
+
+@media (min-width: 1440px) {
+  .header-2 {
+    padding: 1.5rem !important;
+  }
+
+  .date-label {
+    font-size: 1.45rem !important;
+  }
+
+  .icon {
+    font-size: 1.45rem !important;
+  }
+}
+
+.machine-name {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  font-size: 1.2rem;
+}
+
+@media (min-width: 1440px) {
+  .machine-name {
+    font-size: 1.45rem !important;
+  }
+
+  .css-jd1zyo-MuiSelect-select-MuiInputBase-input-MuiInput-input.css-jd1zyo-MuiSelect-select-MuiInputBase-input-MuiInput-input.css-jd1zyo-MuiSelect-select-MuiInputBase-input-MuiInput-input {
+    font-size: 1.1rem !important;
+  }
+}
+
+.header-2-right {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.logout-icon {
+  font-size: 1.5rem;
+}
+
+.logout {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease, transform 0.1s ease;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+}
+
+.logout:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.logout:active {
+  transform: scale(0.97);
+}
+
+.machine-status {
+  text-transform: capitalize;
+}
+
+.log-off-header {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.log-off-header:before {
+  position: absolute;
+  content: "";
+  height: 100%;
+  width: 1px;
+  background-color: #ffffff;
+  left: 0;
+  top: 0;
+}
+
+.content {
+  flex-grow: 1;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  align-items: center;
+  justify-items: center;
+  padding: 0 0.5rem;
+}
+
+.contect-section {
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.circular-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.job-stats-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  height: 100%;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.job-stats-section p {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.actual {
+  font-weight: 500;
+  font-size: 1.5rem;
+  color: #666;
+  text-align: center;
+}
+
+.actual-value {
+  font-weight: 700;
+  font-size: 2.5rem;
+  color: #f99022;
+  line-height: 1.2;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .job-stats-section {
+    align-items: center;
+    text-align: center;
+  }
+
+  .job-stats-section p {
+    font-size: 1rem;
+  }
+
+  .actual {
+    font-size: 1.25rem;
+  }
+
+  .actual-value {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .job-stats-section p {
+    font-size: 0.9rem;
+  }
+
+  .actual {
+    font-size: 1rem;
+  }
+
+  .actual-value {
+    font-size: 1.5rem;
+  }
+}
+
+
+.username-section {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.5rem;
+  background-color: #F990222B;
+  width: fit-content;
+  padding: 5px 35px;
+  border: solid 1px #f99022;
+  border-radius: 30px;
+  min-width: 140px;
+}
+
+.username-section h4 {
+  color: #f99022;
+  font-size: 20px;
+  margin: 0;
+}
+
+.progress-circle {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.5s ease;
+}
+
+.progress-circle-inner {
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  flex-direction: column;
+  text-align: center;
+  transition: all 0.5s ease;
+}
+
+.progress-percentage1-inner {
+  display: block;
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.progress-percentage1-inner .big {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.progress-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-metrics .metric {
+  margin: 2px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.progress-metrics .label {
+  color: #fff;
+  font-size: 12px;
+}
+
+.metric .icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 0;
+  margin-top: 5px;
+}
+
+.metric .value {
+  font-size: 20px;
+  font-weight: bold;
+  color: #fff;
+  margin-left: 5px;
+}
+
+.metric .label {
+  font-size: 12px;
+  color: #fff;
+}
+
+.vertical-progress-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.time-label {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 10px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.time-label.start-time {
+  position: absolute;
+  top: 0;
+  right: 2.55rem;
+  white-space: nowrap;
+}
+
+.time-label.end-time {
+  position: absolute;
+  bottom: 0;
+  left: 2.5rem;
+  white-space: nowrap;
+}
+
+.progress-wrapper {
+  position: relative;
+  width: 16px;
+  height: 220px;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  overflow: visible;
+  display: flex;
+  justify-content: center;
+  margin: 0 0 10px 0;
+}
+
+.progress-bar {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #f0f0f0;
+  border-radius: 50px;
+  overflow: visible;
+}
+
+.progress {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 0%;
+  background: linear-gradient(to bottom, red, orange, green);
+  transition: height 0.5s ease;
+  border-radius: 50px;
+}
+
+.login-indicator {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 0;
+  border: 2px solid #3182ce;
+}
+
+.login-time-label {
+  position: absolute;
+  left: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #333;
+  white-space: nowrap;
+  z-index: 100;
+  font-weight: 500;
+}
+
+.footer1 {
+  width: 100vw;
+  display: flex;
+  padding: 0;
+}
+
+.swal2-success-circular-line-left,
+.swal2-success-circular-line-right {
+  background: none !important;
+  background-color: transparent !important;
+}
+
+.css-rdg5e2-MuiFormControl-root {
+  min-width: 0 !important;
+}
+
+.footer-left,
+.footer-right {
+  width: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.1rem;
+  gap: 0.3rem;
+  border: 1px solid rgb(190, 189, 189);
+  padding: 1.5rem;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease, transform 0.1s ease;
+  border-radius: 6px;
+}
+
+.footer-left:hover,
+.footer-right:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.footer-left:active,
+.footer-right:active {
+  transform: scale(0.97);
+}
+
+
+@media (max-width: 768px) {
+  .progress-circle {
+    width: 200px;
+    height: 200px;
+  }
+
+  .progress-circle-inner {
+    width: 170px;
+    height: 170px;
+  }
+
+  .vertical-progress-container {
+    order: -1;
+  }
+
+  .progress-wrapper {
+    height: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .calendar-container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .content {
+    padding: 0 1rem;
+  }
+
+  .progress-circle {
+    width: 150px;
+    height: 150px;
+  }
+
+  .progress-circle-inner {
+    width: 120px;
+    height: 120px;
+  }
+
+  .progress-percentage1-inner {
+    font-size: 24px;
+  }
+
+  .progress-percentage1-inner .big {
+    font-size: 24px;
+  }
+}
+
+@keyframes progressUpdate {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.progress-circle.updated {
+  animation: progressUpdate 0.3s ease-in-out;
+}
+
+.footer-left:hover,
+.footer-right:hover {
+  background-color: #f0f0f0;
+  border-color: #F99022;
+}
+
+.logout:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.header-2 {
+  transition: background-color 0.3s ease;
+}
+
+.icon-dimension {
+  filter: invert(50%) sepia(89%) saturate(441%) hue-rotate(351deg) brightness(102%) contrast(101%);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.font-bold {
+  font-weight: bold;
+}
+
+.text-white {
+  color: white;
+}
+
+.text-orange {
+  color: #F99022;
+}
+
+.bg-orange {
+  background-color: #F99022;
+}
+
+.border-orange {
+  border-color: #F99022;
+}
+
+.rounded {
+  border-radius: 0.25rem;
+}
+
+.p-2 {
+  padding: 0.5rem;
+}
+
+.p-4 {
+  padding: 1rem;
+}
+
+.m-2 {
+  margin: 0.5rem;
+}
+
+.m-4 {
+  margin: 1rem;
+}
+
+
+div:where(.swal2-icon) {
+  position: absolute;
+  left: 50%;
+  top: 1.2rem;
+  transform: translateX(-50%);
+  margin: 0;
+  position: relative;
+}
+
+
+@media (min-width: 1440px) {
+  .progress-circle {
+    width: 440px !important;
+    height: 440px !important;
+  }
+
+  .progress-circle-inner {
+    width: 380px !important;
+    height: 380px !important;
+  }
+
+  .progress-percentage1-inner,
+  .progress-percentage1-inner .big {
+    font-size: 60px !important;
+  }
+
+  .progress-metrics .metric {
+    font-size: 1.6rem !important;
+  }
+
+  .progress-metrics .value {
+    font-size: 38px !important;
+  }
+
+  .progress-metrics .label {
+    font-size: 1.25rem !important;
+  }
+
+  .job-stats-section p {
+    font-size: 1.85rem !important;
+  }
+
+  .actual {
+    font-size: 2.1rem !important;
+  }
+
+  .actual-value {
+    font-size: 3.6rem !important;
+  }
+
+  .footer-left,
+  .footer-right {
+    font-size: 1.45rem !important;
+    padding: 2.5rem !important;
+  }
+
+  .header-text-element h5 {
+    font-size: 28px !important;
+  }
+
+  .progress-wrapper {
+    height: 420px !important;
+  }
+}
+
+@media (min-width: 1920px) {
+  .progress-circle {
+    width: 520px !important;
+    height: 520px !important;
+  }
+
+  .progress-circle-inner {
+    width: 450px !important;
+    height: 450px !important;
+  }
+
+  .progress-percentage1-inner,
+  .progress-percentage1-inner .big {
+    font-size: 70px !important;
+  }
+
+  .progress-metrics .metric {
+    font-size: 1.8rem !important;
+  }
+
+  .progress-metrics .value {
+    font-size: 44px !important;
+  }
+
+  .progress-metrics .label {
+    font-size: 1.35rem !important;
+  }
+
+  .job-stats-section p {
+    font-size: 2.1rem !important;
+  }
+
+  .actual {
+    font-size: 2.35rem !important;
+  }
+
+  .actual-value {
+    font-size: 4.2rem !important;
+  }
+
+  .footer-left,
+  .footer-right {
+    font-size: 1.55rem !important;
+    padding: 3rem !important;
+  }
+
+  .header-text-element h5 {
+    font-size: 34px !important;
+  }
+
+  .progress-wrapper {
+    height: 500px !important;
+  }
+}
+
+@media (min-width: 1440px) {
+  .username-section {
+    min-width: 220px;
+    padding: 10px 45px;
+    border-radius: 35px;
+  }
+
+  .username-section h4 {
+    font-size: 28px !important;
+  }
+
+  .username-section .MuiInputBase-root {
+    font-size: 1.2rem !important;
+  }
+
+  .username-section .MuiSelect-select {
+    padding: 10px 50px 10px 14px !important;
+  }
+
+  .username-section .MuiSvgIcon-root {
+    font-size: 28px !important;
+    right: 12px;
+  }
+
+  .MuiSelect-root .MuiPaper-root {
+    min-width: 220px !important;
+    max-height: 300px !important;
+    font-size: 1.2rem !important;
+  }
+
+  .MuiMenuItem-root {
+    min-height: 50px !important;
+  }
+}
+
+@media (min-width: 1920px) {
+  .username-section {
+    min-width: 270px;
+    padding: 12px 55px;
+    border-radius: 40px;
+  }
+
+  .username-section h4 {
+    font-size: 34px !important;
+  }
+
+  .username-section .MuiInputBase-root {
+    font-size: 1.5rem !important;
+  }
+
+  .username-section .MuiSelect-select {
+    padding: 12px 50px 12px 16px !important;
+  }
+
+  .username-section .MuiSvgIcon-root {
+    font-size: 32px !important;
+    right: 14px;
+  }
+
+  .MuiSelect-root .MuiPaper-root {
+    min-width: 270px !important;
+    max-height: 350px !important;
+    font-size: 1.5rem !important;
+  }
+
+  .MuiMenuItem-root {
+    min-height: 60px !important;
+  }
+}
+
+div:where(.swal2-container).swal2-center>.swal2-popup {
+  width: auto !important;
+}
+
+.contect-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #1a1a1a;
+  font-family: "Poppins", sans-serif;
+  text-align: center;
+  line-height: 1.4;
+  padding-top: 4px;
+}
+
+/* --- Job Info --- */
+.job-info {
+  margin-Top: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.job-code {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #000;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.job-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #555;
+  margin: 0.3rem 0 0;
+}
+
+/* --- Time Info (Two Columns) --- */
+.time-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2rem;
+  margin: 0.6rem 0 1rem;
+}
+
+.time-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 150px;
+}
+
+.time-item span {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #111;
+  margin-bottom: 0.2rem;
+  text-transform: capitalize;
+}
+
+.time-item p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #333;
+  font-weight: 500;
+}
+
+/* --- Actual vs Target --- */
+.actual-wrapper {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.actual-label {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 0.4rem;
+}
+
+.actual-value {
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #f99022;
+  line-height: 1.1;
+}
+
+.current-target-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  background: transparent;
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+
+.current-target-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.current-target-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+/* --- Large Screens --- */
+@media (min-width: 1440px) {
+  .job-code {
+    font-size: 2rem;
+  }
+
+  .job-name {
+    font-size: 1.3rem;
+  }
+
+  .time-item span,
+  .time-item p {
+    font-size: 1.25rem;
+  }
+
+  .actual-value {
+    font-size: 4rem;
+  }
+}
+
+/* --- Medium Screens --- */
+@media (max-width: 1024px) {
+  .job-code {
+    font-size: 1.5rem;
+  }
+
+  .job-name {
+    font-size: 1.05rem;
+  }
+
+  .actual-value {
+    font-size: 2.8rem;
+  }
+
+  .time-item span,
+  .time-item p {
+    font-size: 1rem;
+  }
+
+  .time-wrapper {
+    gap: 1.2rem;
+    margin: 0.8rem 0 1.5rem;
+  }
+}
+
+/* --- Small Screens --- */
+@media (max-width: 768px) {
+  .contect-section {
+    padding: 4px 0.5rem 0.5rem;
+  }
+
+  .time-wrapper {
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 1rem 0;
+  }
+
+  .actual-value {
+    font-size: 2.4rem;
+  }
+}
+
+.component-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #fff;
+  border: solid 1px #d0d0d0;
+  border-radius: 30px;
+  padding: 8px 24px;
+  min-width: 120px;
+  width: fit-content;
+}
+
+@media (min-width: 1440px) {
+  .component-section {
+    min-width: 200px;
+    padding: 10px 36px;
+    border-radius: 35px;
+  }
+
+  .component-section .MuiInputBase-root {
+    font-size: 1.2rem !important;
+  }
+
+  .component-section .MuiSvgIcon-root {
+    font-size: 28px !important;
+  }
+}
+
+@media (min-width: 1920px) {
+  .component-section {
+    min-width: 250px;
+    padding: 12px 44px;
+    border-radius: 40px;
+  }
+
+  .component-section .MuiInputBase-root {
+    font-size: 1.5rem !important;
+  }
+
+  .component-section .MuiSvgIcon-root {
+    font-size: 32px !important;
+  }
+}
+
+.button-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 26px;
+}
+
+/* bigger blue button */
+.blue-card-button {
+  background: #257af9;
+  color: white;
+  border: none;
+  padding: 40px 44px;
+  /* increased size */
+  border-radius: 50px;
+  font-size: 20px;
+  /* bigger text */
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: 0.2s;
+}
+
+.blue-card-button:hover {
+  background: #2cb3f6;
+  transform: translateY(-1px);
+}
+
+/* ── Plan Modal ──────────────────────────────────── */
+.plan-modal-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #f99022;
+  border-bottom: 2px solid #f990221a;
+  padding-bottom: 4px;
+  padding-Top: 14px;
+  margin-bottom: 12px;
+}
+
+.plan-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 16px;
+}
+
+.plan-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-modal-field--wide {
+  grid-column: span 2;
+}
+
+.plan-modal-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.plan-modal-field input,
+.plan-modal-select {
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  font-family: 'Poppins', sans-serif;
+  color: #222;
+  outline: none;
+  transition: border 0.2s;
+  width: 100%;
+  background: #fff;
+}
+
+.plan-modal-field input:focus,
+.plan-modal-select:focus {
+  border-color: #f99022;
+}
+
+.plan-modal-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-modal-time input {
+  width: 70px;
+  text-align: center;
+}
+
+.plan-modal-time span {
+  font-weight: 700;
+  color: #666;
+  font-size: 1rem;
+}
+/* ─── Operator dropdown thin scrollbar ─── */
+.operator-select-menu ul::-webkit-scrollbar,
+.operator-select-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.operator-select-menu ul::-webkit-scrollbar-track,
+.operator-select-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.operator-select-menu ul::-webkit-scrollbar-thumb,
+.operator-select-menu::-webkit-scrollbar-thumb {
+  background: #f99022;
+  border-radius: 4px;
+}
+
+/* ─── Theme Toggle Button ─── */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  background-color: #f3f4f6;
+  color: #374151;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  background-color: #e5e7eb;
+}
+
+/* ─── CSS Variables (light = default) ─── */
+.operator-screen {
+  --bg-primary:        #ffffff;
+  --bg-surface:        #f9fafb;
+  --bg-card:           #ffffff;
+  --text-primary:      #111827;
+  --text-secondary:    #4b5563;
+  --text-muted:        #9ca3af;
+  --border-color:      #e5e7eb;
+  --footer-hover-bg:   #f3f4f6;
+  --time-label-color:  #374151;
+  --progress-bg:       #f0f0f0;
+}
+
+/* ─── Dark palette — warm slate, easy on the eyes ─── */
+.operator-screen[data-theme="dark"] {
+  --bg-primary:        #1a1d23;
+  --bg-surface:        #22262e;
+  --bg-card:           #2a2f3a;
+  --text-primary:      #f1f5f9;
+  --text-secondary:    #94a3b8;
+  --text-muted:        #64748b;
+  --border-color:      #334155;
+  --footer-hover-bg:   #2d3340;
+  --time-label-color:  #cbd5e1;
+  --progress-bg:       #2d3340;
+}
+
+/* ─── Apply variables to operator-screen elements ─── */
+.operator-screen {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.operator-screen .header {
+  border-bottom-color: var(--border-color);
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+.operator-screen[data-theme="dark"] .header {
+  background-color: var(--bg-surface);
+}
+
+.operator-screen .header-text-element h5 {
+  color: var(--text-muted);
+}
+
+.operator-screen .calendar p,
+.operator-screen .date-label {
+  color: var(--text-primary);
+}
+
+.operator-screen .footer-left,
+.operator-screen .footer-right {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  transition: background-color 0.2s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.operator-screen .footer-left:hover,
+.operator-screen .footer-right:hover {
+  background-color: var(--footer-hover-bg);
+  border-color: #F99022;
+}
+
+.operator-screen .time-label,
+.operator-screen .login-time-label {
+  color: var(--time-label-color);
+}
+
+.operator-screen .job-stats-section p {
+  color: var(--text-primary);
+}
+
+.operator-screen .actual {
+  color: var(--text-secondary);
+}
+
+.operator-screen .contect-section {
+  color: var(--text-primary);
+}
+
+.operator-screen .job-code {
+  color: var(--text-primary);
+}
+
+.operator-screen .job-name {
+  color: var(--text-secondary);
+}
+
+.operator-screen .time-item span {
+  color: var(--text-primary);
+}
+
+.operator-screen .time-item p {
+  color: var(--time-label-color);
+}
+
+.operator-screen .actual-label {
+  color: var(--text-secondary);
+}
+
+.operator-screen .progress-wrapper,
+.operator-screen .progress-bar {
+  background-color: var(--progress-bg);
+}
+
+/* ─── Dark toggle button ─── */
+.operator-screen[data-theme="dark"] .theme-toggle {
+  background-color: #334155;
+  color: #fbbf24;
+}
+
+.operator-screen[data-theme="dark"] .theme-toggle:hover {
+  background-color: #3d4f66;
+}
+
+/* ═══════════════════════════════════════════════════
+   GLOBAL DARK — MUI portals + SweetAlert2
+   Portals render outside .operator-screen so we scope
+   to body[data-theme="dark"] set by useEffect
+   ═══════════════════════════════════════════════════ */
+
+/* ─── MUI Select / Autocomplete dropdown ─── */
+body[data-theme="dark"] .MuiPaper-root,
+body[data-theme="dark"] .MuiPopover-paper,
+body[data-theme="dark"] .MuiMenu-paper,
+body[data-theme="dark"] .MuiAutocomplete-paper {
+  background-color: #22262e !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+body[data-theme="dark"] .MuiMenuItem-root {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiMenuItem-root:hover,
+body[data-theme="dark"] .MuiMenuItem-root.Mui-focusVisible {
+  background-color: #2d3340 !important;
+}
+
+body[data-theme="dark"] .MuiMenuItem-root.Mui-selected {
+  background-color: rgba(249, 144, 34, 0.15) !important;
+  color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiMenuItem-root.Mui-selected:hover {
+  background-color: rgba(249, 144, 34, 0.25) !important;
+}
+
+body[data-theme="dark"] .MuiAutocomplete-option {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiAutocomplete-option:hover,
+body[data-theme="dark"] .MuiAutocomplete-option[aria-selected="true"] {
+  background-color: #2d3340 !important;
+}
+
+body[data-theme="dark"] .MuiAutocomplete-noOptions {
+  color: #94a3b8 !important;
+  background-color: #22262e !important;
+}
+
+/* ─── MUI Dialog ─── */
+body[data-theme="dark"] .MuiDialog-paper {
+  background-color: #22262e !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155;
+}
+
+body[data-theme="dark"] .MuiDialogTitle-root {
+  color: #f1f5f9 !important;
+  border-bottom: 1px solid #334155;
+}
+
+body[data-theme="dark"] .MuiDialogContent-root {
+  color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .MuiDialogActions-root {
+  border-top: 1px solid #334155;
+}
+
+body[data-theme="dark"] .MuiDialogContentText-root {
+  color: #94a3b8 !important;
+}
+
+/* ─── MUI TextField / Input inside dialogs ─── */
+body[data-theme="dark"] .MuiOutlinedInput-root {
+  background-color: #2a2f3a !important;
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiOutlinedInput-notchedOutline {
+  border-color: #334155 !important;
+}
+
+body[data-theme="dark"] .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiInputLabel-root {
+  color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] .MuiInputLabel-root.Mui-focused {
+  color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiInputBase-input {
+  color: #f1f5f9 !important;
+}
+
+/* Select displayed value text — target every class combination MUI uses */
+body[data-theme="dark"] .MuiSelect-select,
+body[data-theme="dark"] .MuiSelect-outlined,
+body[data-theme="dark"] .MuiSelect-select.MuiInputBase-input,
+body[data-theme="dark"] .MuiSelect-select.MuiOutlinedInput-input,
+body[data-theme="dark"] .MuiSelect-select.MuiSelect-outlined.MuiInputBase-input,
+body[data-theme="dark"] .MuiInputBase-root .MuiSelect-select,
+body[data-theme="dark"] .MuiOutlinedInput-root .MuiSelect-select,
+body[data-theme="dark"] .MuiSelect-nativeInput {
+  color: #f1f5f9 !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+}
+
+/* Dropdown arrow icon */
+body[data-theme="dark"] .MuiSelect-icon,
+body[data-theme="dark"] .MuiSvgIcon-root.MuiSelect-icon {
+  color: #94a3b8 !important;
+}
+
+/* FormLabel / InputLabel (used in CustomDaySelect) */
+body[data-theme="dark"] .MuiFormLabel-root,
+body[data-theme="dark"] .MuiInputLabel-root,
+body[data-theme="dark"] .MuiFormLabel-root.MuiInputLabel-root {
+  color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] .MuiFormLabel-root.Mui-focused,
+body[data-theme="dark"] .MuiInputLabel-root.Mui-focused {
+  color: #f99022 !important;
+}
+
+/* ─── MUI Checkbox ─── */
+body[data-theme="dark"] .MuiCheckbox-root {
+  color: #64748b !important;
+}
+
+body[data-theme="dark"] .MuiCheckbox-root.Mui-checked {
+  color: #f99022 !important;
+}
+
+body[data-theme="dark"] .MuiListItemText-primary {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiListItemText-secondary {
+  color: #94a3b8 !important;
+}
+
+/* ─── MUI Button in dialogs ─── */
+body[data-theme="dark"] .MuiButton-root {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .MuiButton-contained {
+  background-color: #f99022 !important;
+  color: #fff !important;
+}
+
+body[data-theme="dark"] .MuiButton-contained:hover {
+  background-color: #e07d10 !important;
+}
+
+/* ─── MUI Divider ─── */
+body[data-theme="dark"] .MuiDivider-root {
+  border-color: #334155 !important;
+}
+
+/* ─── SweetAlert2 ─── */
+body[data-theme="dark"] .swal2-popup {
+  background-color: #22262e !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155 !important;
+  outline: none !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+}
+
+body[data-theme="dark"] .swal2-title {
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .swal2-content,
+body[data-theme="dark"] .swal2-html-container {
+  color: #cbd5e1 !important;
+}
+
+body[data-theme="dark"] .swal2-input,
+body[data-theme="dark"] .swal2-select,
+body[data-theme="dark"] .swal2-textarea {
+  background-color: #2a2f3a !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155 !important;
+}
+
+body[data-theme="dark"] .swal2-input:focus,
+body[data-theme="dark"] .swal2-select:focus,
+body[data-theme="dark"] .swal2-textarea:focus {
+  border-color: #f99022 !important;
+  box-shadow: 0 0 0 3px rgba(249, 144, 34, 0.2) !important;
+}
+
+body[data-theme="dark"] .swal2-confirm {
+  background-color: #f99022 !important;
+  color: #fff !important;
+}
+
+body[data-theme="dark"] .swal2-cancel {
+  background-color: #374151 !important;
+  color: #f1f5f9 !important;
+}
+
+body[data-theme="dark"] .swal2-deny {
+  background-color: #dc2626 !important;
+  color: #fff !important;
+}
+
+body[data-theme="dark"] .swal2-validation-message {
+  background-color: #2a2f3a !important;
+  color: #f87171 !important;
+  border-color: #dc2626 !important;
+}
+
+body[data-theme="dark"] .swal2-close {
+  color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] .swal2-close:hover {
+  color: #f1f5f9 !important;
+}
+
+/* ─── Blue card notification dropdown ─── */
+body[data-theme="dark"] .operator-screen .header .calendar-container > div[style] {
+  background-color: #22262e !important;
+  border-color: #334155 !important;
+}
+
+/* ─── MUI Backdrop ─── */
+body[data-theme="dark"] .MuiBackdrop-root {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}

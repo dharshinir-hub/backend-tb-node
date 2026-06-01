@@ -1,0 +1,528 @@
+/* ── ErpJson Page ──────────────────────────────────── */
+.erpjson-page {
+  min-height: 100vh;
+  background: #f4f6f9;
+  padding: 24px;
+  font-family: 'Poppins', sans-serif;
+  box-sizing: border-box;
+}
+
+.erpjson-container {
+  width: 100%;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  padding: 28px 32px 36px;
+  box-sizing: border-box;
+}
+
+.erpjson-header {
+  background: #f99022;
+  margin: -28px -32px 24px;
+  padding: 14px 28px;
+  border-radius: 12px 12px 0 0;
+}
+
+.erpjson-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.erpjson-header--list {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.erpjson-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.erpjson-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  background: #fff;
+  color: #f99022;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s, color 0.18s;
+}
+
+.erpjson-header-btn:hover {
+  background: #ffe8cc;
+}
+
+/* ── Table ─────────────────────────────────────────── */
+.erpjson-table-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #ececec;
+  margin-top: 8px;
+}
+
+.erpjson-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  font-family: 'Poppins', sans-serif;
+}
+
+.erpjson-table thead tr {
+  background: #f99022;
+  color: #fff;
+}
+
+.erpjson-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.erpjson-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #333;
+  vertical-align: middle;
+}
+
+.erpjson-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.erpjson-table tbody tr:hover {
+  background: #fff8f0;
+}
+
+/* ── Edit button in table ──────────────────────────── */
+.erpjson-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  color: #f99022;
+  border: 1.5px solid #f99022;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.erpjson-edit-btn:hover {
+  background: #f99022;
+  color: #fff;
+}
+
+/* ── Edit icon button in table ─────────────────────── */
+.erpjson-edit-icon-btn {
+  color: #aaa !important;
+  margin-right: 4px;
+  transition: color 0.18s !important;
+}
+
+.erpjson-edit-icon-btn:hover {
+  color: #f99022 !important;
+}
+
+/* ── Loading / empty states ────────────────────────── */
+.erpjson-loading,
+.erpjson-empty {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 0.88rem;
+  color: #aaa;
+}
+
+/* ── Section title ─────────────────────────────────── */
+.erpjson-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #f99022;
+  border-bottom: 2px solid #f990221a;
+  padding-bottom: 4px;
+  padding-top: 14px;
+  margin-bottom: 12px;
+}
+
+.erpjson-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.2rem;
+  margin-bottom: 12px;
+}
+
+/* ── Grid ──────────────────────────────────────────── */
+.erpjson-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 16px;
+}
+
+.erpjson-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.erpjson-field--wide {
+  grid-column: span 2;
+}
+
+.erpjson-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.erpjson-field input,
+.erpjson-select {
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  font-family: 'Poppins', sans-serif;
+  color: #222;
+  outline: none;
+  transition: border 0.2s;
+  width: 100%;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.erpjson-field input:focus,
+.erpjson-select:focus {
+  border-color: #f99022;
+  box-shadow: 0 0 0 2px #f9902220;
+}
+
+/* ── Cycle time ────────────────────────────────────── */
+.erpjson-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.erpjson-time input {
+  width: 70px;
+  text-align: center;
+}
+
+.erpjson-time span {
+  font-weight: 700;
+  color: #666;
+  font-size: 1rem;
+}
+
+/* ── Detail block ──────────────────────────────────── */
+.erpjson-detail-block {
+  border: 1px solid #ececec;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: #fafafa;
+}
+
+.erpjson-detail-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.erpjson-detail-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ── Group label inside detail block ──────────────── */
+.erpjson-group-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #bbb;
+  margin-top: 14px;
+  margin-bottom: 8px;
+}
+
+/* ── Item section header (title + Add Item btn) ─────── */
+.erpjson-item-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #e0e0e0;
+}
+
+/* ── Item divider inside detail block ──────────────── */
+.erpjson-item-divider {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #bbb;
+}
+
+/* ── Item block (mirrors detail block, inset) ──────── */
+.erpjson-item-block {
+  border: 1px solid #e0e0e0;
+  border-left: 3px solid #f99022;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-top: 8px;
+  background: #fff;
+}
+
+.erpjson-item-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.erpjson-item-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #f99022;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ── Add button ────────────────────────────────────── */
+.erpjson-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  color: #f99022;
+  border: 1.5px solid #f99022;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  white-space: nowrap;
+}
+
+.erpjson-add-btn:hover {
+  background: #f99022;
+  color: #fff;
+}
+
+.erpjson-add-btn--sm {
+  padding: 3px 10px;
+  font-size: 0.73rem;
+}
+
+.erpjson-add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Delete icon button ────────────────────────────── */
+.erpjson-delete-btn {
+  color: #e55 !important;
+  flex-shrink: 0;
+}
+
+/* ── Action buttons ────────────────────────────────── */
+.erpjson-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #eee;
+}
+
+.erpjson-btn {
+  padding: 8px 24px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  transition: background 0.2s, color 0.2s;
+}
+
+.erpjson-btn--cancel {
+  background: #fff;
+  color: #666;
+}
+
+.erpjson-btn--cancel:hover {
+  background: #f5f5f5;
+}
+
+.erpjson-btn--save {
+  background: #f99022;
+  color: #fff;
+  border-color: #f99022;
+}
+
+.erpjson-btn--save:hover:not(:disabled) {
+  background: #e08529;
+}
+
+.erpjson-btn--save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Machine name column auto-width ────────────────── */
+.erpjson-th-machine,
+.erpjson-td-machine {
+  white-space: nowrap;
+  width: 1%;
+}
+
+/* ── Eye (item list) button ────────────────────────── */
+.erpjson-eye-btn {
+  color: #aaa !important;
+  transition: color 0.18s !important;
+}
+
+.erpjson-eye-btn:hover,
+.erpjson-eye-btn--active {
+  color: #f99022 !important;
+}
+
+/* ── Delete icon button in table ──────────────────── */
+.erpjson-delete-icon-btn {
+  color: #aaa !important;
+  transition: color 0.18s !important;
+}
+
+.erpjson-delete-icon-btn:hover {
+  color: #e55 !important;
+}
+
+/* ── JSON View button in table ────────────────────── */
+.erpjson-json-view-btn {
+  display: inline-block;
+  padding: 10px 12px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  color: #fff;
+  background: #f99022;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.18s, opacity 0.18s;
+  white-space: nowrap;
+}
+
+.erpjson-json-view-btn:hover:not(:disabled) {
+  background: #e08529;
+}
+
+.erpjson-json-view-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Details expanded row ──────────────────────────── */
+.erpjson-details-row td {
+  background: #fffaf4;
+  padding: 0 !important;
+  border-bottom: 2px solid #f9902233;
+}
+
+.erpjson-details-section {
+  padding: 14px 20px 16px 28px;
+}
+
+.erpjson-details-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #f99022;
+  margin-bottom: 10px;
+}
+
+.erpjson-details-empty {
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.erpjson-details-entry {
+  margin-bottom: 10px;
+}
+
+.erpjson-details-machine {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #555;
+  margin-bottom: 4px;
+}
+
+.erpjson-details-item-line {
+  font-size: 0.8rem;
+  color: #333;
+  line-height: 1.6;
+  padding-left: 4px;
+}
+
+.erpjson-item-id {
+  font-weight: 600;
+  color: #444;
+}
+
+.erpjson-item-desc {
+  color: #666;
+}
+
+/* ── JSON Preview ──────────────────────────────────── */
+.erpjson-preview {
+  margin-top: 24px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.erpjson-preview-title {
+  background: #f5f5f5;
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #555;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.erpjson-pre {
+  padding: 16px 16px 16px 0px;
+  font-size: 0.78rem;
+  background: #fafafa;
+  overflow-x: auto;
+  color: #222;
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+}

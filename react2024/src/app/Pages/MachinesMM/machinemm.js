@@ -1,0 +1,2586 @@
+import React, { useState, useMemo, useRef } from "react";
+import dayjs from "dayjs";
+
+import {
+  Card, CardContent, Typography, Chip, Button, Popover,
+  FormControl, InputLabel, Select, MenuItem, TextField, IconButton,
+  List, ListItem, ListItemIcon, ListItemButton, ListItemText, Checkbox, Collapse,
+  keyframes
+} from "@mui/material";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import SearchIcon from "@mui/icons-material/Search";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import { useEffect } from 'react';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { Tabs, Tab, Box } from "@mui/material";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+
+import {
+  cleanCustomerId,
+  telemetrylatestdata,
+  customerbaseddevices,
+  customerbasedshift,
+  telemetrykeydata
+} from '../../Services/app/companyservice';
+import './machinemm.css';
+import { useMachineGroups } from "../../Shared/hooks/useMachineGroups";
+import { useUserRole } from "../../Shared/hooks/useUserRole";
+import { useLocation, useSearchParams } from "react-router-dom";
+
+
+export default function MachineDashboard() {
+
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { isSuperAdmin } = useUserRole();
+
+  const [newToken, setNewToken] = useState(localStorage.getItem("token"));
+  console.log(newToken)
+
+  // ✅ Listen for token changes in localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const latestToken = localStorage.getItem("token");
+      if (latestToken && latestToken !== newToken) {
+        setNewToken(latestToken);
+        console.log("🔄 Token updated:", latestToken);
+      }
+    };
+
+    // Case 1: token updated in another tab
+    window.addEventListener("storage", handleStorageChange);
+
+    // Case 2: token updated in same tab by refresh API
+    const interval = setInterval(handleStorageChange, 1000); // check every 5s
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [newToken]);
+
+
+  const [selectedDevice, setSelectedDevice] = useState("all");
+  const [searchText, setSearchText] = useState("");
+  const [filterAnchor, setFilterAnchor] = useState(null);
+  const [selectedMachines, setSelectedMachines] = useState([]);
+  const [selectedStatus, setSelectedStatus] = useState([]);
+  // Param-derived filters — independent from hook, cleared when user interacts
+  const [activeMachineFilter, setActiveMachineFilter] = useState([]);
+  const [activeGroupFilter, setActiveGroupFilter] = useState([]);
+
+  const urlParamsApplied = useRef(false);
+
+  const [openMachines, setOpenMachines] = useState(false);
+  const [openStatus, setOpenStatus] = useState(false);
+  const [shifts, setShifts] = useState([]);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [iframeSrc, setIframeSrc] = useState("");
+  const [value, setValue] = useState(0);
+  const [viewedMachine, setViewedMachine] = useState(null);
+  const [idleTime, setIdleTime] = useState("00:00:00");
+  const [fromTime, setFromTime] = useState(null);
+  const [toTime, setToTime] = useState(null);
+  const [from, setFrom] = useState(null);
+  const [to, setTo] = useState(null);
+  const [durationsByMachine, setDurationsByMachine] = useState({});
+  const [machineDurations, setMachineDurations] = useState({});
+  const [machineUtilization, setMachineUtilization] = useState({});
+  const [selectedMachineId, setSelectedMachineId] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const savedDate = localStorage.getItem("selectedDate");
+    return savedDate ? dayjs(savedDate) : dayjs();
+  });
+  const [selectedShift, setSelectedShift] = useState(() => getCurrentShift(shifts));
+  const [machineStatusTimes, setMachineStatusTimes] = useState({});
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [autoSelected, setAutoSelected] = useState(false);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+
+
+
+
+  const customerId = localStorage.getItem("CustomerID");
+
+  const {
+    devices,
+    deviceNameID,
+    machineGroups,
+    availableMachines,
+    selectedMachines: groupSelectedMachines,
+    selectedGroups,
+    loading,
+    hasGroupsAccess,
+    isAllMachinesSelected,
+    showMachineGroupsDropdown,
+    handleGroupChange,
+    handleMachineChange,
+    setSelectedMachines: setGroupSelectedMachines,
+    getDeviceObjectsForMachines,
+    refreshMachineGroups
+  } = useMachineGroups(customerId);
+
+  // Apply URL params once after groups have loaded.
+  // Uses local activeMachineFilter/activeGroupFilter — never touches hook state,
+  // so hook re-initialization (React StrictMode) cannot override them.
+  useEffect(() => {
+    if (urlParamsApplied.current) return;
+    const navStatus = searchParams.get("status");
+    const navMachines = searchParams.get("machines");
+    if (!navStatus && !navMachines) { urlParamsApplied.current = true; return; }
+    if (loading) return; // wait for hook to finish
+
+    urlParamsApplied.current = true;
+    setSelectedDate(dayjs());
+
+    if (navStatus && navStatus !== "All") setSelectedStatus([navStatus]);
+
+    if (navMachines) {
+      const machineNames = navMachines.split(",").map(m => m.trim()).filter(Boolean);
+      setActiveMachineFilter(machineNames);
+      if (machineGroups.length > 0) {
+        const matchingGroups = machineGroups
+          .filter(g => (g.machines || []).some(m => machineNames.includes(m)))
+          .map(g => g.name);
+        setActiveGroupFilter(matchingGroups);
+      }
+    }
+  }, [searchParams, loading, machineGroups]);
+
+  const [deviceNameIdJson, setDeviceNameIdJson] = useState({});
+
+  useEffect(() => {
+    if (deviceNameID.length > 0) {
+      const nameIdMap = deviceNameID.reduce((acc, item) => {
+        acc[item.name] = item.id;
+        return acc;
+      }, {});
+      setDeviceNameIdJson(nameIdMap);
+    }
+  }, [deviceNameID]);
+
+  const fetchShifts = async () => {
+    try {
+      const result = await customerbasedshift(customerId, "allShift");
+      const shiftList = result[0]?.value || [];
+      setShifts(shiftList);
+      console.log("Fetched Shifts:", shiftList);
+    } catch (err) {
+      console.error("Failed to fetch shifts", err);
+    }
+  };
+
+  // ⏰ Find the current shift based on start_time / end_time
+  function getCurrentShift(shifts) {
+    if (!Array.isArray(shifts) || shifts.length === 0) return null;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    for (const s of shifts) {
+      const [fromH, fromM] = s.start_time.split(":").map(Number);
+      const [toH, toM] = s.end_time.split(":").map(Number);
+
+      const fromMinutes = fromH * 60 + fromM;
+      const toMinutes = toH * 60 + toM;
+
+      // normal or overnight
+      if (
+        (fromMinutes <= currentMinutes && currentMinutes < toMinutes) ||
+        (fromMinutes > toMinutes &&
+          (currentMinutes >= fromMinutes || currentMinutes < toMinutes))
+      ) {
+        return String(s.shift_no);
+      }
+    }
+
+    return String(shifts[0].shift_no);
+  }
+
+
+
+  // set default shift only once when data arrives
+  useEffect(() => {
+    if (shifts.length > 0 && (selectedShift === null || selectedShift === undefined)) {
+      const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+
+      if (firstShift) {
+        const [h, m] = firstShift.start_time.split(':').map(Number);
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const firstShiftMinutes = h * 60 + m;
+
+        if (currentMinutes < firstShiftMinutes) {
+          // Before first shift: default to yesterday's date + last shift
+          setSelectedDate(dayjs().subtract(1, 'day'));
+          setSelectedShift(String(lastShift.shift_no));
+          console.log("Before first shift — defaulting to yesterday + last shift:", lastShift.shift_no);
+        } else {
+          const cur = getCurrentShift(shifts);
+          setSelectedShift(cur);
+          console.log("Current shift:", cur);
+        }
+      } else {
+        const cur = getCurrentShift(shifts);
+        setSelectedShift(cur);
+      }
+    }
+    // intentionally omit selectedShift from deps so this runs once when shifts load
+  }, [shifts]);
+
+  useEffect(() => {
+    if (customerId && newToken) {
+      fetchShifts();
+    }
+  }, [customerId, newToken]);
+
+  function getShiftTimes(shifts, selectedShift, selectedDate) {
+    if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
+      return { from: null, to: null };
+    }
+
+    const selectedStr = dayjs(selectedDate).format("YYYY-MM-DD");
+
+    // helper function to calculate date offset
+    const getDateByDayOffset = (baseDate, dayValue) => {
+      const offset = Number(dayValue) - 1; // 1 = same day, 2 = +1 day, etc.
+      return dayjs(baseDate).add(offset, "day").format("YYYY-MM-DD");
+    };
+
+    const normalizedShift =
+      typeof selectedShift === "string"
+        ? selectedShift.trim().toLowerCase()
+        : selectedShift == null
+          ? ""
+          : String(selectedShift);
+
+    if (normalizedShift === "") return { from: null, to: null };
+
+    // 🟢 Handle All Shifts
+    if (normalizedShift === "allshift" || normalizedShift === "all shift") {
+      const sortedShifts = [...shifts].sort(
+        (a, b) => Number(a.shift_no) - Number(b.shift_no)
+      );
+
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+      if (!firstShift || !lastShift) return { from: null, to: null };
+
+      const fromDateStr = getDateByDayOffset(selectedStr, firstShift.start_day);
+      const toDateStr = getDateByDayOffset(selectedStr, lastShift.end_day);
+
+      const fromStr = `${fromDateStr}T${firstShift.start_time}`;
+      const toStr = `${toDateStr}T${lastShift.end_time}`;
+
+      return {
+        from: new Date(fromStr).getTime(),
+        to: new Date(toStr).getTime(),
+      };
+    }
+
+    // 🟡 Handle Single Shift
+    const shiftData = shifts.find((s) => String(s.shift_no) === normalizedShift);
+    if (!shiftData) return { from: null, to: null };
+
+    const { start_time, end_time, start_day, end_day } = shiftData;
+
+    const fromDateStr = getDateByDayOffset(selectedStr, start_day);
+    const toDateStr = getDateByDayOffset(selectedStr, end_day);
+
+    const fromStr = `${fromDateStr}T${start_time}`;
+    const toStr = `${toDateStr}T${end_time}`;
+
+    return {
+      from: new Date(fromStr).getTime(),
+      to: new Date(toStr).getTime(),
+    };
+  }
+
+  // Filter telemetry data points to within a single shift window
+  function filterByShiftRange(data, shiftFrom, shiftTo) {
+    if (!data) return null;
+    const result = {};
+    for (const key of Object.keys(data)) {
+      if (Array.isArray(data[key])) {
+        result[key] = data[key].filter(point => {
+          const ts = Number(point.ts);
+          return ts >= shiftFrom && ts <= shiftTo - 1;
+        });
+      } else {
+        result[key] = data[key];
+      }
+    }
+    return result;
+  }
+
+
+  console.log('From', from, 'to', to);
+
+  // state for dropdown selection
+  const [filteredDevices, setFilteredDevices] = useState([]);
+  const [liveReason, setLiveReason] = useState({});
+  const [lockStatus, setLockStatus] = useState({});
+  const hasStartedRef = useRef(false);
+  // const intervalRef2 = useRef(null);
+  useEffect(() => {
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
+    fetchAllMachineData();
+    // intervalRef2.current = setInterval(fetchAllMachineData, 5000);
+    return () => {
+      // clearInterval(intervalRef2.current);
+      hasStartedRef.current = false;
+    };
+  }, [JSON.stringify(filteredDevices), from, to, selectedShift, activeTab]);
+
+  const fetchAllMachineData = async () => {
+    if (!from || !to || filteredDevices.length === 0) return;
+    const resultsUtilization = {};
+    const resultsBaseline = {};
+    const resultsLiveComponent = {};
+    const resultsDurations = {};
+    const resultsMachineStatuses = {};
+    const resultsMachineStatusTimes = {};
+    const resultsLiveReason = {};
+    const resultsLockStatus = {};
+    const resultsPartsStats = {};
+
+    const shiftNo =
+      typeof selectedShift === "string"
+        ? selectedShift.replace("Shift ", "")
+        : String(selectedShift ?? "");
+    const currentShiftNo = getCurrentShift(shifts);
+    const isAllShift = shiftNo === "allshift";
+    // Per-shift time ranges used for allshift splitting
+    const shiftRanges = isAllShift
+      ? shifts
+        .map(s => ({ shiftNo: String(s.shift_no), ...getShiftTimes(shifts, String(s.shift_no), selectedDate) }))
+        .filter(r => r.from && r.to)
+      : [];
+    const allKeys = [
+      "utilization",
+      "historicalbaseline",
+      "live_component",
+      "machine_status",
+      "total_duration",
+      "auto_duration",
+      "live_reason",
+      "operations",
+      "totalparts",
+      "targetparts",
+      "oee",
+      "quality"
+    ];
+
+    await Promise.all(
+      filteredDevices.map(async (machine) => {
+        try {
+          const data = await telemetrykeydata(machine.id.id, "DEVICE", allKeys, from, to);
+
+          /** ---------------- Hour Utilization ---------------- **/
+
+          //  const utilValues = data?.hour_utilization || [];
+          // if (utilValues.length) {
+          //   const hourlyGroups = {};
+          //   utilValues.forEach((point) => {
+          //     const date = new Date(point.ts);
+          //     const hourKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), 0, 0, 0).toISOString();
+          //     if (!hourlyGroups[hourKey]) hourlyGroups[hourKey] = [];
+          //     hourlyGroups[hourKey].push(point);
+          //   });
+          //   const hourlyLatest = Object.entries(hourlyGroups).map(([hour, points]) => {
+          //     const latestPoint = points.reduce((latest, point) => new Date(point.ts) > new Date(latest.ts) ? point : latest);
+          //     return { hour, value: Number(latestPoint.value) || 0, timestamp: latestPoint.ts };
+          //   });
+          //   const avgUtil = hourlyLatest.reduce((sum, o) => sum + o.value, 0) / hourlyLatest.length;
+          //   resultsUtilization[machine.id.id] = { utilization: Math.round(avgUtil) };
+          // } else {
+          //   resultsUtilization[machine.id.id] = { utilization: 0 };
+          // }
+
+          /** ---------------- Shift Utilization ---------------- **/
+          try {
+            let utilizationValue = 0;
+
+            const parseHMS = (str = "00:00:00") => {
+              const [h = 0, m = 0, s = 0] = str.split(":").map(Number);
+              return h * 3600 + m * 60 + s;
+            };
+
+            const isPMIorSMC =
+              [window._env_.CUSTOMER_ID, window._env_.SMC_CUSTOMER_ID].includes(
+                cleanCustomerId(customerId)
+              );
+
+            const isGPLAST =
+              cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID;
+
+            const getNumerator = (run, idle) =>
+              run;
+
+            const getShiftNetSeconds = (shiftCfg) => {
+              if (!shiftCfg) return 0;
+
+              const startSec = parseHMS(shiftCfg.start_time);
+              let endSec = parseHMS(shiftCfg.end_time);
+
+              let duration = endSec - startSec;
+              if (duration < 0) duration += 24 * 3600;
+
+              const breakSec = shiftCfg.break_time ? parseHMS(shiftCfg.break_time) : 0;
+
+              return Math.max(0, duration - breakSec);
+            };
+
+            const getShiftGrossSeconds = (shiftCfg) => {
+              if (!shiftCfg) return 0;
+
+              const startSec = parseHMS(shiftCfg.start_time);
+              let endSec = parseHMS(shiftCfg.end_time);
+
+              let duration = endSec - startSec;
+              if (duration < 0) duration += 24 * 3600;
+
+              return Math.max(0, duration);
+            };
+
+            const extractRunIdle = (value) => {
+              try {
+                const parsed =
+                  typeof value === "string" ? JSON.parse(value) : value;
+
+                return {
+                  run: Number(parsed?.total_run_duration || 0),
+                  idle: Number(parsed?.total_idle_duration || 0),
+                };
+              } catch {
+                return { run: 0, idle: 0 };
+              }
+            };
+
+            // ✅ 🔥 CORE FIX: HANDLE RESET PROPERLY
+            const getFinalShiftValue = (arr = []) => {
+              if (!Array.isArray(arr) || arr.length === 0) return null;
+
+              const parsed = arr
+                .map((e) => {
+                  const { run, idle } = extractRunIdle(e.value);
+                  return {
+                    ts: Number(e.ts),
+                    run,
+                    idle,
+                    raw: e,
+                  };
+                })
+                .sort((a, b) => a.ts - b.ts);
+
+              let lastValid = null;
+
+              for (let i = 0; i < parsed.length; i++) {
+                const curr = parsed[i];
+                const prev = parsed[i - 1];
+
+                // ✅ Detect RESET (run drops)
+                if (prev && curr.run < prev.run) {
+                  return prev.raw; // last correct cumulative value
+                }
+
+                lastValid = curr;
+              }
+
+              return lastValid?.raw || null;
+            };
+
+            const getLatestEntry = (arr = []) => {
+              if (!Array.isArray(arr) || arr.length === 0) return null;
+
+              return arr.reduce((latest, curr) =>
+                new Date(curr.ts) > new Date(latest.ts) ? curr : latest
+              );
+            };
+
+            // =========================
+            // ✅ ALL SHIFT (FIXED)
+            // =========================
+            if (isAllShift && Array.isArray(shiftRanges) && shiftRanges.length > 0) {
+              let totalRun = 0;
+              let totalIdle = 0;
+              let totalShiftSecs = 0;
+
+              for (const range of shiftRanges) {
+
+                const shiftData = filterByShiftRange(data, range.from, range.to);
+                const totalDurationArr = shiftData?.total_duration || [];
+
+                if (totalDurationArr.length > 0) {
+
+                  // ✅ USE RESET-AWARE LOGIC
+                  const latest = getFinalShiftValue(totalDurationArr);
+
+                  if (latest?.value) {
+                    const { run, idle } = extractRunIdle(latest.value);
+
+                    totalRun += run;
+                    totalIdle += idle;
+
+                    console.log(`✅ Shift ${range.shiftNo}`, {
+                      run,
+                      idle,
+                      ts: latest.ts,
+                    });
+                  }
+                }
+
+                // ✅ Add shift duration (minus break)
+                const shiftCfg = shifts.find(
+                  (s) => String(s.shift_no) === String(range.shiftNo)
+                );
+
+                const shiftSecs = isPMIorSMC
+                  ? getShiftNetSeconds(shiftCfg)
+                  : getShiftGrossSeconds(shiftCfg);
+
+                console.log(`📊 Shift ${range.shiftNo} Duration:`, {
+                  break_time: shiftCfg?.break_time,
+                  shiftSecs,
+                  isPMIorSMC,
+                });
+
+                totalShiftSecs += shiftSecs;
+              }
+
+              const numerator = getNumerator(totalRun, totalIdle);
+
+              utilizationValue =
+                totalShiftSecs > 0
+                  ? Math.min(
+                    100,
+                    Math.max(0, Math.round((numerator / totalShiftSecs) * 100))
+                  )
+                  : 0;
+
+              console.log("🔥 FINAL ALL SHIFT", {
+                totalRun,
+                totalIdle,
+                numerator,
+                totalShiftSecs,
+                utilizationValue,
+              });
+            }
+
+            // =========================
+            // ✅ SINGLE SHIFT (UNCHANGED)
+            // =========================
+            else {
+              const utilValues = data?.utilization || [];
+
+              const latestUtil = getLatestEntry(utilValues);
+
+              if (latestUtil) {
+                try {
+                  const parsed =
+                    typeof latestUtil.value === "string"
+                      ? JSON.parse(latestUtil.value)
+                      : latestUtil.value;
+
+                  const val =
+                    typeof parsed === "object"
+                      ? Number(parsed?.utilization ?? 0)
+                      : Number(parsed ?? 0);
+
+                  utilizationValue = Math.min(100, Math.max(0, Math.round(val)));
+                } catch {
+                  utilizationValue = 0;
+                }
+              }
+            }
+
+            resultsUtilization[machine.id.id] = {
+              utilization: utilizationValue,
+            };
+
+          } catch (error) {
+            console.error(`[Utilization Error] machine: ${machine?.name}`, error);
+
+            resultsUtilization[machine.id.id] = {
+              utilization: 0,
+            };
+          }
+          /** ---------------- Historical Baseline ---------------- **/
+          const baselineValues = data?.historicalbaseline || [];
+          if (baselineValues.length) {
+            let utilizationBaseline = 0;
+            if (isAllShift && shiftRanges.length > 0) {
+              // Average the latest baseline value from each shift
+              const shiftBaselines = [];
+              for (const range of shiftRanges) {
+                const filtered = filterByShiftRange(data, range.from, range.to);
+                const filteredVals = filtered?.historicalbaseline || [];
+                if (filteredVals.length > 0) {
+                  const latest = filteredVals.reduce((a, b) => a.ts > b.ts ? a : b);
+                  if (latest?.value) {
+                    const parsed = typeof latest.value === "string" ? JSON.parse(latest.value) : latest.value;
+                    const val = parseFloat(parsed?.utilization ?? 0);
+                    if (!isNaN(val)) shiftBaselines.push(val);
+                  }
+                }
+              }
+              utilizationBaseline = shiftBaselines.length > 0
+                ? shiftBaselines.reduce((a, b) => a + b, 0) / shiftBaselines.length
+                : 0;
+            } else {
+              const latestPoint = baselineValues.reduce((max, p) => p.ts > max.ts ? p : max);
+              if (latestPoint?.value) {
+                const parsed = typeof latestPoint.value === "string" ? JSON.parse(latestPoint.value) : latestPoint.value;
+                utilizationBaseline = parseFloat(parsed?.utilization ?? 0);
+              }
+            }
+            resultsBaseline[machine.id.id] = { utilizationBaseline: parseFloat(utilizationBaseline.toFixed(1)) };
+          } else {
+            resultsBaseline[machine.id.id] = { utilizationBaseline: 0 };
+          }
+
+          /** ---------------- Live Component ---------------- **/
+          // const liveValues = data?.live_component || [];
+          // if (liveValues.length) {
+          //   const now = Date.now();
+          //   const comps = liveValues.map(p => {
+          //     const val = typeof p.value === "string" ? JSON.parse(p.value) : p.value;
+          //     return { ...val, ts: p.ts, start: val.start_time || p.ts, end: val.end_time || p.ts };
+          //   });
+          //   let current =
+          //     comps.find(c => now >= c.start && now <= c.end) ||
+          //     comps.filter(c => c.end < now).sort((a, b) => b.end - a.end)[0] ||
+          //     comps.sort((a, b) => a.start - b.start)[0];
+          //   resultsLiveComponent[machine.id.id] = { componentName: current?.name ?? null };
+          // } else {
+          //   resultsLiveComponent[machine.id.id] = { componentName: null };
+          // }
+
+          /** ---------------- operations  ---------------- **/
+          const operationValues = data?.operations || [];
+          let firstValue = null;
+          if (operationValues.length > 0) {
+            let raw = operationValues[0].value;
+            try {
+              firstValue = typeof raw === "string" ? JSON.parse(raw) : raw;
+              if (Array.isArray(firstValue)) firstValue = firstValue[0] || null;
+            } catch (e) {
+              firstValue = null;
+            }
+          }
+          let opName = firstValue?.operation_name?.trim() || null;
+          resultsLiveComponent[machine.id.id] =
+            opName && opName.toLowerCase() !== "no operations"
+              ? { componentName: opName }
+              : { componentName: null };
+
+          /** ---------------- Total / Auto Durations ---------------- **/
+          const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
+          let run = 0, idle = 0, disconnect = 0, alarm = 0, setting = 0;
+          let totalParts = 0, targetParts = 0, goodParts = 0, scrap = 0, ncr = 0;
+
+          if (isAllShift && shiftRanges.length > 0) {
+            // Sum the first (latest) total_duration value from each shift
+            for (const range of shiftRanges) {
+              const filtered = filterByShiftRange(data, range.from, range.to);
+              const shiftTotalVals = filtered?.total_duration || [];
+              if (shiftTotalVals.length > 0) {
+                const latest = shiftTotalVals.reduce((a, b) =>
+                  new Date(a.ts) > new Date(b.ts) ? a : b
+                );
+                const parsed = typeof latest.value === "string" ? JSON.parse(latest.value) : latest.value;
+                run += Math.round(parsed?.total_run_duration || 0);
+                idle += Math.round(parsed?.total_idle_duration || 0);
+                disconnect += Math.round(parsed?.total_disconnect_duration || 0);
+                alarm += Math.round(parsed?.total_alarm_duration || 0);
+                setting += Math.round(parsed?.total_setting_duration || 0);
+              }
+
+              // Sum totalparts (JSON value: {totalshots: <number>}) per shift
+              const rawTotalParts = data?.totalparts || [];
+              const shiftTotalPartsVals = filtered?.totalparts || [];
+              console.log(`[totalparts] shift ${range.shiftNo} raw count:`, rawTotalParts.length, '| filtered count:', shiftTotalPartsVals.length, '| range:', range.from, range.to);
+              if (shiftTotalPartsVals.length > 0) {
+                const latestShot = shiftTotalPartsVals.reduce((a, b) =>
+                  new Date(a.ts) > new Date(b.ts) ? a : b
+                );
+                const parsedShot = typeof latestShot.value === "string" ? JSON.parse(latestShot.value) : latestShot.value;
+                console.log(`[totalparts] shift ${range.shiftNo} latestShot:`, latestShot, '| parsed:', parsedShot);
+                totalParts += Math.round(parsedShot?.totalshots || 0);
+                goodParts += Math.round(parsedShot?.goodparts || 0);
+                scrap += Math.round(parsedShot?.scrap || 0);
+                ncr += Math.round(parsedShot?.ncr || 0);
+              }
+
+              // Sum targetparts (integer value) per shift
+              const rawTargetParts = data?.targetparts || [];
+              const shiftTargetVals = filtered?.targetparts || [];
+              console.log(`[targetparts] shift ${range.shiftNo} raw count:`, rawTargetParts.length, '| filtered count:', shiftTargetVals.length);
+              if (shiftTargetVals.length > 0) {
+                const latestTarget = shiftTargetVals.reduce((a, b) =>
+                  new Date(a.ts) > new Date(b.ts) ? a : b
+                );
+                const targetVal = typeof latestTarget.value === "string" ? Number(latestTarget.value) : Number(latestTarget.value);
+                console.log(`[targetparts] shift ${range.shiftNo} latestTarget:`, latestTarget, '| val:', targetVal);
+                targetParts += Math.round(targetVal || 0);
+              }
+
+              // Add auto_duration for the currently ongoing shift
+              if (isToday && range.shiftNo === currentShiftNo) {
+                const shiftAutoVals = filtered?.auto_duration || [];
+                if (shiftAutoVals.length > 0) {
+                  const latestAuto = shiftAutoVals.reduce((a, b) =>
+                    new Date(a.ts) > new Date(b.ts) ? a : b
+                  );
+                  const autoObj = typeof latestAuto.value === "string" ? JSON.parse(latestAuto.value) : latestAuto.value;
+                  run += Math.round(autoObj?.total_run_duration || 0);
+                  idle += Math.round(autoObj?.total_idle_duration || 0);
+                  disconnect += Math.round(autoObj?.total_disconnect_duration || 0);
+                  alarm += Math.round(autoObj?.total_alarm_duration || 0);
+                  setting += Math.round(autoObj?.total_setting_duration || 0);
+                }
+              }
+            }
+          } else {
+            const totalValues = data?.total_duration || [];
+            const totalObj = totalValues[0] ? (typeof totalValues[0].value === "string" ? JSON.parse(totalValues[0].value) : totalValues[0].value) : {};
+            let autoObj = {};
+            if (shiftNo === currentShiftNo && isToday) {
+              const autoValues = data?.auto_duration || [];
+              autoObj = autoValues[0] ? (typeof autoValues[0].value === "string" ? JSON.parse(autoValues[0].value) : autoValues[0].value) : {};
+            }
+            run = Math.round((totalObj.total_run_duration || 0) + (autoObj.total_run_duration || 0));
+            idle = Math.round((totalObj.total_idle_duration || 0) + (autoObj.total_idle_duration || 0));
+            disconnect = Math.round((totalObj.total_disconnect_duration || 0) + (autoObj.total_disconnect_duration || 0));
+            alarm = Math.round((totalObj.total_alarm_duration || 0) + (autoObj.total_alarm_duration || 0));
+            setting = Math.round((totalObj.total_setting_duration || 0) + (autoObj.total_setting_duration || 0));
+
+            // totalparts (single shift)
+            const totalPartsVals = data?.totalparts || [];
+            if (totalPartsVals.length > 0) {
+              const latestShot = totalPartsVals.reduce((a, b) => new Date(a.ts) > new Date(b.ts) ? a : b);
+              const parsedShot = typeof latestShot.value === "string" ? JSON.parse(latestShot.value) : latestShot.value;
+              totalParts = Math.round(parsedShot?.totalshots || 0);
+              goodParts = Math.round(parsedShot?.goodparts || 0);
+              scrap = Math.round(parsedShot?.scrap || 0);
+              ncr = Math.round(parsedShot?.ncr || 0);
+            }
+
+            // targetparts (single shift)
+            const targetPartsVals = data?.targetparts || [];
+            if (targetPartsVals.length > 0) {
+              const latestTarget = targetPartsVals.reduce((a, b) => new Date(a.ts) > new Date(b.ts) ? a : b);
+              targetParts = Math.round(Number(latestTarget.value) || 0);
+            }
+          }
+          const total = run + idle + disconnect + alarm + setting;
+
+          resultsDurations[machine.id.id] = { run, idle, disconnect, alarm, setting, total, totalParts, targetParts, goodParts, scrap, ncr };
+
+          /** ---------------- OEE / Performance / Quality ---------------- **/
+          const utilizationVal = resultsUtilization[machine.id.id]?.utilization ?? 0;
+          const performance = targetParts > 0 ? Math.min(100, Math.round((totalParts / targetParts) * 100)) : 0;
+
+          if (isAllShift) {
+            const quality = totalParts > 0 ? Math.min(100, Math.round((goodParts / totalParts) * 100)) : 0;
+            const oeeCalc = Math.round((utilizationVal / 100) * (performance / 100) * (quality / 100) * 100);
+            resultsPartsStats[machine.id.id] = { performance, quality, oee: oeeCalc };
+          } else {
+            // Single shift: read latest oee and quality from fetched keys
+            let oeeFromKey = 0, qualityFromKey = 0;
+            const oeeVals = data?.oee || [];
+            if (oeeVals.length > 0) {
+              const latestOee = oeeVals.reduce((a, b) => new Date(a.ts) > new Date(b.ts) ? a : b);
+              oeeFromKey = Math.round(Number(latestOee.value) || 0);
+            }
+            const qualityVals = data?.quality || [];
+            if (qualityVals.length > 0) {
+              const latestQuality = qualityVals.reduce((a, b) => new Date(a.ts) > new Date(b.ts) ? a : b);
+              qualityFromKey = Math.round(Number(latestQuality.value) || 0);
+            }
+            resultsPartsStats[machine.id.id] = { performance, quality: qualityFromKey, oee: oeeFromKey };
+          }
+
+          /** ---------------- Machine_Status (latest display) ---------------- **/
+          const statusValues = data?.machine_status || [];
+          if (statusValues.length) {
+            const latestPoint = statusValues.reduce((max, p) => p.ts > max.ts ? p : max);
+            let statusCode = Number(latestPoint.value);
+            let statusText = "";
+            if ([0, 1, 2].includes(statusCode)) {
+              statusText = "Idle";
+            } else if (statusCode === 3) {
+              statusText = "Running";
+            } else if ([4, 5].includes(statusCode)) {
+              statusText = "Alarm";
+            } else if (statusCode === 100) {
+              statusText = "Disconnected";
+            } else if ([6].includes(statusCode)) {
+              statusText = "Locked";
+            } else {
+              statusText = "Unknown"
+            }
+            let status = statusText;
+            resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status };
+          } else {
+            resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status: "No Data" };
+          }
+
+          /** ---------------- machine_status (last "3" timestamp) ---------------- **/
+          const status3Values = data?.machine_status || [];
+          const lastValue = [...status3Values].reverse().find(p => p.value === "3");
+          resultsMachineStatusTimes[machine.id.id] = { lastTs: lastValue?.ts ?? null };
+
+          let liveReasonData = null;
+          const shiftReason = data?.live_reason?.[0]?.value
+            ? JSON.parse(data.live_reason[0].value)
+            : null;
+          if (shiftReason) {
+            liveReasonData = shiftReason;
+          } else {
+            const totalDurations = resultsDurations[machine.id.id] || {};
+
+            if (totalDurations.idle > 0) {
+              try {
+                const latestData = await telemetrylatestdata(machine.id.id, "DEVICE", "live_reason,lock_status");
+                const latestReasonRaw = latestData?.live_reason?.[0]?.value;
+                const latestReason = latestReasonRaw ? JSON.parse(latestReasonRaw) : null;
+                const latestReasonTime = latestData?.live_reason?.[0]?.ts;
+                console.log(latestReason, currentTime, 'lastest reason and selected shift end')
+                if (latestReason && latestReason.idle_end === 0 && latestReasonTime < currentTime) {
+                  liveReasonData = latestReason;
+                }
+              } catch (err) {
+                console.error("Error fetching latest live_reason for", machine.name, err);
+                liveReasonData = null;
+              }
+            }
+          }
+
+          resultsLiveReason[machine.id.id] = { liveReason: liveReasonData };
+
+          // try {
+          //   const latestData = await telemetrylatestdata(machine.id.id, "DEVICE", "live_reason,lock_status");
+          //   const liveReasonData = latestData?.live_reason?.[0]?.value
+          //     ? JSON.parse(latestData.live_reason[0].value)
+          //     : null;
+          //   resultsLiveReason[machine.id.id] = { liveReason: liveReasonData };
+          //   const lockValue = latestData?.lock_status?.[0]?.value || "";
+          //   const locked = String(lockValue).toLowerCase() === "locked";
+          //   resultsLockStatus[machine.id.id] = { lockStatus: lockValue };
+
+          // } catch (err) {
+          //   console.error("Error fetching live_reason for", machine.name, err);
+          //   resultsLiveReason[machine.id.id] = { liveReason: null };
+          //   resultsLockStatus[machine.id.id] = { lockStatus: null };
+
+          // }
+        } catch (error) {
+          console.error("Error fetching data for", machine.name, error);
+          // resultsIdleRun[machine.id.id] = null;
+          resultsLiveReason[machine.id.id] = { liveReason: null };
+          resultsUtilization[machine.id.id] = { utilization: 0 };
+          resultsBaseline[machine.id.id] = { utilizationBaseline: 0 };
+          resultsLiveComponent[machine.id.id] = { componentName: null };
+          resultsDurations[machine.id.id] = { run: 0, idle: 0, disconnect: 0, alarm: 0, setting: 0, total: 0 };
+          resultsPartsStats[machine.id.id] = { performance: 0, quality: 0, oee: 0 };
+          resultsMachineStatuses[machine.id.id] = { machineName: machine.name, status: "Error" };
+          resultsMachineStatusTimes[machine.id.id] = { lastTs: null };
+        }
+      })
+    );
+    // setLatestIdleRunDuration(resultsIdleRun);
+    setMachineUtilization(resultsUtilization);
+    setUtilizationBaseline(resultsBaseline);
+    setLiveComponent(resultsLiveComponent);
+    setMachineDurations(resultsDurations);
+    setMachineStatuses(prev => ({ ...prev, ...resultsMachineStatuses }));
+    setMachineStatusTimes(resultsMachineStatusTimes);
+    setLiveReason(resultsLiveReason);
+    setLockStatus(resultsLockStatus);
+    setMachinePartsStats(resultsPartsStats);
+    console.log(resultsLiveReason, 'result live reason and lock')
+  };
+
+
+  /*state for dropdown selection */
+
+  // useEffect(() => {
+  //   const filtered = devices.filter((d) => {
+  //     const matchDropdown = selectedDevice === "all" || d.id.id === selectedDevice;
+  //     const matchSearch = d.name.toLowerCase().includes(searchText.toLowerCase());
+  //     const matchMachineFilter =
+  //       selectedMachines.length === 0 || selectedMachines.includes(d.name);
+  //     const matchStatusFilter =
+  //       selectedStatus.length === 0 || selectedStatus.includes(d.status);
+
+  //     return matchDropdown && matchSearch && matchMachineFilter && matchStatusFilter;
+  //   });
+
+  //   setFilteredDevices(filtered);
+  // }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus]);  
+
+
+  // Fetch durations for all filtered devices
+  // Fetch durations for all filtered devices
+  // useEffect(() => {
+  //   const fetchAllDurations = async () => {
+  //     if (!from || !to || filteredDevices.length === 0) return;
+
+  //     const results = {};
+  //     const shiftNo =
+  //       typeof selectedShift === "string"
+  //         ? selectedShift.replace("Shift ", "")
+  //         : String(selectedShift ?? "");
+  //     const currentShiftNo = getCurrentShift(shifts);
+
+  //     await Promise.all(
+  //       filteredDevices.map(async (machine) => {
+  //         try {
+  //           const totalData = await telemetrykeydata(machine.id.id, "DEVICE", "total_duration", from, to);
+  //           const totalValues = totalData?.total_duration || [];
+  //           const firstTotal = totalValues[0] || {};
+  //           const totalObj = typeof firstTotal.value === "string" ? JSON.parse(firstTotal.value) : firstTotal.value || {};
+  //           let autoObj = {};
+  //           if (shiftNo === currentShiftNo) {
+  //             const autoData = await telemetrykeydata(machine.id.id, "DEVICE", "auto_duration", from, to);
+  //             const autoValues = autoData?.auto_duration || [];
+  //             const firstAuto = autoValues[0] || {};
+  //             autoObj = typeof firstAuto.value === "string" ? JSON.parse(firstAuto.value) : firstAuto.value || {};
+  //           }
+
+  //           const run = +((totalObj.total_run_duration || 0) + (autoObj.total_run_duration || 0)).toFixed(3);
+  //           const idle = +((totalObj.total_idle_duration || 0) + (autoObj.total_idle_duration || 0)).toFixed(3);
+  //           const disconnect = +((totalObj.total_disconnect_duration || 0) + (autoObj.total_disconnect_duration || 0)).toFixed(3);
+  //           const alarm = +((totalObj.total_alarm_duration || 0) + (autoObj.total_alarm_duration || 0)).toFixed(3);
+  //           const setting = +((totalObj.total_setting_duration || 0) + (autoObj.total_setting_duration || 0)).toFixed(3);
+  //           const total = +(run + idle + disconnect + alarm + setting).toFixed(3);
+
+  //           const allValues = [...totalValues, ...(shiftNo === currentShiftNo ? (await telemetrykeydata(machine.id.id, "DEVICE", "auto_duration", from, to))?.auto_duration || [] : [])].filter(v => v?.ts);
+  //           let firstActiveTime = null;
+  //           if (allValues.length) {
+  //             const earliestPoint = allValues.reduce((min, point) => point.ts < min.ts ? point : min);
+  //             const dateObj = new Date(earliestPoint.ts);
+  //             let hours = dateObj.getHours();
+  //             const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+  //             const seconds = String(dateObj.getSeconds()).padStart(2, "0");
+  //             const ampm = hours >= 12 ? "PM" : "AM";
+  //             hours = hours % 12 || 12;
+  //             firstActiveTime = `${String(hours).padStart(2, "0")}:${minutes}:${seconds} ${ampm}`;
+  //           }
+
+  //           results[machine.id.id] = { run, idle, total, disconnect, alarm, setting, firstActiveTime };
+  //           console.log(`Final Totals for ${machine.name}:`, results[machine.id.id]);
+  //         } catch (error) {
+  //           console.error("Error fetching durations for", machine.name, error);
+  //           results[machine.id.id] = { run: 0, idle: 0, total: 0, disconnect: 0, alarm: 0, setting: 0, firstActiveTime: null };
+  //         }
+  //       })
+  //     );
+  //     setMachineDurations(results);
+  //   };
+  //   fetchAllDurations();
+  // }, [filteredDevices, from, to, selectedShift]);
+
+
+  const handleFilterClick = (event) => {
+    setFilterAnchor(event.currentTarget);
+  };
+
+  const handleFilterClose = () => {
+    setFilterAnchor(null);
+  };
+
+  const handleChange = (event, newValue) => {
+    setValue(newValue);
+  };
+
+
+
+
+  function calculateShiftTimesWithDate(shifts, selectedShift, selectedDate) {
+    if (!Array.isArray(shifts) || shifts.length === 0 || !selectedDate) {
+      return { fromEpoch: null, toEpoch: null };
+    }
+
+    const shiftValue =
+      typeof selectedShift === "number"
+        ? String(selectedShift)
+        : selectedShift || "";
+
+    const normalizedShift = shiftValue.trim().toLowerCase();
+    const baseDate = dayjs(selectedDate).subtract(1, "day").format("YYYY-MM-DD");
+    const todayStr = dayjs(selectedDate).format("YYYY-MM-DD");
+
+    // helper: get actual date string based on start_day or end_day
+    const getDateByDayOffset = (baseDate, dayValue) => {
+      const offset = Number(dayValue) - 1; // 1 = same day, 2 = +1 day
+      return dayjs(baseDate).add(offset, "day").format("YYYY-MM-DD");
+    };
+
+    let fromEpoch = null;
+    let toEpoch = null;
+
+    // 🟢 Handle All Shifts
+    if (normalizedShift === "allshift" || normalizedShift === "all shift") {
+      const sortedShifts = [...shifts].sort(
+        (a, b) => Number(a.shift_no) - Number(b.shift_no)
+      );
+      const firstShift = sortedShifts[0];
+      const lastShift = sortedShifts[sortedShifts.length - 1];
+      if (!firstShift || !lastShift) return { fromEpoch: null, toEpoch: null };
+
+      const fromDateStr = getDateByDayOffset(baseDate, firstShift.start_day);
+      const toDateStr = getDateByDayOffset(baseDate, lastShift.end_day);
+
+      const fromStr = `${fromDateStr}T${firstShift.start_time}`;
+      const toStr = `${toDateStr}T${lastShift.end_time}`;
+
+      fromEpoch = new Date(fromStr).getTime();
+      toEpoch = new Date(toStr).getTime();
+    }
+
+    // 🟡 Handle Single Shift
+    else {
+      const shiftData = shifts.find(
+        (s) => String(s.shift_no) === String(shiftValue)
+      );
+      if (!shiftData) return { fromEpoch: null, toEpoch: null };
+
+      const { start_time, end_time, start_day, end_day } = shiftData;
+
+      const fromDateStr = getDateByDayOffset(baseDate, start_day);
+      const toDateStr = getDateByDayOffset(baseDate, end_day);
+
+      const fromStr = `${fromDateStr}T${start_time}`;
+      const toStr = `${toDateStr}T${end_time}`;
+
+      fromEpoch = new Date(fromStr).getTime();
+      toEpoch = new Date(toStr).getTime();
+    }
+
+    return { fromEpoch, toEpoch };
+  }
+
+
+  console.log("FromTime (epoch):", fromTime);
+  console.log("ToTime (epoch):", toTime);
+  console.log("Shifts data type:", typeof shifts, shifts);
+
+
+  // 🔄 Keep times in sync whenever date or shift changes
+  useEffect(() => {
+    if (!shifts.length || !selectedShift || !selectedDate) return;
+
+    const { fromEpoch, toEpoch } = calculateShiftTimesWithDate(shifts, selectedShift, selectedDate);
+    const { from, to } = getShiftTimes(shifts, selectedShift, selectedDate);
+
+    if (fromEpoch && toEpoch && from && to) {
+      setFromTime(fromEpoch);
+      setToTime(toEpoch);
+      setFrom(from);
+      setTo(to);
+      const fromTimeFormatted = dayjs(fromEpoch).format("YYYY-MM-DD HH:mm:ss");
+      const toTimeFormatted = dayjs(toEpoch).format("YYYY-MM-DD HH:mm:ss");
+      console.log("✅ fromTime:", fromEpoch, fromTimeFormatted, '(yesterday)');
+      console.log("✅ toTime:", toEpoch, toTimeFormatted, '(yesterday)');
+      const fromFormatted = dayjs(from).format("YYYY-MM-DD HH:mm:ss");
+      const toFormatted = dayjs(to).format("YYYY-MM-DD HH:mm:ss");
+      console.log("✅ from:", from, fromFormatted, '(today)');
+      console.log("✅ to:", to, toFormatted, '(today)');
+    }
+  }, [shifts, selectedShift, selectedDate]);
+
+
+
+  console.log("✅ from:", from);
+  console.log("✅ to:", to);
+  console.log("✅ fromTime:", fromTime);
+  console.log("✅ toTime:", toTime);
+
+
+
+
+  const intervalRef = useRef(null);
+
+  function getShiftEndDateTime(selectedDate, shiftObj) {
+    if (!shiftObj) return null;
+
+    const baseDate = dayjs(selectedDate);
+
+    // adjust if shift crosses into next day
+    const endDate = baseDate.add(Number(shiftObj.end_day) - 1, "day");
+
+    const [h, m, s] = shiftObj.end_time.split(":").map(Number);
+
+    return endDate.hour(h).minute(m).second(s).millisecond(0).toDate();
+  }
+
+  useEffect(() => {
+    const shiftNo = typeof selectedShift === "string"
+      ? selectedShift.replace("Shift ", "")
+      : String(selectedShift ?? "");
+
+    const shiftObj = shifts.find(s => String(s.shift_no) === shiftNo);
+    const currentShift = getCurrentShift(shifts);
+    const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    if (shiftNo === "allshift") {
+      if (isToday) {
+        setCurrentTime(Date.now());
+        intervalRef.current = setInterval(() => {
+          setCurrentTime(Date.now());
+        }, 1000);
+      } else {
+        const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
+        const lastShiftObj = sortedShifts[sortedShifts.length - 1];
+        if (lastShiftObj) {
+          const endDate = getShiftEndDateTime(selectedDate, lastShiftObj);
+          if (endDate) setCurrentTime(endDate.getTime());
+        }
+      }
+    } else if (isToday && currentShift === shiftNo) {
+      // ✅ Set immediately
+      setCurrentTime(Date.now());
+
+      intervalRef.current = setInterval(() => {
+        setCurrentTime(Date.now());
+      }, 1000);
+
+      console.log("⏱ Live update (today)");
+    } else if (shiftObj) {
+      const endDate = getShiftEndDateTime(selectedDate, shiftObj);
+      if (endDate) {
+        setCurrentTime(endDate.getTime());
+        console.log("📅 Past date, fixed at shift end:", endDate.toString());
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [selectedDate, selectedShift, shifts]);
+
+  console.log("Current Time", currentTime);
+
+  // Called when tab is clicked
+  const handleTabClick = (tab, machine) => {
+    if (!machine) return;
+    if (!from || !to || !fromTime || !toTime) return;
+
+    setActiveTab(tab);
+    localStorage.setItem("activeTab", tab);
+
+    const machineId = machine.id?.id;
+    const machineName = encodeURIComponent(machine.name || "");
+    const baseUrls = {
+      overview:
+        cleanCustomerId(customerId) != window._env_.GPLAST_CUSTOMER_ID
+          ? `${window._env_.GRAFANA_URL}d/cfd0ph9cvebcwb/mm-production-utilization-2-pmi?orgId=1` : `${window._env_.GRAFANA_URL}d/ca045704-dd28-4115-9441-0fa3a94e0a02/mm-production-utilization-2-copy-copy?orgId=1`,
+
+      timeline: isSuperAdmin
+        ? `${window._env_.GRAFANA_URL}d/ffmf5y7vcjg1se/machine-page-timeline?orgId=1&from=${from}&to=${currentTime}`
+        : `${window._env_.GRAFANA_URL}d/b0002ac4-f3c7-446a-b5bf-563b521795c1/valve-c-56-timeline-copy?orgId=1&from=${from}&to=${currentTime}`,
+
+      diagnostics: `http://example.com/diagnostics`,
+
+      toolMonitoring: `${window._env_.GRAFANA_URL}d/da065e50-263c-43e5-8a19-610e8c09820c/main-screen-valve-c-56-tool-monitoring`,
+    };
+
+    const bearerToken = encodeURIComponent(`Bearer+${newToken}`);
+
+    const GRAFANA_URL = window._env_.GRAFANA_URL;
+    console.log("GRAFANA_URL", GRAFANA_URL);
+
+    const baseUrl = window._env_.SERVER_URL;
+    console.log("baseurl", baseUrl);
+
+    const shiftNo =
+      typeof selectedShift === "string"
+        ? selectedShift.replace("Shift ", "")
+        : String(selectedShift ?? "");
+    const currentShiftNo = getCurrentShift(shifts);
+
+    const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
+    const isTodayOngoingShift = isToday && (currentShiftNo === shiftNo);
+    const isAllShift = shiftNo === "allshift" ? "allshift" : currentShiftNo;
+
+    const isAllShiftSelected = shiftNo === "allshift";
+    const _util = machineUtilization[machineId]?.utilization ?? 0;
+    const _run = machineDurations[machineId]?.run ?? 0;
+    const _idle = machineDurations[machineId]?.idle ?? 0;
+    const _disconnect = machineDurations[machineId]?.disconnect ?? 0;
+    const _alarm = machineDurations[machineId]?.alarm ?? 0;
+    const _totalParts = machineDurations[machineId]?.totalParts ?? 0;
+    const _targetParts = machineDurations[machineId]?.targetParts ?? 0;
+    const _performance = machinePartsStats[machineId]?.performance ?? 0;
+    const _quality = machinePartsStats[machineId]?.quality ?? 0;
+    const _oee = machinePartsStats[machineId]?.oee ?? 0;
+
+    const allShiftData = encodeURIComponent(JSON.stringify(
+      isAllShiftSelected
+        ? {
+          utilization: _util,
+          performance: _performance,
+          quality: _quality,
+          oee: _oee,
+          totalparts: _totalParts,
+          targetparts: _targetParts,
+          total_run_duration: _run,
+          total_idle_duration: _idle,
+          total_disconnect_duration: _disconnect,
+          total_alarm_duration: _alarm,
+        }
+        : {
+          utilization: _util,
+          performance: _performance,
+          quality: _quality,
+          oee: _oee,
+          totalparts: _totalParts,
+          targetparts: _targetParts,
+          total_run_duration: _run,
+          total_idle_duration: _idle,
+          total_disconnect_duration: _disconnect,
+          total_alarm_duration: _alarm,
+        }
+    ));
+
+    let url = `${baseUrls[tab]}&var-isAllShift=${isAllShift}&var-customerid=${cleanCustomerId(customerId)}&var-from=${from}&var-to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&var-token=${bearerToken}&var-deviceId=${machineId}&var-deviceName=${machineName}&var-isTodayOngoingShift=${isTodayOngoingShift}&var-grafanaurl=${GRAFANA_URL}&var-url=${baseUrl}&var-allShiftData=${allShiftData}&theme=light&kiosk`;
+
+    console.log(shiftNo, '0000000000000000000000000000000000000 shifdu')
+    if (tab === "diagnostics") {
+      url = `${baseUrls[tab]}?&from=${from}&to=${to}&var-fromTime=${fromTime}&var-toTime=${toTime}&deviceId=${machineId}&var-deviceName=${machineName}`;
+    }
+
+    console.log("Final iframe URL:", url);
+    setIframeSrc(url); // 🔹 Updates the iframe
+  };
+
+
+  // States
+  const [runDuration, setRunDuration] = useState(0);
+  const [idleDuration, setIdleDuration] = useState(0);
+  const [selectedMachine, setSelectedMachine] = useState(
+    filteredDevices.length > 0 ? filteredDevices[0] : null
+  );
+
+  const [latestIdleRunDuration, setLatestIdleRunDuration] = useState({});
+
+  // useEffect(() => {
+  //   const fetchLatestIdleRunDuration = async () => {
+  //     if (!from || !to || filteredDevices.length === 0) return;
+
+  //     const results = {};
+
+  //     await Promise.all(
+  //       filteredDevices.map(async (machine) => {
+  //         try {
+  //           const data = await telemetrykeydata(
+  //             machine.id.id,
+  //             "DEVICE",
+  //             "idlerunstate",
+  //             from,
+  //             to
+  //           );
+
+  //           const values = data?.idlerunstate || [];
+  //           if (!Array.isArray(values) || values.length === 0) {
+  //             results[machine.id.id] = null;
+  //             return;
+  //           }
+
+  //           // ✅ Take the 0th value directly
+  //           const firstPoint = values[0];
+
+  //           let keyName = null;
+  //           let durationSeconds = null;
+
+  //           const parseValue =
+  //             typeof firstPoint.value === "string"
+  //               ? JSON.parse(firstPoint.value)
+  //               : firstPoint.value;
+
+  //           if (parseValue && typeof parseValue === "object") {
+  //             if (parseValue.idleduration !== undefined && parseValue.idleduration !== null) {
+  //               keyName = "idleduration";
+  //               durationSeconds = Number(parseValue.idleduration);
+  //             } else {
+  //               const foundKey = Object.keys(parseValue).find((k) =>
+  //                 ["runduration", "disconnectduration", "alarmduration", "settings"].includes(k)
+  //               );
+
+  //               if (foundKey) {
+  //                 keyName = foundKey;
+  //                 durationSeconds = Number(parseValue[foundKey]) ?? null;
+  //               }
+  //             }
+  //           }
+
+  //           results[machine.id.id] = {
+  //             keyName,
+  //             durationSeconds
+  //           };
+
+  //           console.log(
+  //             `Machine: ${machine.name} | Key: ${keyName} | Duration: ${durationSeconds} sec`
+  //           );
+  //         } catch (error) {
+  //           console.error(
+  //             `Error fetching idlerunstate (0th value) for ${machine.name}`,
+  //             error
+  //           );
+  //           results[machine.id.id] = null;
+  //         }
+  //       })
+  //     );
+
+  //     setLatestIdleRunDuration(results);
+  //   };
+
+  //   fetchLatestIdleRunDuration();
+  // }, [filteredDevices, from, to]);
+
+
+
+
+  // useEffect(() => {
+  //   const fetchAllUtilization = async () => {
+  //     if (!from || !to || filteredDevices.length === 0) return;
+
+  //     const results = {};
+
+  //     await Promise.all(
+  //       filteredDevices.map(async (machine) => {
+  //         try {
+  //           const data = await telemetrykeydata(
+  //             machine.id.id,
+  //             "DEVICE",
+  //             "hour_utilization",
+  //             from,
+  //             to
+  //           );
+
+  //           const values = data?.hour_utilization || [];
+
+  //           // 📌 Console the full array of data
+  //           console.log(`\n🔹 Full utilization array for ${machine.name}:`, values);
+
+  //           if (!Array.isArray(values) || values.length === 0) {
+  //             results[machine.id.id] = { utilization: 0 };
+  //             console.log(`⚠️ Machine: ${machine.name} → No utilization data`);
+  //             return;
+  //           }
+  //           const hourlyGroups = {};
+  //           values.forEach((point) => {
+  //             const date = new Date(point.ts);
+  //             const hourKey = new Date(
+  //               date.getFullYear(),
+  //               date.getMonth(),
+  //               date.getDate(),
+  //               date.getHours(),
+  //               0,
+  //               0,
+  //               0
+  //             ).toISOString();
+  //             if (!hourlyGroups[hourKey]) {
+  //               hourlyGroups[hourKey] = [];
+  //             }
+  //             hourlyGroups[hourKey].push(point);
+  //           });
+  //           const hourlyLatestValues = Object.entries(hourlyGroups).map(
+  //             ([hour, points]) => {
+  //               const latestPoint = points.reduce((latest, point) =>
+  //                 new Date(point.ts) > new Date(latest.ts) ? point : latest
+  //               );
+  //               return {
+  //                 hour,
+  //                 value: Number(latestPoint.value) || 0,
+  //                 timestamp: latestPoint.ts,
+  //               };
+  //             }
+  //           );
+  //           const avgUtilization =
+  //             hourlyLatestValues.reduce((sum, obj) => sum + obj.value, 0) /
+  //             hourlyLatestValues.length;
+  //           const finalValue = parseInt(avgUtilization);
+  //           results[machine.id.id] = { utilization: finalValue };
+  //         } catch (error) {
+  //           console.error("❌ Error fetching utilization for", machine.name, error);
+  //           results[machine.id.id] = { utilization: 0 };
+  //         }
+  //       })
+  //     );
+
+  //     setMachineUtilization(results);
+  //   };
+
+  //   fetchAllUtilization();
+  // }, [filteredDevices, from, to]);
+
+
+
+  // useEffect(() => {
+  //   const fetchHistoricalBaseline = async () => {
+  //     if (!from || !to || filteredDevices.length === 0) return;
+
+  //     const results = {};
+
+  //     await Promise.all(
+  //       filteredDevices.map(async (machine) => {
+  //         try {
+  //           const data = await telemetrykeydata(
+  //             machine.id.id,
+  //             "DEVICE",
+  //             "historicalbaseline",
+  //             from,
+  //             to
+  //           );
+
+  //           const values = data?.historicalbaseline || [];
+  //           if (!Array.isArray(values) || values.length === 0) {
+  //             results[machine.id.id] = { utilizationBaseline: 0 };
+  //             console.log(`Machine: ${machine.name} → No historical baseline data`);
+  //             return;
+  //           }
+
+  //           // ✅ Get latest point (max timestamp)
+  //           const latestPoint = values.reduce((max, point) =>
+  //             point.ts > max.ts ? point : max
+  //           );
+
+  //           let utilizationBaseline = 0;
+  //           if (latestPoint?.value) {
+  //             try {
+  //               const parsed = typeof latestPoint.value === "string"
+  //                 ? JSON.parse(latestPoint.value)
+  //                 : latestPoint.value;
+  //               utilizationBaseline = parseFloat(parsed?.utilization ?? 0);
+  //             } catch (err) {
+  //               console.error(`Error parsing historical baseline for ${machine.name}`, err);
+  //             }
+  //           }
+
+  //           results[machine.id.id] = {
+  //             utilizationBaseline: parseFloat(utilizationBaseline.toFixed(1))
+  //           };
+
+  //           console.log(
+  //             `Machine: ${machine.name} → Utilization Baseline = ${results[machine.id.id].utilizationBaseline}`
+  //           );
+
+  //         } catch (error) {
+  //           console.error("Error fetching historical baseline for", machine.name, error);
+  //           results[machine.id.id] = { utilizationBaseline: 0 };
+  //         }
+  //       })
+  //     );
+
+  //     setUtilizationBaseline(results); // <-- You'll need this state
+  //   };
+
+  //   fetchHistoricalBaseline();
+  // }, [filteredDevices, from, to]);
+
+  // State for storing utilization baseline
+  const [utilizationBaseline, setUtilizationBaseline] = useState({});
+  const [machinePartsStats, setMachinePartsStats] = useState({});
+
+  const [liveComponent, setLiveComponent] = useState({});
+
+  // useEffect(() => {
+  //   const fetchLiveComponent = async () => {
+  //     if (!from || !to || filteredDevices.length === 0) return;
+
+  //     const results = {};
+
+  //     await Promise.all(
+  //       filteredDevices.map(async (machine) => {
+  //         try {
+  //           const data = await telemetrykeydata(
+  //             machine.id.id,
+  //             "DEVICE",
+  //             "live_component",
+  //             from,
+  //             to
+  //           );
+
+  //           const values = data?.live_component || [];
+  //           if (!Array.isArray(values) || values.length === 0) {
+  //             results[machine.id.id] = { componentName: null };
+  //             console.log(`Machine: ${machine.name} → No live_component data`);
+  //             return;
+  //           }
+
+  //           // ✅ Get latest point (max timestamp)
+  //           const latestPoint = values.reduce((max, point) =>
+  //             point.ts > max.ts ? point : max
+  //           );
+
+  //           let componentName = null;
+  //           if (latestPoint?.value) {
+  //             try {
+  //               const parsed = typeof latestPoint.value === "string"
+  //                 ? JSON.parse(latestPoint.value)
+  //                 : latestPoint.value;
+  //               componentName = parsed?.name ?? null;
+  //             } catch (err) {
+  //               console.error(`Error parsing live_component for ${machine.name}`, err);
+  //             }
+  //           }
+
+  //           results[machine.id.id] = { componentName };
+
+  //           console.log(
+  //             `Machine: ${machine.name} → Live Component Name = ${results[machine.id.id].componentName}`
+  //           );
+
+  //         } catch (error) {
+  //           console.error("Error fetching live_component for", machine.name, error);
+  //           results[machine.id.id] = { componentName: null };
+  //         }
+  //       })
+  //     );
+
+  //     setLiveComponent(results); // <-- Define state with useState({})
+  //   };
+
+  //   fetchLiveComponent();
+  // }, [filteredDevices, from, to]);
+
+
+  function formatTime(seconds) {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${hrs}h ${mins}m ${secs}s`;
+  }
+
+
+
+  useEffect(() => {
+    const savedDate = localStorage.getItem("selectedDate");
+    if (savedDate) {
+      setSelectedDate(dayjs(savedDate));
+    }
+  }, []);
+
+  // ✅ Save to localStorage whenever date changes
+  useEffect(() => {
+    if (selectedDate) {
+      localStorage.setItem("selectedDate", selectedDate.toISOString());
+    }
+  }, [selectedDate]);
+
+
+  // ✅ Save to localStorage whenever shift changes
+  useEffect(() => {
+    if (selectedShift) {
+      localStorage.setItem("selectedShift", selectedShift);
+    }
+  }, [selectedShift]);
+
+
+  const [machineStatuses, setMachineStatuses] = useState({});
+
+  // useEffect(() => {
+  //   const fetchMachineStatus = async () => {
+  //     if (!from || !to || filteredDevices.length === 0) return;
+
+  //     const results = {};
+
+  //     await Promise.all(
+  //       filteredDevices.map(async (machine) => {
+  //         try {
+  //           const data = await telemetrykeydata(
+  //             machine.id.id,
+  //             "DEVICE",
+  //             "machine_Status", // <-- status key
+  //             from,
+  //             to
+  //           );
+
+  //           const values = data?.machine_Status || [];
+  //           if (!Array.isArray(values) || values.length === 0) {
+  //             results[machine.id.id] = { machineName: machine.name, status: "No Data" };
+  //             console.log(`Machine: ${machine.name} → No status data`);
+  //             return;
+  //           }
+
+  //           // ✅ Get latest point (max timestamp)
+  //           const latestPoint = values.reduce((max, point) =>
+  //             point.ts > max.ts ? point : max
+  //           );
+
+  //           let status = "Unknown";
+  //           if (latestPoint?.value) {
+  //             try {
+  //               status = typeof latestPoint.value === "string"
+  //                 ? latestPoint.value
+  //                 : String(latestPoint.value);
+  //             } catch (err) {
+  //               console.error(`Error parsing machine status for ${machine.name}`, err);
+  //             }
+  //           }
+
+  //           // ✅ Store result with machine name
+  //           results[machine.id.id] = {
+  //             machineName: machine.name,
+  //             status
+  //           };
+
+  //           console.log(
+  //             `Machine: ${machine.name} → Latest Status = ${results[machine.id.id].status}`
+  //           );
+
+  //         } catch (error) {
+  //           console.error("Error fetching machine status for", machine.name, error);
+  //           results[machine.id.id] = { machineName: machine.name, status: "Error" };
+  //         }
+  //       })
+  //     );
+
+  //     setMachineStatuses(results); // <-- You'll need a state for this
+  //   };
+
+  //   fetchMachineStatus();
+  // }, [filteredDevices, from, to]);
+
+  console.log('Machine Status', machineStatuses);
+
+
+
+  useEffect(() => {
+    // When URL params set activeMachineFilter, use it directly; otherwise use hook's groupSelectedMachines
+    const effectiveMachines = activeMachineFilter.length > 0 ? activeMachineFilter : groupSelectedMachines;
+
+    const machinesToShow = effectiveMachines.length > 0
+      ? devices.filter(d => effectiveMachines.includes(d.name))
+      : devices;
+
+    const filtered = machinesToShow.filter((d) => {
+      const matchDropdown = selectedDevice === "all" || d.id.id === selectedDevice;
+      const matchSearch = (d.name || "").toLowerCase().includes(searchText.toLowerCase());
+      const machineName = d.name || "";
+      const status = machineStatuses[d.id.id]?.status || "";
+      const machineMatch = selectedMachines.length === 0 || selectedMachines.includes(machineName);
+      const statusMatch = selectedStatus.length === 0 || selectedStatus.includes(status);
+      return matchDropdown && matchSearch && machineMatch && statusMatch;
+    });
+
+    setFilteredDevices(filtered);
+  }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses, groupSelectedMachines, activeMachineFilter]);
+
+  useEffect(() => {
+    if (!from || !to || !selectedMachine) return;
+    if (!fromTime || !toTime) return;
+
+    if (!autoSelected) {
+      handleTabClick("overview", selectedMachine);
+      setAutoSelected(true);
+    }
+  }, [from, to, fromTime, toTime, selectedMachine, selectedDate]);
+
+  useEffect(() => {
+    if (!from || !to || !selectedMachine) return;
+    if (!fromTime || !toTime) return;
+
+    handleTabClick(activeTab || "overview", selectedMachine);
+  }, [from, to, fromTime, toTime, selectedMachine, activeTab, machineUtilization, machineDurations, machinePartsStats]);
+
+
+
+  const machineStatusOptions = ["Running", "Idle", "Disconnected", "Alarm"];
+
+  // Toggle machine selection
+  const toggleMachineSelection = (name) => {
+    fetchAllMachineData();
+    setSelectedMachines((prev) =>
+      prev.includes(name)
+        ? prev.filter((m) => m !== name)
+        : [...prev, name]
+    );
+  };
+
+  // Toggle status selection
+  const toggleStatusSelection = (status) => {
+    setSelectedStatus((prev) =>
+      prev.includes(status)
+        ? prev.filter((s) => s !== status)
+        : [...prev, status]
+    );
+  };
+
+
+  // All machines from your state
+  const machineList = Object.values(machineStatuses);
+
+  // Filter machines based on status & machine selection
+  const filteredMachines = machineList.filter((m) => {
+    const statusMatch =
+      selectedStatus.length === 0 || selectedStatus.includes(m.status);
+    const machineMatch =
+      selectedMachines.length === 0 || selectedMachines.includes(m.machineName);
+    return statusMatch && machineMatch;
+  });
+
+
+
+
+
+
+
+  // useEffect(() => {
+  //   const fetchAllMachineStatus = async () => {
+  //     if (!from || !to || filteredDevices.length === 0) return;
+
+  //     const results = {};
+
+  //     await Promise.all(
+  //       filteredDevices.map(async (machine) => {
+  //         try {
+  //           const data = await telemetrykeydata(
+  //             machine.id.id,
+  //             "DEVICE",
+  //             "machine_status",
+  //             from,
+  //             to
+  //           );
+
+  //           const values = data?.machine_status || [];
+
+  //           console.log(`🔹 Full machine_status array for ${machine.name}:`, values);
+
+  //           if (!Array.isArray(values) || values.length === 0) {
+  //             results[machine.id.id] = { lastTs: null };
+  //             return;
+  //           }
+
+  //           // ✅ Find last element where value === "3"
+  //           const lastValue = [...values].reverse().find(item => item.value === "3");
+
+  //           if (lastValue) {
+  //             results[machine.id.id] = { lastTs: lastValue.ts };
+  //           } else {
+  //             results[machine.id.id] = { lastTs: null }; // no "3" found
+  //           }
+  //         } catch (error) {
+  //           console.error("❌ Error fetching machine_status for", machine.name, error);
+  //           results[machine.id.id] = { lastTs: null };
+  //         }
+  //       })
+  //     );
+
+  //     // ✅ Save all machines lastTs
+  //     setMachineStatusTimes(results);
+
+  //     // ✅ Console the collected results
+  //     console.log("✅ All machines last active times:", results);
+  //   };
+
+  //   fetchAllMachineStatus();
+  // }, [filteredDevices, from, to]);
+
+  console.log('First Active time of all devices', machineStatusTimes)
+
+
+  function formatMillisecondsTo12HourTime(ms) {
+    if (!ms) return "N/A";
+
+    const date = new Date(ms);
+
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    const ampm = hours >= 12 ? "PM" : "AM";
+
+    hours = hours % 12;
+    hours = hours ? hours : 12; // Convert '0' to '12'
+
+    const formattedTime = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")} ${ampm}`;
+
+    return formattedTime;
+  }
+
+  const blinkRedBorder = keyframes`
+ 0%, 100% {
+    box-shadow:
+      inset 0 2px 0 0 rgba(244, 67, 54, 0.8),
+      inset -2px 0 0 0 rgba(244, 67, 54, 0.8),
+      inset 0 -2px 0 0 rgba(244, 67, 54, 0.8),
+      0 0 10px rgba(244, 67, 54, 0.6);
+  }
+  50% {
+    box-shadow:
+      inset 0 2px 0 0 rgba(244, 67, 54, 0.2),
+      inset -2px 0 0 0 rgba(244, 67, 54, 0.2),
+      inset 0 -2px 0 0 rgba(244, 67, 54, 0.2),
+      0 0 4px rgba(244, 67, 54, 0.2);
+  }
+`;
+
+  useEffect(() => {
+    if (filteredDevices.length > 0) {
+      const isCurrentMachineInList = filteredDevices.some(d => d.id.id === selectedMachineId);
+      if (!selectedMachineId || !isCurrentMachineInList) {
+        const firstMachine = filteredDevices[0];
+        setViewedMachine(firstMachine);
+        setSelectedMachineId(firstMachine.id.id);
+        setSelectedMachine(firstMachine);
+      }
+    }
+  }, [filteredDevices, selectedMachineId, activeTab, newToken, selectedShift]);
+
+  return (
+    <div style={{ display: "flex", height: 'calc(100vh - 45px)', paddingTop: "20px", position: "relative" }}>
+      {/* Left Panel */}
+      <div style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+        <div
+          style={{
+            width: leftPanelOpen ? "350px" : "0px",
+            minWidth: leftPanelOpen ? "350px" : "0px",
+            background: "#f9f9f9",
+            padding: leftPanelOpen ? "15px" : "0px",
+            paddingTop: leftPanelOpen ? "40px" : "0px",
+            borderRight: "1px solid #ddd",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            transition: "width 0.3s ease, min-width 0.3s ease, padding 0.3s ease",
+          }}
+        >
+
+          {showMachineGroupsDropdown && (
+            <FormControl size="small" sx={{ minWidth: 180, marginBottom: "10px" }}>
+              <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machine Group</InputLabel>
+              <Select
+                multiple
+                value={activeGroupFilter.length > 0 ? activeGroupFilter : selectedGroups}
+                onChange={(e) => {
+                  // Clear param-derived overrides; let hook take over
+                  setActiveGroupFilter([]);
+                  setActiveMachineFilter([]);
+                  handleGroupChange(e.target.value);
+                }}
+                label="Machine Group"
+                renderValue={(selected) => {
+                  if (selected.length === 0) return "Select Groups";
+                  if (selected.length === machineGroups.length && machineGroups.length > 1) return "All Groups";
+                  return selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "");
+                }}
+                sx={{
+                  fontSize: '14px',
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: '10px',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    '&:hover': {
+                      borderColor: '#007AFF',
+                    },
+                    '&.Mui-focused': {
+                      borderColor: '#007AFF',
+                      boxShadow: '0 0 0 3px rgba(0, 122, 255, 0.1)',
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="all">
+                  <Checkbox checked={
+                    (activeGroupFilter.length > 0 ? activeGroupFilter : selectedGroups).length === machineGroups.length
+                  } />
+                  <ListItemText primary="All Groups" />
+                </MenuItem>
+                {machineGroups.map((g) => (
+                  <MenuItem key={g.name} value={g.name}>
+                    <Checkbox checked={
+                      (activeGroupFilter.length > 0 ? activeGroupFilter : selectedGroups).includes(g.name)
+                    } />
+                    <ListItemText primary={g.name} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          <FormControl size="small" sx={{ minWidth: 200, marginBottom: "10px" }}>
+            <InputLabel sx={{ fontSize: '13px', color: '#86868b' }}>Machines</InputLabel>
+            <Select
+              multiple
+              value={activeMachineFilter.length > 0 ? activeMachineFilter : groupSelectedMachines}
+              onChange={(e) => {
+                // Clear param-derived overrides; let hook take over
+                setActiveMachineFilter([]);
+                setActiveGroupFilter([]);
+                handleMachineChange(e.target.value);
+              }}
+              label="Machines"
+              renderValue={(selected) => {
+                if (selected.length === 0) return "All Machines";
+                if (activeMachineFilter.length === 0 && isAllMachinesSelected) return "All Machines";
+                return selected.slice(0, 2).join(", ") + (selected.length > 2 ? "..." : "");
+              }}
+              sx={{
+                fontSize: '14px',
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '10px',
+                  border: '1px solid rgba(0, 0, 0, 0.12)',
+                  '&:hover': {
+                    borderColor: '#007AFF',
+                  },
+                  '&.Mui-focused': {
+                    borderColor: '#007AFF',
+                    boxShadow: '0 0 0 3px rgba(0, 122, 255, 0.1)',
+                  }
+                }
+              }}
+            >
+              <MenuItem value="all">
+                <Checkbox checked={
+                  activeMachineFilter.length > 0
+                    ? availableMachines.length > 0 && activeMachineFilter.length === availableMachines.length && availableMachines.every(m => activeMachineFilter.includes(m))
+                    : isAllMachinesSelected
+                } />
+                <ListItemText primary="All Machines" />
+              </MenuItem>
+              {availableMachines.map((machine) => (
+                <MenuItem key={machine} value={machine}>
+                  <Checkbox checked={
+                    activeMachineFilter.length > 0
+                      ? activeMachineFilter.includes(machine)
+                      : groupSelectedMachines.includes(machine)
+                  } />
+                  <ListItemText primary={machine} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Search + Filter Button */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              marginBottom: "10px",
+            }}
+          >
+            <TextField
+              size="small"
+              placeholder="Search Here"
+              variant="outlined"
+              fullWidth
+              style={{ background: "#fff" }}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              InputProps={{
+                endAdornment: <SearchIcon style={{ color: "#777" }} />,
+              }}
+            />
+            <IconButton onClick={handleFilterClick} style={{ marginLeft: "5px" }}>
+              <FilterListIcon />
+            </IconButton>
+          </div>
+
+          {/* Live Compared to Baseline */}
+          <div style={{ marginBottom: "10px" }}>
+            <span
+              style={{
+                background: "#eee",
+                padding: "3px 6px",
+                borderRadius: "4px",
+                fontSize: "12px",
+                marginRight: "8px",
+              }}
+            >
+              Live
+            </span>
+            <span style={{ fontSize: "13px", color: "#555" }}>
+              Compared to: <strong>Baseline</strong>
+            </span>
+          </div>
+
+          {/* Machine List */}
+          <div style={{ overflowY: "auto", flexGrow: 1 }}>
+            {loading ? (
+              <Typography variant="body2" sx={{ textAlign: "center", color: "gray", mt: 2 }}>
+                Loading machines...
+              </Typography>
+            ) : filteredDevices.length === 0 ? (
+              <Typography
+                variant="body2"
+                sx={{ textAlign: "center", color: "gray", mt: 2 }}
+              >
+                No machines in{" "}
+                {[...selectedMachines, ...selectedStatus].length > 0
+                  ? `(${[...selectedMachines, ...selectedStatus].join(", ")})`
+                  : "filter"}
+              </Typography>
+            ) : (
+              filteredDevices.map((machine) => {
+                const changePositive = machine.changeFromBaseline >= 0;
+                const { run = 0, idle = 0, total = 0, disconnect = 0, alarm = 0, setting = 0, totalParts = 0, targetParts = 0, goodParts = 0, scrap = 0, ncr = 0 } =
+                  machineDurations[machine.id.id] || {};
+                // const firstActiveTime =
+                //   machineDurations[machine.id.id]?.firstActiveTime || "00:00:00";
+                const isSelected = machine.id.id === selectedMachineId; // ✅ Check if selected
+                const firstActiveTime = machineStatusTimes?.[machine.id.id] || "N/A";
+
+
+                return (
+                  <Card
+                    key={machine.id.id}
+                    onClick={() => {
+                      setViewedMachine(machine);
+                      setSelectedMachineId(machine.id.id);
+                      setSelectedMachine(machine);
+                      handleTabClick(activeTab, machine);
+                      fetchAllMachineData();
+                    }}
+                    sx={{
+                      mb: 1.5,
+                      borderRadius: 3,
+                      cursor: "pointer",
+                      transition: "all 0.3s ease-in-out",
+                      background: isSelected ? "#e3f2fd" : "#ffffff",
+                      border: "1px solid #e0e0e0",
+                      boxShadow: `
+      4px 4px 8px rgba(0,0,0,0.08),
+      -4px -4px 8px rgba(255,255,255,0.9)
+    `,
+                      borderLeft: `5px solid ${machineStatuses[machine.id.id]?.status === "Running"
+                        ? "#4caf50"
+                        : machineStatuses[machine.id.id]?.status === "Idle"
+                          ? "#f1a014ff"
+                          : machineStatuses[machine.id.id]?.status === "Alarm"
+                            ? "#f44336"
+                            : machineStatuses[machine.id.id]?.status === "Disconnected"
+                              ? "#9e9e9e"
+                              : machineStatuses[machine.id.id]?.status === "Locked"
+                                ? "rgb(243, 44, 130)"
+                                : machineStatuses[machine.id.id]?.status === "Setting"
+                                  ? "#81c8f5ff"
+                                  : "#f44336"
+                        }`,
+                      ...(machineStatuses[machine.id.id]?.status === "Alarm" && {
+                        animation: `${blinkRedBorder} 1.5s ease-in-out infinite`,
+                      }),
+                    }}
+                  >
+                    <CardContent sx={{ p: 1.5 }}>
+                      {/* Header */}
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: "1.1rem", color: "#222" }}>
+                          {machine.name}
+                        </Typography>
+                        <Box
+                          sx={{
+                            px: 1.3,
+                            py: 0.35,
+                            borderRadius: "50px",
+                            fontSize: "0.72rem",
+                            fontWeight: 600,
+                            color: "#fff",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                            background:
+                              machineStatuses[machine.id.id]?.status === "Running"
+                                ? "linear-gradient(135deg, #43a047, #2e7d32)"
+                                : machineStatuses[machine.id.id]?.status === "Idle"
+                                  ? "linear-gradient(135deg, #fbc02d, #f57f17)"
+                                  : machineStatuses[machine.id.id]?.status === "Alarm"
+                                    ? "linear-gradient(135deg, #e53935, #b71c1c)"
+                                    : machineStatuses[machine.id.id]?.status === "Disconnected"
+                                      ? "#616161"
+                                      : machineStatuses[machine.id.id]?.status === "Locked"
+                                        ? "rgb(243, 44, 130)"
+                                        : machineStatuses[machine.id.id]?.status === "Setting"
+                                          ? "linear-gradient(135deg, #29b6f6, #0288d1)"
+                                          : "#b71c1c",
+                          }}
+                        >
+                          {machineStatuses[machine.id.id]?.status ?? "Unknown"}
+                        </Box>
+                      </Box>
+
+                      {/* Status & Duration */}
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center", mb: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              bgcolor:
+                                machineStatuses[machine.id.id]?.status === "Running"
+                                  ? "#4caf50"
+                                  : machineStatuses[machine.id.id]?.status === "Idle"
+                                    ? "#f1a014"
+                                    : machineStatuses[machine.id.id]?.status === "Disconnected"
+                                      ? "#9e9e9e"
+                                      : machineStatuses[machine.id.id]?.status === "Alarm"
+                                        ? "#f44336"
+                                        : machineStatuses[machine.id.id]?.status === "Setting"
+                                          ? "#81c8f5ff"
+                                          : machineStatuses[machine.id.id]?.status === "Locked"
+                                            ? "rgb(243, 44, 130)"
+                                            : "#9e9e9e",
+                            }}
+                          />
+                          <Typography sx={{ fontSize: "0.83rem", color: "#222" }}>
+                            {machineStatuses[machine.id.id]?.status === "Running"
+                              ? `Run: ${formatTime(run)}`
+                              : machineStatuses[machine.id.id]?.status === "Idle"
+                                ? `Idle: ${formatTime(idle)}`
+                                : machineStatuses[machine.id.id]?.status === "Disconnected"
+                                  ? `Disconnect: ${formatTime(disconnect)}`
+                                  : machineStatuses[machine.id.id]?.status === "Alarm"
+                                    ? `Alarm: ${formatTime(alarm)}`
+                                    : machineStatuses[machine.id.id]?.status === "Setting"
+                                      ? `Setting: ${formatTime(setting)}`
+                                      : `Total: ${formatTime(total)}`}
+                          </Typography>
+                        </Box>
+
+                        <Typography sx={{ fontSize: "0.73rem", color: "#555", display: "flex", alignItems: "center" }}>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#555"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{ marginRight: "3px" }}
+                          >
+                            <polyline points="0 12 5 12 8 4 12 20 16 8 19 12 24 12" />
+                          </svg>
+                          First Active: {formatMillisecondsTo12HourTime(machineStatusTimes[machine.id.id]?.lastTs)}
+                        </Typography>
+                      </Box>
+
+
+                      {/* Reason & Component */}
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1 }}>
+                        {/* {(machineStatuses[machine.id.id]?.status === "Idle" || machineStatuses[machine.id.id]?.status === "Alarm") &&
+                        (() => {
+                          const isLocked = lockStatus[machine.id.id]?.lockStatus?.toLowerCase() === "locked";
+                          const live = liveReason[machine.id.id]?.liveReason;
+                          const hasLiveReason = live && live.idle_end === 0;
+
+                          if (isLocked && !hasLiveReason) {
+                            return (
+                              <Chip
+                                label="Reason: Not assigned"
+                                size="small"
+                                sx={{ fontSize: "0.68rem", bgcolor: "#f5f5f5", color: "#555", fontWeight: 500 }}
+                              />
+                            );
+                          }
+
+                          if (!isLocked && hasLiveReason) {
+                            return (
+                              <Chip
+                                label={`Reason: ${live.name}`}
+                                size="small"
+                                sx={{ fontSize: "0.68rem", bgcolor: "#f5f5f5", color: "#555", fontWeight: 500 }}
+                              />
+                            );
+                          }
+
+                          return null;
+                        })()} */}
+
+                        {/* {(machineStatuses[machine.id.id]?.status === "Idle" || machineStatuses[machine.id.id]?.status === "Alarm") &&
+                        liveReason[machine.id.id]?.liveReason?.name &&
+                        (
+                          <Chip
+                            label={`Last reason: ${liveReason[machine.id.id]?.liveReason?.name || "N/A"}`}
+                            size="small"
+                            sx={{
+                              fontSize: "0.68rem",
+                              fontWeight: 500,
+                              color: "#fff",
+                              background:
+                                machineStatuses[machine.id.id]?.status === "Idle"
+                                  ? "linear-gradient(135deg, #fbc02d, #f57f17)"
+                                  : machineStatuses[machine.id.id]?.status === "Alarm"
+                                    ? "linear-gradient(135deg, #e53935, #b71c1c)"
+                                    : "#9e9e9e", // fallback color (e.g. grey)
+                            }}
+                          />
+                        )} */}
+                        <Chip
+                          label={liveComponent[machine.id.id]?.componentName ?? "No Component"}
+                          size="small"
+                          sx={{
+                            fontSize: "0.7rem",
+                            fontWeight: 600,
+                            bgcolor:
+                              (liveComponent[machine.id.id]?.componentName ?? "No Component") !== "No Component"
+                                ? "#e0f7fa"
+                                : "#ffebee",
+                            color:
+                              (liveComponent[machine.id.id]?.componentName ?? "No Component") !== "No Component"
+                                ? "#00796b"
+                                : "#c62828",
+                          }}
+                        />
+                      </Box>
+
+                      {/* Utilization with floating neumorphic progress bar */}
+                      <Box
+                        sx={{
+                          mt: 0.8,
+                          p: 1.5,
+                          bgcolor: "#ffffff",
+                          borderRadius: 2.5,
+                          boxShadow: `
+          3px 3px 6px rgba(0,0,0,0.08),
+          -3px -3px 6px rgba(255,255,255,0.7)
+        `,
+                        }}
+                      >
+                        <Typography sx={{ fontWeight: 700, fontSize: "0.8rem", color: "#222", mb: 0.8 }}>
+                          Utilization Rate
+                        </Typography>
+
+                        <Typography sx={{ fontWeight: 700, fontSize: "22px", color: "#222", mb: 1.5 }}>
+                          {machineUtilization[machine.id.id]?.utilization ?? 0}%
+                        </Typography>
+
+                        <Box
+                          sx={{
+                            position: "relative",
+                            height: 12,
+                            borderRadius: 10,
+                            bgcolor: "#f1f3f6",
+                            mb: 1.5,
+                            boxShadow: "inset 1.5px 1.5px 3px rgba(0,0,0,0.08), inset -1.5px -1.5px 3px rgba(255,255,255,0.7)",
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: `${machineUtilization[machine.id.id]?.utilization ?? 0}%`,
+                              height: "100%",
+                              borderRadius: 10,
+                              background:
+                                parseFloat(
+                                  (machineUtilization[machine.id.id]?.utilization ?? 0) -
+                                  (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)
+                                ) >= 0
+                                  ? "linear-gradient(90deg, #81c784, #4caf50)"
+                                  : "linear-gradient(90deg, #ef9a9a, #f44336)",
+                              boxShadow: `
+              1.5px 1.5px 3px rgba(0,0,0,0.15),
+              -1.5px -1.5px 3px rgba(255,255,255,0.8)
+            `,
+                              transition: "width 0.5s ease",
+                            }}
+                          />
+                        </Box>
+
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                          {parseFloat(
+                            (machineUtilization[machine.id.id]?.utilization ?? 0) -
+                            (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)
+                          ) >= 0 ? (
+                            <ArrowUpwardIcon fontSize="small" sx={{ color: "#4caf50" }} />
+                          ) : (
+                            <ArrowDownwardIcon fontSize="small" sx={{ color: "#f44336" }} />
+                          )}
+                          <Typography sx={{ fontSize: "0.68rem", color: "#555" }}>
+                            {Math.abs(
+                              parseFloat(
+                                ((machineUtilization[machine.id.id]?.utilization ?? 0) -
+                                  (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)).toFixed(1)
+                              )
+                            )}{" "}
+                            pp {parseFloat(
+                              (machineUtilization[machine.id.id]?.utilization ?? 0) -
+                              (utilizationBaseline[machine.id.id]?.utilizationBaseline ?? 0)
+                            ) >= 0 ? "up" : "down"} from baseline
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+
+        </div>
+
+        {/* Toggle Arrow Button — always visible at top-right corner of left panel */}
+        <IconButton
+          onClick={() => setLeftPanelOpen(prev => !prev)}
+          size="small"
+          style={{
+            position: "absolute",
+            top: "8px",
+            right: "-16px",
+            zIndex: 20,
+            background: "#fff",
+            border: "2px solid #b4b1ae",   // orange border
+            borderRadius: "50%",
+            padding: "4px",
+            color: "#999793",              // icon color (orange)
+          }}
+        >
+          {leftPanelOpen
+            ? <ChevronLeftIcon fontSize="small" />
+            : <ChevronRightIcon fontSize="small" />
+          }
+        </IconButton>
+      </div>
+
+      {/* Right Panel */}
+      <div
+        style={{
+          flex: 1,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Header above iframe */}
+        <div
+          style={{
+            padding: "10px 15px",
+            borderBottom: "1px solid #ddd",
+            background: "#fff",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            {viewedMachine && (() => {
+              const data = latestIdleRunDuration[viewedMachine.id.id] || {};
+              if (!data.keyName) return null;
+
+              const label = data.keyName.replace("duration", "");
+              const displayLabel = label.charAt(0).toUpperCase() + label.slice(1);
+
+              return (
+                <Typography
+                  variant="h6"
+                  component="div"
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                >
+                  <strong>{viewedMachine.name}</strong>
+                  {/* <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          backgroundColor: 'blue',
+          display: 'inline-block'
+        }}
+      ></span>
+      <Typography variant="body2.3" color="textSecondary" component="span">
+        {displayLabel}
+      </Typography> */}
+                </Typography>
+              );
+            })()}
+
+
+          </div>
+
+          {/* Tab Buttons */}
+          <div style={{ marginTop: "10px", display: "flex", gap: "26px", marginLeft: "10px" }}>
+            <Button
+              variant={activeTab === "overview" ? "contained" : "text"}
+              onClick={() => handleTabClick("overview", selectedMachine)}
+            >
+              Overview
+            </Button>
+
+            <Button
+              variant={activeTab === "timeline" ? "contained" : "text"}
+              onClick={() => handleTabClick("timeline", selectedMachine)}
+            >
+              Timeline
+            </Button>
+
+
+
+
+
+          </div>
+
+          {/* Date Picker + Shift Dropdown */}
+          {(activeTab === "overview" || activeTab === "timeline") && (
+            <div style={{ marginTop: "15px", display: "flex", gap: "15px" }}>
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DatePicker
+                  label="Select Date"
+                  value={selectedDate}
+                  disableFuture
+                  onChange={(newValue) => setSelectedDate(newValue)}
+                  format="DD-MM-YYYY"
+                  slotProps={{
+                    textField: {
+                      size: "small",
+                      style: { background: "#fff", flex: 1, minWidth: 160 },
+                    },
+                  }}
+                />
+              </LocalizationProvider>
+
+              <FormControl
+                size="small"
+                variant="outlined"
+                sx={{ flex: 1, minWidth: 160, backgroundColor: "#fff" }}
+              >
+                <InputLabel id="shifts-label">Shifts</InputLabel>
+                <Select
+                  labelId="shifts-label"
+                  value={selectedShift || ""}
+                  onChange={(e) => setSelectedShift(e.target.value)}
+                  label="Shifts"
+                >
+                  <MenuItem value="allshift">All Shifts</MenuItem>
+                  {shifts.map((s) => {
+                    const isFuture = dayjs(selectedDate).isSame(dayjs(), 'day') && (() => {
+                      const times = getShiftTimes(shifts, String(s.shift_no), selectedDate);
+                      return times.from !== null && times.from > Date.now();
+                    })();
+                    return (
+                      <MenuItem key={s.id} value={String(s.shift_no)} disabled={isFuture}>
+                        {s.shift_name || `Shift ${s.shift_no}`}{isFuture ? ' (upcoming)' : ''}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+            </div>
+          )}
+        </div>
+
+        {/* Iframe */}
+        <div style={{ position: "relative", flex: 1 }}>
+          {iframeSrc ? (
+            <>
+              <iframe
+                src={iframeSrc}
+                title="Grafana Dashboard"
+                style={{ width: "100%", height: "100%", border: "none", flexGrow: 1 }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 14,
+                  width: 80,
+                  height: "100%",
+                  backgroundColor: 'transparent',
+                  zIndex: 10
+                }}
+              />
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: '14px' }}>
+              Loading dashboard...
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Filter Popover */}
+
+
+      <Popover
+        open={Boolean(filterAnchor)}
+        anchorEl={filterAnchor}
+        onClose={handleFilterClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+      >
+        <div style={{ width: "250px", padding: "10px" }}>
+
+          {/* Machine Status */}
+          <div
+            onClick={() => setOpenStatus(!openStatus)}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              cursor: "pointer",
+              marginTop: "10px",
+            }}
+          >
+            <Typography variant="subtitle1">Machine Status</Typography>
+            {openStatus ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          </div>
+
+          <Collapse in={openStatus}>
+            {/* Status Checkboxes */}
+            <List>
+              {["Running", "Idle", "Disconnected", "Alarm"].map((status) => (
+                <ListItem
+                  key={status}
+                  dense
+                  button
+                  onClick={() => toggleStatusSelection(status)}
+                >
+                  <ListItemIcon>
+                    <Checkbox checked={selectedStatus.includes(status)} />
+                  </ListItemIcon>
+                  <ListItemText primary={status} />
+                </ListItem>
+              ))}
+            </List>
+
+
+          </Collapse>
+
+
+          {/* Filter Buttons */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: "10px",
+            }}
+          >
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                setSelectedMachines([]);
+                setSelectedStatus([]);
+              }}
+            >
+              Clear
+            </Button>
+            <Button variant="contained" size="small" onClick={handleFilterClose}>
+              Done
+            </Button>
+          </div>
+        </div>
+      </Popover>
+    </div>
+
+  );
+}

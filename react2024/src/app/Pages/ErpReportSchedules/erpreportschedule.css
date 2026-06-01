@@ -1,0 +1,336 @@
+/* ─── Page ─────────────────────────────────────────────────────────────────── */
+.ers-page {
+    padding: 0;
+    padding-block-start: 50px;
+    background: transparent;
+    min-height: 100%;
+}
+
+.ers-main-title {
+    margin: 0 0 16px 0;
+    font-size: 1.30rem;
+    font-weight: 700;
+    color: #111827;
+    padding-left: 18px;
+}
+
+/* ─── Loading / Empty ──────────────────────────────────────────────────────── */
+.ers-loading {
+    padding: 40px 0;
+    text-align: center;
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.ers-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 50px 20px;
+    color: #9ca3af;
+}
+
+.ers-empty-icon {
+    font-size: 2rem;
+}
+
+.ers-empty-text {
+    font-size: 0.9rem;
+}
+
+/* ─── Cards grid ───────────────────────────────────────────────────────────── */
+.ers-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    padding: 4px 0;
+}
+
+/* ─── Card ─────────────────────────────────────────────────────────────────── */
+.ers-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.ers-card-header {
+    padding: 10px 14px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ers-card-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #374151;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.ers-card-body {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ─── Row / Label / Value ──────────────────────────────────────────────────── */
+.ers-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.ers-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    min-width: 52px;
+    padding-top: 2px;
+    flex-shrink: 0;
+}
+
+.ers-value {
+    font-size: 0.82rem;
+    color: #111827;
+}
+
+/* ─── Chips ────────────────────────────────────────────────────────────────── */
+.ers-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.ers-chip {
+    display: inline-flex;
+    align-items: center;
+    background: #f3f4f6;
+    color: #374151;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 0.73rem;
+    font-weight: 500;
+    border: 1px solid #e5e7eb;
+}
+
+.ers-chip-format {
+    background: #fff7ed;
+    color: #92400e;
+    border-color: #fde68a;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+/* ─── Reports section ──────────────────────────────────────────────────────── */
+.ers-reports {
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.ers-reports-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9ca3af;
+    margin-bottom: 2px;
+}
+
+.ers-report-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ers-report-name {
+    font-size: 0.78rem;
+    color: #374151;
+    min-width: 120px;
+    flex-shrink: 0;
+}
+
+/* ─── Error ────────────────────────────────────────────────────────────────── */
+.ers-error {
+    padding: 20px;
+    text-align: center;
+    color: #dc2626;
+    font-size: 0.85rem;
+}
+
+/* ─── Job section wrapper ──────────────────────────────────────────────────── */
+.ers-job-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ─── Status bar ───────────────────────────────────────────────────────────── */
+.ers-status-bar {
+    display: flex;
+    gap: 0;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.ers-status-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 14px 10px;
+    border-right: 1px solid #e5e7eb;
+}
+
+.ers-status-item:last-child {
+    border-right: none;
+}
+
+.ers-status-count {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ers-status-label {
+    font-size: 0.68rem;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+}
+
+.ers-status-waiting   { color: #6b7280; }
+.ers-status-active    { color: #059669; }
+.ers-status-delayed   { color: #d97706; }
+.ers-status-completed { color: #2563eb; }
+.ers-status-failed    { color: #dc2626; }
+
+/* ─── Triggers table ───────────────────────────────────────────────────────── */
+.ers-table-wrapper {
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+
+.ers-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.ers-table thead th {
+    background: #f9fafb;
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+}
+
+.ers-table tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+    vertical-align: middle;
+}
+
+.ers-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.ers-table tbody tr:hover td {
+    background: #fafafa;
+}
+
+.ers-td-no {
+    color: #9ca3af;
+    font-size: 0.75rem;
+    width: 36px;
+}
+
+.ers-td-id {
+    font-family: monospace;
+    font-size: 0.78rem;
+    color: #6b7280;
+}
+
+.ers-td-fail {
+    color: #dc2626;
+    font-size: 0.78rem;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ers-td-time {
+    font-size: 0.78rem;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+.ers-td-center {
+    text-align: center;
+}
+
+.ers-td-reports {
+    font-size: 0.78rem;
+    color: #374151;
+    max-width: 220px;
+}
+
+/* ─── Status badge ─────────────────────────────────────────────────────────── */
+.ers-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.ers-badge-waiting   { background: #f3f4f6; color: #6b7280; }
+.ers-badge-active    { background: #d1fae5; color: #065f46; }
+.ers-badge-delayed   { background: #fef3c7; color: #92400e; }
+.ers-badge-completed { background: #dbeafe; color: #1e40af; }
+.ers-badge-failed    { background: #fee2e2; color: #991b1b; }
+
+/* ─── Custom schedule block ────────────────────────────────────────────────── */
+.ers-custom-block {
+    border: 1px solid #e5e7eb;
+    border-radius: 7px;
+    padding: 8px 10px;
+    background: #f9fafb;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.ers-custom-header {
+    margin-bottom: 4px;
+}
+
+.ers-custom-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #1f2937;
+}

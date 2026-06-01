@@ -1,0 +1,150 @@
+.idle_reason_item {
+    padding: 16px;
+    background: white;
+    box-shadow: 0px -2px 2px 0px #efefef;
+    margin: 10px 0;
+    position: relative;
+    border-radius: 5px;
+    border: 1px solid #FFA500;
+    display: flex;
+    justify-content:flex-start;
+    align-items: center;
+}
+.idle_reason_list, .idle_reason_page, .machine_lmw_page {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.icons {
+    width: 60px;
+    height: 60px;
+    background: #d4d4d4;
+    border-radius: 50%;
+    position: relative;
+    min-width: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+     font-size: 25px !important;
+    font-weight: 600;
+}
+
+.icon.icon-text {
+    font-size: 25px;
+    font-weight: 600;
+}
+
+.reason-text {
+    color: black;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 30px;
+}
+
+.user_action {
+    display: flex;
+    align-items: center;
+}
+
+.user_action li {
+    display: inline; /* Optional: make them horizontal */
+    margin-left: 5px; /* Space between icons */
+}
+
+.user_action li a {
+    display: inline-block; /* Ensure the links are inline */
+    text-decoration: none; /* Remove underline from links */
+    border: none;
+}
+
+.user_action li a i { /* Targeting Font Awesome icons */
+    font-size: 16px;
+    color: grey; /* Default icon color */
+    transition: color 0.3s ease; /* Smooth color transition on hover */
+}
+.user_action {
+    -webkit-display: flex;
+    -moz-display: flex;
+    -ms-display: flex;
+    -o-display: flex;
+    display: flex;
+    -moz-align-items: center;
+    -ms-align-items: center;
+    -o-align-items: center;
+    align-items: center;
+    position: absolute;
+    top: -10px;
+    right: 5px;
+}
+/* Hover state for icons */
+.user_action li a:hover i {
+    color: #000; /* Change color on hover */
+}
+
+/* Additional styles */
+
+
+.as-add {
+    text-align: right;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.idle_reason_item {
+    padding: 16px;
+    width: 30%;
+    background: white;
+    box-shadow: 0px -2px 2px 0px #efefef;
+    margin: 0 5px 10px 0;
+    position: relative;
+    border-radius: 5px;
+    border: 1px solid #FFA500;
+    gap: 10px;
+}
+
+ .idle_reason_item h3 {
+    color: black;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 30px;
+}
+
+ .idle_reason_item .machine_no {
+    color: #ccc;
+    position: absolute;
+    right: 10px;
+    bottom: 2px;
+    font-size: 20px;
+    font-weight: 400;
+}
+
+
+
+icon-text {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 25px !important;
+    font-weight: 600;
+    color:black;
+}
+
+/* Responsive design */
+@media screen and (max-width: 768px) {
+    .container {
+        padding: 10px;
+        margin: 10px;
+    }
+
+    .idle_reason_item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

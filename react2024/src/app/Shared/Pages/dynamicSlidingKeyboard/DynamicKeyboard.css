@@ -1,0 +1,37 @@
+.dynamic-keyboard {
+  position: fixed;
+  width: 100%;
+  max-width: 100%;
+  z-index: 999;
+  transition: bottom 0.3s ease, opacity 0.3s ease;
+  background: #f0f0f0;
+}
+
+.dynamic-keyboard.slide-up {
+  opacity: 1;
+}
+
+.dynamic-keyboard.slide-down {
+  opacity: 0;
+}
+
+/* Reduce key size */
+.hg-theme-default .hg-button {
+  font-size: 18px !important;
+  height: 36px !important;
+}
+
+/* Reduce row spacing */
+.hg-theme-default .hg-row {
+  margin-bottom: 4px;
+}
+
+/* Optional rounded keys */
+.hg-theme-default .hg-button {
+  border-radius: 6px;
+}
+
+/* Smooth slide animation */
+.dynamic-keyboard {
+  transition: bottom 0.3s ease;
+}
