@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { customerbaseddevices, customerbasedshift } from "../../Services/app/operatorservice";
 
+const naturalSort = (arr) =>
+  [...arr].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
 export const useMachineGroups = (customerId, singleSelect = false) => {
   const [devices, setDevices] = useState([]);
   const [deviceNameID, setDeviceNameID] = useState([]);
@@ -47,18 +50,18 @@ export const useMachineGroups = (customerId, singleSelect = false) => {
 
       if (filteredGroups.length === 1) {
         const singleGroup = filteredGroups[0];
-        const machines = singleGroup.machines || [];
+        const machines = naturalSort(singleGroup.machines || []);
         setSelectedGroups([singleGroup.name]);
         setAvailableMachines(machines);
         setSelectedMachines(singleSelect ? machines[0] || "" : machines);
       } else if (filteredGroups.length > 1) {
-        const allMachines = filteredGroups.flatMap((g) => g.machines || []);
+        const allMachines = naturalSort(filteredGroups.flatMap((g) => g.machines || []));
         const allGroupNames = filteredGroups.map((g) => g.name);
         setSelectedGroups(allGroupNames);
         setAvailableMachines(allMachines);
         setSelectedMachines(singleSelect ? allMachines[0] || "" : allMachines);
       } else {
-        const deviceNames = devicesList.map((d) => d.name).filter(Boolean);
+        const deviceNames = naturalSort(devicesList.map((d) => d.name).filter(Boolean));
         setSelectedGroups([]);
         setAvailableMachines(deviceNames);
         setSelectedMachines(singleSelect ? deviceNames[0] || "" : deviceNames);
@@ -67,7 +70,7 @@ export const useMachineGroups = (customerId, singleSelect = false) => {
       return filteredGroups;
     } catch (error) {
       console.error("Error fetching machine groups:", error);
-      const deviceNames = devicesList.map((d) => d.name).filter(Boolean);
+      const deviceNames = naturalSort(devicesList.map((d) => d.name).filter(Boolean));
       setMachineGroups([]);
       setSelectedGroups([]);
       setAvailableMachines(deviceNames);
@@ -98,9 +101,9 @@ export const useMachineGroups = (customerId, singleSelect = false) => {
       setSelectedMachines(singleSelect ? "" : []);
       return;
     }
-    const selectedMachinesCombined = machineGroups
-      .filter((g) => updatedGroups.includes(g.name))
-      .flatMap((g) => g.machines || []);
+    const selectedMachinesCombined = naturalSort(
+      machineGroups.filter((g) => updatedGroups.includes(g.name)).flatMap((g) => g.machines || [])
+    );
     setAvailableMachines(selectedMachinesCombined);
     setSelectedMachines(
       singleSelect ? selectedMachinesCombined[0] || "" : selectedMachinesCombined

@@ -67,12 +67,12 @@ export default function OperatorPerformanceDashboard() {
     // --- Persistent Settings ---
     const [settings, setSettings] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
-        const defaults = { thresholds: { bad: 60, normal: 75 }, sortOrder: 'asc', showMetrics: true, showStatusBar: true };
+        const defaults = { thresholds: { bad: 60, normal: 75 }, sortOrder: 'asc', showMetrics: true, showStatusBar: true, gridColumns: 3 };
         return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
     });
 
     // Destructure for easy access
-    const { thresholds, sortOrder, showMetrics, showStatusBar } = settings;
+    const { thresholds, sortOrder, showMetrics, showStatusBar, gridColumns } = settings;
 
     // Persist settings on every change
     const updateSettings = (patch) => {
@@ -86,6 +86,15 @@ export default function OperatorPerformanceDashboard() {
 
     const [isFullscreen, setIsFullscreen] = useState(false);
     const dashboardRef = useRef(null);
+
+    // Dynamic grid layout calculation based on viewport width
+    const [viewportWidth, setViewportWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280);
+
+    useEffect(() => {
+        const handleResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // Auto-scroll
     const [autoScroll, setAutoScroll] = useState(() => {
@@ -216,6 +225,19 @@ export default function OperatorPerformanceDashboard() {
             return sortOrder === 'asc' ? perfA - perfB : perfB - perfA;
         });
     }, [dashboardData, sortOrder]);
+
+    const colsCount = useMemo(() => {
+        const dataLength = filteredAndSortedData.length || 1;
+        let cols = 5; // fallback
+        if (gridColumns === 'auto') {
+            const availableWidth = viewportWidth - 60; // subtract padding/margins
+            cols = Math.max(1, Math.floor(availableWidth / 330));
+            cols = Math.min(cols, dataLength); // prevent too many empty cols for small count
+        } else {
+            cols = Number(gridColumns);
+        }
+        return cols;
+    }, [filteredAndSortedData.length, gridColumns, viewportWidth]);
 
     // Shift elapsed fraction (break-aware), updates every second via tick
     const shiftFraction = useMemo(() => {
@@ -639,14 +661,14 @@ export default function OperatorPerformanceDashboard() {
             }}>
 
                 {/* ── Header: status color bg — machine name + operator ── */}
-                <Box sx={{ backgroundColor: statusColor, px: 'clamp(10px, 1.2vw, 18px)', pt: 'clamp(10px, 1.2vw, 16px)', pb: 'clamp(8px, 1vw, 12px)', flexShrink: 0, borderBottom: '2px solid rgba(255,255,255,0.25)' }}>
+                <Box sx={{ backgroundColor: statusColor, px: 'clamp(8px, 1.1vw, 16px)', pt: 'clamp(8px, 1.1vw, 14px)', pb: 'clamp(6px, 0.9vw, 10px)', flexShrink: 0, borderBottom: '2px solid rgba(255,255,255,0.25)' }}>
                     <Tooltip title={m.name} arrow placement="top" disableHoverListener={m.name.length <= 14}>
-                        <Typography sx={{ fontWeight: 900, fontSize: 'clamp(1.1rem, 1.8vw, 2.2rem)', color: '#fff', lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                        <Typography sx={{ fontWeight: 900, fontSize: 'clamp(1rem, 1.6vw, 1.8rem)', color: '#fff', lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
                             {m.name}
                         </Typography>
                     </Tooltip>
                     <Tooltip title={m.operator} arrow placement="top" disableHoverListener={m.operator.length <= 28}>
-                        <Typography sx={{ fontSize: 'clamp(0.78rem, 1.1vw, 1.3rem)', fontWeight: 700, color: 'rgba(255,255,255,0.92)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.3 }}>
+                        <Typography sx={{ fontSize: 'clamp(0.7rem, 0.95vw, 1.15rem)', fontWeight: 700, color: 'rgba(255,255,255,0.92)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.3 }}>
                             {m.operator}
                         </Typography>
                     </Tooltip>
@@ -664,20 +686,20 @@ export default function OperatorPerformanceDashboard() {
                         const dotX = cx + r * Math.cos(angle);
                         const dotY = cy + r * Math.sin(angle);
                         return (
-                            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', py: 'clamp(12px, 2vw, 28px)', px: 'clamp(8px, 1.2vw, 16px)' }}>
-                                <Box sx={{ position: 'relative', width: 'clamp(110px, 13.5vw, 190px)', height: 'clamp(110px, 13.5vw, 190px)' }}>
+                            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', py: 'clamp(6px, 1.5vw, 16px)', px: 'clamp(6px, 1vw, 12px)', backgroundColor: '#ffffff' }}>
+                                <Box sx={{ position: 'relative', width: 'clamp(95px, 12.5vw, 160px)', height: 'clamp(95px, 12.5vw, 160px)', maxHeight: '100%', aspectRatio: '1/1' }}>
                                     <svg viewBox="0 0 112 112" style={{ width: '100%', height: '100%' }}>
-                                        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={sw} />
-                                        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#fff" strokeWidth={sw}
+                                        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth={sw} />
+                                        <circle cx={cx} cy={cy} r={r} fill="none" stroke={performanceColor} strokeWidth={sw}
                                             strokeDasharray={`${dash} ${norm}`} strokeLinecap="round"
                                             transform={`rotate(-90 ${cx} ${cy})`} />
-                                        <circle cx={dotX} cy={dotY} r={4.5} fill="#fff" stroke={performanceColor} strokeWidth={1.5} />
+                                        <circle cx={dotX} cy={dotY} r={4.5} fill={performanceColor} stroke="#fff" strokeWidth={1.5} />
                                     </svg>
                                     <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>
-                                        <Typography sx={{ fontWeight: 900, fontSize: 'clamp(1.8rem, 2.8vw, 3.6rem)', color: '#fff', lineHeight: 1, letterSpacing: '-1px' }}>
-                                            {achievement}<span style={{ fontSize: 'clamp(0.9rem, 1.4vw, 1.8rem)', fontWeight: 800 }}>%</span>
+                                        <Typography sx={{ fontWeight: 900, fontSize: 'clamp(1.4rem, 2.3vw, 2.8rem)', color: performanceColor, lineHeight: 1, letterSpacing: '-1px' }}>
+                                            {achievement}<span style={{ fontSize: 'clamp(0.75rem, 1.1vw, 1.4rem)', fontWeight: 800 }}>%</span>
                                         </Typography>
-                                        <Typography sx={{ fontSize: 'clamp(0.48rem, 0.65vw, 0.78rem)', fontWeight: 900, color: 'rgba(255,255,255,0.7)', letterSpacing: '1.4px', mt: 0.4, textTransform: 'uppercase' }}>
+                                        <Typography sx={{ fontSize: 'clamp(0.42rem, 0.55vw, 0.7rem)', fontWeight: 900, color: COLORS.TEXT_SUB, letterSpacing: '1px', mt: 0.2, textTransform: 'uppercase' }}>
                                             Performance
                                         </Typography>
                                     </Box>
@@ -687,17 +709,17 @@ export default function OperatorPerformanceDashboard() {
                     })()}
 
                     {/* RIGHT — Actual / Cur.Tgt / OEE stacked */}
-                    <Box sx={{ borderLeft: '1px solid rgba(255,255,255,0.18)', backgroundColor: 'rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', px: 'clamp(10px, 1.3vw, 18px)', py: 'clamp(6px, 1vw, 14px)', minWidth: 'clamp(80px, 10vw, 125px)', flexShrink: 0 }}>
+                    <Box sx={{ borderLeft: '1px solid rgba(0,0,0,0.1)', backgroundColor: 'rgba(255,255,255,0.92)', display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly', px: 'clamp(8px, 1.1vw, 14px)', py: 'clamp(4px, 0.8vw, 10px)', minWidth: 'clamp(70px, 9vw, 110px)', flexShrink: 0 }}>
                         {[
-                            { label: 'Actual',  value: m.actual,           color: '#fff' },
-                            { label: 'Cur.Tgt', value: currentTimeTarget,  color: viewMode === 'Current' && currentTimeTarget > 0 ? (m.actual >= currentTimeTarget ? '#b9f6ca' : '#ffcdd2') : '#fff' },
-                            { label: 'OEE',     value: `${m.currentOee}%`, color: '#fff' },
+                            { label: 'Actual',  value: m.actual,           color: COLORS.TEXT_MAIN },
+                            { label: 'Target', value: currentTimeTarget,  color: viewMode === 'Current' && currentTimeTarget > 0 ? (m.actual >= currentTimeTarget ? '#2e7d32' : '#c62828') : COLORS.TEXT_MAIN },
+                            { label: 'OEE',     value: `${m.currentOee}%`, color: COLORS.TEXT_MAIN },
                         ].map(({ label, value, color }) => (
                             <Box key={label}>
-                                <Typography sx={{ fontSize: 'clamp(0.55rem, 0.75vw, 0.9rem)', fontWeight: 800, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
+                                <Typography sx={{ fontSize: 'clamp(0.5rem, 0.65vw, 0.8rem)', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
                                     {label}
                                 </Typography>
-                                <Typography sx={{ fontSize: 'clamp(1.3rem, 2vw, 2.5rem)', fontWeight: 900, color, lineHeight: 1.15, mt: 0.15 }}>
+                                <Typography sx={{ fontSize: 'clamp(1.1rem, 1.8vw, 2.2rem)', fontWeight: 900, color, lineHeight: 1.15, mt: 0.15 }}>
                                     {value}
                                 </Typography>
                             </Box>
@@ -706,11 +728,11 @@ export default function OperatorPerformanceDashboard() {
                 </Box>
 
                 {/* ── Footer: Live Component ── */}
-                <Box sx={{ backgroundColor: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.12)', px: 'clamp(10px, 1.2vw, 16px)', py: 'clamp(6px, 0.8vw, 10px)', flexShrink: 0 }}>
-                    <Typography sx={{ fontSize: 'clamp(0.48rem, 0.62vw, 0.72rem)', fontWeight: 800, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
+                <Box sx={{ backgroundColor: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.12)', px: 'clamp(8px, 1.1vw, 14px)', py: 'clamp(4px, 0.6vw, 8px)', flexShrink: 0 }}>
+                    <Typography sx={{ fontSize: 'clamp(0.42rem, 0.55vw, 0.68rem)', fontWeight: 800, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
                         Component
                     </Typography>
-                    <Typography sx={{ fontSize: 'clamp(0.7rem, 1vw, 1.15rem)', fontWeight: 800, color: m.component ? '#fff' : 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.3, lineHeight: 1.1 }}>
+                    <Typography sx={{ fontSize: 'clamp(0.65rem, 0.85vw, 1.05rem)', fontWeight: 800, color: m.component ? '#fff' : 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.2, lineHeight: 1.1 }}>
                         {m.component || 'Not Assigned'}
                     </Typography>
                 </Box>
@@ -952,6 +974,23 @@ export default function OperatorPerformanceDashboard() {
 
                 <Divider sx={{ mb: 2 }} />
 
+                {/* Grid Columns Layout */}
+                <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.6px', mb: 0.8 }}>Grid Columns Layout</Typography>
+                <Box sx={{ display: 'flex', border: '1px solid #e0e0e0', borderRadius: '8px', overflow: 'hidden', mb: 2 }}>
+                    {[
+                        { val: 'auto', label: 'Auto' },
+                        { val: 3, label: '3 Cols' },
+                        { val: 4, label: '4 Cols' },
+                        { val: 5, label: '5 Cols' }
+                    ].map(opt => (
+                        <Box key={opt.val} onClick={() => updateSettings({ gridColumns: opt.val })}
+                            sx={{ flex: 1, textAlign: 'center', px: 0.5, py: 1, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', backgroundColor: gridColumns === opt.val ? COLORS.PRIMARY : '#fafafa', color: gridColumns === opt.val ? '#fff' : COLORS.TEXT_SUB, borderRight: opt.val !== 5 ? '1px solid #e0e0e0' : 'none', transition: 'all 0.15s', '&:hover': { backgroundColor: gridColumns === opt.val ? COLORS.PRIMARY : '#f0f0f0' } }}
+                        >{opt.label}</Box>
+                    ))}
+                </Box>
+
+                <Divider sx={{ mb: 2 }} />
+
                 {/* Sort */}
                 <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.6px', mb: 0.8 }}>Sort by Achievement</Typography>
                 <Box sx={{ display: 'flex', border: '1px solid #e0e0e0', borderRadius: '8px', overflow: 'hidden', mb: 2 }}>
@@ -1039,10 +1078,14 @@ export default function OperatorPerformanceDashboard() {
 
             {/* ── Main Content: Machine Grid — 5 columns ── */}
 
-            <Box ref={contentRef} sx={{ flex: 1, padding: '14px', overflowY: 'auto' }}>
+            <Box ref={contentRef} sx={{ 
+                flex: 1, 
+                padding: '14px', 
+                overflowY: 'auto'
+            }}>
                 <Box sx={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(5, 1fr)',
+                    gridTemplateColumns: `repeat(${colsCount}, 1fr)`,
                     gridAutoRows: 'clamp(300px, 42vh, 520px)',
                     gap: '12px'
                 }}>

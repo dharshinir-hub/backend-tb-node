@@ -99,6 +99,7 @@ function Operator() {
     const [blueCardResponseData, setBlueCardResponseData] = useState(null);
     const prevRequestPayloadRef = useRef([]);
     const [isDark, setIsDark] = useState(() => localStorage.getItem('operatorTheme') === 'dark');
+    const [showQr, setShowQr] = useState(false);
 
     useEffect(() => {
         document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -2661,6 +2662,26 @@ function Operator() {
   <button className="theme-toggle" onClick={toggleTheme} title={isDark ? 'Switch to Light' : 'Switch to Dark'}>
                         {isDark ? <FaSun /> : <FaMoon />}
                     </button>
+                    {isAtechCondition && (
+                        <button
+                            onClick={() => setShowQr(prev => !prev)}
+                            title="Show QR Code"
+                            style={{
+                                background: 'none',
+                                border: `1px solid ${isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0, 0, 0, 0.15)'}`,
+                                borderRadius: '6px',
+                                padding: '4px 10px',
+                                cursor: 'pointer',
+                                color: isDark ? '#fff' : '#374151',
+                                fontWeight: 700,
+                                fontSize: '0.82rem',
+                                marginLeft: '8px',
+                                transition: 'all 0.2s ease',
+                            }}
+                        >
+                            QR
+                        </button>
+                    )}
                     {/* Blue Card Notification Bell */}
                     {isPMIBlueCardPage && (
 
@@ -2829,8 +2850,8 @@ function Operator() {
                 <div className="contect-section circular-progress-section">
                     <CircularProgress
                         actual={telemetry.totalShots}
-                        target={telemetry.targetParts}
-                        partsBehind={Math.max(0, telemetry.targetParts - telemetry.totalShots)}
+                        target={isAtechCondition && currentTimeTarget > 0 ? currentTimeTarget : telemetry.targetParts}
+                        partsBehind={Math.max(0, (isAtechCondition && currentTimeTarget > 0 ? currentTimeTarget : telemetry.targetParts) - telemetry.totalShots)}
                         partsRejects={telemetry.scrap}
                         status={telemetry.machineStatus}
                     />
@@ -2946,16 +2967,16 @@ function Operator() {
                     <div className="actual-wrapper">
                         <p className="actual-label">Actual vs Target</p>
                         <p className="actual-value">
-                            {telemetry.totalShots ?? 0}/{telemetry.targetParts ?? 0}
+                            {telemetry.totalShots ?? 0}/{isAtechCondition && currentTimeTarget > 0 ? currentTimeTarget : (telemetry.targetParts ?? 0)}
                         </p>
-                        {isAtechCondition && currentTimeTarget > 0 && (
+                        {isAtechCondition && telemetry.targetParts > 0 && (
                             <div
                                 className="current-target-row"
                                 style={{ background: (telemetry.totalShots ?? 0) >= currentTimeTarget ? '#16a34a' : '#dc2626' }}
                             >
-                                <span className="current-target-label" style={{ color: '#fff' }}>Current Target</span>
+                                <span className="current-target-label" style={{ color: '#fff' }}>Shift Target</span>
                                 <span className="current-target-value" style={{ color: '#fff' }}>
-                                    {currentTimeTarget}
+                                    {telemetry.targetParts}
                                 </span>
                             </div>
                         )}
@@ -3774,6 +3795,51 @@ function Operator() {
             {confirmType && handleConfirmAlert()}
 
             <DynamicSlidingKeyboard touchEnabled={true} />
+
+            {isAtechCondition && showQr && (
+                <div
+                    onClick={() => setShowQr(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: t.dialogContent,
+                            borderRadius: '16px',
+                            padding: '24px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '12px',
+                            boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.15)',
+                            border: `1px solid ${t.border}`,
+                            transition: 'all 0.3s ease',
+                        }}
+                    >
+                        <img src="/live-qr.svg" alt="QR Code" style={{ width: 220, height: 220, display: 'block', borderRadius: '8px' }} />
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: t.textSub, fontWeight: 600 }}>Scan to visit our website</p>
+                        <button
+                            onClick={() => setShowQr(false)}
+                            style={{
+                                marginTop: '4px',
+                                background: '#f97316',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '8px 24px',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                fontSize: '0.9rem',
+                                transition: 'background 0.2s ease',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#ea580c'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#f97316'}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

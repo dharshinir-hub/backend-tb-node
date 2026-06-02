@@ -1684,8 +1684,16 @@ export default function MachineDashboard() {
       return matchDropdown && matchSearch && machineMatch && statusMatch;
     });
 
-    setFilteredDevices(filtered);
-  }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses, groupSelectedMachines, activeMachineFilter]);
+    const sorted = [...filtered].sort((a, b) => {
+      const idxA = availableMachines.indexOf(a.name);
+      const idxB = availableMachines.indexOf(b.name);
+      if (idxA === -1 && idxB === -1) return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+    setFilteredDevices(sorted);
+  }, [devices, selectedDevice, searchText, selectedMachines, selectedStatus, machineStatuses, groupSelectedMachines, activeMachineFilter, availableMachines]);
 
   useEffect(() => {
     if (!from || !to || !selectedMachine) return;
@@ -1728,8 +1736,15 @@ export default function MachineDashboard() {
   };
 
 
-  // All machines from your state
-  const machineList = Object.values(machineStatuses);
+  // All machines from your state — sorted by availableMachines order (naturally sorted by hook)
+  const machineList = Object.values(machineStatuses).sort((a, b) => {
+    const idxA = availableMachines.indexOf(a.machineName);
+    const idxB = availableMachines.indexOf(b.machineName);
+    if (idxA === -1 && idxB === -1) return a.machineName.localeCompare(b.machineName, undefined, { numeric: true, sensitivity: 'base' });
+    if (idxA === -1) return 1;
+    if (idxB === -1) return -1;
+    return idxA - idxB;
+  });
 
   // Filter machines based on status & machine selection
   const filteredMachines = machineList.filter((m) => {
