@@ -67,7 +67,7 @@ export default function OperatorPerformanceDashboard() {
     // --- Persistent Settings ---
     const [settings, setSettings] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
-        const defaults = { thresholds: { bad: 60, normal: 75 }, sortOrder: 'asc', showMetrics: true, showStatusBar: true, gridColumns: 3 };
+        const defaults = { thresholds: { bad: 60, normal: 75 }, sortOrder: 'name', showMetrics: true, showStatusBar: true, gridColumns: 3 };
         return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
     });
 
@@ -220,6 +220,7 @@ export default function OperatorPerformanceDashboard() {
     // Sorting by Performance Ratio
     const filteredAndSortedData = useMemo(() => {
         return [...dashboardData].sort((a, b) => {
+            if (sortOrder === 'name') return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
             const perfA = getAchievement(a.actual, a.target);
             const perfB = getAchievement(b.actual, b.target);
             return sortOrder === 'asc' ? perfA - perfB : perfB - perfA;
@@ -992,9 +993,9 @@ export default function OperatorPerformanceDashboard() {
                 <Divider sx={{ mb: 2 }} />
 
                 {/* Sort */}
-                <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.6px', mb: 0.8 }}>Sort by Achievement</Typography>
+                <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: COLORS.TEXT_SUB, textTransform: 'uppercase', letterSpacing: '0.6px', mb: 0.8 }}>Sort Order</Typography>
                 <Box sx={{ display: 'flex', border: '1px solid #e0e0e0', borderRadius: '8px', overflow: 'hidden', mb: 2 }}>
-                    {[{ val: 'asc', label: '↑ Low → High' }, { val: 'desc', label: '↓ High → Low' }].map(opt => (
+                    {[{ val: 'name', label: 'A→Z Name' }, { val: 'asc', label: '↑ Low → High' }, { val: 'desc', label: '↓ High → Low' }].map(opt => (
                         <Box key={opt.val} onClick={() => updateSettings({ sortOrder: opt.val })}
                             sx={{ flex: 1, textAlign: 'center', px: 1.5, py: 1, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', backgroundColor: sortOrder === opt.val ? COLORS.PRIMARY : '#fafafa', color: sortOrder === opt.val ? '#fff' : COLORS.TEXT_SUB, transition: 'all 0.15s', '&:hover': { backgroundColor: sortOrder === opt.val ? COLORS.PRIMARY : '#f0f0f0' } }}
                         >{opt.label}</Box>
