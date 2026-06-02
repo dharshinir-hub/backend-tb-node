@@ -180,7 +180,7 @@ function Operator() {
             const customerId = getCustomerId();
             const result = await customerbaseddevices(customerId, 1000, 0);
             const devicesList = result.data || [];
-            setMachines(devicesList.map((d) => d.name));
+            setMachines(devicesList.map((d) => d.name).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })));
             const nameIdMap = devicesList.reduce((acc, device) => {
                 acc[device.name] = device.id.id;
                 return acc;
@@ -2972,7 +2972,7 @@ function Operator() {
                         {isAtechCondition && telemetry.targetParts > 0 && (
                             <div
                                 className="current-target-row"
-                                style={{ background: (telemetry.totalShots ?? 0) >= currentTimeTarget ? '#16a34a' : '#dc2626' }}
+                                style={{ background: '#1d4ed8' }}
                             >
                                 <span className="current-target-label" style={{ color: '#fff' }}>Shift Target</span>
                                 <span className="current-target-value" style={{ color: '#fff' }}>
