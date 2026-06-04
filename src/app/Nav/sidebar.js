@@ -17,6 +17,8 @@ import { AiTwotoneProfile } from "react-icons/ai";
 import { FaChartBar, FaCogs } from 'react-icons/fa';
 import { Tooltip, Menu, MenuItem, IconButton } from '@mui/material';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import logo from '../../assets/yantraimage.png';
 import Swal from 'sweetalert2';
 import useMobileWidth from './smalldevicesidebar';
@@ -57,6 +59,8 @@ export default function PersistentDrawerLeft({ children }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const isCssFallback = React.useRef(false);
 
   const isMobile = useMobileWidth();
   const navigate = useNavigate();
@@ -275,6 +279,57 @@ export default function PersistentDrawerLeft({ children }) {
     console.log("Current active route:", location.pathname);
   }, [location]);
 
+  const toggleFullscreen = useCallback(() => {
+    if (isFullscreen) {
+      if (isCssFallback.current) {
+        isCssFallback.current = false;
+        setIsFullscreen(false);
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    } else {
+      const el = document.documentElement;
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {
+          isCssFallback.current = true;
+          setIsFullscreen(true);
+        });
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      } else {
+        isCssFallback.current = true;
+        setIsFullscreen(true);
+      }
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const handleFS = () => setIsFullscreen(
+      !!document.fullscreenElement || !!document.webkitFullscreenElement
+    );
+    document.addEventListener('fullscreenchange', handleFS);
+    document.addEventListener('webkitfullscreenchange', handleFS);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFS);
+      document.removeEventListener('webkitfullscreenchange', handleFS);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const tag = document.activeElement?.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          toggleFullscreen();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [toggleFullscreen]);
+
   const handleLogout = () => {
     Swal.fire({
       title: 'Are you sure want  to logout?',
@@ -357,6 +412,11 @@ export default function PersistentDrawerLeft({ children }) {
           <img className="Logo" src={logo} alt="Logo" />
           <span style={{ fontWeight: '500', fontSize: '20px' }}></span>
           <div className="rightsidecontents">
+            <Tooltip title={isFullscreen ? 'Exit Fullscreen (F)' : 'Fullscreen (F)'}>
+              <IconButton onClick={toggleFullscreen} size="small" style={{ color: 'black' }}>
+                {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+              </IconButton>
+            </Tooltip>
             <NotificationBell />
             <span className="person" style={{
               backgroundColor: 'black',
