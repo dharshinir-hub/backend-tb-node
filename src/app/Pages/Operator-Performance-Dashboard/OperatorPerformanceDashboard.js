@@ -661,18 +661,18 @@ export default function OperatorPerformanceDashboard() {
                 border: 'none',
             }}>
 
-                {/* ── Header: status color bg — machine name + operator ── */}
-                <Box sx={{ backgroundColor: statusColor, px: 'clamp(8px, 1.1vw, 16px)', pt: 'clamp(8px, 1.1vw, 14px)', pb: 'clamp(6px, 0.9vw, 10px)', flexShrink: 0, borderBottom: '2px solid rgba(255,255,255,0.25)' }}>
+                {/* ── Header: status color bg — machine name + idle timer ── */}
+                <Box sx={{ backgroundColor: statusColor, px: 'clamp(8px, 1.1vw, 16px)', pt: 'clamp(8px, 1.1vw, 14px)', pb: 'clamp(6px, 0.9vw, 10px)', flexShrink: 0, borderBottom: '2px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
                     <Tooltip title={m.name} arrow placement="top" disableHoverListener={m.name.length <= 14}>
-                        <Typography sx={{ fontWeight: 900, fontSize: 'clamp(1rem, 1.6vw, 1.8rem)', color: '#fff', lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                        <Typography sx={{ fontWeight: 900, fontSize: 'clamp(1.1rem, 1.9vw, 2.1rem)', color: '#fff', lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.5px', flex: 1, minWidth: 0 }}>
                             {m.name}
                         </Typography>
                     </Tooltip>
-                    <Tooltip title={m.operator} arrow placement="top" disableHoverListener={m.operator.length <= 28}>
-                        <Typography sx={{ fontSize: 'clamp(0.7rem, 0.95vw, 1.15rem)', fontWeight: 700, color: 'rgba(255,255,255,0.92)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.3 }}>
-                            {m.operator}
+                    {m.status.toUpperCase() !== 'RUNNING' && m.statusTs && formatElapsed(m.statusTs) && (
+                        <Typography sx={{ fontSize: 'clamp(0.95rem, 1.3vw, 1.5rem)', fontWeight: 800, color: 'rgba(255,255,255,0.95)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            ⏱ {formatElapsed(m.statusTs)}
                         </Typography>
-                    </Tooltip>
+                    )}
                 </Box>
 
                 {/* ── Body: Performance hero (left) + Metrics (right) ── */}
@@ -688,6 +688,11 @@ export default function OperatorPerformanceDashboard() {
                         const dotY = cy + r * Math.sin(angle);
                         return (
                             <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', py: 'clamp(6px, 1.5vw, 16px)', px: 'clamp(6px, 1vw, 12px)', backgroundColor: '#ffffff' }}>
+                                <Tooltip title={m.operator} arrow placement="top" disableHoverListener={m.operator.length <= 24}>
+                                    <Typography sx={{ fontSize: 'clamp(0.9rem, 1.2vw, 1.4rem)', fontWeight: 700, color: COLORS.TEXT_MAIN, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', mb: 0.5, textAlign: 'center' }}>
+                                        {m.operator || '—'}
+                                    </Typography>
+                                </Tooltip>
                                 <Box sx={{ position: 'relative', width: 'clamp(95px, 12.5vw, 160px)', height: 'clamp(95px, 12.5vw, 160px)', maxHeight: '100%', aspectRatio: '1/1' }}>
                                     <svg viewBox="0 0 112 112" style={{ width: '100%', height: '100%' }}>
                                         <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth={sw} />
@@ -729,11 +734,11 @@ export default function OperatorPerformanceDashboard() {
                 </Box>
 
                 {/* ── Footer: Live Component ── */}
-                <Box sx={{ backgroundColor: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.12)', px: 'clamp(8px, 1.1vw, 14px)', py: 'clamp(4px, 0.6vw, 8px)', flexShrink: 0 }}>
-                    <Typography sx={{ fontSize: 'clamp(0.42rem, 0.55vw, 0.68rem)', fontWeight: 800, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
+                <Box sx={{ backgroundColor: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.12)', px: 'clamp(8px, 1.1vw, 16px)', pt: 'clamp(8px, 1.1vw, 14px)', pb: 'clamp(6px, 0.9vw, 10px)', flexShrink: 0 }}>
+                    <Typography sx={{ fontSize: 'clamp(0.5rem, 0.65vw, 0.78rem)', fontWeight: 800, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>
                         Component
                     </Typography>
-                    <Typography sx={{ fontSize: 'clamp(0.65rem, 0.85vw, 1.05rem)', fontWeight: 800, color: m.component ? '#fff' : 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.2, lineHeight: 1.1 }}>
+                    <Typography sx={{ fontSize: 'clamp(0.95rem, 1.3vw, 1.5rem)', fontWeight: 800, color: m.component ? '#fff' : 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mt: 0.3, lineHeight: 1.1 }}>
                         {m.component || 'Not Assigned'}
                     </Typography>
                 </Box>
