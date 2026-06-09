@@ -2682,9 +2682,12 @@ function Operator() {
                                     marginLeft: '8px',
                                     transition: 'background 0.2s ease',
                                     boxShadow: '0 2px 6px rgba(249,144,34,0.4)',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 700,
                                 }}
                             >
-                                <FaExternalLinkAlt size={14} />
+                                <FaExternalLinkAlt size={13} style={{ marginRight: '6px' }} />
+                                Setter Login
                             </button>
                         );
                     })()}
