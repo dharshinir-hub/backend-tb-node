@@ -1,6 +1,6 @@
 import './operator.css';
 import logo from '../../../assets/yantraimage.png';
-import { FaRegClock, FaRegCalendarAlt, FaBell, FaSun, FaMoon } from "react-icons/fa";
+import { FaRegClock, FaRegCalendarAlt, FaBell, FaSun, FaMoon, FaExternalLinkAlt } from "react-icons/fa";
 import { FaPause } from "react-icons/fa6";
 import { RxCross2 } from "react-icons/rx";
 import React, { useEffect, useRef, useState } from "react";
@@ -99,7 +99,7 @@ function Operator() {
     const [blueCardResponseData, setBlueCardResponseData] = useState(null);
     const prevRequestPayloadRef = useRef([]);
     const [isDark, setIsDark] = useState(() => localStorage.getItem('operatorTheme') === 'dark');
-    const [showQr, setShowQr] = useState(false);
+
 
     useEffect(() => {
         document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -2662,26 +2662,29 @@ function Operator() {
   <button className="theme-toggle" onClick={toggleTheme} title={isDark ? 'Switch to Light' : 'Switch to Dark'}>
                         {isDark ? <FaSun /> : <FaMoon />}
                     </button>
-                    {isAtechCondition && (
-                        <button
-                            onClick={() => setShowQr(prev => !prev)}
-                            title="Show QR Code"
-                            style={{
-                                background: 'none',
-                                border: `1px solid ${isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0, 0, 0, 0.15)'}`,
-                                borderRadius: '6px',
-                                padding: '4px 10px',
-                                cursor: 'pointer',
-                                color: isDark ? '#fff' : '#374151',
-                                fontWeight: 700,
-                                fontSize: '0.82rem',
-                                marginLeft: '8px',
-                                transition: 'all 0.2s ease',
-                            }}
-                        >
-                            QR
-                        </button>
-                    )}
+                    {isAtechCondition && (() => {
+                        const url = window.location.origin + '/';
+                        return (
+                            <button
+                                onClick={() => window.open(url, '_blank')}
+                                title="Open Portal"
+                                style={{
+                                    background: 'none',
+                                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0, 0, 0, 0.15)'}`,
+                                    borderRadius: '6px',
+                                    padding: '4px 10px',
+                                    cursor: 'pointer',
+                                    color: isDark ? '#fff' : '#374151',
+                                    fontWeight: 700,
+                                    fontSize: '0.82rem',
+                                    marginLeft: '8px',
+                                    transition: 'all 0.2s ease',
+                                }}
+                            >
+                                <FaExternalLinkAlt size={14} />
+                            </button>
+                        );
+                    })()}
                     {/* Blue Card Notification Bell */}
                     {isPMIBlueCardPage && (
 
@@ -3796,50 +3799,6 @@ function Operator() {
 
             <DynamicSlidingKeyboard touchEnabled={true} />
 
-            {isAtechCondition && showQr && (
-                <div
-                    onClick={() => setShowQr(false)}
-                    style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                    <div
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                            background: t.dialogContent,
-                            borderRadius: '16px',
-                            padding: '24px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '12px',
-                            boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.15)',
-                            border: `1px solid ${t.border}`,
-                            transition: 'all 0.3s ease',
-                        }}
-                    >
-                        <img src="/live-qr.svg" alt="QR Code" style={{ width: 220, height: 220, display: 'block', borderRadius: '8px' }} />
-                        <p style={{ margin: 0, fontSize: '0.85rem', color: t.textSub, fontWeight: 600 }}>Scan to visit our website</p>
-                        <button
-                            onClick={() => setShowQr(false)}
-                            style={{
-                                marginTop: '4px',
-                                background: '#f97316',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '8px',
-                                padding: '8px 24px',
-                                cursor: 'pointer',
-                                fontWeight: 700,
-                                fontSize: '0.9rem',
-                                transition: 'background 0.2s ease',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#ea580c'}
-                            onMouseLeave={e => e.currentTarget.style.background = '#f97316'}
-                        >
-                            Close
-                        </button>
-                    </div>
-                </div>
-            )}
 
         </div>
     );
