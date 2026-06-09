@@ -2668,17 +2668,20 @@ function Operator() {
                             <button
                                 onClick={() => window.open(url, '_blank')}
                                 title="Open Portal"
+                                onMouseEnter={e => e.currentTarget.style.background = '#ea6c00'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#F99022'}
                                 style={{
-                                    background: 'none',
-                                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0, 0, 0, 0.15)'}`,
+                                    background: '#F99022',
+                                    border: 'none',
                                     borderRadius: '6px',
-                                    padding: '4px 10px',
+                                    padding: '6px 12px',
                                     cursor: 'pointer',
-                                    color: isDark ? '#fff' : '#374151',
-                                    fontWeight: 700,
-                                    fontSize: '0.82rem',
+                                    color: '#fff',
+                                    display: 'flex',
+                                    alignItems: 'center',
                                     marginLeft: '8px',
-                                    transition: 'all 0.2s ease',
+                                    transition: 'background 0.2s ease',
+                                    boxShadow: '0 2px 6px rgba(249,144,34,0.4)',
                                 }}
                             >
                                 <FaExternalLinkAlt size={14} />
