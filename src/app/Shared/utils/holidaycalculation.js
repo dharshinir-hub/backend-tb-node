@@ -149,6 +149,13 @@ export function computeBreakDurations(rawData, shiftFrom, breakWindows) {
     const acc = { break_run: 0, break_idle: 0, break_alarm: 0, break_disconnect: 0 };
     if (!rawData || !Array.isArray(breakWindows) || breakWindows.length === 0) return acc;
 
+    // For the current (ongoing) shift a break window may lie partly or wholly in
+    // the future. Clamp every overlap to "now" so a break only contributes time
+    // once its start has actually arrived (and only up to the elapsed portion of
+    // a break still in progress). For past shifts `now` is well beyond the
+    // windows, so this clamp has no effect.
+    const now = Date.now();
+
     // Last segment falls back to the furthest break end so a status that started
     // before the break and never changed still covers the whole window.
     const rangeEnd = breakWindows.reduce((mx, bw) => Math.max(mx, bw?.to || 0), 0);
@@ -157,9 +164,10 @@ export function computeBreakDurations(rawData, shiftFrom, breakWindows) {
 
     for (const bw of breakWindows) {
         if (!bw || bw.to <= bw.from) continue;
+        if (bw.from >= now) continue; // break not started yet → take nothing
         for (const seg of segments) {
             const start = Math.max(seg.from, bw.from);
-            const end = Math.min(seg.to, bw.to);
+            const end = Math.min(seg.to, bw.to, now); // never count past "now"
             if (end <= start) continue; // no overlap with this break window
             const bucket = statusToBreakBucket(seg.status);
             if (bucket) acc[bucket] += (end - start) / 1000; // ms → seconds
