@@ -3,8 +3,8 @@
 Idempotent: skips drawings that already exist (by drawing number / asset name)."""
 import json, os, subprocess, tempfile, urllib.request as u, urllib.error
 
-TB = "http://192.168.0.97:8080"
-DOC = "http://localhost:5000"
+TB = os.environ.get("ZUMEN_TB_URL", "http://192.168.0.97:8080").rstrip("/")
+DOC = os.environ.get("ZUMEN_DOC_URL", "http://localhost:5000").rstrip("/")
 USER, PW = "pms@gmail.com", "pmspms"
 
 

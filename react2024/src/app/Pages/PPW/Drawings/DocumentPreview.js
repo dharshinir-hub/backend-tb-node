@@ -5,7 +5,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import { fileUrl } from '../../../Services/app/zumendocservice';
+import { useDocUrl } from '../../../Services/app/zumendocservice';
 
 // three.js + occt are heavy — only pulled in when a 3D file is actually opened.
 const Model3DViewer = React.lazy(() => import('./Model3DViewer'));
@@ -37,11 +37,11 @@ const DocumentPreview = ({ doc, onClose }) => {
   const [text, setText] = useState(null);
   const [loadingText, setLoadingText] = useState(false);
   const open = !!doc;
-  const url = doc ? fileUrl(doc) : '';
+  const url = useDocUrl(doc);
   const kind = doc ? kindOf(doc.name) : 'other';
 
   useEffect(() => {
-    if (!doc || kind !== 'text') { setText(null); return; }
+    if (!doc || kind !== 'text' || !url) { setText(null); return; }
     let alive = true;
     setLoadingText(true);
     fetch(url)
@@ -58,22 +58,25 @@ const DocumentPreview = ({ doc, onClose }) => {
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1 }}>
         <Typography sx={{ fontWeight: 600, flexGrow: 1 }} noWrap>{doc.name}</Typography>
-        <Button size="small" startIcon={<DownloadIcon />} component="a" href={url}
-          target="_blank" rel="noreferrer" sx={{ textTransform: 'none' }}>
+        <Button size="small" startIcon={<DownloadIcon />} component="a" href={url || undefined}
+          download={doc.name} disabled={!url} sx={{ textTransform: 'none' }}>
           Download
         </Button>
         <IconButton onClick={onClose}><CloseIcon /></IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ minHeight: 360, bgcolor: '#0f172a08' }}>
-        {kind === 'image' && (
+        {!url && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}><CircularProgress /></Box>
+        )}
+        {url && kind === 'image' && (
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <img src={url} alt={doc.name} style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain' }} />
           </Box>
         )}
-        {kind === 'pdf' && (
+        {url && kind === 'pdf' && (
           <iframe title={doc.name} src={url} style={{ width: '100%', height: '72vh', border: 'none' }} />
         )}
-        {kind === '3d' && (
+        {url && kind === '3d' && (
           <Suspense fallback={(
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '72vh' }}>
               <CircularProgress />
@@ -82,15 +85,15 @@ const DocumentPreview = ({ doc, onClose }) => {
             <Model3DViewer url={url} name={doc.name} />
           </Suspense>
         )}
-        {kind === 'video' && (
+        {url && kind === 'video' && (
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <video src={url} controls style={{ maxWidth: '100%', maxHeight: '72vh' }} />
           </Box>
         )}
-        {kind === 'audio' && (
+        {url && kind === 'audio' && (
           <Box sx={{ py: 4, textAlign: 'center' }}><audio src={url} controls /></Box>
         )}
-        {kind === 'text' && (
+        {url && kind === 'text' && (
           loadingText
             ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
             : <Box component="pre" sx={{
@@ -99,7 +102,7 @@ const DocumentPreview = ({ doc, onClose }) => {
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               }}>{text}</Box>
         )}
-        {kind === 'other' && (
+        {url && kind === 'other' && (
           <Box sx={{ textAlign: 'center', py: 8, color: '#475569' }}>
             <InsertDriveFileIcon sx={{ fontSize: 64, mb: 1 }} />
             <Typography sx={{ mb: 0.5 }}>
@@ -109,7 +112,7 @@ const DocumentPreview = ({ doc, onClose }) => {
               (3D/CAD formats like DWG, STL, SLDPRT need a dedicated viewer.)
             </Typography>
             <Button variant="contained" startIcon={<DownloadIcon />} component="a"
-              href={url} target="_blank" rel="noreferrer" sx={{ textTransform: 'none' }}>
+              href={url || undefined} download={doc.name} sx={{ textTransform: 'none' }}>
               Download to open
             </Button>
           </Box>

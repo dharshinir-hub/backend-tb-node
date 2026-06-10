@@ -17,10 +17,10 @@ import axios from 'axios';
 // so asset/relation operations have tenant permission regardless of the customer
 // user logged into the rest of the app.
 
-const zBase = () =>
+export const zBase = () =>
   (window._env_.ZUMEN_TB_URL || window._env_.SERVER_URL).replace(/\/$/, '');
 
-const zumenApi = axios.create();
+export const zumenApi = axios.create();
 let _tenantToken = null;
 
 const tenantLogin = async () => {
@@ -29,6 +29,13 @@ const tenantLogin = async () => {
     password: window._env_.ZUMEN_TB_PASS || window._env_.TENANT_PASSWORD,
   });
   _tenantToken = data.token;
+  return _tenantToken;
+};
+
+// Raw tenant token (for fetch calls that need the X-Authorization header, e.g.
+// downloading resource blobs for previews).
+export const getTenantToken = async () => {
+  if (!_tenantToken) await tenantLogin();
   return _tenantToken;
 };
 

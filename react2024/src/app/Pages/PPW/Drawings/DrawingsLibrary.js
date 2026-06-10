@@ -9,6 +9,7 @@ import {
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import { AuthImg } from '../../../Services/app/zumendocservice';
 import TagIcon from '@mui/icons-material/Tag';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import BusinessOutlinedIcon from '@mui/icons-material/BusinessOutlined';
@@ -193,8 +194,10 @@ const DrawingsLibrary = () => {
                       height: 190, bgcolor: '#fff', display: 'flex', alignItems: 'center',
                       justifyContent: 'center', overflow: 'hidden', borderBottom: '1px solid #eef1f4',
                     }}>
-                      {d.thumbnailUrl
-                        ? <img src={d.thumbnailUrl} alt={d.drawingNumber} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
+                      {d.thumbnailResourceId
+                        ? <AuthImg doc={{ resourceId: d.thumbnailResourceId }} alt={d.drawingNumber}
+                            style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                            fallback={<InsertDriveFileIcon sx={{ fontSize: 64, color: '#dbe2ea' }} />} />
                         : <InsertDriveFileIcon sx={{ fontSize: 64, color: '#dbe2ea' }} />}
                     </Box>
                     <Box sx={{ p: 1.5 }}>

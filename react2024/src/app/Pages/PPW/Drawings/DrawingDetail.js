@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Box, Typography, Button, Chip, CircularProgress, Tabs, Tab, Badge, IconButton,
+  Box, Typography, Button, Chip, CircularProgress, Tabs, Tab, IconButton,
   Tooltip, TextField, MenuItem, Divider, Dialog, DialogTitle, DialogContent,
   DialogActions, Snackbar,
 } from '@mui/material';
@@ -25,9 +25,10 @@ import {
   getDrawingDetail, saveDrawingAttributes, getClients,
 } from '../../../Services/app/zumenservice';
 import {
-  DOCUMENT_TYPES, getDocuments, uploadDocument, deleteDocument, updateDocument, fileUrl,
+  DOCUMENT_TYPES, getDocuments, uploadDocument, deleteDocument, updateDocument,
+  getDocUrl, useDocUrl, AuthImg,
 } from '../../../Services/app/zumendocservice';
-import { kindOf } from './DocumentPreview';
+import DocumentPreview, { kindOf } from './DocumentPreview';
 
 const Model3DViewer = React.lazy(() => import('./Model3DViewer'));
 const MarkupEditor = React.lazy(() => import('./MarkupEditor'));
@@ -53,12 +54,12 @@ const META_FIELDS = [
 // Center preview for the selected file (inline; no modal).
 const InlinePreview = ({ doc, rotation = 0 }) => {
   const [text, setText] = useState(null);
-  const url = doc ? fileUrl(doc) : '';
+  const url = useDocUrl(doc);
   const kind = doc ? kindOf(doc.name) : null;
   const rot = { transform: `rotate(${rotation}deg)`, transition: 'transform 0.2s' };
 
   useEffect(() => {
-    if (!doc || kind !== 'text') { setText(null); return undefined; }
+    if (!doc || kind !== 'text' || !url) { setText(null); return undefined; }
     let alive = true;
     fetch(url).then((r) => r.text())
       .then((t) => { if (alive) setText(t.slice(0, 200000)); })
@@ -73,6 +74,9 @@ const InlinePreview = ({ doc, rotation = 0 }) => {
         <Typography>Select or upload a file to preview it here.</Typography>
       </Box>
     );
+  }
+  if (!url) {
+    return <Box sx={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><CircularProgress /></Box>;
   }
   if (kind === 'image') {
     return <Box sx={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', p: 1 }}>
@@ -131,6 +135,8 @@ const DrawingDetail = () => {
   const [renameText, setRenameText] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [writeOpen, setWriteOpen] = useState(false);
+  const [writeImageUrl, setWriteImageUrl] = useState(null);
+  const [viewDoc, setViewDoc] = useState(null);
   const [snack, setSnack] = useState('');
   const notify = (msg) => setSnack(msg);
 
@@ -171,7 +177,7 @@ const DrawingDetail = () => {
     const name = renameText.trim();
     setRenameOpen(false);
     if (!name || name === selectedDoc.name) return;
-    await updateDocument(selectedDoc.id, { name });
+    await updateDocument(id, selectedDoc.id, { name });
     await loadDocs();
   };
 
@@ -179,54 +185,42 @@ const DrawingDetail = () => {
     const docId = deleteTarget;
     setDeleteTarget(null);
     if (!docId) return;
-    await deleteDocument(docId);
+    await deleteDocument(id, docId);
     if (selectedDocId === docId) setSelectedDocId(null);
     await loadDocs();
   };
 
   const openRemarks = (doc) => { setRemarksText(doc.remarks || ''); setRemarksOpen(true); };
   const saveRemarks = async () => {
-    await updateDocument(selectedDoc.id, { remarks: remarksText });
+    await updateDocument(id, selectedDoc.id, { remarks: remarksText });
     setRemarksOpen(false);
     await loadDocs();
   };
 
-  // Force a real download (the file is cross-origin, so a plain <a download> is
-  // ignored by the browser — fetch it as a blob and download that instead).
+  // Download the authed TB-resource blob (object URLs are same-origin).
   const downloadFile = async (doc) => {
-    try {
-      const res = await fetch(fileUrl(doc));
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = doc.name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err) {
-      notify('Download failed: ' + err.message);
-    }
+    const url = await getDocUrl(doc);
+    if (!url) { notify('Could not load file'); return; }
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = doc.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
-  // Print via a same-origin blob iframe (cross-origin iframes can't be printed).
+  // Print via a same-origin blob iframe.
   const printFile = async (doc) => {
-    try {
-      const res = await fetch(fileUrl(doc));
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-      iframe.src = url;
-      iframe.onload = () => {
-        try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) { notify('Could not print this file'); }
-        setTimeout(() => { iframe.remove(); URL.revokeObjectURL(url); }, 60000);
-      };
-      document.body.appendChild(iframe);
-    } catch (err) {
-      notify('Print failed: ' + err.message);
-    }
+    const url = await getDocUrl(doc);
+    if (!url) { notify('Could not load file'); return; }
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    iframe.src = url;
+    iframe.onload = () => {
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) { notify('Could not print this file'); }
+      setTimeout(() => iframe.remove(), 60000);
+    };
+    document.body.appendChild(iframe);
   };
 
   const handleUpload = async (e) => {
@@ -236,10 +230,9 @@ const DrawingDetail = () => {
     setUploading(true);
     try {
       const doc = await uploadDocument(id, activeType.key, file);
-      if (kindOf(doc.name) === 'image' && !meta.thumbnailUrl) {
-        const thumb = fileUrl(doc);
-        await saveDrawingAttributes(id, { thumbnailUrl: thumb });
-        setMeta((m) => ({ ...m, thumbnailUrl: thumb }));
+      if (kindOf(doc.name) === 'image' && !meta.thumbnailResourceId) {
+        await saveDrawingAttributes(id, { thumbnailResourceId: doc.resourceId });
+        setMeta((m) => ({ ...m, thumbnailResourceId: doc.resourceId }));
       }
       await loadDocs();
       setSelectedDocId(doc.id);
@@ -290,15 +283,15 @@ const DrawingDetail = () => {
       <Box sx={{ bgcolor: '#fff', border: '1px solid #e5e7eb', borderRadius: 1 }}>
         <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} variant="scrollable" scrollButtons="auto"
           sx={{ borderBottom: '1px solid #e5e7eb', minHeight: 44 }}>
-          {DOCUMENT_TYPES.map((t) => (
-            <Tab key={t.key} sx={{ textTransform: 'none', minHeight: 44, py: 0 }}
-              label={(
-                <Badge color="primary" badgeContent={counts[t.key] || 0} showZero={false}
-                  sx={{ '& .MuiBadge-badge': { right: -12, top: 6 } }}>
-                  {t.label}
-                </Badge>
-              )} />
-          ))}
+          {DOCUMENT_TYPES.map((t) => {
+            const c = counts[t.key] || 0;
+            return (
+              <Tab key={t.key} sx={{ textTransform: 'none', minHeight: 44, py: 0, fontWeight: 500 }}
+                label={c > 0
+                  ? <span>{t.label} <span style={{ color: '#94a3b8', fontWeight: 600 }}>({c})</span></span>
+                  : t.label} />
+            );
+          })}
         </Tabs>
 
         {/* 3-column workspace */}
@@ -321,7 +314,9 @@ const DrawingDetail = () => {
                   }}>
                   <Box sx={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', bgcolor: '#f8fafc' }}>
                     {img
-                      ? <img src={fileUrl(d)} alt={d.name} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
+                      ? <AuthImg doc={d} alt={d.name}
+                          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                          fallback={<InsertDriveFileIcon sx={{ fontSize: 32, color: '#cbd5e1' }} />} />
                       : <InsertDriveFileIcon sx={{ fontSize: 32, color: '#cbd5e1' }} />}
                   </Box>
                   <Typography sx={{ fontSize: 10, mt: 0.5, color: '#64748b' }} noWrap>{d.name}</Typography>
@@ -382,7 +377,7 @@ const DrawingDetail = () => {
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 1.5, py: 0.75, borderTop: '1px solid #e5e7eb', bgcolor: '#fff' }}>
               <Button size="small" startIcon={<BorderColorOutlinedIcon sx={{ fontSize: 16 }} />}
                 disabled={!selectedDoc || kindOf(selectedDoc.name) !== 'image'}
-                onClick={() => setWriteOpen(true)}
+                onClick={async () => { const u = await getDocUrl(selectedDoc); if (u) { setWriteImageUrl(u); setWriteOpen(true); } else notify('Could not load image'); }}
                 sx={{ textTransform: 'none' }}>Write</Button>
               <Button size="small" startIcon={<PrintIcon sx={{ fontSize: 16 }} />}
                 disabled={!selectedDoc} onClick={() => printFile(selectedDoc)} sx={{ textTransform: 'none' }}>Print</Button>
@@ -390,8 +385,8 @@ const DrawingDetail = () => {
                 onClick={() => selectedDoc && downloadFile(selectedDoc)}
                 sx={{ textTransform: 'none' }}>Download</Button>
               <Button size="small" variant="contained" startIcon={<PictureAsPdfOutlinedIcon sx={{ fontSize: 16 }} />}
-                disabled={!selectedDoc} onClick={() => selectedDoc && window.open(fileUrl(selectedDoc), '_blank')}
-                sx={{ textTransform: 'none', bgcolor: '#ec6e17' }}>View PDF</Button>
+                disabled={!selectedDoc} onClick={() => setViewDoc(selectedDoc)}
+                sx={{ textTransform: 'none', bgcolor: '#ec6e17' }}>View full</Button>
             </Box>
           </Box>
 
@@ -465,11 +460,11 @@ const DrawingDetail = () => {
       </Dialog>
 
       {/* Markup editor (Write) */}
-      {writeOpen && selectedDoc && (
+      {writeOpen && selectedDoc && writeImageUrl && (
         <Suspense fallback={null}>
           <MarkupEditor
             doc={selectedDoc}
-            imageUrl={fileUrl(selectedDoc)}
+            imageUrl={writeImageUrl}
             onClose={() => setWriteOpen(false)}
             onSaved={async () => { setWriteOpen(false); await loadDocs(); }}
             uploadAnnotated={async (blob, name) => {
@@ -492,6 +487,9 @@ const DrawingDetail = () => {
           <Button variant="contained" sx={{ bgcolor: '#ec6e17' }} onClick={saveRemarks}>Save</Button>
         </DialogActions>
       </Dialog>
+
+      {/* In-app full-screen viewer (no new browser tab) */}
+      <DocumentPreview doc={viewDoc} onClose={() => setViewDoc(null)} />
 
       <Snackbar open={!!snack} autoHideDuration={2500} onClose={() => setSnack('')} message={snack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />

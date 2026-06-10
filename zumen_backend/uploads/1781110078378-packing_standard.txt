@@ -1,0 +1,4 @@
+PACKING STANDARD
+Box: 300x200x100 mm
+Qty/box: 50
+Label: front-right

@@ -1,0 +1,4 @@
+DEFECT REPORT
+Lot: 2026-001
+Defects: 0 / 100
+Status: OK
