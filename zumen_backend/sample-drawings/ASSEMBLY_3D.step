@@ -1,0 +1,32 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('ASSEMBLY 3D MODEL'),
+  '2',
+  '2026-05-30',
+  '12:30:00',
+  (' '),
+  (' '),
+  (' '));
+FILE_NAME('ASSEMBLY_3D.step',
+  '2026-05-30T12:30:00',
+  (' '),
+  (' '),
+  'STEP',
+  ' ',
+  (' '));
+FILE_SCHEMA(('AP203'));
+ENDSEC;
+DATA;
+1 = PRODUCT('FLANGE_ASSEMBLY','Flange Assembly 3D Model','',(2));
+2 = PRODUCT_CONTEXT('3D',2,#3);
+3 = APPLICATION_CONTEXT('3D mechanical design');
+4 = PRODUCT_RELATED_PRODUCT_CATEGORY('assembly',
+  '3D Model of Flange Assembly',
+  (1));
+ENDSEC;
+END-ISO-10303-21;
+
+This is a sample STEP 3D model file for the Flange Assembly project.
+Part Number: FA-3D-001
+Resolution: High
+Date Created: 2026-05-30

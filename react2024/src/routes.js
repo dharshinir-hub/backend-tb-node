@@ -42,6 +42,10 @@ import MachineGroup from './app/Pages/Machinegroup/machinegroup';
 import OeeTv from './app/Pages/Oee-tv/oeetv';
 import BluecardDetails from './app/Pages/BlueCardScreen/bluecarddetails';
 import OperatorPerformanceDashboard from './app/Pages/Operator-Performance-Dashboard/OperatorPerformanceDashboard';
+import PPW from './app/Pages/PPW/ppw';
+import DrawingsLibrary from './app/Pages/PPW/Drawings/DrawingsLibrary';
+import DrawingDetail from './app/Pages/PPW/Drawings/DrawingDetail';
+import AssemblyTree from './app/Pages/PPW/Drawings/AssemblyTree';
 
 
 // Import other components for your routes
@@ -101,22 +105,51 @@ const AppRoutes = () => {
         }
       />
       <Route path="/" element={<Layout />}>
+        {/* PPW Route - Always Available */}
+        <Route path="/ppw" element={<PPW />} />
+        {/* Paperless Factory — integrated in the Yantra app shell */}
+        <Route path="/paperless-factory/drawings" element={<DrawingsLibrary />} />
+        <Route path="/paperless-factory/drawings/:id" element={<DrawingDetail />} />
+        <Route path="/paperless-factory/drawings/:id/assembly" element={<AssemblyTree />} />
         <Route path="/operator-performance" element={<OperatorPerformanceDashboard />} />
-        {pageList.map((page) => {
 
+        {/* Direct Sub-routes */}
+        <Route path="/bluecarddetails" element={<BluecardDetails />} />
+
+        {/* Production Analysis Sub-routes */}
+        {pageList.includes("production-analysis") && (
+          <>
+            <Route path="/cycletime" element={<Cycletime />} />
+            <Route path="/production-summary" element={<Component />} />
+            <Route path="/production-runs" element={<Component1 />} />
+            <Route path="/summary" element={<Summary />} />
+            <Route path="/inprogresscycle" element={<Inprogress />} />
+            <Route path="/analyticoee" element={<AnalyticOee />} />
+            <Route path="/partwise-cycletime" element={<PartCycleTime />} />
+            <Route path="/inprogressoee" element={<InprogressOee />} />
+          </>
+        )}
+
+        {pageList.includes("bluecard") && (
+          <>
+            <Route path="/bluecarddetails" element={<BluecardDetails />} />
+          </>
+        )}
+
+        {/* Dynamic routes - Create routes for ALL components in registry */}
+        {Object.keys(COMPONENT_REGISTRY).map((page) => {
           const Component = COMPONENT_REGISTRY[page];
+          if (!Component) return null;
           return (
             <Route
               key={page}
               path={`/${page}`}
               element={
-                <ProtectedRoute allowed={pageList.includes(page)}>
-                  <Sentry.ErrorBoundary fallback={({ error, resetError }) => (
-                    <PageErrorFallback error={error} resetError={resetError} />
-                  )}>
-                    <Component />
-                  </Sentry.ErrorBoundary>
-                </ProtectedRoute>
+                <Sentry.ErrorBoundary fallback={({ error, resetError }) => (
+                  <PageErrorFallback error={error} resetError={resetError} />
+                )}>
+                  <Component />
+                </Sentry.ErrorBoundary>
               }
             />
           );

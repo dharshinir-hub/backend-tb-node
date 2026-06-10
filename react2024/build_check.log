@@ -1,0 +1,960 @@
+
+> web-react-app@0.1.0 build
+> react-scripts build
+
+Creating an optimized production build...
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Compiled with warnings.
+
+[eslint] 
+src\App.js
+  Line 7:10:  'NavLink' is defined but never used  no-unused-vars
+  Line 7:45:  'Outlet' is defined but never used   no-unused-vars
+
+src\app\Nav\sidebar.js
+  Line 6:21:    'BiTimeFive' is defined but never used                                                                                                                          no-unused-vars
+  Line 6:33:    'BiChip' is defined but never used                                                                                                                              no-unused-vars
+  Line 7:24:    'BiSolidExtension' is defined but never used                                                                                                                    no-unused-vars
+  Line 8:3:     'BiDetail' is defined but never used                                                                                                                            no-unused-vars
+  Line 10:10:   'AiOutlineStock' is defined but never used                                                                                                                      no-unused-vars
+  Line 11:10:   'FiActivity' is defined but never used                                                                                                                          no-unused-vars
+  Line 14:91:   'MdTrendingUp' is defined but never used                                                                                                                        no-unused-vars
+  Line 14:105:  'MdMoreVert' is defined but never used                                                                                                                          no-unused-vars
+  Line 14:117:  'MdLock' is defined but never used                                                                                                                              no-unused-vars
+  Line 18:19:   'Menu' is defined but never used                                                                                                                                no-unused-vars
+  Line 18:25:   'MenuItem' is defined but never used                                                                                                                            no-unused-vars
+  Line 18:35:   'IconButton' is defined but never used                                                                                                                          no-unused-vars
+  Line 24:10:   'SlArrowDown' is defined but never used                                                                                                                         no-unused-vars
+  Line 26:10:   'IoSettingsOutline' is defined but never used                                                                                                                   no-unused-vars
+  Line 32:8:    'ChangePasswordCard' is defined but never used                                                                                                                  no-unused-vars
+  Line 36:21:   'BsJustify' is defined but never used                                                                                                                           no-unused-vars
+  Line 59:9:    'open' is assigned a value but never used                                                                                                                       no-unused-vars
+  Line 60:10:   'showChangePassword' is assigned a value but never used                                                                                                         no-unused-vars
+  Line 60:30:   'setShowChangePassword' is assigned a value but never used                                                                                                      no-unused-vars
+  Line 111:9:   'handleClick' is assigned a value but never used                                                                                                                no-unused-vars
+  Line 112:9:   'handleClose' is assigned a value but never used                                                                                                                no-unused-vars
+  Line 272:6:   React Hook useMemo has missing dependencies: 'customerId', 'showReportChildren', and 'showReportChildren1'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Allocations\allocation.js
+  Line 1:39:     'useMemo' is defined but never used                                                                           no-unused-vars
+  Line 1:48:     'useForm' is defined but never used                                                                           no-unused-vars
+  Line 2:10:     'Tooltip' is defined but never used                                                                           no-unused-vars
+  Line 2:19:     'IconButton' is defined but never used                                                                        no-unused-vars
+  Line 3:8:      'AddIcon' is defined but never used                                                                           no-unused-vars
+  Line 4:8:      'DeleteIcon' is defined but never used                                                                        no-unused-vars
+  Line 5:8:      'EditIcon' is defined but never used                                                                          no-unused-vars
+  Line 6:10:     'TimeField' is defined but never used                                                                         no-unused-vars
+  Line 8:30:     'shiftadd' is defined but never used                                                                          no-unused-vars
+  Line 16:10:    'TimePicker' is defined but never used                                                                        no-unused-vars
+  Line 23:10:    'MobileTimePicker' is defined but never used                                                                  no-unused-vars
+  Line 24:10:    'DemoItem' is defined but never used                                                                          no-unused-vars
+  Line 30:10:    'Columns' is defined but never used                                                                           no-unused-vars
+  Line 39:7:     'formatSecondsToTime' is assigned a value but never used                                                      no-unused-vars
+  Line 51:10:    'isAddDialogOpen' is assigned a value but never used                                                          no-unused-vars
+  Line 51:27:    'setIsAddDialogOpen' is assigned a value but never used                                                       no-unused-vars
+  Line 52:10:    'isEditDialogOpen' is assigned a value but never used                                                         no-unused-vars
+  Line 52:28:    'setIsEditDialogOpen' is assigned a value but never used                                                      no-unused-vars
+  Line 53:10:    'editDialogData' is assigned a value but never used                                                           no-unused-vars
+  Line 53:26:    'setEditDialogData' is assigned a value but never used                                                        no-unused-vars
+  Line 54:10:    'dialogOpenCount' is assigned a value but never used                                                          no-unused-vars
+  Line 54:27:    'setDialogOpenCount' is assigned a value but never used                                                       no-unused-vars
+  Line 62:10:    'reasonselected' is assigned a value but never used                                                           no-unused-vars
+  Line 75:10:    'downtimedata' is assigned a value but never used                                                             no-unused-vars
+  Line 75:24:    'setDowntimeData' is assigned a value but never used                                                          no-unused-vars
+  Line 76:10:    'epochRange' is assigned a value but never used                                                               no-unused-vars
+  Line 77:10:    'loading' is assigned a value but never used                                                                  no-unused-vars
+  Line 81:10:    'reasonsByDevice' is assigned a value but never used                                                          no-unused-vars
+  Line 81:27:    'setReasonsByDevice' is assigned a value but never used                                                       no-unused-vars
+  Line 83:10:    'supervisorslist' is assigned a value but never used                                                          no-unused-vars
+  Line 98:11:    'deviceId' is assigned a value but never used                                                                 no-unused-vars
+  Line 389:9:    'getEpochFromShift1' is assigned a value but never used                                                       no-unused-vars
+  Line 438:13:   'name' is assigned a value but never used                                                                     no-unused-vars
+  Line 441:9:    'handleFormChange1' is assigned a value but never used                                                        no-unused-vars
+  Line 442:13:   'name' is assigned a value but never used                                                                     no-unused-vars
+  Line 446:13:   'name' is assigned a value but never used                                                                     no-unused-vars
+  Line 450:13:   'name' is assigned a value but never used                                                                     no-unused-vars
+  Line 1106:19:  'runTime' is assigned a value but never used                                                                  no-unused-vars
+  Line 1108:19:  'idleTime' is assigned a value but never used                                                                 no-unused-vars
+  Line 1110:19:  'disconnectTime' is assigned a value but never used                                                           no-unused-vars
+  Line 1112:19:  'alarmTime' is assigned a value but never used                                                                no-unused-vars
+  Line 1117:19:  'msToTime' is assigned a value but never used                                                                 no-unused-vars
+  Line 1328:6:   React Hook useEffect has a missing dependency: 'getShifts'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 1358:23:  'threshold' is assigned a value but never used                                                                no-unused-vars
+
+src\app\Pages\Analytics-V2\AnalyticsV2.js
+  Line 15:30:    'cleanCustomerId' is defined but never used                  no-unused-vars
+  Line 1079:11:  'buildPartsSummaryChart' is assigned a value but never used  no-unused-vars
+  Line 1140:11:  'buildCycleTimeChart' is assigned a value but never used     no-unused-vars
+  Line 1268:11:  'buildIdleReasonChart' is assigned a value but never used    no-unused-vars
+  Line 1272:15:  'counts' is assigned a value but never used                  no-unused-vars
+  Line 1273:15:  'pcts' is assigned a value but never used                    no-unused-vars
+
+src\app\Pages\AnalyticsSidepanel\analyticslayout.js
+  Line 2:3:    'Box' is defined but never used                   no-unused-vars
+  Line 4:3:    'TextField' is defined but never used             no-unused-vars
+  Line 5:3:    'IconButton' is defined but never used            no-unused-vars
+  Line 6:3:    'InputAdornment' is defined but never used        no-unused-vars
+  Line 7:3:    'MenuItem' is defined but never used              no-unused-vars
+  Line 8:3:    'Select' is defined but never used                no-unused-vars
+  Line 9:3:    'Card' is defined but never used                  no-unused-vars
+  Line 10:3:   'CardContent' is defined but never used           no-unused-vars
+  Line 11:3:   'Grid' is defined but never used                  no-unused-vars
+  Line 14:17:  'useEffect' is defined but never used             no-unused-vars
+  Line 16:3:   'telemetrykeydata' is defined but never used      no-unused-vars
+  Line 17:3:   'customerbaseddevices' is defined but never used  no-unused-vars
+  Line 18:3:   'customerbasedshift' is defined but never used    no-unused-vars
+  Line 62:7:   'customerId' is assigned a value but never used   no-unused-vars
+  Line 63:9:   'newToken' is assigned a value but never used     no-unused-vars
+
+src\app\Pages\Analytics\analytics.js
+  Line 55:9:    'newToken' is assigned a value but never used                                                                                             no-unused-vars
+  Line 103:6:   React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array       react-hooks/exhaustive-deps
+  Line 179:10:  'anchorEl' is assigned a value but never used                                                                                             no-unused-vars
+  Line 180:10:  'selectedReportIndex' is assigned a value but never used                                                                                  no-unused-vars
+  Line 181:9:   'handleOpenPopover' is assigned a value but never used                                                                                    no-unused-vars
+  Line 185:9:   'handleClosePopover' is assigned a value but never used                                                                                   no-unused-vars
+  Line 220:10:  'loadingStage' is assigned a value but never used                                                                                         no-unused-vars
+  Line 234:6:   React Hook useEffect has a missing dependency: 'fetchOperationsData'. Either include it or remove the dependency array                    react-hooks/exhaustive-deps
+  Line 234:7:   React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+
+src\app\Pages\Andon-Dashboard\andondashboard.js
+  Line 8:8:      'VisibilityIcon' is defined but never used                                                                                                 no-unused-vars
+  Line 9:10:     'IconButton' is defined but never used                                                                                                     no-unused-vars
+  Line 9:22:     'Tooltip' is defined but never used                                                                                                        no-unused-vars
+  Line 22:10:    'loading' is assigned a value but never used                                                                                               no-unused-vars
+  Line 36:10:    'totalShotsSum' is assigned a value but never used                                                                                         no-unused-vars
+  Line 36:25:    'setTotalShotsSum' is assigned a value but never used                                                                                      no-unused-vars
+  Line 62:25:    Expected '!==' and instead saw '!='                                                                                                        eqeqeq
+  Line 62:43:    Expected '!==' and instead saw '!='                                                                                                        eqeqeq
+  Line 96:6:     React Hook useEffect has a missing dependency: 'getEpochFromShift'. Either include it or remove the dependency array                       react-hooks/exhaustive-deps
+  Line 130:6:    React Hook useEffect has missing dependencies: 'getEpochFromShift' and 'selectedDate'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 147:9:    'getDeviceBarDataSum' is assigned a value but never used                                                                                   no-unused-vars
+  Line 198:15:   'totalShotsAccumulator' is assigned a value but never used                                                                                 no-unused-vars
+  Line 625:17:   'mCountData' is assigned a value but never used                                                                                            no-unused-vars
+  Line 670:6:    React Hook useEffect has missing dependencies: 'handleViewMachineCard1' and 'userId'. Either include them or remove the dependency array   react-hooks/exhaustive-deps
+  Line 761:45:   Array.prototype.map() expects a value to be returned at the end of arrow function                                                          array-callback-return
+  Line 769:15:   'first' is assigned a value but never used                                                                                                 no-unused-vars
+  Line 770:15:   'last' is assigned a value but never used                                                                                                  no-unused-vars
+  Line 804:54:   Array.prototype.map() expects a value to be returned at the end of arrow function                                                          array-callback-return
+  Line 812:15:   'first' is assigned a value but never used                                                                                                 no-unused-vars
+  Line 813:15:   'last' is assigned a value but never used                                                                                                  no-unused-vars
+  Line 847:53:   Array.prototype.map() expects a value to be returned at the end of arrow function                                                          array-callback-return
+  Line 872:49:   Array.prototype.map() expects a value to be returned at the end of arrow function                                                          array-callback-return
+  Line 891:13:   'encodedOeeData' is assigned a value but never used                                                                                        no-unused-vars
+  Line 935:11:   <iframe> elements must have a unique title property                                                                                        jsx-a11y/iframe-has-title
+  Line 1001:25:  'totalShots' is assigned a value but never used                                                                                            no-unused-vars
+
+src\app\Pages\BlueCardScreen\bluecarddetails.js
+  Line 117:10:  'isBeforeFirstShift' is assigned a value but never used                                                                              no-unused-vars
+  Line 156:6:   React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\BlueCardScreen\bluecardreport.js
+  Line 148:9:   'navigate' is assigned a value but never used                                                                  no-unused-vars
+  Line 162:10:  'queryTimeRange' is assigned a value but never used                                                            no-unused-vars
+  Line 206:6:   React Hook useEffect has a missing dependency: 'customerId'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 271:6:   React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array   react-hooks/exhaustive-deps
+  Line 283:15:  'deviceName' is assigned a value but never used                                                                no-unused-vars
+
+src\app\Pages\BlueCardScreen\bluecardscreen.js
+  Line 87:10:  'isBeforeFirstShift' is assigned a value but never used                                                                                                         no-unused-vars
+  Line 129:6:  React Hook useEffect has missing dependencies: 'fetchNokHistory', 'fetchRequestPayload', and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Company\company.js
+  Line 52:10:    'utilizationData' is assigned a value but never used                                                                                 no-unused-vars
+  Line 52:27:    'setUtilizationData' is assigned a value but never used                                                                              no-unused-vars
+  Line 53:32:    'setFormattedUtilization' is assigned a value but never used                                                                         no-unused-vars
+  Line 55:10:    'timeData' is assigned a value but never used                                                                                        no-unused-vars
+  Line 57:10:    'startTime' is assigned a value but never used                                                                                       no-unused-vars
+  Line 58:10:    'endTime' is assigned a value but never used                                                                                         no-unused-vars
+  Line 63:10:    'lowerUtilization' is assigned a value but never used                                                                                no-unused-vars
+  Line 63:28:    'setLowerUtilization' is assigned a value but never used                                                                             no-unused-vars
+  Line 67:10:    'selectedMachineId' is assigned a value but never used                                                                               no-unused-vars
+  Line 67:29:    'setSelectedMachineId' is assigned a value but never used                                                                            no-unused-vars
+  Line 68:10:    'filteredDevices' is assigned a value but never used                                                                                 no-unused-vars
+  Line 76:6:     React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 82:6:     React Hook useEffect has a missing dependency: 'updateGrafanaURL'. Either include it or remove the dependency array                  react-hooks/exhaustive-deps
+  Line 103:6:    React Hook useEffect has a missing dependency: 'selectedShift'. Either include it or remove the dependency array                     react-hooks/exhaustive-deps
+  Line 116:6:    React Hook useEffect has a missing dependency: 'setShiftTimingForSelected'. Either include it or remove the dependency array         react-hooks/exhaustive-deps
+  Line 168:6:    React Hook useEffect has a missing dependency: 'selectedShift'. Either include it or remove the dependency array                     react-hooks/exhaustive-deps
+  Line 241:6:    React Hook useEffect has a missing dependency: 'fetchTimeTelemetryForAllDevices'. Either include it or remove the dependency array   react-hooks/exhaustive-deps
+  Line 279:12:   'combineDateAndTimeToMs' is defined but never used                                                                                   no-unused-vars
+  Line 359:11:   'todayStr' is assigned a value but never used                                                                                        no-unused-vars
+  Line 596:42:   Unnecessary escape character: \.                                                                                                     no-useless-escape
+  Line 596:44:   Unnecessary escape character: \-                                                                                                     no-useless-escape
+  Line 680:11:   'shiftListSerialized' is assigned a value but never used                                                                             no-unused-vars
+  Line 791:6:    React Hook useEffect has a missing dependency: 'filterDevices'. Either include it or remove the dependency array                     react-hooks/exhaustive-deps
+  Line 1061:27:  'deviceId' is assigned a value but never used                                                                                        no-unused-vars
+
+src\app\Pages\Componentregistration\componentadd.js
+  Line 8:10:    'MobileTimePicker' is defined but never used                                                                                              no-unused-vars
+  Line 77:6:    React Hook useEffect has missing dependencies: 'customerId' and 'fetchProcessGroups'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 316:47:  Expected '!==' and instead saw '!='                                                                                                       eqeqeq
+
+src\app\Pages\Componentregistration\componentedit.js
+  Line 8:10:    'MobileTimePicker' is defined but never used                                                                                              no-unused-vars
+  Line 26:7:    'parseTime' is assigned a value but never used                                                                                            no-unused-vars
+  Line 405:6:   React Hook useEffect has missing dependencies: 'customerId' and 'fetchProcessGroups'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 482:47:  Expected '!==' and instead saw '!='                                                                                                       eqeqeq
+
+src\app\Pages\Componentregistration\componentreg.js
+  Line 208:8:   React Hook useEffect has a missing dependency: 'getComponents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 368:67:  Expected '!==' and instead saw '!='                                                                               eqeqeq
+  Line 403:75:  Expected '!==' and instead saw '!='                                                                               eqeqeq
+
+src\app\Pages\CurrentShift\CurrentShift.js
+  Line 2:8:  'CurrentShiftService' is defined but never used  no-unused-vars
+
+src\app\Pages\CycleTime\analyticoee.js
+  Line 5:3:     'TextField' is defined but never used                                                                                                no-unused-vars
+  Line 6:3:     'IconButton' is defined but never used                                                                                               no-unused-vars
+  Line 7:3:     'InputAdornment' is defined but never used                                                                                           no-unused-vars
+  Line 8:3:     'MenuItem' is defined but never used                                                                                                 no-unused-vars
+  Line 9:3:     'Select' is defined but never used                                                                                                   no-unused-vars
+  Line 13:8:    'ClearIcon' is defined but never used                                                                                                no-unused-vars
+  Line 14:8:    'FilterListIcon' is defined but never used                                                                                           no-unused-vars
+  Line 30:10:   'machineGroup' is assigned a value but never used                                                                                    no-unused-vars
+  Line 30:24:   'setMachineGroup' is assigned a value but never used                                                                                 no-unused-vars
+  Line 31:10:   'shifts' is assigned a value but never used                                                                                          no-unused-vars
+  Line 33:10:   'deviceNameIdJson' is assigned a value but never used                                                                                no-unused-vars
+  Line 86:6:    React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 89:21:   'setOeeTimeSlower' is assigned a value but never used                                                                                no-unused-vars
+  Line 90:21:   'setOeeTimeFaster' is assigned a value but never used                                                                                no-unused-vars
+  Line 91:10:   'oeeBaselineSlower' is assigned a value but never used                                                                               no-unused-vars
+  Line 91:29:   'setOeeBaselineSlower' is assigned a value but never used                                                                            no-unused-vars
+  Line 92:10:   'oeeBaselineFaster' is assigned a value but never used                                                                               no-unused-vars
+  Line 92:29:   'setOeeBaselineFaster' is assigned a value but never used                                                                            no-unused-vars
+  Line 111:10:  'loadingStage' is assigned a value but never used                                                                                    no-unused-vars
+  Line 128:6:   React Hook useEffect has a missing dependency: 'fetchOperationsData'. Either include it or remove the dependency array               react-hooks/exhaustive-deps
+  Line 207:9:   'formatSeconds' is assigned a value but never used                                                                                   no-unused-vars
+
+src\app\Pages\CycleTime\component.js
+  Line 6:3:    'IconButton' is defined but never used                                                                                               no-unused-vars
+  Line 7:3:    'InputAdornment' is defined but never used                                                                                           no-unused-vars
+  Line 8:3:    'MenuItem' is defined but never used                                                                                                 no-unused-vars
+  Line 9:3:    'Select' is defined but never used                                                                                                   no-unused-vars
+  Line 10:3:   'Card' is defined but never used                                                                                                     no-unused-vars
+  Line 13:8:   'ClearIcon' is defined but never used                                                                                                no-unused-vars
+  Line 14:8:   'FilterListIcon' is defined but never used                                                                                           no-unused-vars
+  Line 30:10:  'machineGroup' is assigned a value but never used                                                                                    no-unused-vars
+  Line 30:24:  'setMachineGroup' is assigned a value but never used                                                                                 no-unused-vars
+  Line 31:10:  'shifts' is assigned a value but never used                                                                                          no-unused-vars
+  Line 59:9:   'newToken' is assigned a value but never used                                                                                        no-unused-vars
+  Line 101:6:  React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 137:6:  React Hook useEffect has a missing dependency: 'fetchTelemetryData'. Either include it or remove the dependency array                react-hooks/exhaustive-deps
+
+src\app\Pages\CycleTime\component1.js
+  Line 5:3:     'TextField' is defined but never used                                                                                                     no-unused-vars
+  Line 6:3:     'IconButton' is defined but never used                                                                                                    no-unused-vars
+  Line 7:3:     'InputAdornment' is defined but never used                                                                                                no-unused-vars
+  Line 8:3:     'MenuItem' is defined but never used                                                                                                      no-unused-vars
+  Line 9:3:     'Select' is defined but never used                                                                                                        no-unused-vars
+  Line 10:3:    'Card' is defined but never used                                                                                                          no-unused-vars
+  Line 21:8:    'ClearIcon' is defined but never used                                                                                                     no-unused-vars
+  Line 22:8:    'FilterListIcon' is defined but never used                                                                                                no-unused-vars
+  Line 23:8:    'Tooltip' is defined but never used                                                                                                       no-unused-vars
+  Line 40:10:   'machineGroup' is assigned a value but never used                                                                                         no-unused-vars
+  Line 40:24:   'setMachineGroup' is assigned a value but never used                                                                                      no-unused-vars
+  Line 47:32:   'previousScreen' is assigned a value but never used                                                                                       no-unused-vars
+  Line 67:9:    'newToken' is assigned a value but never used                                                                                             no-unused-vars
+  Line 99:6:    React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array       react-hooks/exhaustive-deps
+  Line 102:10:  'cycleTimeSlower' is assigned a value but never used                                                                                      no-unused-vars
+  Line 102:27:  'setCycleTimeSlower' is assigned a value but never used                                                                                   no-unused-vars
+  Line 103:10:  'cycleTimeFaster' is assigned a value but never used                                                                                      no-unused-vars
+  Line 103:27:  'setCycleTimeFaster' is assigned a value but never used                                                                                   no-unused-vars
+  Line 104:10:  'cycleTimeBaselineSlower' is assigned a value but never used                                                                              no-unused-vars
+  Line 104:35:  'setCycleTimeBaselineSlower' is assigned a value but never used                                                                           no-unused-vars
+  Line 105:10:  'cycleTimeBaselineFaster' is assigned a value but never used                                                                              no-unused-vars
+  Line 105:35:  'setCycleTimeBaselineFaster' is assigned a value but never used                                                                           no-unused-vars
+  Line 139:6:   React Hook useEffect has a missing dependency: 'fetchCycleTimeFaster'. Either include it or remove the dependency array                   react-hooks/exhaustive-deps
+  Line 139:7:   React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+
+src\app\Pages\CycleTime\cycletime.js
+  Line 5:3:    'TextField' is defined but never used                                                                                                                   no-unused-vars
+  Line 6:3:    'IconButton' is defined but never used                                                                                                                  no-unused-vars
+  Line 7:3:    'InputAdornment' is defined but never used                                                                                                              no-unused-vars
+  Line 13:8:   'ClearIcon' is defined but never used                                                                                                                   no-unused-vars
+  Line 14:8:   'FilterListIcon' is defined but never used                                                                                                              no-unused-vars
+  Line 30:10:  'machineGroup' is assigned a value but never used                                                                                                       no-unused-vars
+  Line 30:24:  'setMachineGroup' is assigned a value but never used                                                                                                    no-unused-vars
+  Line 31:10:  'shifts' is assigned a value but never used                                                                                                             no-unused-vars
+  Line 33:10:  'deviceNameIdJson' is assigned a value but never used                                                                                                   no-unused-vars
+  Line 36:10:  'loadingTimeoutReached' is assigned a value but never used                                                                                              no-unused-vars
+  Line 36:33:  'setLoadingTimeoutReached' is assigned a value but never used                                                                                           no-unused-vars
+  Line 37:10:  'loader' is assigned a value but never used                                                                                                             no-unused-vars
+  Line 37:18:  'setLoader' is assigned a value but never used                                                                                                          no-unused-vars
+  Line 62:9:   'newToken' is assigned a value but never used                                                                                                           no-unused-vars
+  Line 93:6:   React Hook useEffect has missing dependencies: 'fetchComponent', 'fetchDevices', and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 144:8:  'loadingStage' is assigned a value but never used                                                                                                       no-unused-vars
+  Line 157:4:  React Hook useEffect has a missing dependency: 'fetchOperationsData'. Either include it or remove the dependency array                                  react-hooks/exhaustive-deps
+  Line 157:5:  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked                react-hooks/exhaustive-deps
+
+src\app\Pages\CycleTime\inprogresscycle.js
+  Line 16:3:    'TableCell' is defined but never used                                                                         no-unused-vars
+  Line 17:3:    'TableHead' is defined but never used                                                                         no-unused-vars
+  Line 18:3:    'TableRow' is defined but never used                                                                          no-unused-vars
+  Line 19:3:    'Table' is defined but never used                                                                             no-unused-vars
+  Line 21:3:    'TableContainer' is defined but never used                                                                    no-unused-vars
+  Line 22:3:    'TableBody' is defined but never used                                                                         no-unused-vars
+  Line 31:8:    'dayjs' is defined but never used                                                                             no-unused-vars
+  Line 72:10:   'partNumber' is assigned a value but never used                                                               no-unused-vars
+  Line 72:22:   'setPartNumber' is assigned a value but never used                                                            no-unused-vars
+  Line 73:10:   'reportType' is assigned a value but never used                                                               no-unused-vars
+  Line 73:22:   'setReportType' is assigned a value but never used                                                            no-unused-vars
+  Line 74:10:   'machineGroup' is assigned a value but never used                                                             no-unused-vars
+  Line 74:24:   'setMachineGroup' is assigned a value but never used                                                          no-unused-vars
+  Line 76:10:   'filterAnchor' is assigned a value but never used                                                             no-unused-vars
+  Line 79:10:   'shifts' is assigned a value but never used                                                                   no-unused-vars
+  Line 81:10:   'deviceNameIdJson' is assigned a value but never used                                                         no-unused-vars
+  Line 82:10:   'idToName' is assigned a value but never used                                                                 no-unused-vars
+  Line 96:28:   'setSelectedMachines' is assigned a value but never used                                                      no-unused-vars
+  Line 100:10:  'viewedMachine' is assigned a value but never used                                                            no-unused-vars
+  Line 116:10:  'startEpoch' is assigned a value but never used                                                               no-unused-vars
+  Line 117:10:  'endEpoch' is assigned a value but never used                                                                 no-unused-vars
+  Line 118:24:  'setCurrentShift' is assigned a value but never used                                                          no-unused-vars
+  Line 238:9:   'parseTelemetryValues' is assigned a value but never used                                                     no-unused-vars
+  Line 352:57:  Invalid typeof comparison value                                                                               valid-typeof
+  Line 413:6:   React Hook useEffect has a missing dependency: 'partsData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 439:12:  'formatDuration' is defined but never used                                                                    no-unused-vars
+  Line 465:9:   'handleFilterClose' is assigned a value but never used                                                        no-unused-vars
+  Line 485:9:   'selectedDeviceObjects' is assigned a value but never used                                                    no-unused-vars
+
+src\app\Pages\CycleTime\inprogressoee.js
+  Line 3:5:     'Box' is defined but never used                                                                                                      no-unused-vars
+  Line 4:5:     'Typography' is defined but never used                                                                                               no-unused-vars
+  Line 6:5:     'Grid' is defined but never used                                                                                                     no-unused-vars
+  Line 7:5:     'TableBody' is defined but never used                                                                                                no-unused-vars
+  Line 8:5:     'Table' is defined but never used                                                                                                    no-unused-vars
+  Line 9:5:     'TableCell' is defined but never used                                                                                                no-unused-vars
+  Line 10:5:    'TableContainer' is defined but never used                                                                                           no-unused-vars
+  Line 11:5:    'TableHead' is defined but never used                                                                                                no-unused-vars
+  Line 12:5:    'TableRow' is defined but never used                                                                                                 no-unused-vars
+  Line 13:5:    'Paper' is defined but never used                                                                                                    no-unused-vars
+  Line 20:8:    'dayjs' is defined but never used                                                                                                    no-unused-vars
+  Line 22:10:   'SidebarPanel' is defined but never used                                                                                             no-unused-vars
+  Line 26:12:   'shifts' is assigned a value but never used                                                                                          no-unused-vars
+  Line 27:12:   'devices' is assigned a value but never used                                                                                         no-unused-vars
+  Line 42:9:    'previousScreen' is assigned a value but never used                                                                                  no-unused-vars
+  Line 47:9:    'highcode' is assigned a value but never used                                                                                        no-unused-vars
+  Line 119:8:   React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 222:8:   React Hook useEffect has a missing dependency: 'deviceNameIdJson'. Either include it or remove the dependency array                  react-hooks/exhaustive-deps
+  Line 231:16:  'machineName' is assigned a value but never used                                                                                     no-unused-vars
+  Line 240:4:   React Hook useEffect has a missing dependency: 'selectedMachine'. Either include it or remove the dependency array                   react-hooks/exhaustive-deps
+  Line 254:11:  'shiftDisplay' is assigned a value but never used                                                                                    no-unused-vars
+  Line 255:11:  'dateDisplay' is assigned a value but never used                                                                                     no-unused-vars
+
+src\app\Pages\CycleTime\partcycletime.js
+  Line 6:5:     'Grid' is defined but never used                                                                                                     no-unused-vars
+  Line 28:12:   'machineGroup' is assigned a value but never used                                                                                    no-unused-vars
+  Line 28:26:   'setMachineGroup' is assigned a value but never used                                                                                 no-unused-vars
+  Line 29:12:   'shifts' is assigned a value but never used                                                                                          no-unused-vars
+  Line 30:12:   'devices' is assigned a value but never used                                                                                         no-unused-vars
+  Line 32:12:   'selectedDashboard' is assigned a value but never used                                                                               no-unused-vars
+  Line 32:31:   'setSelectedDashboard' is assigned a value but never used                                                                            no-unused-vars
+  Line 92:8:    React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 198:8:   React Hook useEffect has a missing dependency: 'deviceNameIdJson'. Either include it or remove the dependency array                  react-hooks/exhaustive-deps
+  Line 284:11:  'getOuterBorderColor' is assigned a value but never used                                                                             no-unused-vars
+
+src\app\Pages\CycleTime\summary.js
+  Line 5:3:    'TextField' is defined but never used                                                                                                no-unused-vars
+  Line 6:3:    'IconButton' is defined but never used                                                                                               no-unused-vars
+  Line 7:3:    'InputAdornment' is defined but never used                                                                                           no-unused-vars
+  Line 8:3:    'MenuItem' is defined but never used                                                                                                 no-unused-vars
+  Line 9:3:    'Select' is defined but never used                                                                                                   no-unused-vars
+  Line 10:3:   'Card' is defined but never used                                                                                                     no-unused-vars
+  Line 11:3:   'Grid' is defined but never used                                                                                                     no-unused-vars
+  Line 13:8:   'ClearIcon' is defined but never used                                                                                                no-unused-vars
+  Line 14:8:   'FilterListIcon' is defined but never used                                                                                           no-unused-vars
+  Line 15:8:   'Tooltip' is defined but never used                                                                                                  no-unused-vars
+  Line 33:10:  'machineGroup' is assigned a value but never used                                                                                    no-unused-vars
+  Line 33:24:  'setMachineGroup' is assigned a value but never used                                                                                 no-unused-vars
+  Line 91:6:   React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Devices\deviceoee.js
+  Line 3:10:    'useNavigate' is defined but never used                                                                          no-unused-vars
+  Line 7:3:     'telemetrylatestdata' is defined but never used                                                                  no-unused-vars
+  Line 8:3:     'telemetrykeydata' is defined but never used                                                                     no-unused-vars
+  Line 9:3:     'getCustomerName' is defined but never used                                                                      no-unused-vars
+  Line 11:10:   'getOperatorDetails' is defined but never used                                                                   no-unused-vars
+  Line 145:6:   React Hook useEffect has a missing dependency: 'fetchShifts'. Either include it or remove the dependency array   react-hooks/exhaustive-deps
+  Line 166:6:   React Hook useEffect has a missing dependency: 'updateShift'. Either include it or remove the dependency array   react-hooks/exhaustive-deps
+  Line 182:6:   React Hook useEffect has a missing dependency: 'updateShift'. Either include it or remove the dependency array   react-hooks/exhaustive-deps
+  Line 215:6:   React Hook useEffect has a missing dependency: 'fetchDevices'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 223:11:  'encodedid' is assigned a value but never used                                                                   no-unused-vars
+
+src\app\Pages\EmailConfiguration\emailconfig.js
+  Line 492:41:  React Hook useEffect has a missing dependency: 'loadConfigs'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Erpreport\erpplanner.js
+  Line 4:8:     'AddIcon' is defined but never used                    no-unused-vars
+  Line 5:8:     'ArrowBackIcon' is defined but never used              no-unused-vars
+  Line 8:38:    'updatePlan' is defined but never used                 no-unused-vars
+  Line 8:50:    'getAllPlans' is defined but never used                no-unused-vars
+  Line 8:63:    'deletePlan' is defined but never used                 no-unused-vars
+  Line 61:7:    'mapPlanToForm' is assigned a value but never used     no-unused-vars
+  Line 72:7:    'mapDetailsToForm' is assigned a value but never used  no-unused-vars
+  Line 104:12:  'view' is assigned a value but never used              no-unused-vars
+
+src\app\Pages\Erpreport\erpreport.js
+  Line 90:10:  'groupDetailsByMachine' is defined but never used                                                                                    no-unused-vars
+  Line 438:8:  React Hook useMemo has missing dependencies: 'handleViewJson' and 'jsonLoading'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Inputfield\inputfield.js
+  Line 9:8:  'dayjs' is defined but never used  no-unused-vars
+
+src\app\Pages\LeaderBoard\leaderboard.js
+  Line 118:6:  React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 194:6:  React Hook useEffect has a missing dependency: 'fetchTelemetryData'. Either include it or remove the dependency array                react-hooks/exhaustive-deps
+
+src\app\Pages\Login\login.js
+  Line 14:28:   'getOperatorDetails' is defined but never used     no-unused-vars
+  Line 14:58:   'startTokenAutoRefresh' is defined but never used  no-unused-vars
+  Line 15:10:   'decryptText' is defined but never used            no-unused-vars
+  Line 109:17:  'env' is assigned a value but never used           no-unused-vars
+
+src\app\Pages\MachineStatusDashboard\MachineStatusDashboard.js
+  Line 35:13:  'SortIcon' is defined but never used                                                                                          no-unused-vars
+  Line 50:11:  'navigate' is assigned a value but never used                                                                                 no-unused-vars
+  Line 62:27:  'setCustomerTitle' is assigned a value but never used                                                                         no-unused-vars
+  Line 179:8:  React Hook useEffect has a missing dependency: 'fetchShifts'. Either include it or remove the dependency array                react-hooks/exhaustive-deps
+  Line 191:8:  React Hook useEffect has a missing dependency: 'getCurrentShiftInfo'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+  Line 208:8:  React Hook useMemo has a missing dependency: 'getDeviceObjectsForMachines'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Machinecard\machinecard.js
+  Line 15:10:   'filteredResult' is assigned a value but never used  no-unused-vars
+  Line 65:13:   Expected a default case                              default-case
+  Line 301:27:  Expected '!==' and instead saw '!='                  eqeqeq
+
+src\app\Pages\Machinegroup\machinegroup.js
+  Line 42:6:  React Hook useEffect has a missing dependency: 'fetchMachineGroups'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Machinegroup\machinegroupadd.js
+  Line 70:6:  React Hook useEffect has a missing dependency: 'fetchDevices'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Machinegroup\machinegroupedit.js
+  Line 50:8:  React Hook useEffect has a missing dependency: 'fetchDevices'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 65:5:  'setValue' is assigned a value but never used                                                                    no-unused-vars
+
+src\app\Pages\MachinesMM\machinemm.js
+  Line 1:27:      'useMemo' is defined but never used                                                                                                       no-unused-vars
+  Line 7:33:      'ListItemButton' is defined but never used                                                                                                no-unused-vars
+  Line 18:10:     'Tabs' is defined but never used                                                                                                          no-unused-vars
+  Line 18:16:     'Tab' is defined but never used                                                                                                           no-unused-vars
+  Line 21:8:      'MonitorHeartIcon' is defined but never used                                                                                              no-unused-vars
+  Line 28:3:      'customerbaseddevices' is defined but never used                                                                                          no-unused-vars
+  Line 40:9:      'location' is assigned a value but never used                                                                                             no-unused-vars
+  Line 70:26:     'setSelectedDevice' is assigned a value but never used                                                                                    no-unused-vars
+  Line 81:10:     'openMachines' is assigned a value but never used                                                                                         no-unused-vars
+  Line 81:24:     'setOpenMachines' is assigned a value but never used                                                                                      no-unused-vars
+  Line 86:10:     'value' is assigned a value but never used                                                                                                no-unused-vars
+  Line 88:10:     'idleTime' is assigned a value but never used                                                                                             no-unused-vars
+  Line 88:20:     'setIdleTime' is assigned a value but never used                                                                                          no-unused-vars
+  Line 93:10:     'durationsByMachine' is assigned a value but never used                                                                                   no-unused-vars
+  Line 93:30:     'setDurationsByMachine' is assigned a value but never used                                                                                no-unused-vars
+  Line 120:5:     'hasGroupsAccess' is assigned a value but never used                                                                                      no-unused-vars
+  Line 125:26:    'setGroupSelectedMachines' is assigned a value but never used                                                                             no-unused-vars
+  Line 126:5:     'getDeviceObjectsForMachines' is assigned a value but never used                                                                          no-unused-vars
+  Line 127:5:     'refreshMachineGroups' is assigned a value but never used                                                                                 no-unused-vars
+  Line 157:10:    'deviceNameIdJson' is assigned a value but never used                                                                                     no-unused-vars
+  Line 237:6:     React Hook useEffect has a missing dependency: 'selectedShift'. Either include it or remove the dependency array                          react-hooks/exhaustive-deps
+  Line 243:6:     React Hook useEffect has a missing dependency: 'fetchShifts'. Either include it or remove the dependency array                            react-hooks/exhaustive-deps
+  Line 329:10:    'liveReason' is assigned a value but never used                                                                                           no-unused-vars
+  Line 330:10:    'lockStatus' is assigned a value but never used                                                                                           no-unused-vars
+  Line 342:6:     React Hook useEffect has a missing dependency: 'fetchAllMachineData'. Either include it or remove the dependency array                    react-hooks/exhaustive-deps
+  Line 342:7:     React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+  Line 423:19:    'isGPLAST' is assigned a value but never used                                                                                             no-unused-vars
+  Line 1003:9:    'handleChange' is assigned a value but never used                                                                                         no-unused-vars
+  Line 1022:11:   'todayStr' is assigned a value but never used                                                                                             no-unused-vars
+  Line 1195:37:   Expected '!==' and instead saw '!='                                                                                                       eqeqeq
+  Line 1278:10:   'runDuration' is assigned a value but never used                                                                                          no-unused-vars
+  Line 1278:23:   'setRunDuration' is assigned a value but never used                                                                                       no-unused-vars
+  Line 1279:10:   'idleDuration' is assigned a value but never used                                                                                         no-unused-vars
+  Line 1279:24:   'setIdleDuration' is assigned a value but never used                                                                                      no-unused-vars
+  Line 1284:33:   'setLatestIdleRunDuration' is assigned a value but never used                                                                             no-unused-vars
+  Line 1698:6:    React Hook useEffect has missing dependencies: 'autoSelected' and 'handleTabClick'. Either include them or remove the dependency array    react-hooks/exhaustive-deps
+  Line 1705:6:    React Hook useEffect has a missing dependency: 'handleTabClick'. Either include it or remove the dependency array                         react-hooks/exhaustive-deps
+  Line 1709:9:    'machineStatusOptions' is assigned a value but never used                                                                                 no-unused-vars
+  Line 1712:9:    'toggleMachineSelection' is assigned a value but never used                                                                               no-unused-vars
+  Line 1735:9:    'filteredMachines' is assigned a value but never used                                                                                     no-unused-vars
+  Line 2034:23:   'changePositive' is assigned a value but never used                                                                                       no-unused-vars
+  Line 2035:95:   'totalParts' is assigned a value but never used                                                                                           no-unused-vars
+  Line 2035:111:  'targetParts' is assigned a value but never used                                                                                          no-unused-vars
+  Line 2035:128:  'goodParts' is assigned a value but never used                                                                                            no-unused-vars
+  Line 2035:143:  'scrap' is assigned a value but never used                                                                                                no-unused-vars
+  Line 2035:154:  'ncr' is assigned a value but never used                                                                                                  no-unused-vars
+  Line 2040:23:   'firstActiveTime' is assigned a value but never used                                                                                      no-unused-vars
+  Line 2381:21:   'displayLabel' is assigned a value but never used                                                                                         no-unused-vars
+
+src\app\Pages\Machines\machine.js
+  Line 2:10:   'Tooltip' is defined but never used                                                                           no-unused-vars
+  Line 2:19:   'IconButton' is defined but never used                                                                        no-unused-vars
+  Line 3:8:    'AddIcon' is defined but never used                                                                           no-unused-vars
+  Line 4:8:    'DeleteIcon' is defined but never used                                                                        no-unused-vars
+  Line 5:8:    'EditIcon' is defined but never used                                                                          no-unused-vars
+  Line 6:10:   'TimeField' is defined but never used                                                                         no-unused-vars
+  Line 8:10:   'customerbasedshift' is defined but never used                                                                no-unused-vars
+  Line 8:30:   'shiftadd' is defined but never used                                                                          no-unused-vars
+  Line 21:10:  'MobileTimePicker' is defined but never used                                                                  no-unused-vars
+  Line 37:12:  'isAddDialogOpen' is assigned a value but never used                                                          no-unused-vars
+  Line 37:29:  'setIsAddDialogOpen' is assigned a value but never used                                                       no-unused-vars
+  Line 38:12:  'isEditDialogOpen' is assigned a value but never used                                                         no-unused-vars
+  Line 38:30:  'setIsEditDialogOpen' is assigned a value but never used                                                      no-unused-vars
+  Line 39:12:  'editDialogData' is assigned a value but never used                                                           no-unused-vars
+  Line 39:28:  'setEditDialogData' is assigned a value but never used                                                        no-unused-vars
+  Line 40:12:  'dialogOpenCount' is assigned a value but never used                                                          no-unused-vars
+  Line 40:29:  'setDialogOpenCount' is assigned a value but never used                                                       no-unused-vars
+  Line 86:57:  Expected dot to be on same line as property                                                                   dot-location
+  Line 130:8:  React Hook useEffect has a missing dependency: 'getShifts'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Machineutilization\machineutilization.js
+  Line 56:6:  React Hook useEffect has a missing dependency: 'newToken'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Metrics\metrics.js
+  Line 2:70:    'telemetrylatestdata' is defined but never used                                                                                           no-unused-vars
+  Line 205:12:  'deviceNameIdJson' is assigned a value but never used                                                                                     no-unused-vars
+  Line 260:8:   React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array       react-hooks/exhaustive-deps
+  Line 414:8:   React Hook useEffect has missing dependencies: 'devices' and 'groups'. Either include them or remove the dependency array                 react-hooks/exhaustive-deps
+  Line 414:9:   React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+  Line 532:11:  'FilterIcon' is assigned a value but never used                                                                                           no-unused-vars
+  Line 558:11:  'menuItemRow' is assigned a value but never used                                                                                          no-unused-vars
+  Line 567:11:  'sortItem' is assigned a value but never used                                                                                             no-unused-vars
+  Line 573:11:  'tableContainer' is assigned a value but never used                                                                                       no-unused-vars
+  Line 582:11:  'headerCell' is assigned a value but never used                                                                                           no-unused-vars
+  Line 590:11:  'bodyCell' is assigned a value but never used                                                                                             no-unused-vars
+
+src\app\Pages\New-Analytics\new-analytics.js
+  Line 7:30:     'IconButton' is defined but never used                                                                                                                                           no-unused-vars
+  Line 25:8:     'FilterListIcon' is defined but never used                                                                                                                                       no-unused-vars
+  Line 28:53:    'getSummaryStats' is defined but never used                                                                                                                                      no-unused-vars
+  Line 329:37:   'lockedDuration' is assigned a value but never used                                                                                                                              no-unused-vars
+  Line 481:34:   Function declared in a loop contains unsafe references to variable(s) 'currentDate', 'currentDate'                                                                               no-loop-func
+  Line 614:34:   Function declared in a loop contains unsafe references to variable(s) 'currentDate', 'currentDate'                                                                               no-loop-func
+  Line 790:9:    'devices' is assigned a value but never used                                                                                                                                     no-unused-vars
+  Line 808:11:   'isGPLAST' is assigned a value but never used                                                                                                                                    no-unused-vars
+  Line 865:27:   'setPartsViewType' is assigned a value but never used                                                                                                                            no-unused-vars
+  Line 927:8:    React Hook useEffect has a missing dependency: 'fetchComponentsForMachine'. Either include it or remove the dependency array                                                     react-hooks/exhaustive-deps
+  Line 1033:8:   React Hook useEffect has a missing dependency: 'fetchShifts'. Either include it or remove the dependency array                                                                   react-hooks/exhaustive-deps
+  Line 1050:8:   React Hook useEffect has missing dependencies: 'analysisType', 'handleAllShiftsTimeRange', and 'handleSingleShiftTimeRange'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 1058:8:   React Hook useEffect has a missing dependency: 'handleGenerateReport'. Either include it or remove the dependency array                                                          react-hooks/exhaustive-deps
+  Line 1343:8:   React Hook useEffect has a missing dependency: 'handlePartsYearTimeRange'. Either include it or remove the dependency array                                                      react-hooks/exhaustive-deps
+  Line 1645:8:   React Hook useCallback has missing dependencies: 'fromDate', 'selectedShift', 'shifts', and 'toDate'. Either include them or remove the dependency array                         react-hooks/exhaustive-deps
+  Line 1759:11:  'partsTableData' is assigned a value but never used                                                                                                                              no-unused-vars
+  Line 1892:11:  'handleViewSwitch' is assigned a value but never used                                                                                                                            no-unused-vars
+  Line 2168:62:  Expected '!==' and instead saw '!='                                                                                                                                              eqeqeq
+  Line 2172:62:  Expected '!==' and instead saw '!='                                                                                                                                              eqeqeq
+
+src\app\Pages\NewDeviceOee\newdeviceoee.js
+  Line 3:10:    'useNavigate' is defined but never used                                                                                                     no-unused-vars
+  Line 7:3:     'telemetrylatestdata' is defined but never used                                                                                             no-unused-vars
+  Line 8:3:     'getCustomerName' is defined but never used                                                                                                 no-unused-vars
+  Line 10:10:   'getOperatorDetails' is defined but never used                                                                                              no-unused-vars
+  Line 12:10:   'FaRegClock' is defined but never used                                                                                                      no-unused-vars
+  Line 12:22:   'FaRegCalendarAlt' is defined but never used                                                                                                no-unused-vars
+  Line 25:10:   'deviceNameIdJson' is assigned a value but never used                                                                                       no-unused-vars
+  Line 30:10:   'countdown' is assigned a value but never used                                                                                              no-unused-vars
+  Line 173:6:   React Hook useEffect has a missing dependency: 'fetchShifts'. Either include it or remove the dependency array                              react-hooks/exhaustive-deps
+  Line 197:6:   React Hook useEffect has a missing dependency: 'updateShift'. Either include it or remove the dependency array                              react-hooks/exhaustive-deps
+  Line 213:6:   React Hook useEffect has a missing dependency: 'updateShift'. Either include it or remove the dependency array                              react-hooks/exhaustive-deps
+  Line 247:6:   React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchMachineGroups'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 578:22:  Function declared in a loop contains unsafe references to variable(s) 'LAST_WEEK_FROM_EPOCH', 'LAST_WEEK_TO_EPOCH'                          no-loop-func
+  Line 674:9:   'date' is assigned a value but never used                                                                                                   no-unused-vars
+
+src\app\Pages\NotificationCenter\notificationcenter.js
+  Line 1:26:   'Chip' is defined but never used                                                                                       no-unused-vars
+  Line 1:32:   'Menu' is defined but never used                                                                                       no-unused-vars
+  Line 1:38:   'MenuItem' is defined but never used                                                                                   no-unused-vars
+  Line 4:8:    'MoreVertIcon' is defined but never used                                                                               no-unused-vars
+  Line 5:8:    'MarkAsReadIcon' is defined but never used                                                                             no-unused-vars
+  Line 232:6:  React Hook useEffect has a missing dependency: 'fetchNotifications'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Oee-tv\oeetv.js
+  Line 7:3:     'telemetrylatestdata' is defined but never used                                                                                                             no-unused-vars
+  Line 8:3:     'getCustomerName' is defined but never used                                                                                                                 no-unused-vars
+  Line 10:10:   'getOperatorDetails' is defined but never used                                                                                                              no-unused-vars
+  Line 12:10:   'FaRegClock' is defined but never used                                                                                                                      no-unused-vars
+  Line 12:22:   'FaRegCalendarAlt' is defined but never used                                                                                                                no-unused-vars
+  Line 32:10:   'countdown' is assigned a value but never used                                                                                                              no-unused-vars
+  Line 142:6:   React Hook useEffect has a missing dependency: 'getCustomerIdFromPath'. Either include it or remove the dependency array                                    react-hooks/exhaustive-deps
+  Line 214:6:   React Hook useEffect has a missing dependency: 'updateShift'. Either include it or remove the dependency array                                              react-hooks/exhaustive-deps
+  Line 230:6:   React Hook useEffect has a missing dependency: 'updateShift'. Either include it or remove the dependency array                                              react-hooks/exhaustive-deps
+  Line 265:6:   React Hook useEffect has missing dependencies: 'fetchDevices', 'fetchMachineGroups', and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 777:9:   'date' is assigned a value but never used                                                                                                                   no-unused-vars
+  Line 884:12:  'getAverageMachineData' is already defined                                                                                                                  no-redeclare
+  Line 917:12:  'getMachineNameById' is defined but never used                                                                                                              no-unused-vars
+
+src\app\Pages\Oee\oee.js
+  Line 3:10:    'useNavigate' is defined but never used                                                                                                                     no-unused-vars
+  Line 7:3:     'telemetrylatestdata' is defined but never used                                                                                                             no-unused-vars
+  Line 8:3:     'getCustomerName' is defined but never used                                                                                                                 no-unused-vars
+  Line 10:10:   'getOperatorDetails' is defined but never used                                                                                                              no-unused-vars
+  Line 12:10:   'FaRegClock' is defined but never used                                                                                                                      no-unused-vars
+  Line 12:22:   'FaRegCalendarAlt' is defined but never used                                                                                                                no-unused-vars
+  Line 25:10:   'deviceNameIdJson' is assigned a value but never used                                                                                                       no-unused-vars
+  Line 30:10:   'countdown' is assigned a value but never used                                                                                                              no-unused-vars
+  Line 137:6:   React Hook useEffect has a missing dependency: 'getCustomerIdFromPath'. Either include it or remove the dependency array                                    react-hooks/exhaustive-deps
+  Line 209:6:   React Hook useEffect has a missing dependency: 'updateShift'. Either include it or remove the dependency array                                              react-hooks/exhaustive-deps
+  Line 225:6:   React Hook useEffect has a missing dependency: 'updateShift'. Either include it or remove the dependency array                                              react-hooks/exhaustive-deps
+  Line 260:6:   React Hook useEffect has missing dependencies: 'fetchDevices', 'fetchMachineGroups', and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 591:22:  Function declared in a loop contains unsafe references to variable(s) 'LAST_WEEK_FROM_EPOCH', 'LAST_WEEK_TO_EPOCH'                                          no-loop-func
+  Line 687:9:   'date' is assigned a value but never used                                                                                                                   no-unused-vars
+
+src\app\Pages\Onepage-Dashboard\OnePageDashboard.js
+  Line 31:28:   'setSelectedDevice' is assigned a value but never used                                                                                                                        no-unused-vars
+  Line 73:12:   'dashboardData' is assigned a value but never used                                                                                                                            no-unused-vars
+  Line 527:8:   React Hook useCallback has missing dependencies: 'deviceNameID', 'getDeviceObjectsForMachines', and 'getLatestDataPoint'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 657:8:   React Hook useCallback has an unnecessary dependency: 'devices'. Either exclude it or remove the dependency array                                                             react-hooks/exhaustive-deps
+  Line 756:11:  'deviceOptions' is assigned a value but never used                                                                                                                            no-unused-vars
+
+src\app\Pages\Operator-Performance-Dashboard\OperatorPerformanceDashboard.js
+  Line 55:9:    'availableMachines' is assigned a value but never used                                                          no-unused-vars
+  Line 141:8:   React Hook useCallback has an unnecessary dependency: 'tick'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 224:11:  'statusDistribution' is assigned a value but never used                                                         no-unused-vars
+  Line 605:8:   React Hook useCallback has an unnecessary dependency: 'tick'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Operator\operator.js
+  Line 9:86:     'getCustomerUsers' is defined but never used                                                                                                                                                                                                                                                     no-unused-vars
+  Line 30:10:    'ROLE_OPERATOR' is defined but never used                                                                                                                                                                                                                                                        no-unused-vars
+  Line 31:10:    'getOperatorDetails' is defined but never used                                                                                                                                                                                                                                                   no-unused-vars
+  Line 43:12:    'deviceThresholds' is assigned a value but never used                                                                                                                                                                                                                                            no-unused-vars
+  Line 55:12:    'shiftOptions' is assigned a value but never used                                                                                                                                                                                                                                                no-unused-vars
+  Line 59:12:    'epochRange' is assigned a value but never used                                                                                                                                                                                                                                                  no-unused-vars
+  Line 60:12:    'loading' is assigned a value but never used                                                                                                                                                                                                                                                     no-unused-vars
+  Line 61:12:    'isLocked' is assigned a value but never used                                                                                                                                                                                                                                                    no-unused-vars
+  Line 61:22:    'setIsLocked' is assigned a value but never used                                                                                                                                                                                                                                                 no-unused-vars
+  Line 85:12:    'openBlueCardSuccess' is assigned a value but never used                                                                                                                                                                                                                                         no-unused-vars
+  Line 89:25:    'setRouteCardNo' is assigned a value but never used                                                                                                                                                                                                                                              no-unused-vars
+  Line 97:11:    'isValidRouteCard' is assigned a value but never used                                                                                                                                                                                                                                            no-unused-vars
+  Line 610:12:   'firstMachineActive' is assigned a value but never used                                                                                                                                                                                                                                          no-unused-vars
+  Line 610:32:   'setFirstMachineActive' is assigned a value but never used                                                                                                                                                                                                                                       no-unused-vars
+  Line 638:23:   'startTime' is assigned a value but never used                                                                                                                                                                                                                                                   no-unused-vars
+  Line 667:8:    React Hook useEffect has missing dependencies: 'deviceNameIdJson', 'fetchDevices', and 'getCustomerId'. Either include them or remove the dependency array                                                                                                                                       react-hooks/exhaustive-deps
+  Line 709:8:    React Hook useEffect has missing dependencies: 'deviceNameIdJson' and 'isGplastCondition'. Either include them or remove the dependency array                                                                                                                                                    react-hooks/exhaustive-deps
+  Line 774:8:    React Hook useEffect has a missing dependency: 'getCustomerId'. Either include it or remove the dependency array                                                                                                                                                                                 react-hooks/exhaustive-deps
+  Line 776:12:   'idleStartTime' is assigned a value but never used                                                                                                                                                                                                                                               no-unused-vars
+  Line 776:27:   'setIdleStartTime' is assigned a value but never used                                                                                                                                                                                                                                            no-unused-vars
+  Line 801:14:   'parseShifts' is defined but never used                                                                                                                                                                                                                                                          no-unused-vars
+  Line 1064:8:   React Hook useEffect has missing dependencies: 'fetchTelemetry', 'getCustomerId', and 'shifts'. Either include them or remove the dependency array                                                                                                                                               react-hooks/exhaustive-deps
+  Line 1069:41:  Expected '!==' and instead saw '!='                                                                                                                                                                                                                                                              eqeqeq
+  Line 1329:8:   React Hook useEffect has missing dependencies: 'fetchTelemetry', 'getCustomerId', and 'shifts'. Either include them or remove the dependency array                                                                                                                                               react-hooks/exhaustive-deps
+  Line 1356:28:  Function declared in a loop contains unsafe references to variable(s) 'currentDate', 'currentDate'                                                                                                                                                                                               no-loop-func
+  Line 1442:8:   React Hook useEffect has missing dependencies: 'prevLiveComp' and 'telemetry.liveComponentTs'. Either include them or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setPrevLiveComp' needs the current value of 'telemetry.liveComponentTs'  react-hooks/exhaustive-deps
+  Line 1507:11:  'getEpochFromShift2' is assigned a value but never used                                                                                                                                                                                                                                          no-unused-vars
+  Line 1559:8:   React Hook useEffect has a missing dependency: 'fetchDevices'. Either include it or remove the dependency array                                                                                                                                                                                  react-hooks/exhaustive-deps
+  Line 1599:8:   React Hook useEffect has a missing dependency: 'prevLiveComp'. Either include it or remove the dependency array                                                                                                                                                                                  react-hooks/exhaustive-deps
+  Line 1643:63:  Expected '===' and instead saw '=='                                                                                                                                                                                                                                                              eqeqeq
+  Line 1683:11:  'buildPlanLabel' is assigned a value but never used                                                                                                                                                                                                                                              no-unused-vars
+  Line 1719:11:  'buildPlanCombinedLabel' is assigned a value but never used                                                                                                                                                                                                                                      no-unused-vars
+  Line 1953:11:  'formatReason' is assigned a value but never used                                                                                                                                                                                                                                                no-unused-vars
+  Line 2192:19:  'isLiveShift' is assigned a value but never used                                                                                                                                                                                                                                                 no-unused-vars
+  Line 2283:15:  'deviceId' is assigned a value but never used                                                                                                                                                                                                                                                    no-unused-vars
+  Line 2336:8:   React Hook useEffect has a missing dependency: 'getCustomerId'. Either include it or remove the dependency array                                                                                                                                                                                 react-hooks/exhaustive-deps
+  Line 2378:8:   React Hook useEffect has missing dependencies: 'customerId1' and 'selectedMachine'. Either include them or remove the dependency array                                                                                                                                                           react-hooks/exhaustive-deps
+  Line 2553:88:  Expected '!==' and instead saw '!='                                                                                                                                                                                                                                                              eqeqeq
+  Line 2560:11:  'existingRows' is assigned a value but never used                                                                                                                                                                                                                                                no-unused-vars
+
+src\app\Pages\Operatordetails\operatordeatil.js
+  Line 25:9:     'params' is assigned a value but never used                                                                                                   no-unused-vars
+  Line 37:10:    'utilizationData' is assigned a value but never used                                                                                          no-unused-vars
+  Line 39:10:    'formattedUtilization' is assigned a value but never used                                                                                     no-unused-vars
+  Line 41:10:    'Devicename' is assigned a value but never used                                                                                               no-unused-vars
+  Line 48:10:    'operatorsByDevice' is assigned a value but never used                                                                                        no-unused-vars
+  Line 48:29:    'setOperatorsByDevice' is assigned a value but never used                                                                                     no-unused-vars
+  Line 51:10:    'loading' is assigned a value but never used                                                                                                  no-unused-vars
+  Line 58:10:    'operatorselected' is assigned a value but never used                                                                                         no-unused-vars
+  Line 59:10:    'epochRange' is assigned a value but never used                                                                                               no-unused-vars
+  Line 61:9:     'customDaySelectRef' is assigned a value but never used                                                                                       no-unused-vars
+  Line 63:10:    'deviceThresholds' is assigned a value but never used                                                                                         no-unused-vars
+  Line 66:10:    'componentselected' is assigned a value but never used                                                                                        no-unused-vars
+  Line 70:10:    'reasonselected' is assigned a value but never used                                                                                           no-unused-vars
+  Line 70:26:    'setselectedreason' is assigned a value but never used                                                                                        no-unused-vars
+  Line 74:10:    'supervisorsByDevice' is assigned a value but never used                                                                                      no-unused-vars
+  Line 74:31:    'setSupervisorByDevice' is assigned a value but never used                                                                                    no-unused-vars
+  Line 79:10:    'operatorName' is assigned a value but never used                                                                                             no-unused-vars
+  Line 139:6:    React Hook useEffect has a missing dependency: 'validateDate'. Either include it or remove the dependency array                               react-hooks/exhaustive-deps
+  Line 150:6:    React Hook useEffect has missing dependencies: 'validateEndTime' and 'validateStartTime'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 186:9:    'handleStartTimeChange' is assigned a value but never used                                                                                    no-unused-vars
+  Line 187:9:    'handleEndTimeChange' is assigned a value but never used                                                                                      no-unused-vars
+  Line 280:9:    'getEpochFromShift1' is assigned a value but never used                                                                                       no-unused-vars
+  Line 383:9:    'validateAndCheckOverlap' is assigned a value but never used                                                                                  no-unused-vars
+  Line 839:9:    'handleFormChange' is assigned a value but never used                                                                                         no-unused-vars
+  Line 840:13:   'name' is assigned a value but never used                                                                                                     no-unused-vars
+  Line 844:13:   'name' is assigned a value but never used                                                                                                     no-unused-vars
+  Line 1444:9:   'getEpochFromShift2' is assigned a value but never used                                                                                       no-unused-vars
+  Line 1560:19:  'runTime' is assigned a value but never used                                                                                                  no-unused-vars
+  Line 1562:19:  'idleTime' is assigned a value but never used                                                                                                 no-unused-vars
+  Line 1564:19:  'disconnectTime' is assigned a value but never used                                                                                           no-unused-vars
+  Line 1566:19:  'alarmTime' is assigned a value but never used                                                                                                no-unused-vars
+  Line 1571:19:  'msToTime' is assigned a value but never used                                                                                                 no-unused-vars
+  Line 1883:6:   React Hook useEffect has a missing dependency: 'customerId'. Either include it or remove the dependency array                                 react-hooks/exhaustive-deps
+  Line 1885:9:   'getiframedata' is assigned a value but never used                                                                                            no-unused-vars
+  Line 1968:6:   React Hook useEffect has a missing dependency: 'fetchAverageUtilizationForAllDevices'. Either include it or remove the dependency array       react-hooks/exhaustive-deps
+  Line 2044:9:   'isOvernight' is assigned a value but never used                                                                                              no-unused-vars
+  Line 2328:9:   'getAllShiftBounds' is assigned a value but never used                                                                                        no-unused-vars
+  Line 2381:45:  Expected '===' and instead saw '=='                                                                                                           eqeqeq
+  Line 2975:9:   'handleAssignModeChange' is assigned a value but never used                                                                                   no-unused-vars
+  Line 2978:9:   'handleFormChange2' is assigned a value but never used                                                                                        no-unused-vars
+  Line 2979:13:  'name' is assigned a value but never used                                                                                                     no-unused-vars
+  Line 3008:11:  'isOvernight' is assigned a value but never used                                                                                              no-unused-vars
+  Line 3036:13:  'shiftStart' is assigned a value but never used                                                                                               no-unused-vars
+  Line 3036:25:  'shiftEnd' is assigned a value but never used                                                                                                 no-unused-vars
+  Line 3047:13:  'endHour' is assigned a value but never used                                                                                                  no-unused-vars
+  Line 3061:9:   'isEndDateBeforeStart' is assigned a value but never used                                                                                     no-unused-vars
+  Line 3276:43:  Expected '!==' and instead saw '!='                                                                                                           eqeqeq
+
+src\app\Pages\Operatorregistration\operatoradd.js
+  Line 13:10:  'convertTo24Hour' is defined but never used              no-unused-vars
+  Line 17:10:  'CustomDaySelect' is defined but never used              no-unused-vars
+  Line 25:10:  'shiftsmodule' is assigned a value but never used        no-unused-vars
+  Line 25:24:  'setShiftsmodule' is assigned a value but never used     no-unused-vars
+  Line 42:10:  'shiftsmode' is assigned a value but never used          no-unused-vars
+  Line 43:9:   'customDaySelectRef' is assigned a value but never used  no-unused-vars
+
+src\app\Pages\Operatorregistration\operatoredit.js
+  Line 13:10:  'convertTo24Hour' is defined but never used              no-unused-vars
+  Line 17:10:  'CustomDaySelect' is defined but never used              no-unused-vars
+  Line 31:24:  'setShiftsmodule' is assigned a value but never used     no-unused-vars
+  Line 32:9:   'customDaySelectRef' is assigned a value but never used  no-unused-vars
+  Line 33:10:  'shiftsmode' is assigned a value but never used          no-unused-vars
+
+src\app\Pages\Operatorregistration\operatorreg.js
+  Line 127:11:  'convertTimes' is assigned a value but never used                                                             no-unused-vars
+  Line 146:11:  'getTotalShiftHours' is assigned a value but never used                                                       no-unused-vars
+  Line 173:7:   React Hook useEffect has a missing dependency: 'getShifts'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\PPW\AIApprovalDialog\AIApprovalDialog.js
+  Line 20:3:  'Chip' is defined but never used  no-unused-vars
+
+src\app\Pages\PPW\ppw.js
+  Line 2:230:  'TextField' is defined but never used                no-unused-vars
+  Line 7:8:    'FileDownloadIcon' is defined but never used         no-unused-vars
+  Line 23:25:  'setSearchQuery' is assigned a value but never used  no-unused-vars
+  Line 90:11:  'handleReject' is assigned a value but never used    no-unused-vars
+
+src\app\Pages\Processgroup\processgroup.js
+  Line 5:8:    'EditIcon' is defined but never used                                                                                 no-unused-vars
+  Line 31:9:   'handleOpenEditDialog' is assigned a value but never used                                                            no-unused-vars
+  Line 145:6:  React Hook useEffect has a missing dependency: 'getProcessGroups'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Processgroup\processgroupedit.js
+  Line 11:84:  'watch' is assigned a value but never used  no-unused-vars
+
+src\app\Pages\Productionoverview\productionoverview.js
+  Line 59:11:  'getShiftDateTime' is assigned a value but never used                                                            no-unused-vars
+  Line 270:8:  React Hook useEffect has a missing dependency: 'handleSubmit'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\QualityBoard\qualityboard.js
+  Line 16:18:     'DialogTitle' is defined but never used                                                                                              no-unused-vars
+  Line 18:24:     'DowntimeaddDelete' is defined but never used                                                                                        no-unused-vars
+  Line 18:43:     'Deviceattributeget' is defined but never used                                                                                       no-unused-vars
+  Line 18:63:     'Downtimeadd2' is defined but never used                                                                                             no-unused-vars
+  Line 18:77:     'DowntimeaddDelete1' is defined but never used                                                                                       no-unused-vars
+  Line 85:12:     'devices' is assigned a value but never used                                                                                         no-unused-vars
+  Line 92:28:     'setSelectedDevice' is assigned a value but never used                                                                               no-unused-vars
+  Line 96:12:     'rejectCount' is assigned a value but never used                                                                                     no-unused-vars
+  Line 96:25:     'setRejectCount' is assigned a value but never used                                                                                  no-unused-vars
+  Line 97:26:     'setRejectReason' is assigned a value but never used                                                                                 no-unused-vars
+  Line 98:12:     'reasonError' is assigned a value but never used                                                                                     no-unused-vars
+  Line 98:25:     'setReasonError' is assigned a value but never used                                                                                  no-unused-vars
+  Line 99:12:     'countError' is assigned a value but never used                                                                                      no-unused-vars
+  Line 99:24:     'setCountError' is assigned a value but never used                                                                                   no-unused-vars
+  Line 100:12:    'countPopup' is assigned a value but never used                                                                                      no-unused-vars
+  Line 100:24:    'setCountPopup' is assigned a value but never used                                                                                   no-unused-vars
+  Line 107:12:    'existingCount' is assigned a value but never used                                                                                   no-unused-vars
+  Line 112:12:    'existingQualityReason' is assigned a value but never used                                                                           no-unused-vars
+  Line 116:12:    'existingQualityRemark' is assigned a value but never used                                                                           no-unused-vars
+  Line 118:12:    'remark' is assigned a value but never used                                                                                          no-unused-vars
+  Line 118:20:    'setRemark' is assigned a value but never used                                                                                       no-unused-vars
+  Line 119:12:    'remarkError' is assigned a value but never used                                                                                     no-unused-vars
+  Line 119:25:    'setRemarkError' is assigned a value but never used                                                                                  no-unused-vars
+  Line 127:12:    'newRejectRows' is assigned a value but never used                                                                                   no-unused-vars
+  Line 127:27:    'setNewRejectRows' is assigned a value but never used                                                                                no-unused-vars
+  Line 183:8:     React Hook useEffect has missing dependencies: 'fetchDevices' and 'fetchShifts'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 404:8:     React Hook useEffect has a missing dependency: 'fetchTelemetryData'. Either include it or remove the dependency array                react-hooks/exhaustive-deps
+  Line 605:15:    'allReasons' is assigned a value but never used                                                                                      no-unused-vars
+  Line 606:15:    'combinedRemark' is assigned a value but never used                                                                                  no-unused-vars
+  Line 900:106:   Expected '===' and instead saw '=='                                                                                                  eqeqeq
+  Line 918:11:    'existingRows' is assigned a value but never used                                                                                    no-unused-vars
+  Line 923:111:   Expected '===' and instead saw '=='                                                                                                  eqeqeq
+  Line 1545:151:  Expected '===' and instead saw '=='                                                                                                  eqeqeq
+
+src\app\Pages\Reasongroup\reasongroup.js
+  Line 5:8:    'EditIcon' is defined but never used                                                                                no-unused-vars
+  Line 38:9:   'handleOpenEditDialog' is assigned a value but never used                                                           no-unused-vars
+  Line 154:6:  React Hook useEffect has a missing dependency: 'getReasonGroups'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Reasonregistration\reasonadd.js
+  Line 12:10:  'convertTo24Hour' is defined but never used                                                                                              no-unused-vars
+  Line 94:6:   React Hook useEffect has a missing dependency: 'fetchReasonGroups'. Either include it or remove the dependency array                     react-hooks/exhaustive-deps
+  Line 121:6:  React Hook useEffect has missing dependencies: 'customerId' and 'fetchReasonGroups'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Reasonregistration\reasonedit.js
+  Line 12:10:  'convertTo24Hour' is defined but never used                                                                           no-unused-vars
+  Line 32:9:   'memoizedDatasource' is assigned a value but never used                                                               no-unused-vars
+  Line 84:6:   React Hook useEffect has a missing dependency: 'fetchReasonGroups'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Reasonregistration\reasonreg.js
+  Line 98:8:  React Hook useEffect has missing dependencies: 'fetchReasonGroups' and 'getReasons'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Reports\report.js
+  Line 25:156:   'getReportMachineList' is defined but never used                                                               no-unused-vars
+  Line 27:8:     'classNames' is defined but never used                                                                         no-unused-vars
+  Line 63:5:     'deviceNameID' is assigned a value but never used                                                              no-unused-vars
+  Line 367:9:    'handleOperatorChange' is assigned a value but never used                                                      no-unused-vars
+  Line 421:6:    React Hook useEffect has a missing dependency: 'customerId'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 1595:25:  'globalIndex' is assigned a value but never used                                                               no-unused-vars
+
+src\app\Pages\Settings\settings.js
+  Line 50:12:  'allDevices' is assigned a value but never used                                                               no-unused-vars
+  Line 52:12:  'isGplastCustomer' is assigned a value but never used                                                         no-unused-vars
+  Line 65:4:   React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Shiftregistration\shiftadd.js
+  Line 8:10:   'MobileTimePicker' is defined but never used            no-unused-vars
+  Line 36:3:   'InputLabel' is defined but never used                  no-unused-vars
+  Line 37:3:   'Select' is defined but never used                      no-unused-vars
+  Line 38:3:   'MenuItem' is defined but never used                    no-unused-vars
+  Line 97:10:  'parentOpen' is assigned a value but never used         no-unused-vars
+  Line 97:22:  'setParentOpen' is assigned a value but never used      no-unused-vars
+  Line 392:9:  'validateStartTime' is assigned a value but never used  no-unused-vars
+
+src\app\Pages\Shiftregistration\shiftedit.js
+  Line 9:10:   'MobileTimePicker' is defined but never used            no-unused-vars
+  Line 15:27:  'convertTo24Hour' is defined but never used             no-unused-vars
+  Line 35:3:   'Select' is defined but never used                      no-unused-vars
+  Line 36:3:   'MenuItem' is defined but never used                    no-unused-vars
+  Line 47:7:   'parseTime' is assigned a value but never used          no-unused-vars
+  Line 570:9:  'validateStartTime' is assigned a value but never used  no-unused-vars
+
+src\app\Pages\Shiftregistration\shiftreg.js
+  Line 2:39:   'DialogActions' is defined but never used                                                                     no-unused-vars
+  Line 2:82:   'Button' is defined but never used                                                                            no-unused-vars
+  Line 184:8:  React Hook useEffect has a missing dependency: 'getShifts'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Pages\Userregistration\useradd.js
+  Line 12:10:   'convertTo24Hour' is defined but never used                                                                                             no-unused-vars
+  Line 14:10:   'Box' is defined but never used                                                                                                         no-unused-vars
+  Line 14:25:   'Chip' is defined but never used                                                                                                        no-unused-vars
+  Line 20:69:   'ROLES' is defined but never used                                                                                                       no-unused-vars
+  Line 21:10:   'useUserRole' is defined but never used                                                                                                 no-unused-vars
+  Line 29:10:   'shiftsmodule' is assigned a value but never used                                                                                       no-unused-vars
+  Line 29:24:   'setShiftsmodule' is assigned a value but never used                                                                                    no-unused-vars
+  Line 46:10:   'shiftsmode' is assigned a value but never used                                                                                         no-unused-vars
+  Line 46:22:   'setShiftsmode' is assigned a value but never used                                                                                      no-unused-vars
+  Line 223:6:   React Hook useMemo has a missing dependency: 'qualityValues'. Either include it or remove the dependency array                          react-hooks/exhaustive-deps
+  Line 235:6:   React Hook useEffect has missing dependencies: 'setValue' and 'shiftForm.pagelist'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 276:6:   React Hook useEffect has missing dependencies: 'setValue' and 'trigger'. Either include them or remove the dependency array             react-hooks/exhaustive-deps
+  Line 458:33:  Expected '!==' and instead saw '!='                                                                                                     eqeqeq
+
+src\app\Pages\Userregistration\useredit.js
+  Line 13:10:   'convertTo24Hour' is defined but never used                                                                                             no-unused-vars
+  Line 20:69:   'ROLES' is defined but never used                                                                                                       no-unused-vars
+  Line 32:24:   'setShiftsmodule' is assigned a value but never used                                                                                    no-unused-vars
+  Line 34:10:   'shiftsmode' is assigned a value but never used                                                                                         no-unused-vars
+  Line 34:22:   'setShiftsmode' is assigned a value but never used                                                                                      no-unused-vars
+  Line 41:11:   'userRole' is assigned a value but never used                                                                                           no-unused-vars
+  Line 41:21:   'isOperator' is assigned a value but never used                                                                                         no-unused-vars
+  Line 41:33:   'isSupervisor' is assigned a value but never used                                                                                       no-unused-vars
+  Line 41:47:   'isMaintenance' is assigned a value but never used                                                                                      no-unused-vars
+  Line 41:62:   'isQuality' is assigned a value but never used                                                                                          no-unused-vars
+  Line 299:6:   React Hook useMemo has a missing dependency: 'qualityValues'. Either include it or remove the dependency array                          react-hooks/exhaustive-deps
+  Line 312:6:   React Hook useEffect has missing dependencies: 'setValue' and 'shiftForm.pagelist'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 354:6:   React Hook useEffect has missing dependencies: 'setValue' and 'trigger'. Either include them or remove the dependency array             react-hooks/exhaustive-deps
+  Line 554:33:  Expected '!==' and instead saw '!='                                                                                                     eqeqeq
+
+src\app\Pages\Userregistration\userreg.js
+  Line 13:29:   'ROLE_HIERARCHY' is defined but never used                                                                                         no-unused-vars
+  Line 32:13:   'userRole' is assigned a value but never used                                                                                      no-unused-vars
+  Line 32:23:   'isOperator' is assigned a value but never used                                                                                    no-unused-vars
+  Line 32:35:   'isSupervisor' is assigned a value but never used                                                                                  no-unused-vars
+  Line 32:49:   'isMaintenance' is assigned a value but never used                                                                                 no-unused-vars
+  Line 32:64:   'isQuality' is assigned a value but never used                                                                                     no-unused-vars
+  Line 32:75:   'isManager' is assigned a value but never used                                                                                     no-unused-vars
+  Line 32:86:   'isAdmin' is assigned a value but never used                                                                                       no-unused-vars
+  Line 137:54:  React Hook useEffect has missing dependencies: 'getShifts' and 'getUsersList'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 204:60:  Expected '!==' and instead saw '!='                                                                                                eqeqeq
+  Line 226:68:  Expected '!==' and instead saw '!='                                                                                                eqeqeq
+
+src\app\Services\app\masterservice.js
+  Line 149:15:  'cleanedCustomerId' is assigned a value but never used  no-unused-vars
+
+src\app\Services\app\reportservice.js
+  Line 125:11:  'baseUrl' is assigned a value but never used  no-unused-vars
+
+src\app\Shared\Pages\dynamicSlidingKeyboard\dynamicSlidingKeyboard.js
+  Line 9:10:   'inputValue' is assigned a value but never used                                                                                            no-unused-vars
+  Line 131:6:  React Hook useEffect has missing dependencies: 'handleClickOutside' and 'handleFocus'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Shared\Pages\fiscalweek\fiscalweek.js
+  Line 31:6:  React Hook useEffect has a missing dependency: 'getWeek'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Shared\constants\ComponentRegistry.js
+  Line 1:8:   'Company' is defined but never used       no-unused-vars
+  Line 12:8:  'NewAnalytics' is defined but never used  no-unused-vars
+
+src\app\Shared\context\UserDetailsContext.js
+  Line 18:11:  'env' is assigned a value but never used  no-unused-vars
+
+src\app\Shared\hooks\useMachineGroups.js
+  Line 143:6:  React Hook useEffect has a missing dependency: 'initialize'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\app\Shared\utils\oeeCalculations.js
+  Line 3:10:  'json' is defined but never used  no-unused-vars
+
+src\routes.js
+  Line 3:27:   'Router' is defined but never used                 no-unused-vars
+  Line 7:8:    'Andondashboard' is defined but never used         no-unused-vars
+  Line 8:8:    'Shift' is defined but never used                  no-unused-vars
+  Line 9:8:    'MachineCard' is defined but never used            no-unused-vars
+  Line 10:8:   'ShiftRegistration' is defined but never used      no-unused-vars
+  Line 11:8:   'ComponentRegistration' is defined but never used  no-unused-vars
+  Line 12:8:   'OperatorRegistration' is defined but never used   no-unused-vars
+  Line 13:8:   'ReasonRegistration' is defined but never used     no-unused-vars
+  Line 14:8:   'MachineList' is defined but never used            no-unused-vars
+  Line 15:8:   'Company' is defined but never used                no-unused-vars
+  Line 16:8:   'CurrentShift' is defined but never used           no-unused-vars
+  Line 17:8:   'Analytics' is defined but never used              no-unused-vars
+  Line 18:8:   'Allocation' is defined but never used             no-unused-vars
+  Line 19:8:   'OperatorDetails' is defined but never used        no-unused-vars
+  Line 20:8:   'GrafanaEmbed' is defined but never used           no-unused-vars
+  Line 21:8:   'MachineReport' is defined but never used          no-unused-vars
+  Line 22:8:   'MachineUtilization' is defined but never used     no-unused-vars
+  Line 24:8:   'OeeDashboard' is defined but never used           no-unused-vars
+  Line 26:8:   'NewAnalytics' is defined but never used           no-unused-vars
+  Line 27:10:  'Box' is defined but never used                    no-unused-vars
+  Line 28:8:   'NewDeviceOee' is defined but never used           no-unused-vars
+  Line 29:8:   'UserRegistration' is defined but never used       no-unused-vars
+  Line 41:8:   'MachineGroup' is defined but never used           no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+File sizes after gzip:
+
+  922.48 kB  build\static\js\main.f992fce8.js
+  138.16 kB  build\static\js\29.78cfab9b.chunk.js
+  54.61 kB   build\static\css\main.ecd26386.css
+  1.95 kB    build\static\js\606.73bf9c33.chunk.js
+
+The bundle size is significantly larger than recommended.
+Consider reducing it with code splitting: https://goo.gl/9VhYWB
+You can also analyze the project dependencies: https://goo.gl/LeUzfb
+
+The project was built assuming it is hosted at /.
+You can control this with the homepage field in your package.json.
+
+The build folder is ready to be deployed.
+You may serve it with a static server:
+
+  npm install -g serve
+  serve -s build
+
+Find out more about deployment here:
+
+  https://cra.link/deployment
+
+BUILD_EXIT=0
+BUILD_DONE_MARKER

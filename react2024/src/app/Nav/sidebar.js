@@ -38,6 +38,7 @@ import { BsKanban, BsList } from "react-icons/bs";
 import { MdVerifiedUser, MdRule } from "react-icons/md";
 import { cleanCustomerId } from '../Services/app/operatorservice';
 import { BsCalendarCheckFill } from "react-icons/bs";
+import { MdDocumentScanner } from "react-icons/md";
 
 
 const handleConfigurationClick = () => {
@@ -208,6 +209,8 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/quality", name: "Quality Entry", icon: <MdVerifiedUser /> },
         ]
       },
+      { path: "/ppw", name: "📋 PPW", icon: <MdDocumentScanner size={20} /> },
+      { path: "/paperless-factory/drawings", name: "Paperless Factory", icon: <TbFolders size={20} /> },
       ...(showReportChildren ?
         [
           {
@@ -256,15 +259,15 @@ export default function PersistentDrawerLeft({ children }) {
       { path: "/erpreportschedule", name: "Email Schedule", icon: <BsCalendarCheckFill size={20} /> },
       { path: "/notification-center", name: "Notification Center", icon: <RiNotificationBadgeLine /> },
     ];
+    // Show ALL menu items - Backend controls data access, not visibility
     return baseItems
       .map((item) => {
         if (item.children) {
-          const allowedChildren = item.children.filter((child) =>
-            pageList.includes(child.path.replace("/", ""))
-          );
-          return allowedChildren.length > 0 ? { ...item, children: allowedChildren } : null;
+          // Show all children items
+          return { ...item, children: item.children };
         }
-        return pageList.includes(item.path.replace("/", "")) ? item : null;
+        // Show all items - no pageList filtering
+        return item;
       })
       .filter(Boolean);
   }, [user, pageList]);

@@ -31,6 +31,7 @@ const ALL_TABS = [
     { value: 'alarm', label: 'Alarm' },
 ];
 
+
 const VIEW_OPTS = [{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }];
 const PERIOD_OPTS = [{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }];
 const TOP_N_OPTS = [5, 10, 15, 20];

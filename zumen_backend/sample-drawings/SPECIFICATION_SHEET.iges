@@ -1,0 +1,35 @@
+                                                                        S      1
+This is a sample IGES (Initial Graphics Exchange Specification) file           S      2
+Used for technical drawings and CAD data interchange                           S      3
+                                                                        S      4
+     1       SPECIFICATION_SHEET.iges                                          G      1
+     2       Generated: 2026-05-30                                             G      2
+     3       System: PPW Drawing Management                                    G      3
+     4       Version: 1.0                                                      G      4
+                                                                        G      5
+SPECIFICATION SHEET DATA:
+Part Name: Flange Component
+Material: Stainless Steel 316
+Tolerance Class: IT6
+Surface Finish: Ra 1.6
+
+Technical Specifications Table:
+Length: 100mm ± 0.5mm
+Width: 50mm ± 0.3mm
+Height: 25mm ± 0.2mm
+Weight: 250g
+
+Quality Requirements:
+- 100% dimensional verification
+- Surface inspection required
+- Pressure test at 50 bar
+
+Drawing Number: FA-SPEC-001
+Revision: A
+Date: 2026-05-30
+Status: APPROVED
+
+S      1G      0D      0                                                 1D      1
+S      2G      0D      0                                                 2D      1
+S      3G      0D      0                                                 3D      1
+S      4G      0D      0                                                 4D      1

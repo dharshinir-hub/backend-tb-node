@@ -6,9 +6,12 @@ export const getReportShifts = async (customerName) => {
     const url = `${baseUrl}/report/shift-list/${customerName}`;
     const response = await axiosInstance.get(url);
     console.log('Report Shift response', response.data);
-    return response.data;
+    // Ensure we always return an array
+    const data = response.data;
+    return Array.isArray(data) ? data : (data?.data || []);
   } catch (error) {
     console.error('Error during report shift data:', error);
+    return [];
   }
 }
 
@@ -21,6 +24,7 @@ export const getReportMachineList = async (customerName) => {
     return response.data;
   } catch (error) {
     console.error('Error during report machine list data:', error);
+    return { data: [] };
   }
 }
 
@@ -119,7 +123,7 @@ export const getOperatorReport = async (machine, operators, shiftNo, fromTime, t
 export const getSequenceReport = async (machine, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
   try {
     const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
-    const url = `${baseUrl}/api/v1/sequence-report/${encodeURIComponent(machine)}/${encodeURIComponent(shiftNo)}/${fromTime}/${toTime}/${page + 1}/${limit}`;
+    const url = `http://localhost:6006/api/v1/sequence-report/${encodeURIComponent(machine)}/${encodeURIComponent(shiftNo)}/${fromTime}/${toTime}/${page + 1}/${limit}`;
     const response = await axiosInstance.get(url);
     console.log('Sequence Report response', response.data);
     return response.data;
@@ -163,6 +167,7 @@ export const getReportGenerate = async (date) => {
     return response.data;
   } catch (error) {
     console.error('Error during report machine list data:', error);
+    return { data: [] };
   }
 }
 

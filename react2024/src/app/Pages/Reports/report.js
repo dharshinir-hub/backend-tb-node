@@ -389,10 +389,13 @@ export default function MachineReport() {
       try {
         const customerName = localStorage.getItem('customerTitle');
         const shiftResult = await getReportShifts(customerName);
-        const shiftList = shiftResult || [];
+
+        // Ensure shiftList is always an array
+        const shiftList = Array.isArray(shiftResult) ? shiftResult : (shiftResult?.data || []);
         setShifts(shiftList);
-        const selectedShifts = shiftList.map(s => String(s.shift_no));
-        if (shiftList.length > 0) setSelectedShift([selectedShifts[0]]);
+
+        const selectedShifts = Array.isArray(shiftList) ? shiftList.map(s => String(s.shift_no)) : [];
+        if (selectedShifts.length > 0) setSelectedShift([selectedShifts[0]]);
 
         setErrorMsg(prev => ({
           ...prev,
@@ -409,6 +412,8 @@ export default function MachineReport() {
         setSelectedOperators(opList.map(op => op.name));
       } catch (err) {
         console.error("Error fetching initial data:", err);
+        setShifts([]);
+        setOperators([]);
       }
     };
 
@@ -535,11 +540,12 @@ export default function MachineReport() {
   const handleShiftChange = (event) => {
     const value = event.target.value;
     let finalValue;
+    const shiftsArray = Array.isArray(shifts) ? shifts : [];
     if (value.includes("all")) {
-      if (selectedShift.length === shifts.length) {
+      if (selectedShift.length === shiftsArray.length) {
         finalValue = [];
       } else {
-        finalValue = shifts.map((shift) => String(shift.shift_no));
+        finalValue = shiftsArray.map((shift) => String(shift.shift_no));
       }
     } else {
       finalValue = value;
@@ -934,7 +940,7 @@ export default function MachineReport() {
               onChange={(e) => setSelectedShift([e.target.value])}
               label="Shift"
             >
-              {shifts.map((shift) => (
+              {Array.isArray(shifts) && shifts.map((shift) => (
                 <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
                   {shift.shift_no}
                 </MenuItem>
@@ -953,11 +959,11 @@ export default function MachineReport() {
                   sx={{
                     "&.Mui-checked": { color: "#f47803ff" },
                   }}
-                  checked={selectedShift.length === shifts.length}
+                  checked={Array.isArray(shifts) && selectedShift.length === shifts.length}
                 />
                 <ListItemText primary="All" />
               </MenuItem>
-              {shifts.map((shift) => (
+              {Array.isArray(shifts) && shifts.map((shift) => (
                 <MenuItem key={shift.shift_no} value={String(shift.shift_no)}>
                   <Checkbox
                     sx={{

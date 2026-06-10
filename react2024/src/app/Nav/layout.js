@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Outlet } from 'react-router-dom';
 import Sidebar from './sidebar'; // Ensure correct import path
 
 const Layout = () => {
@@ -49,12 +49,17 @@ const Layout = () => {
     location.pathname === '/erpjson' ||
     location.pathname === '/erpreportschedule' ||
     location.pathname === '/erpreport' ||
-    location.pathname === '/operator-performance';
+    location.pathname === '/operator-performance' ||
+    location.pathname === '/ppw' ||
+    location.pathname.startsWith('/paperless-factory');
 
   return (
-    <>
-      {showSidebar && <Sidebar />} {/* Conditionally render the Sidebar */}
-    </>
+    <div style={{ display: 'flex' }}>
+      {showSidebar && <Sidebar />}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        <Outlet />
+      </div>
+    </div>
   );
 };
 

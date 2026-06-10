@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+**/node_modules/
+
+# production build output
+build/
+dist/
+react2024/build/
+
+# logs / local tooling output
+*.log
+npm-debug.log*
+
+# large media / working analysis artifacts (not part of the app)
+reference video/
+analysis/
+
+# OS files
+.DS_Store
+Thumbs.db
