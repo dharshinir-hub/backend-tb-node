@@ -23,6 +23,17 @@ import {
 import { telemetrykeydata } from '../../Services/app/operatorservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
 import { useNavigate } from 'react-router-dom';
+import {
+    timeToSeconds,
+    getShiftTimes as getShiftTimesUtil,
+    filterByShift,
+    getLatestDataPoint as getLatestDataPointUtil,
+    getBreakWindowsForShift,
+    computeBreakDurations,
+    makeShiftExclusionChecker,
+    parseManualHolidayAttr,
+    buildMergedHolidaySetFromAttr,
+} from '../../Shared/utils/holidaycalculation';
 
 export default function OnePageDashboard() {
     const customerId = localStorage.getItem('CustomerID');
@@ -37,8 +48,19 @@ export default function OnePageDashboard() {
     const [mainGrafanaUrl, setMainGrafanaUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isBeforeFirstShift, setIsBeforeFirstShift] = useState(false);
-    const [holidayExcluded, setHolidayExcluded] = useState(true); // true = Holiday Excluded (ON), false = Holiday Included (OFF)
     const isInitialLoad = useRef(true);
+
+    const manualOverridesRef = useRef(parseManualHolidayAttr(null));
+    const fetchManualOverrides = useCallback(async () => {
+        if (!customerId) return manualOverridesRef.current;
+        try {
+            const res = await customerbasedshift(customerId, 'manual_holiday');
+            manualOverridesRef.current = parseManualHolidayAttr(res[0]?.value);
+        } catch {
+            /* keep last known overrides on failure */
+        }
+        return manualOverridesRef.current;
+    }, [customerId]);
     const {
         // devices,
         deviceNameID,
@@ -72,7 +94,6 @@ export default function OnePageDashboard() {
         return () => window.removeEventListener("message", handler);
     }, [navigate]);
 
-    // Consolidated state for all data
     const [dashboardData, setDashboardData] = useState({
         metrics: { oee: 0, availability: 0, performance: 0 },
         durations: {
@@ -96,8 +117,6 @@ export default function OnePageDashboard() {
         machinesWithZeroRunDuration: []
     });
 
-
-    // Memoized current shift calculation
     const getCurrentShift = useCallback((shifts) => {
         if (!Array.isArray(shifts) || shifts.length === 0) return "allshift";
         const now = new Date();
@@ -117,45 +136,12 @@ export default function OnePageDashboard() {
         return "allshift";
     }, []);
 
-    const timeToSeconds = (timeStr = "00:00:00") => {
-        const [h = 0, m = 0, s = 0] = timeStr.split(":").map(Number);
-        return h * 3600 + m * 60 + s;
-    };
+    const getShiftTimes = useCallback(
+        (shiftList, shiftNo, date) => getShiftTimesUtil(shiftList, shiftNo, date),
+        []
+    );    // Memoized shift times calculation (delegates to shared holiday util)
 
 
-    // Memoized shift times calculation
-    const getShiftTimes = useCallback((shifts, shiftNo, date) => {
-        if (!Array.isArray(shifts) || shifts.length === 0 || !date) {
-            return { from: null, to: null };
-        }
-
-        const selectedDateStr = dayjs(date).format("YYYY-MM-DD");
-        const getDateByDayOffset = (baseDate, dayValue) => {
-            const offset = Number(dayValue) - 1;
-            return dayjs(baseDate).add(offset, "day").format("YYYY-MM-DD");
-        };
-
-        if (shiftNo === "allshift" || shiftNo === "all shift") {
-            const sortedShifts = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no));
-            const firstShift = sortedShifts[0];
-            const lastShift = sortedShifts[sortedShifts.length - 1];
-            if (!firstShift || !lastShift) return { from: null, to: null };
-
-            const fromStr = `${getDateByDayOffset(selectedDateStr, firstShift.start_day)}T${firstShift.start_time}`;
-            const toStr = `${getDateByDayOffset(selectedDateStr, lastShift.end_day)}T${lastShift.end_time}`;
-            return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
-        }
-
-        const shiftData = shifts.find((s) => String(s.shift_no) === String(shiftNo));
-        if (!shiftData) return { from: null, to: null };
-
-        const { start_time, end_time, start_day, end_day } = shiftData;
-        const fromStr = `${getDateByDayOffset(selectedDateStr, start_day)}T${start_time}`;
-        const toStr = `${getDateByDayOffset(selectedDateStr, end_day)}T${end_time}`;
-        return { from: new Date(fromStr).getTime(), to: new Date(toStr).getTime() };
-    }, []);
-
-    // Helper function to get all shift time ranges
     const getShiftTimeRanges = useCallback((shifts, shiftNo, date) => {
         if (shiftNo === "allshift") {
             return shifts.map(shift => ({
@@ -169,7 +155,6 @@ export default function OnePageDashboard() {
         }];
     }, [getShiftTimes]);
 
-    // Memoized fetch functions
     const fetchShifts = useCallback(async () => {
         if (!customerId) return;
 
@@ -195,7 +180,6 @@ export default function OnePageDashboard() {
         }
     }, [customerId]);
 
-    // Generic telemetry data fetcher
     const fetchTelemetryData = useCallback(async (entityId, entityType, keys, from, to) => {
         try {
             return await telemetrykeydata(entityId, entityType, keys, from, to);
@@ -205,15 +189,8 @@ export default function OnePageDashboard() {
         }
     }, []);
 
-    // Helper to get latest data point
-    const getLatestDataPoint = useCallback((dataArray) => {
-        if (!Array.isArray(dataArray) || dataArray.length === 0) return null;
-        return dataArray.reduce((latest, point) =>
-            new Date(point.ts) > new Date(latest.ts) ? point : latest
-        );
-    }, []);
+    const getLatestDataPoint = useCallback((dataArray) => getLatestDataPointUtil(dataArray), []);
 
-    // Consolidated data fetching
     const fetchAllDashboardData = useCallback(async () => {
         if (!shifts.length || selectedShift === null || !customerId || !startDate || !endDate) return;
 
@@ -240,8 +217,6 @@ export default function OnePageDashboard() {
             }
         }
 
-        // Overall range: cover ALL shifts for the full date range so holiday detection has all-shift data.
-        // filterByShift() is used everywhere, so the extra data won't bleed into single-shift calculations.
         const overallFrom = allRangesAllShiftsForFetch.length > 0
             ? allRangesAllShiftsForFetch[0].from
             : allRanges[0].from;
@@ -269,9 +244,7 @@ export default function OnePageDashboard() {
         console.log(deviceNameID, "device name list");
         console.log(selectedMachines, "calling apis for");
 
-        // ONE API call per selected machine covering the full date range (all shifts)
         const machineDataMap = new Map();
-        // Separate map for ALL machines — only total_duration needed for holiday detection
         const allMachineDataMap = new Map();
 
         await Promise.all([
@@ -288,29 +261,8 @@ export default function OnePageDashboard() {
                 })
         ]);
 
-        // Filter telemetry data points to within a single shift window.
-        // shiftTo - 1 ensures the end boundary is exclusive (epochMs - 1).
-        function filterByShift(data, shiftFrom, shiftTo) {
-            if (!data) return null;
-            const result = {};
-            for (const key of Object.keys(data)) {
-                if (Array.isArray(data[key])) {
-                    result[key] = data[key].filter(point => {
-                        const ts = Number(point.ts);
-                        return ts >= shiftFrom && ts <= shiftTo - 1;
-                    });
-                } else {
-                    result[key] = data[key];
-                }
-            }
-            return result;
-        }
-
         const promises = [];
 
-        /* ------------------------------------------------------------------ */
-        /* 1. Metrics Data (OEE, Availability, Performance)                   */
-        /* ------------------------------------------------------------------ */
         promises.push(
             (async () => {
                 const metrics = { oee: 0, availability: 0, performance: 0 };
@@ -365,10 +317,6 @@ export default function OnePageDashboard() {
             })()
         );
 
-
-        /* ------------------------------------------------------------------ */
-        /* 2. Duration Data (Total Run/Idle/Alarm/Disconnect)                 */
-        /* ------------------------------------------------------------------ */
         promises.push(
             (async () => {
                 const totalDurations = {
@@ -396,8 +344,6 @@ export default function OnePageDashboard() {
                         const latestDataPoint = getLatestDataPoint(data?.total_duration);
                         const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
 
-                       
-
                         try {
                             const parsed = JSON.parse(latestDataPoint.value);
                             Object.keys(totalDurations).forEach((key) => {
@@ -420,7 +366,7 @@ export default function OnePageDashboard() {
                             dateData.idleSum += idleDur;
                             dateData.disconnectSum += disconnectDur;
 
-                           
+
                         } catch (err) {
                             console.error(`Error parsing total_duration for ${deviceId}`, err);
                         }
@@ -433,7 +379,8 @@ export default function OnePageDashboard() {
                 }
 
                 // Track per-date run duration for each machine
-                const machineRunByDate = new Map(); // { deviceId-date: runDuration }
+                const machineRunByDate = new Map();      // `${deviceId}-${date}` → secs
+                const machineRunByShiftDate = new Map(); // `${deviceId}-${shiftNo}-${date}` → secs
 
                 for (const deviceId of selectedDeviceIds) {
                     const rawData = machineDataMap.get(deviceId);
@@ -446,23 +393,15 @@ export default function OnePageDashboard() {
                             try {
                                 const parsed = JSON.parse(latestDataPoint.value);
                                 const runDur = parsed.total_run_duration || 0;
-                                const key = `${deviceId}-${shiftDate}`;
-
-                                if (!machineRunByDate.has(key)) {
-                                    machineRunByDate.set(key, 0);
-                                }
-                                machineRunByDate.set(key, machineRunByDate.get(key) + runDur);
-                            } catch (err) {
-                                // Handle parse error
-                            }
+                                const dayKey = `${deviceId}-${shiftDate}`;
+                                const shiftKey = `${deviceId}-${shiftRange.shiftNo}-${shiftDate}`;
+                                machineRunByDate.set(dayKey, (machineRunByDate.get(dayKey) || 0) + runDur);
+                                machineRunByShiftDate.set(shiftKey, (machineRunByShiftDate.get(shiftKey) || 0) + runDur);
+                            } catch (err) { /* ignore */ }
                         }
                     }
                 }
 
-                // ============================================================
-                // CONDITION CHECK: Remove target if run <= 20% AND (alarm/idle/disconnect > 20h)
-                // Holiday detection always uses ALL shifts (full day), regardless of selected shift.
-                // ============================================================
                 const TWENTY_HOURS_SECONDS = 20 * 3600; // 72000 seconds
                 const machinesWithZeroRunDuration = [];
                 const dateRunExceeded = new Map(); // Track machines excluded for specific dates
@@ -529,7 +468,6 @@ export default function OnePageDashboard() {
                 // Step 1b: Calculate TOTAL expected shift time per date using ALL shifts × ALL machines.
                 // For today: only count shifts from the first shift start up to the current shift end
                 // (skip future shifts that haven't started yet) so a partially-elapsed day isn't
-                // incorrectly flagged as a holiday/leave day.
                 const todayDateStr = new Date().toISOString().split('T')[0];
                 const nowMs = Date.now();
 
@@ -556,7 +494,6 @@ export default function OnePageDashboard() {
                     );
                 }
 
-                // Step 2: Sum alarm, idle, disconnect per date across ALL machines (full day)
                 const totalAlarmByDate = new Map();
                 const totalIdleByDate = new Map();
                 const totalDisconnectByDate = new Map();
@@ -588,39 +525,32 @@ export default function OnePageDashboard() {
                 const sortedDates = Array.from(datesToCheck).sort();
 
                 for (const date of sortedDates) {
-                    // Get values for this date
                     const totalRunForDate = totalRunDurationByDate.get(date) || 0;
                     const expectedTimeForDate = expectedShiftTimeByDate.get(date) || 1;
                     const totalAlarm = totalAlarmByDate.get(date) || 0;
                     const totalIdle = totalIdleByDate.get(date) || 0;
                     const totalDisconnect = totalDisconnectByDate.get(date) || 0;
 
-                    // Calculate run percentage
                     const runPercentage = (totalRunForDate / expectedTimeForDate) * 100;
 
-                    // Check conditions
                     const runConditionMet = runPercentage <= 20;
                     const summedAlarmIdleDisconnect = totalAlarm + totalIdle + totalDisconnect;
                     const alarmConditionMet = summedAlarmIdleDisconnect > TWENTY_HOURS_SECONDS;
-                    // Condition met if:
-                    // (a) original rule: run <= 20% AND alarm+idle+disconnect > 20h, OR
-                    // (b) new rule:      both run AND alarm+idle+disconnect are 0/null (no data at all)
+
                     const bothAreZero = totalRunForDate === 0 && summedAlarmIdleDisconnect === 0;
                     const conditionMet = (runConditionMet && alarmConditionMet) || bothAreZero;
 
-                    // Track for table
                     conditionCheckResults.push({
                         Date: date,
                         'Run %': runPercentage.toFixed(2),
-                        'Run Hrs': (totalRunForDate/3600).toFixed(2),
-                        'Alarm Hrs': (totalAlarm/3600).toFixed(2),
-                        'Idle Hrs': (totalIdle/3600).toFixed(2),
-                        'Disc Hrs': (totalDisconnect/3600).toFixed(2),
-                        'Sum Hrs': (summedAlarmIdleDisconnect/3600).toFixed(2),
+                        'Run Hrs': (totalRunForDate / 3600).toFixed(2),
+                        'Alarm Hrs': (totalAlarm / 3600).toFixed(2),
+                        'Idle Hrs': (totalIdle / 3600).toFixed(2),
+                        'Disc Hrs': (totalDisconnect / 3600).toFixed(2),
+                        'Sum Hrs': (summedAlarmIdleDisconnect / 3600).toFixed(2),
                         'Result': conditionMet ? '🔴 EXCLUDED' : '✅ INCLUDED'
                     });
 
-                    // If condition met, add ALL machines to exclusion list for this date
                     if (conditionMet) {
                         datesExcluded.push(date);
                         for (const deviceId of selectedDeviceIds) {
@@ -634,33 +564,107 @@ export default function OnePageDashboard() {
                     }
                 }
 
-                // For backwards compatibility, keep this for machines completely excluded
-                // (empty for now since we're doing per-date exclusion)
                 const fullyExcludedMachines = [];
                 machinesWithZeroRunDuration.push(...fullyExcludedMachines);
 
-                // Merge manually-marked holidays from HolidayList (stored in localStorage)
-                // Must happen BEFORE run-duration and parts calculations so manual dates are fully excluded
-                try {
-                    const manualHolidayKey = `manualHolidays_${customerId}`;
-                    const manualDates = JSON.parse(localStorage.getItem(manualHolidayKey) || '[]');
-                    for (const d of manualDates) {
-                        if (!datesExcluded.includes(d)) datesExcluded.push(d);
-                    }
-                } catch { /* ignore */ }
+                // Merge manually-marked holidays from HolidayList (stored server-side
+                // in the `manual_holiday` customer attribute).
+                const manualOverrides = manualOverridesRef.current;
+                const manualHolidaySet = buildMergedHolidaySetFromAttr(manualOverrides, customerId, selectedShift);
+                for (const d of manualHolidaySet) {
+                    if (!datesExcluded.includes(d)) datesExcluded.push(d);
+                }
 
-                // Compute new_total_run_duration: subtract run duration for excluded dates
+                const perShiftHolMap = manualOverrides.perShiftHol;
+                const perShiftProdMap = manualOverrides.perShiftProd;
+
+                const excludedDatesSet = new Set(datesExcluded);
+
+                const wholeDayProductionSet = manualOverrides.manualProductionDays;
+
+                const isShiftDateExcluded = makeShiftExclusionChecker({
+                    perShiftHol: perShiftHolMap,
+                    perShiftProd: perShiftProdMap,
+                    wholeDayProd: wholeDayProductionSet,
+                    wholeDayHol: excludedDatesSet,
+                });
+
                 let runDurationForExcludedDates = 0;
                 for (const date of datesExcluded) {
+                    // Whole-day manual production override: keep its run duration
+                    // (do not subtract), so it stays counted in new_total_run_duration.
+                    if (wholeDayProductionSet.has(date)) continue;
                     for (const deviceId of selectedDeviceIds) {
-                        const key = `${deviceId}-${date}`;
-                        runDurationForExcludedDates += machineRunByDate.get(key) || 0;
+                        // Subtract whole-day run, but add back any shifts with production override
+                        const dayRun = machineRunByDate.get(`${deviceId}-${date}`) || 0;
+                        let addBack = 0;
+                        for (const s of shifts) {
+                            const sNo = String(s.shift_no);
+                            if (perShiftProdMap.get(sNo)?.has(date)) {
+                                addBack += machineRunByShiftDate.get(`${deviceId}-${sNo}-${date}`) || 0;
+                            }
+                        }
+                        runDurationForExcludedDates += Math.max(0, dayRun - addBack);
+                    }
+                }
+                // Also subtract run for shifts individually marked as holiday (not already in datesExcluded)
+                for (const s of shifts) {
+                    const sNo = String(s.shift_no);
+                    for (const date of (perShiftHolMap.get(sNo) || [])) {
+                        if (excludedDatesSet.has(date)) continue; // already counted above
+                        if (perShiftProdMap.get(sNo)?.has(date)) continue;
+                        for (const deviceId of selectedDeviceIds) {
+                            runDurationForExcludedDates += machineRunByShiftDate.get(`${deviceId}-${sNo}-${date}`) || 0;
+                        }
                     }
                 }
                 const new_total_run_duration = Math.max(0, totalDurations.total_run_duration - runDurationForExcludedDates);
 
-                // Compute new_targetparts and new_totalparts: exclude parts for dates meeting the condition
-                const excludedDatesSet = new Set(datesExcluded);
+                // Compute new_total_idle/alarm/disconnect by subtracting holiday dates' values
+                // Production-day overrides (whole-day or per-shift) must NOT be subtracted.
+                let holidayIdleSum = 0, holidayAlarmSum = 0, holidayDisconnectSum = 0;
+                for (const date of datesExcluded) {
+
+                    // Skip whole-day production override
+                    if (wholeDayProductionSet.has(date)) continue;
+
+                    // Skip per-shift production override when a single shift is selected
+                    if (selectedShift && selectedShift !== 'allshift' &&
+                        perShiftProdMap.get(String(selectedShift))?.has(date)) continue;
+
+                    for (const deviceId of selectedDeviceIds) {
+                        const dateAlarmIdleMap = machineAlarmIdleDurations.get(deviceId);
+                        if (!dateAlarmIdleMap) continue;
+                        const dd = dateAlarmIdleMap.get(date);
+                        if (!dd) continue;
+                        holidayIdleSum += dd.idleSum;
+                        holidayAlarmSum += dd.alarmSum;
+                        holidayDisconnectSum += dd.disconnectSum;
+                    }
+                }
+                // Also subtract per-shift holiday dates (not already in datesExcluded) for single-shift selection
+                if (selectedShift && selectedShift !== 'allshift') {
+                    const sNo = String(selectedShift);
+                    for (const date of (perShiftHolMap.get(sNo) || [])) {
+                        if (excludedDatesSet.has(date)) continue; // already counted above
+                        if (perShiftProdMap.get(sNo)?.has(date)) continue;
+                        if (wholeDayProductionSet.has(date)) continue;
+                        for (const deviceId of selectedDeviceIds) {
+                            const dateAlarmIdleMap = machineAlarmIdleDurations.get(deviceId);
+                            if (!dateAlarmIdleMap) continue;
+                            const dd = dateAlarmIdleMap.get(date);
+                            if (!dd) continue;
+                            holidayIdleSum += dd.idleSum;
+                            holidayAlarmSum += dd.alarmSum;
+                            holidayDisconnectSum += dd.disconnectSum;
+                        }
+                    }
+                }
+                const new_total_idle_duration = Math.max(0, totalDurations.total_idle_duration - holidayIdleSum);
+                const new_total_alarm_duration = Math.max(0, totalDurations.total_alarm_duration - holidayAlarmSum);
+                const new_total_disconnect_duration = Math.max(0, totalDurations.total_disconnect_duration - holidayDisconnectSum);
+
+                // Compute new_targetparts and new_totalparts with per-shift awareness
                 let new_targetparts = 0;
                 const new_totalparts_acc = { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0 };
 
@@ -668,7 +672,7 @@ export default function OnePageDashboard() {
                     const rawData = machineDataMap.get(deviceId);
                     for (const shiftRange of allRanges) {
                         const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
-                        if (excludedDatesSet.has(shiftDate)) continue; // skip excluded dates
+                        if (isShiftDateExcluded(shiftRange.shiftNo, shiftDate)) continue;
 
                         const data = filterByShift(rawData, shiftRange.from, shiftRange.to);
 
@@ -695,8 +699,39 @@ export default function OnePageDashboard() {
                 const new_totalparts = { ...new_totalparts_acc, ts: new Date().toISOString() };
                 console.log('✅ new_targetparts:', Math.round(new_targetparts), '| new_totalparts:', new_totalparts);
 
+                /* --------------------------------------------------------- */
+                /* Break-time durations: the run/idle/alarm/disconnect that   */
+                /* occurred inside each shift's break windows, summed across   */
+                /* every selected machine, shift and date.                     */
+                /* --------------------------------------------------------- */
+                const breakDurations = { break_run: 0, break_idle: 0, break_alarm: 0, break_disconnect: 0 };
+                for (const deviceId of selectedDeviceIds) {
+                    const rawData = machineDataMap.get(deviceId);
+                    for (const shiftRange of allRanges) {
+                        // Skip holiday-excluded shift-dates (same priority rule as parts/new_total_*)
+                        const shiftDate = new Date(shiftRange.from).toISOString().split('T')[0];
+                        if (isShiftDateExcluded(shiftRange.shiftNo, shiftDate)) continue;
+
+                        const shiftData = shifts.find((s) => String(s.shift_no) === String(shiftRange.shiftNo));
+                        if (!shiftData) continue;
+                        const breakWindows = getBreakWindowsForShift(shiftData, shiftRange.from, shiftRange.to);
+                        if (!breakWindows.length) continue;
+                        const dvBreaks = computeBreakDurations(rawData, shiftRange.from, breakWindows);
+                        breakDurations.break_run += dvBreaks.break_run;
+                        breakDurations.break_idle += dvBreaks.break_idle;
+                        breakDurations.break_alarm += dvBreaks.break_alarm;
+                        breakDurations.break_disconnect += dvBreaks.break_disconnect;
+                    }
+                }
+                // Round to whole seconds (values accumulate from ms → seconds conversion)
+                breakDurations.break_run = Math.round(breakDurations.break_run);
+                breakDurations.break_idle = Math.round(breakDurations.break_idle);
+                breakDurations.break_alarm = Math.round(breakDurations.break_alarm);
+                breakDurations.break_disconnect = Math.round(breakDurations.break_disconnect);
+                console.log('✅ Break-time durations:', breakDurations);
+
                 return {
-                    durations: { ...totalDurations, new_total_run_duration },
+                    durations: { ...totalDurations, new_total_run_duration, new_total_idle_duration, new_total_alarm_duration, new_total_disconnect_duration, ...breakDurations },
                     machinesWithZeroRunDuration,
                     machineShiftZeroRuntimes,
                     machineAlarmIdleDurations,
@@ -708,9 +743,6 @@ export default function OnePageDashboard() {
             })()
         );
 
-        /* ------------------------------------------------------------------ */
-        /* 3. Machine Performance (Individual OEE Ranking)                    */
-        /* ------------------------------------------------------------------ */
         promises.push(
             (async () => {
                 const selectedMachinesObj = getDeviceObjectsForMachines(selectedMachines);
@@ -742,12 +774,12 @@ export default function OnePageDashboard() {
                 let bestMachines, worstMachines;
 
                 if (validMachines.length === 1) {
-                  bestMachines = sorted;
-                  const machineWithoutData = allMachineData.find((m) => m.oee === 0);
-                  worstMachines = machineWithoutData ? [{ ...machineWithoutData, oee: 0 }] : [{ ...sorted[0], oee: 0 }];
+                    bestMachines = sorted;
+                    const machineWithoutData = allMachineData.find((m) => m.oee === 0);
+                    worstMachines = machineWithoutData ? [{ ...machineWithoutData, oee: 0 }] : [{ ...sorted[0], oee: 0 }];
                 } else {
-                  bestMachines = sorted.filter((m) => m.oee === sorted[0]?.oee);
-                  worstMachines = sorted.filter((m) => m.oee === sorted.at(-1)?.oee);
+                    bestMachines = sorted.filter((m) => m.oee === sorted[0]?.oee);
+                    worstMachines = sorted.filter((m) => m.oee === sorted.at(-1)?.oee);
                 }
 
                 return {
@@ -762,9 +794,6 @@ export default function OnePageDashboard() {
             })()
         );
 
-        /* ------------------------------------------------------------------ */
-        /* 4. Parts Data (Target & Total Parts Summed)                        */
-        /* ------------------------------------------------------------------ */
         promises.push(
             (async () => {
                 const result = {
@@ -814,9 +843,7 @@ export default function OnePageDashboard() {
                 return { parts: result };
             })()
         );
-        /* ------------------------------------------------------------------ */
-        /* 5. Machine Status Summary (Run / Idle / Alarm / Disconnect)        */
-        /* ------------------------------------------------------------------ */
+
         promises.push(
             (async () => {
                 const statusSummary = {
@@ -873,18 +900,27 @@ export default function OnePageDashboard() {
     ]);
 
 
-    // Memoized Grafana URL generation
-    const generateGrafanaUrls = useCallback((data, holidayExcludedParam) => {
+    const generateGrafanaUrls = useCallback((data) => {
         if (!customerId || !selectedShift) return { mainUrl: '' };
         const machineParam = selectedMachines.join(",");
         const cleanedId = cleanCustomerId(customerId);
 
-        // Read manually-marked holidays from localStorage (set by HolidayList)
-        let manualHolidaySet = new Set();
-        try {
-            const stored = JSON.parse(localStorage.getItem(`manualHolidays_${customerId}`) || '[]');
-            manualHolidaySet = new Set(stored);
-        } catch { /* ignore */ }
+        const manualOverrides = manualOverridesRef.current;
+        const manualHolidaySet = buildMergedHolidaySetFromAttr(manualOverrides, customerId, selectedShift);
+        const manualProductionSet = manualOverrides.manualProductionDays;
+
+        // Per-shift manual overrides for duration calculation
+        const gPerShiftHol = manualOverrides.perShiftHol;
+        const gPerShiftProd = manualOverrides.perShiftProd;
+
+        // Priority: per-shift production > whole-day production > per-shift holiday > whole-day holiday
+        const isShiftExcludedForDuration = makeShiftExclusionChecker({
+            perShiftHol: gPerShiftHol,
+            perShiftProd: gPerShiftProd,
+            wholeDayProd: manualProductionSet,
+            wholeDayHol: manualHolidaySet,
+        });
+
         const bearerToken = encodeURIComponent(`Bearer+${token}`);
         const entityType = 'CUSTOMER';
         const isAllMachinesSelected = selectedDevice === 'all';
@@ -905,6 +941,11 @@ export default function OnePageDashboard() {
 
         let adjustedDuration = 0;
         let newadjustedDuration = 0;
+        // (recompile-touch)
+        // True when the selected range contains ONLY holiday/excluded dates (no production
+        // left after exclusions). Set inside the duration branches below, alongside the
+        // existing newadjustedDuration fallback. Drives whether we send full vs reduced data.
+        let isOnlyHolidayRange = false;
 
         const machineCountWithRunDuration = selectedMachines.length - data.machinesWithZeroRunDuration.length;
 
@@ -923,11 +964,10 @@ export default function OnePageDashboard() {
         }
 
         // Helper to check if a specific date should be excluded for a machine
-        // Excludes ONLY if BOTH conditions are true:
-        // 1. Machine has zero run duration FOR THAT DATE AND
-        // 2. Date has alarm or idle > 20 hours
+
         const isDateExceededFor20Hours = (deviceId, dateStr) => {
-            // Check if this machine-date combo is in the exclusion list
+            // Production-day override always wins — never exclude a manually-set production day
+            if (manualProductionSet.has(dateStr)) return false;
             if (data.dateRunExceeded && data.dateRunExceeded.has(deviceId)) {
                 const excludedDates = data.dateRunExceeded.get(deviceId);
                 return excludedDates.includes(dateStr);
@@ -942,7 +982,7 @@ export default function OnePageDashboard() {
             return runDuration === 0;
         };
 
-        if (cleanCustomerId(customerId) === window._env_.CUSTOMER_ID || cleanCustomerId(customerId) === window._env_.SMC_CUSTOMER_ID ) {
+        if (cleanCustomerId(customerId) === window._env_.CUSTOMER_ID || cleanCustomerId(customerId) === window._env_.SMC_CUSTOMER_ID) {
             // Calculate duration1 and duration2 with breaktime removed across date range
             let duration1Adjusted = 0;
             let duration2Adjusted = 0;
@@ -960,24 +1000,8 @@ export default function OnePageDashboard() {
                 const currentDateStr = currentDay.format('YYYY-MM-DD');
 
                 const isManualHoliday = manualHolidaySet.has(currentDateStr);
+                const isManualProduction = manualProductionSet.has(currentDateStr);
 
-                // For manual holidays, still accumulate duration1Adjusted (adjustedDuration) but skip actual hours
-                if (isManualHoliday) {
-                    for (const shiftNo of shiftsToProcess) {
-                        const shiftData = shifts.find(s => String(s.shift_no) === shiftNo);
-                        if (!shiftData) continue;
-                        const shiftTimes = getShiftTimes(shifts, shiftNo, currentDay);
-                        const rawSecs = shiftTimes.from && shiftTimes.to
-                            ? Math.floor((shiftTimes.to - shiftTimes.from) / 1000)
-                            : 0;
-                        const shiftSecsMinusBreak = Math.max(0, rawSecs - timeToSeconds(shiftData.break_time || "00:00:00"));
-                        duration1Adjusted += shiftSecsMinusBreak * selectedDeviceIds.length;
-                    }
-                    currentDay = currentDay.add(1, 'day');
-                    continue;
-                }
-
-                // Initialize date entry
                 if (!dateWiseBreakdown.has(currentDateStr)) {
                     dateWiseBreakdown.set(currentDateStr, {
                         totalHours: 0,
@@ -1003,6 +1027,12 @@ export default function OnePageDashboard() {
                         : 0;
                     const shiftSecsMinusBreak = Math.max(0, rawSecs - timeToSeconds(shiftData.break_time || "00:00:00"));
 
+                    // Per-shift aware holiday exclusion from newadjustedDuration
+                    if (isShiftExcludedForDuration(shiftNo, currentDateStr)) {
+                        duration1Adjusted += shiftSecsMinusBreak * selectedDeviceIds.length;
+                        continue;
+                    }
+
                     // Count machines with non-zero runtime (excluding machines with zero run duration globally)
                     let machinesWithRuntimeCount = 0;
                     let machinesRemovedCount = 0;
@@ -1012,6 +1042,13 @@ export default function OnePageDashboard() {
                     for (const deviceId of selectedDeviceIds) {
                         const key = `${deviceId}-${currentDateStr}-${shiftNo}`;
                         const deviceName = deviceNameID.find(d => d.id === deviceId)?.name || deviceId;
+
+                        // Production-override: always count all machines regardless of telemetry
+                        if (isManualProduction || gPerShiftProd.get(shiftNo)?.has(currentDateStr)) {
+                            machinesWithRuntimeCount++;
+                            machineNamesIncluded.push(deviceName);
+                            continue;
+                        }
 
                         // Check if this machine is excluded for this date (regardless of runtime for this specific shift)
                         const isExcludedForDate = isDateExceededFor20Hours(deviceId, currentDateStr);
@@ -1033,10 +1070,10 @@ export default function OnePageDashboard() {
                         }
                     }
 
-                    const machinesExcludedForThisDate = selectedDeviceIds.filter(id =>
-                        isDateExceededFor20Hours(id, currentDateStr)
-                    ).length;
-                    // Only remove hours for machines excluded for 20h (not zero-runtime machines)
+                    // Per-shift or whole-day production override → no machines excluded for this shift
+                    const machinesExcludedForThisDate = (isManualProduction || gPerShiftProd.get(shiftNo)?.has(currentDateStr))
+                        ? 0
+                        : selectedDeviceIds.filter(id => isDateExceededFor20Hours(id, currentDateStr)).length;
                     const shiftRemovedDueToThreshold = shiftSecsMinusBreak * machinesExcludedForThisDate;
                     const shiftDuration2Actual = shiftSecsMinusBreak * machinesWithRuntimeCount;
                     const shiftRemoved = shiftRemovedDueToThreshold;
@@ -1168,6 +1205,11 @@ export default function OnePageDashboard() {
             // Use raw accumulated seconds — no rounding drift
             const beforeExclusionDuration = duration2Adjusted / 3600;
             newadjustedDuration = grandActualSeconds1;
+            // When all selected dates are holidays newadjustedDuration would be 0 — fall back to full duration
+            if (newadjustedDuration === 0 && adjustedDuration > 0) {
+                newadjustedDuration = adjustedDuration;
+                isOnlyHolidayRange = true;
+            }
             const afterExclusionDuration = grandActualSeconds1 / 3600;
             const totalHoursRemovedFromDuration = beforeExclusionDuration - afterExclusionDuration;
 
@@ -1224,7 +1266,7 @@ export default function OnePageDashboard() {
                     });
 
                     if (removedShiftsTable.length > 0) {
-          
+
                         const dateWiseSummary = [];
                         dateWiseBreakdown.forEach((data, date) => {
                             if (data.excludedMachines.length > 0) {
@@ -1248,7 +1290,7 @@ export default function OnePageDashboard() {
                             console.table(dateWiseSummary);
                         }
 
-            
+
                         const masterTable = [];
                         dateWiseBreakdown.forEach((data, date) => {
                             if (data.excludedMachines.length > 0) {
@@ -1292,21 +1334,9 @@ export default function OnePageDashboard() {
                 const currentDateStr = currentDay.format('YYYY-MM-DD');
 
                 const isManualHoliday = manualHolidaySet.has(currentDateStr);
+                const isManualProduction = manualProductionSet.has(currentDateStr);
 
-                // For manual holidays, still accumulate duration1Adjusted (adjustedDuration) but skip actual hours
-                if (isManualHoliday) {
-                    for (const shiftNo of shiftsToProcess) {
-                        const shiftTimes = getShiftTimes(shifts, shiftNo, currentDay);
-                        const shiftSecs = shiftTimes.from && shiftTimes.to
-                            ? Math.floor((shiftTimes.to - shiftTimes.from) / 1000)
-                            : 0;
-                        duration1Adjusted += shiftSecs * selectedDeviceIds.length;
-                    }
-                    currentDay = currentDay.add(1, 'day');
-                    continue;
-                }
-
-                // Initialize date entry
+                // Initialize date entry (needed even on holiday dates)
                 if (!dateWiseBreakdown.has(currentDateStr)) {
                     dateWiseBreakdown.set(currentDateStr, {
                         totalHours: 0,
@@ -1323,6 +1353,12 @@ export default function OnePageDashboard() {
                         ? Math.floor((shiftTimes.to - shiftTimes.from) / 1000)
                         : 0;
 
+                    // Per-shift aware holiday exclusion from newadjustedDuration
+                    if (isShiftExcludedForDuration(shiftNo, currentDateStr)) {
+                        duration1Adjusted += shiftSecs * selectedDeviceIds.length;
+                        continue;
+                    }
+
                     // Count machines with non-zero runtime (excluding machines with zero run duration globally)
                     let machinesWithRuntimeCount = 0;
                     let machinesRemovedCount = 0;
@@ -1333,20 +1369,25 @@ export default function OnePageDashboard() {
                         const key = `${deviceId}-${currentDateStr}-${shiftNo}`;
                         const deviceName = deviceNameID.find(d => d.id === deviceId)?.name || deviceId;
 
-                        if (!zeroRuntimeSet.has(key) &&
+                        // Production-override: always count all machines regardless of telemetry
+                        if (isManualProduction || gPerShiftProd.get(shiftNo)?.has(currentDateStr)) {
+                            machinesWithRuntimeCount++;
+                            machineNamesIncluded.push(deviceName);
+                        } else if (!zeroRuntimeSet.has(key) &&
                             !isDateExceededFor20Hours(deviceId, currentDateStr)) {
                             machinesWithRuntimeCount++;
                             machineNamesIncluded.push(deviceName);
                         } else if (!zeroRuntimeSet.has(key) &&
-                                   isDateExceededFor20Hours(deviceId, currentDateStr)) {
+                            isDateExceededFor20Hours(deviceId, currentDateStr)) {
                             machinesRemovedCount++;
                             machineNamesRemoved.push(deviceName);
                         }
                     }
 
-                    const machinesExcludedForThisDate = selectedDeviceIds.filter(id =>
-                        isDateExceededFor20Hours(id, currentDateStr)
-                    ).length;
+                    // Per-shift or whole-day production override → no machines excluded for this shift
+                    const machinesExcludedForThisDate = (isManualProduction || gPerShiftProd.get(shiftNo)?.has(currentDateStr))
+                        ? 0
+                        : selectedDeviceIds.filter(id => isDateExceededFor20Hours(id, currentDateStr)).length;
                     const shiftDuration2WithoutRemoval = shiftSecs * (selectedDeviceIds.length - machinesExcludedForThisDate);
                     const shiftDuration2Actual = shiftSecs * machinesWithRuntimeCount;
                     const shiftRemoved = shiftDuration2WithoutRemoval - shiftDuration2Actual;
@@ -1447,6 +1488,11 @@ export default function OnePageDashboard() {
 
             // Use raw accumulated seconds — no rounding drift
             newadjustedDuration = grandActualSeconds;
+            // When all selected dates are holidays newadjustedDuration would be 0 — fall back to full duration
+            if (newadjustedDuration === 0 && adjustedDuration > 0) {
+                newadjustedDuration = adjustedDuration;
+                isOnlyHolidayRange = true;
+            }
 
             // Summary breakdown of removed hours by category
             const removedHoursSummary = new Map();
@@ -1496,7 +1542,7 @@ export default function OnePageDashboard() {
                     });
 
                     if (removedShiftsTable.length > 0) {
-                      
+
                         const dateWiseSummary = [];
                         dateWiseBreakdown.forEach((data, date) => {
                             if (data.excludedMachines.length > 0) {
@@ -1558,22 +1604,54 @@ export default function OnePageDashboard() {
         const manualHolidayCount = manualHolidaySet.size;
         const effectiveDays = Math.max(0, totalDaysInRange - manualHolidayCount);
 
+        // isOnlyHolidayRange was determined above (alongside the newadjustedDuration fallback):
+        // - Only holiday/excluded dates → send full (unreduced) data, since reducing zeros everything.
+        // - Holiday + production        → keep the reduced new_total_* values (holiday data subtracted).
+        // When the range is entirely holidays, fall back to the raw totals so the
+        // dashboard still shows the holiday-day data instead of zeros.
+        const effectiveDurations = isOnlyHolidayRange
+            ? {
+                ...data.durations,
+                new_total_run_duration: data.durations.total_run_duration,
+                new_total_idle_duration: data.durations.total_idle_duration,
+                new_total_alarm_duration: data.durations.total_alarm_duration,
+                new_total_disconnect_duration: data.durations.total_disconnect_duration,
+            }
+            : data.durations;
+
+        const fallbackTotalParts = data.parts.totalParts || { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 };
+        const effectiveNewTargetParts = isOnlyHolidayRange
+            ? adjustedTargetParts
+            : (data.new_targetparts ?? adjustedTargetParts);
+        const effectiveNewTotalParts = isOnlyHolidayRange
+            ? fallbackTotalParts
+            : (data.new_totalparts ?? fallbackTotalParts);
+
         const grafanaData = {
             oee: oeeVar,
             availability: availabilityVar,
             performance: performanceVar,
-            duration: data.durations,
+            duration: {
+                ...effectiveDurations,
+                // Break-window run/idle/alarm/disconnect (seconds), grouped together
+                total_duration: {
+                    break_run: data.durations?.break_run || 0,
+                    break_idle: data.durations?.break_idle || 0,
+                    break_alarm: data.durations?.break_alarm || 0,
+                    break_disconnect: data.durations?.break_disconnect || 0,
+                },
+            },
             machineStatus: data.machineStatus,
             targetParts: adjustedTargetParts,
-            totalParts: data.parts.totalParts || { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 },
-            new_targetparts: data.new_targetparts ?? adjustedTargetParts,
-            new_totalparts: data.new_totalparts ?? data.parts.totalParts ?? { totalshots: 0, goodparts: 0, scrap: 0, ncr: 0, ts: 0 },
+            totalParts: fallbackTotalParts,
+            new_targetparts: effectiveNewTargetParts,
+            new_totalparts: effectiveNewTotalParts,
             machinePerformance: data.machinePerformance,
             manualHolidayDays: manualHolidayCount,
             effectiveDays,
         };
 
-    
+
         if (newadjustedDuration < adjustedDuration) {
             const diff = (adjustedDuration - newadjustedDuration) / 3600;
         }
@@ -1589,8 +1667,7 @@ export default function OnePageDashboard() {
         // Round to nearest minute to eliminate sub-minute drift from break_time seconds accumulation
         const roundedAdjustedDuration = Math.round(adjustedDuration / 60) * 60;
         const roundedNewadjustedDuration = Math.round(newadjustedDuration / 60) * 60;
-        const holidayVar = holidayExcludedParam ? 'excluded' : 'included';
-        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${roundedAdjustedDuration}&var-duration1=${roundedNewadjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&var-holiday=${holidayVar}&kiosk&theme=light&refresh=20s`;
+        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${roundedAdjustedDuration}&var-duration1=${roundedNewadjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
 
         return { mainUrl };
     }, [customerId, token, selectedDevice, selectedShift, shifts, startDate, endDate, devices, getShiftTimes, selectedMachines]);
@@ -1602,6 +1679,7 @@ export default function OnePageDashboard() {
         }
     }, [customerId, fetchShifts, fetchDevices]);
 
+
     useEffect(() => {
         if (shifts.length === 0 || selectedShift !== null) return;
 
@@ -1609,7 +1687,6 @@ export default function OnePageDashboard() {
 
         // If the current time is before the first shift of the day starts,
         // default both date pickers to yesterday so the user sees real data
-        // instead of a blank screen (no shift has produced data yet today).
         const firstShift = [...shifts].sort((a, b) => Number(a.shift_no) - Number(b.shift_no))[0];
         if (firstShift) {
             const [h, m] = firstShift.start_time.split(':').map(Number);
@@ -1640,15 +1717,17 @@ export default function OnePageDashboard() {
     const handleSubmit = useCallback(async () => {
         setIsLoading(true);
         try {
+            // Refresh manual holiday/production overrides before computing.
+            await fetchManualOverrides();
             const data = await fetchAllDashboardData();
             if (data) {
-                const { mainUrl } = generateGrafanaUrls(data, holidayExcluded);
+                const { mainUrl } = generateGrafanaUrls(data);
                 setMainGrafanaUrl(mainUrl);
             }
         } finally {
             setIsLoading(false);
         }
-    }, [fetchAllDashboardData, generateGrafanaUrls, holidayExcluded]);
+    }, [fetchManualOverrides, fetchAllDashboardData, generateGrafanaUrls]);
 
     useEffect(() => {
         const currentShift = getCurrentShift(shifts);
@@ -1919,67 +1998,6 @@ export default function OnePageDashboard() {
                             />
                         </LocalizationProvider>
 
-                        {cleanCustomerId(customerId) === window._env_.CUSTOMER_ID && (
-                        <Tooltip
-                            title={holidayExcluded ? "Holidays excluded from calculations" : "Holidays included in calculations"}
-                            arrow
-                            placement="bottom"
-                        >
-                            <div
-                                onClick={() => setHolidayExcluded(v => !v)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    cursor: 'pointer',
-                                    userSelect: 'none',
-                                    padding: '0px 12px 0px 10px',
-                                    borderRadius: '6px',
-                                    border: `1px solid ${holidayExcluded ? '#f47803' : '#bdbdbd'}`,
-                                    background: '#ffffff',
-                                    transition: 'border-color 0.2s ease',
-                                    minWidth: 160,
-                                    height: 40,
-                                    boxShadow: 'none',
-                                }}
-                            >
-                                <span style={{
-                                    fontSize: '12px',
-                                    fontWeight: 600,
-                                    color: holidayExcluded ? '#f47803' : '#9e9e9e',
-                                    whiteSpace: 'nowrap',
-                                    letterSpacing: '0.01em',
-                                    transition: 'color 0.2s',
-                                    flex: 1,
-                                }}>
-                                    Holiday Excluded
-                                </span>
-                                {/* Mini toggle track */}
-                                <span style={{
-                                    display: 'inline-flex',
-                                    width: 30,
-                                    height: 16,
-                                    borderRadius: 8,
-                                    background: holidayExcluded ? '#f47803' : '#bdbdbd',
-                                    position: 'relative',
-                                    flexShrink: 0,
-                                    transition: 'background 0.2s',
-                                }}>
-                                    <span style={{
-                                        position: 'absolute',
-                                        top: 2,
-                                        left: holidayExcluded ? 14 : 2,
-                                        width: 12,
-                                        height: 12,
-                                        borderRadius: '50%',
-                                        background: '#fff',
-                                        transition: 'left 0.18s cubic-bezier(.4,0,.2,1)',
-                                        boxShadow: 'none',
-                                    }} />
-                                </span>
-                            </div>
-                        </Tooltip>
-                        )}
 
                         <Button
                             variant="contained"
