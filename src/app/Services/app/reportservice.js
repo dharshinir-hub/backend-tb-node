@@ -137,6 +137,19 @@ export const getReportDownloadLink = async (type, machine, shiftNo, fromTime, to
   return await axiosInstance.get(url, { responseType: "blob" });
 };
 
+export const updateIdleReason = async (deviceId, machineName, payload) => {
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/report/update_idle/${deviceId}/${machineName}`;
+    const response = await axiosInstance.post(url, payload);
+    console.log('Update Idle response', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error during update idle:', error);
+    throw error;
+  }
+};
+
 export const getReportGenerate = async (date) => {
   try {
     const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
@@ -280,4 +293,16 @@ export const getErpJson = async (planNo) => {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.data;
+};
+
+export const getJobsByAutoWorkname = async (workname, page = 1, limit = 10) => {    //scheduling plan
+  try {
+    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    const url = `${baseUrl}/job/by-workname?workname=${workname}&page=${page}&limit=${limit}`;
+    const response = await axiosInstance.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching jobs by workname:', error);
+    throw error;
+  }
 };

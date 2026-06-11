@@ -19,6 +19,7 @@ import DialogContent from '@mui/material/DialogContent';
 import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 import Swal from 'sweetalert2';
 import { Downtimeadd1, DowntimeaddDelete, Deviceattributeget, Downtimeadd2, DowntimeaddDelete1 } from '../../Services/app/masterservice';
+import { updateIdleReason } from '../../Services/app/reportservice';
 import { Autocomplete, FormControl, FormHelperText } from '@mui/material';
 
 const OperatorDetails = () => {
@@ -1799,7 +1800,8 @@ const OperatorDetails = () => {
       const updatedResults = [...prevResults];
       updatedResults[index] = {
         ...updatedResults[index],
-        reasonselected: val
+        reasonselected: val,
+        reasonChanged: true
       };
       return updatedResults;
     });
@@ -2954,6 +2956,12 @@ const OperatorDetails = () => {
 
 
         await Downtimeadd1('DEVICE', selectedDeviceId, 'SERVER_SCOPE', key);
+
+        // For GPLAST, push only the changed idle reason to the report service
+        if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && item.reasonChanged) {
+          const deviceId = selectedDeviceId?.id || selectedDeviceId;
+          await updateIdleReason(deviceId, selectedDevicename, key);
+        }
 
         // Optional: Update UI state to reflect change
         setDeviceThresholds(prev => ({
