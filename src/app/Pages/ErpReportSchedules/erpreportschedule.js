@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { Box, Tabs, Tab } from "@mui/material";
-import { getJobsByWorkname } from "../../Services/app/reportservice";
+import { getJobsByWorkname, getJobsByAutoWorkname } from "../../Services/app/reportservice";
 import EmailConfig from "../EmailConfiguration/emailconfig";
 import "./erpreportschedule.css";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const TOP_TABS = ["Email Configuration","Email-Report Schedule"];
+const TOP_TABS = ["Email Setup","Email Report Schedule","Auto Report Schedule"];
 
 const EMAIL_TABS = [
     { key: "shiftwise", label: "Shift End" },
@@ -13,6 +13,11 @@ const EMAIL_TABS = [
     { key: "weekend",   label: "Week End"  },
     { key: "monthend",  label: "Month End" },
     { key: "custom",    label: "Custom"    },
+];
+
+const AUTO_TABS = [
+    { key: "shift_wise_report",  label: "Shift Wise"  },
+    // { key: "custom_wise_report", label: "Custom"     },
 ];
 
 const REPORT_LABELS = {
@@ -104,7 +109,7 @@ function StatusBadge({ status }) {
 }
 
 // ─── Triggers table ─────────────────────────────────────────────────────────────
-function TriggersTable({ triggers }) {
+function TriggersTable({ triggers, reportLabel = null }) {
     if (!triggers.length) {
         return (
             <div className="ers-empty">
@@ -119,7 +124,7 @@ function TriggersTable({ triggers }) {
             <table className="ers-table">
                 <thead>
                     <tr>
-                        <th>#</th>
+                        <th>S.no</th>
                         <th>Status</th>
                         <th>Job ID</th>
                         <th>Customer</th>
@@ -143,7 +148,7 @@ function TriggersTable({ triggers }) {
                                 <td>{d.customer ?? "—"}</td>
                                 <td>{d.date ?? "—"}</td>
                                 <td className="ers-td-center">{d.shift_no ?? "—"}</td>
-                                <td className="ers-td-reports">{reportSummary(d.trigger)}</td>
+                                <td className="ers-td-reports">{reportLabel ?? reportSummary(d.trigger)}</td>
                                 <td className="ers-td-time">{scheduledAt(job)}</td>
                                 <td className="ers-td-time">{fmtTime(job.processedOn)}</td>
                                 <td className="ers-td-time">{fmtTime(job.finishedOn)}</td>
@@ -164,25 +169,30 @@ function EmailScheduleJobTab({ workname }) {
     const [triggers, setTriggers] = useState([]);
     const [counts,   setCounts]   = useState({});
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const raw = await getJobsByWorkname(workname);
-            const { triggers: t, counts: c } = extractJobData(raw);
-            setTriggers(t);
-            setCounts(c);
-        } catch (err) {
-            setError("Failed to load job data.");
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }, [workname]);
-
     useEffect(() => {
-        load();
-    }, [load]);
+        let cancelled = false;
+        const fetchData = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const raw = await getJobsByWorkname(workname);
+                if (!cancelled) {
+                    const { triggers: t, counts: c } = extractJobData(raw);
+                    setTriggers(t);
+                    setCounts(c);
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setError("Failed to load job data.");
+                    console.error(err);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+        fetchData();
+        return () => { cancelled = true; };
+    }, [workname]);
 
     if (loading) return <div className="ers-loading">Loading triggers…</div>;
     if (error)   return <div className="ers-error">{error}</div>;
@@ -195,15 +205,59 @@ function EmailScheduleJobTab({ workname }) {
     );
 }
 
+// ─── Auto Report Schedule tab content ──────────────────────────────────────────
+function AutoReportScheduleTab({ workname }) {
+    const [loading,  setLoading]  = useState(false);
+    const [error,    setError]    = useState(null);
+    const [triggers, setTriggers] = useState([]);
+    const [counts,   setCounts]   = useState({});
+
+    useEffect(() => {
+        let cancelled = false;
+        const fetchData = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const raw = await getJobsByAutoWorkname(workname);
+                if (!cancelled) {
+                    const { triggers: t, counts: c } = extractJobData(raw);
+                    setTriggers(t);
+                    setCounts(c);
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setError("Failed to load auto report job data.");
+                    console.error(err);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+        fetchData();
+        return () => { cancelled = true; };
+    }, [workname]);
+
+    if (loading) return <div className="ers-loading">Loading triggers…</div>;
+    if (error)   return <div className="ers-error">{error}</div>;
+
+    return (
+        <div className="ers-job-section">
+            <JobStatusBar counts={counts} />
+            <TriggersTable triggers={triggers} reportLabel="Shift Wise Report" />
+        </div>
+    );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────────
 export default function ErpReportSchedule() {
     const [topTab,   setTopTab]   = useState(0);
     const [emailTab, setEmailTab] = useState(0);
+    const [autoTab,  setAutoTab]  = useState(0);
 
     return (
         <div className="pages ers-page">
             <div className="pagecontents">
-                <h2 className="ers-main-title">Email Schedule</h2>
+                <h2 className="ers-main-title">Email Configuration</h2>
 
                 {/* Top-level tabs */}
                 <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
@@ -222,6 +276,31 @@ export default function ErpReportSchedule() {
                 {/* Email Configuration */}
                 <TabPanel value={topTab} index={0}>
                     <EmailConfig />
+                </TabPanel>
+
+                {/* Auto Report Schedule */}
+                <TabPanel value={topTab} index={2}>
+                    {/* Auto sub-tabs */}
+                    <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+                        <Tabs
+                            value={autoTab}
+                            onChange={(_, v) => setAutoTab(v)}
+                            textColor="inherit"
+                            TabIndicatorProps={{ sx: { backgroundColor: "#f59e0b" } }}
+                            variant="scrollable"
+                            scrollButtons="auto"
+                        >
+                            {AUTO_TABS.map(({ label }) => (
+                                <Tab key={label} label={label} sx={{ textTransform: "none", fontWeight: 500 }} />
+                            ))}
+                        </Tabs>
+                    </Box>
+
+                    {AUTO_TABS.map(({ key }, idx) => (
+                        <TabPanel key={key} value={autoTab} index={idx}>
+                            <AutoReportScheduleTab workname={key} />
+                        </TabPanel>
+                    ))}
                 </TabPanel>
 
                 {/* Email-Report Schedule */}

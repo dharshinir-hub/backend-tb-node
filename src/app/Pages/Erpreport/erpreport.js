@@ -14,7 +14,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { customerbasedshift } from '../../Services/app/companyservice';
 import { useMachineGroups } from '../../Shared/hooks/useMachineGroups';
-import { getPlanDetails, getErpJson } from '../../Services/app/reportservice';
+import { getPlanDetails, getErpJson, getReportToken } from '../../Services/app/reportservice';
 import ErpPlannerDialog from './erpplanner';
 import Swal from 'sweetalert2';
 
@@ -26,6 +26,13 @@ const fmtCycleTime = (ct) => {
     return `${pad(ct.Hours)}:${pad(ct.Minutes)}:${pad(ct.Seconds)}`;
 };
 const safe = (x) => (x === null || x === undefined || x === '') ? '—' : x;
+const wrapWords = (text) => {
+    if (!text || text === '—') return text;
+    const words = text.split(' ');
+    if (words.length <= 1) return text;
+    const mid = Math.ceil(words.length / 2);
+    return words.slice(0, mid).join(' ') + '\n' + words.slice(mid).join(' ');
+};
 
 // ── Column headers ────────────────────────────────────────────────────────────
 const HEADERS = [
@@ -175,6 +182,8 @@ export default function ErpReport() {
 
     useEffect(() => { if (customerId) fetchShifts(); }, [customerId, fetchShifts]);
 
+    useEffect(() => { getReportToken('gd', 'gd'); }, []);
+
     useEffect(() => {
         if (shifts.length === 0 || selectedShift !== null) return;
         setSelectedShift(getCurrentShift(shifts));
@@ -238,7 +247,10 @@ export default function ErpReport() {
         try {
             const start = dayjs(startDate).format('YYYY-MM-DD');
             const end   = dayjs(endDate).format('YYYY-MM-DD');
-            const res   = await getPlanDetails(machineName, selectedShift, start, end);
+            const shiftParam = selectedShift === 'allshift'
+                ? shifts.map((s) => s.shift_no).join(',')
+                : selectedShift;
+            const res   = await getPlanDetails(machineName, shiftParam, start, end);
 
             // handle { planDetails: [] } or plain array
             const raw = Array.isArray(res?.planDetails) ? res.planDetails
@@ -301,141 +313,90 @@ export default function ErpReport() {
         ];
     }, [shifts, startDate, getShiftTimes]);
 
-    // ── Build machine-wise rows ───────────────────────────────────────────────
+    // ── Build flat rows (no rowSpan merging) ─────────────────────────────────
     const tableRows = useMemo(() => {
         if (reportData.length === 0) return null;
 
-        // Flatten all data into (machineName -> entries[]) map preserving order
-        const machineMap = new Map();
+        // Collect all flat entries across all plans
+        const allEntries = [];
         reportData.forEach((plan) => {
             const planInfo   = { plan_no: plan.plan_no, plan_date: plan.plan_date, shift_id: plan.shift_id, type: plan.type };
             const rawDetails = Array.isArray(plan.details) ? plan.details : [];
+
             if (rawDetails.length === 0) {
-                const key = '—';
-                if (!machineMap.has(key)) machineMap.set(key, []);
-                machineMap.get(key).push({ planInfo, cavity: '—', cycleTime: '—', line: { item: '—', planQty: '—', prodOrderNo: '—' } });
+                allEntries.push({ planInfo, machineName: '—', lineNo: '—', cavity: '—', cycleTime: '—', line: { item: '—', planQty: '—', prodOrderNo: '—' } });
             } else {
                 rawDetails.forEach((detail) => {
                     const parsed = parseDetailMeta(detail);
-                    if (!machineMap.has(parsed.machineName)) machineMap.set(parsed.machineName, []);
                     parsed.lineItems.forEach((line) => {
-                        machineMap.get(parsed.machineName).push({ planInfo, lineNo: parsed.lineNo, cavity: parsed.cavity, cycleTime: parsed.cycleTime, line });
+                        allEntries.push({
+                            planInfo,
+                            machineName: parsed.machineName,
+                            lineNo:      parsed.lineNo,
+                            cavity:      parsed.cavity,
+                            cycleTime:   parsed.cycleTime,
+                            line,
+                        });
                     });
                 });
             }
         });
 
+        // Sort by machine name alphabetically
+        allEntries.sort((a, b) => a.machineName.localeCompare(b.machineName));
+
         const rows = [];
         let sno = page * rowsPerPage + 1;
 
-        machineMap.forEach((entries, machineName) => {
-            const totalRows = entries.length;
+        allEntries.forEach((entry, idx) => {
+            const planInfo = entry.planInfo;
             const bg = (sno - 1) % 2 === 0 ? '#efefef' : '#f8f8f8';
-
-            // Group entries consecutively by plan key
-            const planGroups = [];
-            entries.forEach((entry) => {
-                const key = `${entry.planInfo.plan_no}|${entry.planInfo.plan_date}|${entry.planInfo.shift_id}|${entry.planInfo.type}`;
-                const last = planGroups[planGroups.length - 1];
-                if (last && last.key === key) {
-                    last.entries.push(entry);
-                } else {
-                    planGroups.push({ key, planInfo: entry.planInfo, entries: [entry] });
-                }
-            });
-
-            planGroups.forEach((pg, pgIdx) => {
-                const planRowCount = pg.entries.length;
-
-                // Group entries consecutively by lineNo within this plan group
-                const lineGroups = [];
-                pg.entries.forEach((entry) => {
-                    const last = lineGroups[lineGroups.length - 1];
-                    if (last && last.lineNo === entry.lineNo) {
-                        last.entries.push(entry);
-                    } else {
-                        lineGroups.push({ lineNo: entry.lineNo, entries: [entry] });
-                    }
-                });
-
-                let planEIdx = 0;
-                lineGroups.forEach((lg, lgIdx) => {
-                    const lineRowCount = lg.entries.length;
-
-                    lg.entries.forEach((entry, eIdx) => {
-                        const cells = [];
-
-                        if (pgIdx === 0 && planEIdx === 0) {
-                            cells.push(
-                                <TableCell key="sno"  rowSpan={totalRows} align="center" style={{ background: bg }} sx={CELL}>{sno}</TableCell>,
-                                <TableCell key="mach" rowSpan={totalRows} align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{machineName}</TableCell>,
-                            );
-                        }
-
-                        if (planEIdx === 0) {
-                            cells.push(
-                                <TableCell key="pno"  rowSpan={planRowCount} align="center" style={{ background: bg }} sx={CELL}>{safe(pg.planInfo.plan_no)}</TableCell>,
-                                <TableCell key="pdt"  rowSpan={planRowCount} align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{fmtDate(pg.planInfo.plan_date)}</TableCell>,
-                                <TableCell key="shft" rowSpan={planRowCount} align="center" style={{ background: bg }} sx={CELL}>{safe(pg.planInfo.shift_id)}</TableCell>,
-                                <TableCell key="type" rowSpan={planRowCount} align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{safe(pg.planInfo.type)}</TableCell>,
-                            );
-                        }
-
-                        if (eIdx === 0) {
-                            cells.push(
-                                <TableCell key="line" rowSpan={lineRowCount} align="center" style={{ background: bg }} sx={CELL}>{lg.lineNo}</TableCell>,
-                            );
-                        }
-
-                        cells.push(
-                            <TableCell key="cav"  align="center" style={{ background: bg }} sx={CELL}>{entry.cavity}</TableCell>,
-                            <TableCell key="ct"   align="center" style={{ background: bg, color: '#207A24', fontWeight: 600 }} sx={CELL}>{entry.cycleTime}</TableCell>,
-                            <TableCell key="item" align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.line.item}</TableCell>,
-                            <TableCell key="qty"  align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.line.planQty}</TableCell>,
-                            <TableCell key="po"   align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.line.prodOrderNo}</TableCell>,
-                        );
-
-                        if (planEIdx === 0) {
-                            cells.push(
-                                <TableCell key="json" rowSpan={planRowCount} align="center" style={{ background: bg }} sx={CELL}>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        startIcon={<VisibilityIcon />}
-                                        onClick={() => handleViewJson(pg.planInfo.plan_no)}
-                                        disabled={jsonLoading}
-                                        sx={{
-                                            textTransform: 'none',
-                                            fontSize: '12px',
-                                            color: '#f47803',
-                                            borderColor: '#f47803',
-                                            '&:hover': {
-                                                borderColor: '#e06d00',
-                                                backgroundColor: 'rgba(244, 120, 3, 0.04)',
-                                            },
-                                            '&.Mui-disabled': {
-                                                color: '#f4780380',
-                                                borderColor: '#f4780380',
-                                            },
-                                        }}
-                                    >
-                                        View
-                                    </Button>
-                                </TableCell>,
-                            );
-                        }
-
-                        rows.push(<TableRow key={`m-${machineName}-pg${pgIdx}-lg${lgIdx}-e${eIdx}`}>{cells}</TableRow>);
-                        planEIdx++;
-                    });
-                });
-            });
-
+                rows.push(
+                    <TableRow key={`plan-${planInfo.plan_no}-${idx}`}>
+                        <TableCell align="center" style={{ background: bg }} sx={CELL}>{sno}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.machineName}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={CELL}>{safe(planInfo.plan_no)}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{fmtDate(planInfo.plan_date)}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={CELL}>{safe(planInfo.shift_id)}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{safe(planInfo.type)}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={CELL}>{entry.lineNo}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={CELL}>{entry.cavity}</TableCell>
+                        <TableCell align="center" style={{ background: bg, color: '#207A24', fontWeight: 600 }} sx={CELL}>{entry.cycleTime}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'pre-line', maxWidth: 250, minWidth: 220, wordBreak: 'break-word', fontSize: '12px' }}>{wrapWords(entry.line.item)}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.line.planQty}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={{ ...CELL, whiteSpace: 'nowrap' }}>{entry.line.prodOrderNo}</TableCell>
+                        <TableCell align="center" style={{ background: bg }} sx={CELL}>
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<VisibilityIcon />}
+                                onClick={() => handleViewJson(planInfo.plan_no)}
+                                disabled={jsonLoading}
+                                sx={{
+                                    textTransform: 'none',
+                                    fontSize: '12px',
+                                    color: '#f47803',
+                                    borderColor: '#f47803',
+                                    '&:hover': {
+                                        borderColor: '#e06d00',
+                                        backgroundColor: 'rgba(244, 120, 3, 0.04)',
+                                    },
+                                    '&.Mui-disabled': {
+                                        color: '#f4780380',
+                                        borderColor: '#f4780380',
+                                    },
+                                }}
+                            >
+                                View
+                            </Button>
+                        </TableCell>
+                    </TableRow>
+                );
             sno++;
         });
 
         return rows.length > 0 ? rows : null;
-    }, [reportData, page, rowsPerPage]);
+    }, [reportData, page, rowsPerPage, jsonLoading, handleViewJson]);
 
     // ─────────────────────────────────────────────────────────────────────────
     return (
@@ -451,7 +412,7 @@ export default function ErpReport() {
         }}>
             {/* ── Filters ── */}
             <div style={{ marginBottom: '24px' }}>
-                <h4 style={{ margin: '0 0 18px 0' }}><b>Erp Report</b></h4>
+                <h4 style={{ margin: '0 0 18px 0' }}><b>Erp Planner</b></h4>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
 
                     {showMachineGroupsDropdown && (
@@ -599,7 +560,7 @@ export default function ErpReport() {
                                                 fontSize: '14px !important',
                                                 color: '#fff !important',
                                                 backgroundColor: `${headerBg(h.label)} !important`,
-                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                border: 'none',
                                                 fontWeight: 600,
                                             }}
                                         >
@@ -675,7 +636,9 @@ export default function ErpReport() {
                     ERP JSON Data
                 </DialogTitle>
                 <DialogContent sx={{ pt: 2 }}>
-                    {jsonData ? (
+                    {jsonData?.message?.toLowerCase().includes('no data') ? (
+                        <p style={{ textAlign: 'center', color: '#888', fontWeight: 500 }}>No Json Data</p>
+                    ) : jsonData ? (
                         <pre style={{
                             background: '#f5f5f5',
                             padding: '16px',
