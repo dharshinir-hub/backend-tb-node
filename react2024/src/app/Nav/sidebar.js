@@ -209,7 +209,6 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/quality", name: "Quality Entry", icon: <MdVerifiedUser /> },
         ]
       },
-      { path: "/ppw", name: "📋 PPW", icon: <MdDocumentScanner size={20} /> },
       { path: "/paperless-factory/drawings", name: "Paperless Factory", icon: <TbFolders size={20} /> },
       ...(showReportChildren ?
         [

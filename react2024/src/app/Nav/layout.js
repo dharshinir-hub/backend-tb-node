@@ -50,7 +50,6 @@ const Layout = () => {
     location.pathname === '/erpreportschedule' ||
     location.pathname === '/erpreport' ||
     location.pathname === '/operator-performance' ||
-    location.pathname === '/ppw' ||
     location.pathname.startsWith('/paperless-factory');
 
   return (

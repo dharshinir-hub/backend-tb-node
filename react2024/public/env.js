@@ -47,8 +47,8 @@ window._env_ = {
     // ZUMEN talks to this TB with its OWN tenant token, independent of the app's
     // logged-in (customer) user — so drawing/asset operations have tenant permission
     // and the rest of the app's SERVER_URL is left untouched.
-    //ZUMEN_TB_URL: "http://192.168.0.97:8080/",
-    ZUMEN_TB_URL: "http://yantra24x7.cloud:8080/",
+    ZUMEN_TB_URL: "http://192.168.0.97:8080/",
+    //ZUMEN_TB_URL: "http://yantra24x7.cloud:8080/",
 
     ZUMEN_TB_USER: "pms@gmail.com",
     ZUMEN_TB_PASS: "pmspms"

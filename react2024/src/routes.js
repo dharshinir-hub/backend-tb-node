@@ -42,7 +42,6 @@ import MachineGroup from './app/Pages/Machinegroup/machinegroup';
 import OeeTv from './app/Pages/Oee-tv/oeetv';
 import BluecardDetails from './app/Pages/BlueCardScreen/bluecarddetails';
 import OperatorPerformanceDashboard from './app/Pages/Operator-Performance-Dashboard/OperatorPerformanceDashboard';
-import PPW from './app/Pages/PPW/ppw';
 import DrawingsLibrary from './app/Pages/PPW/Drawings/DrawingsLibrary';
 import DrawingDetail from './app/Pages/PPW/Drawings/DrawingDetail';
 import AssemblyTree from './app/Pages/PPW/Drawings/AssemblyTree';
@@ -105,8 +104,6 @@ const AppRoutes = () => {
         }
       />
       <Route path="/" element={<Layout />}>
-        {/* PPW Route - Always Available */}
-        <Route path="/ppw" element={<PPW />} />
         {/* Paperless Factory — integrated in the Yantra app shell */}
         <Route path="/paperless-factory/drawings" element={<DrawingsLibrary />} />
         <Route path="/paperless-factory/drawings/:id" element={<DrawingDetail />} />
