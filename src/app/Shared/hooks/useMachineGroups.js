@@ -39,12 +39,14 @@ export const useMachineGroups = (customerId, singleSelect = false) => {
       const result = await customerbasedshift(customerId, "machinegroups");
       const groupsRaw = result?.[0]?.value ?? [];
 
-      let filteredGroups = [];
-      if (hasGroupsAccess) {
-        filteredGroups = groupsRaw.filter((grp) => groupsOnly.includes(grp.code));
-      } else {
-        filteredGroups = groupsRaw;
-      }
+      // let filteredGroups = [];
+      // if (hasGroupsAccess) {
+      //   filteredGroups = groupsRaw.filter((grp) => groupsOnly.includes(grp.code));
+      // } else {
+      //   filteredGroups = groupsRaw;
+      // }
+      // Allow all machine groups to all roles
+      const filteredGroups = groupsRaw;
 
       setMachineGroups(filteredGroups);
 
