@@ -213,6 +213,8 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/quality", name: "Quality Entry", icon: <MdVerifiedUser /> },
         ]
       },
+      { path: "/erpreport", name: "ERP Planner", icon: <BiBarChartAlt2 size={20} /> },
+              
       ...(showReportChildren ?
         [
           {
@@ -224,18 +226,7 @@ export default function PersistentDrawerLeft({ children }) {
             ],
           },
         ]
-        : showReportChildren1 ?
-          [
-            {
-              name: "Reports",
-              icon: <TbReportAnalytics size={22} />,
-              children: [
-                { path: "/reports", name: "Reports", icon: <MdAssessment /> },
-                { path: "/erpreport", name: "ERP Report", icon: <BiBarChartAlt2 size={20} /> }
-              ],
-            },
-          ]
-          : [
+        : [
             { path: "/reports", name: "Reports", icon: <MdAssessment /> },
           ]),
       {
@@ -258,7 +249,7 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/settings", name: "Settings", icon: <TbSettings /> },
         ],
       },
-      { path: "/erpreportschedule", name: "Email Schedule", icon: <BsCalendarCheckFill size={20} /> },
+      { path: "/erpreportschedule", name: "Email Configuration", icon: <BsCalendarCheckFill size={20} /> },
       { path: "/notification-center", name: "Notification Center", icon: <RiNotificationBadgeLine /> },
     ];
     return baseItems
