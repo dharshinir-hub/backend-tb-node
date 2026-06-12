@@ -1664,10 +1664,17 @@ export default function OnePageDashboard() {
         const encodedData = encodeURIComponent(JSON.stringify(grafanaData));
         const reporturl = `${window._env_.SERVER_URL2}report/idle_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000000000000`;
         console.log(reporturl, 'reporturl');
+        // OEE report URL (GPLAST customer): page 1, page limit 10000
+        // e.g. report/oee_report/ROBO-20-250T-B/1,2,3/2026-06-11/2026-06-11/1/10000
+        const oeeReportUrl =
+            cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID
+                ? `${window._env_.SERVER_URL2}report/oee_report/${machineParam}/${shiftParam}/${fromDateStr}/${toDateStr}/1/10000`
+                : '';
+        console.log(oeeReportUrl, 'oeeReportUrl');
         // Round to nearest minute to eliminate sub-minute drift from break_time seconds accumulation
         const roundedAdjustedDuration = Math.round(adjustedDuration / 60) * 60;
         const roundedNewadjustedDuration = Math.round(newadjustedDuration / 60) * 60;
-        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${roundedAdjustedDuration}&var-duration1=${roundedNewadjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
+        const mainUrl = `${GRAFANA_URL}d/cfa1esd5995a8b/one-page-dashboard-main-2?orgId=1&var-token=${bearerToken}&var-customerid=${cleanedId}&var-entityType=${entityType}&var-entityId=${entityId}&from=${from}&to=${to}&var-duration=${roundedAdjustedDuration}&var-duration1=${roundedNewadjustedDuration}&var-url=${baseUrl}&var-idleReasonReportUrl=${reporturl}&var-oeeReportUrl=${oeeReportUrl}&var-isAllMachinesSelected=${isAllMachinesSelected}&var-grafanaurl=${GRAFANA_URL}&var-shifts=${shiftVar}&var-data=${encodedData}&var-selectedMachines=${encodeURIComponent(machineParam)}&kiosk&theme=light&refresh=20s`;
 
         return { mainUrl };
     }, [customerId, token, selectedDevice, selectedShift, shifts, startDate, endDate, devices, getShiftTimes, selectedMachines]);
