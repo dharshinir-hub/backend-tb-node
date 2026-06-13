@@ -45,6 +45,9 @@ import OperatorPerformanceDashboard from './app/Pages/Operator-Performance-Dashb
 import DrawingsLibrary from './app/Pages/PPW/Drawings/DrawingsLibrary';
 import DrawingDetail from './app/Pages/PPW/Drawings/DrawingDetail';
 import AssemblyTree from './app/Pages/PPW/Drawings/AssemblyTree';
+import OperationSequence from './app/Pages/PPW/Drawings/OperationSequence';
+import ProjectsOrders from './app/Pages/PPW/Orders/ProjectsOrders';
+import OrderDetail from './app/Pages/PPW/Orders/OrderDetail';
 
 
 // Import other components for your routes
@@ -108,6 +111,9 @@ const AppRoutes = () => {
         <Route path="/paperless-factory/drawings" element={<DrawingsLibrary />} />
         <Route path="/paperless-factory/drawings/:id" element={<DrawingDetail />} />
         <Route path="/paperless-factory/drawings/:id/assembly" element={<AssemblyTree />} />
+        <Route path="/paperless-factory/drawings/:id/operations" element={<OperationSequence />} />
+        <Route path="/paperless-factory/orders" element={<ProjectsOrders />} />
+        <Route path="/paperless-factory/orders/:id" element={<OrderDetail />} />
         <Route path="/operator-performance" element={<OperatorPerformanceDashboard />} />
 
         {/* Direct Sub-routes */}

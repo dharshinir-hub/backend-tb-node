@@ -1,5 +1,0 @@
-TOOLING
-- End mill 6mm
-- Drill 4.0mm
-- Reamer 5.0mm
-- Tap M5

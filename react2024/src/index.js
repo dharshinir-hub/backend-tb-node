@@ -8,6 +8,30 @@ import { UserDetailsProvider } from './app/Shared/context/UserDetailsContext';
 import * as Sentry from '@sentry/react';
 import posthog from 'posthog-js';
 
+// The benign "ResizeObserver loop completed with undelivered notifications" warning
+// (fired by ReactFlow's canvas size tracking) is harmless but the CRA dev overlay
+// surfaces it as an error. Patch ResizeObserver to run its callback inside rAF so the
+// synchronous loop never triggers the warning, and swallow it as a belt-and-braces.
+if (typeof window !== 'undefined' && window.ResizeObserver) {
+  const NativeRO = window.ResizeObserver;
+  window.ResizeObserver = class extends NativeRO {
+    constructor(callback) {
+      super((entries, observer) => {
+        window.requestAnimationFrame(() => { callback(entries, observer); });
+      });
+    }
+  };
+}
+const __silenceResizeObserver = (e) => {
+  const msg = (e && (e.message || (e.reason && e.reason.message))) || '';
+  if (/ResizeObserver loop (limit exceeded|completed)/.test(msg)) {
+    e.stopImmediatePropagation();
+    return false;
+  }
+  return undefined;
+};
+window.addEventListener('error', __silenceResizeObserver);
+
 const env = window._env_ || {};
 const hostname = window.location.hostname;
 const isProd = hostname === 'smart.yantra24x7.com';

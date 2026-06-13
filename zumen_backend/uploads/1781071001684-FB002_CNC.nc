@@ -1,5 +1,0 @@
-%
-O0001 (COVER PLATE)
-G21 G90
-M30
-%

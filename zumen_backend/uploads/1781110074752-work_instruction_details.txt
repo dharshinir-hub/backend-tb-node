@@ -1,5 +1,0 @@
-WORK INSTRUCTION
-1. Mount the part on the fixture.
-2. Set spindle to 1200 rpm.
-3. Run program O0001.
-4. Deburr and inspect.

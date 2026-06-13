@@ -79,6 +79,7 @@ export const DRAWING_ATTR_KEYS = [
   'material',
   'processType',
   'thumbnailUrl',
+  'thumbnailResourceId',
   'notes',
   // ZUMEN metadata-form fields
   'qualityCheckNo',
@@ -218,6 +219,58 @@ export const deleteDrawing = async (assetId) => {
   await zumenApi.delete(`${zBase()}/api/asset/${assetId}`);
 };
 
+// ---- drawing revision / version control ------------------------------------
+// Each revision is recorded as a telemetry datapoint (full history kept) and the
+// current revision is mirrored to the SERVER_SCOPE "revision" attribute.
+export const saveRevision = async (assetId, revision, note = '', by = 'Current User') => {
+  await zumenApi.post(
+    `${zBase()}/api/plugins/telemetry/ASSET/${assetId}/timeseries/ANY`,
+    { revision: JSON.stringify({ revision, note, by, at: new Date().toISOString() }) }
+  );
+  await saveDrawingAttributes(assetId, { revision });
+};
+
+export const getRevisionHistory = async (assetId, limit = 200) => {
+  const endTs = Date.now();
+  const startTs = endTs - 1000 * 60 * 60 * 24 * 366 * 10;
+  try {
+    const { data } = await zumenApi.get(
+      `${zBase()}/api/plugins/telemetry/ASSET/${assetId}/values/timeseries` +
+      `?keys=revision&startTs=${startTs}&endTs=${endTs}&limit=${limit}&orderBy=DESC`
+    );
+    const arr = (data && data.revision) || [];
+    // TB returns newest-first; keep only the latest entry per revision label so
+    // accidental duplicates (e.g. a double-clicked "New Rev") collapse to one.
+    const seen = new Set();
+    const out = [];
+    arr.forEach((pt) => {
+      let v = {};
+      try { v = JSON.parse(pt.value); } catch (e) { v = { revision: pt.value }; }
+      const label = v.revision;
+      if (label && seen.has(label)) return;
+      if (label) seen.add(label);
+      out.push({ ts: pt.ts, ...v });
+    });
+    return out;
+  } catch (e) {
+    console.error('getRevisionHistory failed:', e?.response?.data || e.message);
+    return [];
+  }
+};
+
+// Next revision label: A->B->...->Z->AA, or numeric "1"->"2" if it's a number.
+export const nextRevision = (cur) => {
+  if (!cur) return 'A';
+  if (/^\d+$/.test(cur)) return String(parseInt(cur, 10) + 1);
+  const s = cur.toUpperCase();
+  let i = s.length - 1;
+  const arr = s.split('');
+  while (i >= 0) {
+    if (arr[i] === 'Z') { arr[i] = 'A'; i--; } else { arr[i] = String.fromCharCode(arr[i].charCodeAt(0) + 1); return arr.join(''); }
+  }
+  return 'A' + arr.join('');
+};
+
 // ---- BOM / assembly hierarchy (relations) ---------------------------------
 
 // Direct child parts of a drawing (one level down the assembly tree).
@@ -271,8 +324,38 @@ export const getAssemblyTree = async (rootId, maxDepth = 8, _depth = 0, _seen = 
     name: detail.name,
     label: detail.label || detail.attributes?.productName || '',
     status: detail.attributes?.status || '',
+    material: detail.attributes?.material || '',
+    inventory: detail.attributes?.inventory || '',
+    thumbnailResourceId: detail.attributes?.thumbnailResourceId || '',
     children,
   };
+};
+
+// ---- operation sequence / process routing (per drawing) --------------------
+// Ordered manufacturing steps for a part, stored as the drawing asset's
+// SERVER_SCOPE "operations" attribute (JSON array). Each op: { id, name,
+// machine, cycleTime, setupTime, remarks } — sequence is the array order.
+export const getOperations = async (drawingId) => {
+  try {
+    const { data } = await zumenApi.get(
+      `${zBase()}/api/plugins/telemetry/ASSET/${drawingId}/values/attributes/SERVER_SCOPE?keys=operations`
+    );
+    const entry = (data || []).find((a) => a.key === 'operations');
+    if (!entry) return [];
+    const v = entry.value;
+    if (Array.isArray(v)) return v;
+    try { return JSON.parse(v) || []; } catch (e) { return []; }
+  } catch (error) {
+    console.error('getOperations failed:', error?.response?.data || error.message);
+    return [];
+  }
+};
+
+export const saveOperations = async (drawingId, ops) => {
+  await zumenApi.post(
+    `${zBase()}/api/plugins/telemetry/ASSET/${drawingId}/attributes/SERVER_SCOPE`,
+    { operations: JSON.stringify(ops) }
+  );
 };
 
 // ---- clients (customers) ---------------------------------------------------

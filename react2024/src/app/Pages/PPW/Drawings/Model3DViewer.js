@@ -71,7 +71,8 @@ const Model3DViewer = ({ url, name }) => {
 
     let renderer, controls, frame, disposed = false;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#0b1020');
+    // Light background to match the Yantra dashboard theme (not a dark contrast).
+    scene.background = new THREE.Color('#f1f5f9');
 
     const setup = (meshes) => {
       if (disposed) return;
@@ -161,9 +162,9 @@ const Model3DViewer = ({ url, name }) => {
       {loading && !error && (
         <Box sx={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', color: '#e2e8f0', gap: 1,
+          alignItems: 'center', justifyContent: 'center', color: '#475569', gap: 1, bgcolor: '#f1f5f9',
         }}>
-          <CircularProgress color="inherit" />
+          <CircularProgress sx={{ color: '#ec6e17' }} />
           <Typography variant="body2">Rendering 3D model…</Typography>
         </Box>
       )}

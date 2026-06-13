@@ -18,9 +18,11 @@ import ImageIcon from '@mui/icons-material/Image';
 import ApprovalIcon from '@mui/icons-material/Approval';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import LooksOneIcon from '@mui/icons-material/LooksOne';
+import GestureIcon from '@mui/icons-material/Gesture';
 import NearMeIcon from '@mui/icons-material/NearMe';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
+import { alertSaved, alertError } from '../ppwAlerts';
 
 const COLORS = ['#000000', '#6b7280', '#ffffff', '#ef4444', '#2563eb', '#22c55e', '#f59e0b', '#ec6e17', '#d946ef'];
 const FONTS = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Courier New', 'Verdana', 'Tahoma', 'Comic Sans MS'];
@@ -40,7 +42,7 @@ const TOOL_GROUPS = [
   ['select'],
   ['line', 'arrow', 'rect', 'circle'],
   ['pen', 'marker'],
-  ['text', 'image', 'stamp', 'qr', 'seq'],
+  ['text', 'image', 'stamp', 'qr', 'sign', 'seq'],
 ];
 const VDivider = () => <Box sx={{ width: '1px', height: 24, bgcolor: '#e5e7eb', mx: 0.75 }} />;
 
@@ -56,6 +58,7 @@ const TOOLS = [
   { key: 'image', label: 'Image', icon: <ImageIcon /> },
   { key: 'stamp', label: 'Stamp', icon: <ApprovalIcon /> },
   { key: 'qr', label: 'QR', icon: <QrCode2Icon /> },
+  { key: 'sign', label: 'Signature', icon: <GestureIcon /> },
   { key: 'seq', label: 'Seq', icon: <LooksOneIcon /> },
 ];
 
@@ -102,10 +105,9 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
   const [saving, setSaving] = useState(false);
   const [stampOpen, setStampOpen] = useState(false);
   const [stampDate, setStampDate] = useState(new Date().toISOString().slice(0, 10));
-  const [editStampOpen, setEditStampOpen] = useState(false);
-  const [editLines, setEditLines] = useState('');
   const [customStamps, setCustomStamps] = useState([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createEditing, setCreateEditing] = useState(false); // create dialog is editing an existing stamp
   const [createText, setCreateText] = useState('');
   const [createColor, setCreateColor] = useState('#ef4444');
   const [createShape, setCreateShape] = useState('rect');
@@ -114,6 +116,15 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
   const menuTargetRef = useRef(null);
   const [zoom, setZoom] = useState(1);
   const baseDimsRef = useRef({ w: 0, h: 0 });
+  // Signature pad
+  const [signOpen, setSignOpen] = useState(false);
+  const [signColor, setSignColor] = useState('#111827');
+  const [signEditing, setSignEditing] = useState(false); // editing an existing signature
+  const [signErase, setSignErase] = useState(false); // eraser mode in the sign pad
+  const signCanvasRef = useRef(null);
+  const signDrawing = useRef(false);
+  const signDirty = useRef(false);
+  const signEditTargetRef = useRef(null);
 
   useEffect(() => { toolRef.current = tool; }, [tool]);
   useEffect(() => { styleRef.current = { color, thickness, opacity, fontSize, bold, italic, fontFamily }; }, [color, thickness, opacity, fontSize, bold, italic, fontFamily]);
@@ -321,6 +332,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
     if (tool === 'image') fileInputRef.current && fileInputRef.current.click();
     if (tool === 'stamp') setStampOpen(true);
     if (tool === 'qr') addQr();
+    if (tool === 'sign') { signEditTargetRef.current = null; setSignEditing(false); setSignErase(false); signDirty.current = false; setSignOpen(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool]);
 
@@ -365,6 +377,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
       fabric.Image.fromURL(ev.target.result, (img) => {
         img.scaleToWidth(Math.min(220, fcRef.current.getWidth() / 3));
         img.set({ left: 40, top: 40 });
+        img.data = { type: 'image' };
         fcRef.current.add(img); fcRef.current.setActiveObject(img); snapshot();
         setTool('select');
       });
@@ -378,11 +391,128 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
       fabric.Image.fromURL(url, (img) => {
         img.scaleToWidth(120);
         img.set({ left: 40, top: 40 });
+        img.data = { type: 'qr' };
         fcRef.current.add(img); fcRef.current.setActiveObject(img); snapshot();
         setTool('select');
       });
     } catch (err) { setTool('select'); }
   };
+
+  // ---- signature pad (draw on a small canvas, insert as image) ----
+  const signPos = (e) => {
+    const cv = signCanvasRef.current;
+    const r = cv.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: (p.clientX - r.left) * (cv.width / r.width), y: (p.clientY - r.top) * (cv.height / r.height) };
+  };
+  const signStart = (e) => {
+    e.preventDefault();
+    const cv = signCanvasRef.current; if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const { x, y } = signPos(e);
+    ctx.globalCompositeOperation = signErase ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = signColor || '#111827';
+    ctx.lineWidth = signErase ? 18 : 2.5;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y);
+    signDrawing.current = true; signDirty.current = true;
+  };
+  const signMove = (e) => {
+    if (!signDrawing.current) return;
+    e.preventDefault();
+    const ctx = signCanvasRef.current.getContext('2d');
+    const { x, y } = signPos(e);
+    ctx.lineTo(x, y); ctx.stroke();
+  };
+  const signEnd = () => { signDrawing.current = false; };
+  const signClear = () => {
+    const cv = signCanvasRef.current; if (!cv) return;
+    cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+    signDirty.current = false;
+  };
+  const closeSign = () => { setSignOpen(false); setTool('select'); setSignEditing(false); setSignErase(false); signEditTargetRef.current = null; };
+  // Open the pad to edit an existing signature: pre-load its image so it can be
+  // touched up, and remember its colour. The drawing happens in a useEffect once
+  // the canvas is mounted (see below).
+  const openEditSign = (target) => {
+    signEditTargetRef.current = target;
+    setSignColor((target.data && target.data.color) || '#111827');
+    setSignEditing(true);
+    setSignErase(false);
+    setSignOpen(true);
+  };
+  const insertSignature = () => {
+    const cv = signCanvasRef.current;
+    if (!cv || !signDirty.current) { closeSign(); return; }
+    const url = cv.toDataURL('image/png');
+    const target = signEditTargetRef.current;
+    fabric.Image.fromURL(url, (img) => {
+      if (target) {
+        img.scaleToWidth(target.getScaledWidth());
+        img.set({ left: target.left, top: target.top, angle: target.angle || 0 });
+        img.data = { type: 'signature', color: signColor };
+        fcRef.current.remove(target);
+      } else {
+        img.scaleToWidth(180);
+        img.set({ left: 60, top: 60 });
+        img.data = { type: 'signature', color: signColor };
+      }
+      fcRef.current.add(img); fcRef.current.setActiveObject(img); setSelectedObj(img); snapshot();
+      signClear();
+      closeSign();
+    });
+  };
+
+  // When the pad opens to edit, paint the existing signature onto it so it can be
+  // touched up. Uses rAF retries because MUI mounts the dialog canvas a frame
+  // after `signOpen` flips, so the ref can still be null when this effect first runs.
+  useEffect(() => {
+    if (!signOpen) return undefined;
+    const target = signEditTargetRef.current;
+    if (!target) return undefined;
+    const src = (target.getSrc && target.getSrc()) || (target._element && target._element.src);
+    if (!src) return undefined;
+    let raf; let tries = 0;
+    const paint = () => {
+      const cv = signCanvasRef.current;
+      if (!cv) { if (tries++ < 30) raf = requestAnimationFrame(paint); return; }
+      const ctx = cv.getContext('2d');
+      const im = new Image();
+      im.onload = () => {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        const scale = Math.min(cv.width / im.width, cv.height / im.height, 1);
+        const w = im.width * scale; const h = im.height * scale;
+        ctx.drawImage(im, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+        // tint the loaded signature to its stored colour
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.fillStyle = signColor;
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.restore();
+        signDirty.current = true;
+      };
+      im.src = src;
+    };
+    raf = requestAnimationFrame(paint);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signOpen]);
+
+  // Recolour everything currently on the pad to the chosen colour (signatures are
+  // monochrome, so a single click restyles an existing signature too).
+  useEffect(() => {
+    if (!signOpen) return;
+    const cv = signCanvasRef.current;
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = signColor;
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.restore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signColor]);
 
   // Build a stamp group from explicit text lines, tagged so it can be re-edited.
   const makeStampGroup = (lines, color, shape) => {
@@ -414,37 +544,44 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
     setStampOpen(false); setTool('select');
   };
 
+  const closeCreate = () => { setCreateOpen(false); setCreateEditing(false); editTargetRef.current = null; };
+
   const openCreateStamp = () => {
+    editTargetRef.current = null; setCreateEditing(false);
     setCreateText(''); setCreateColor('#ef4444'); setCreateShape('rect'); setCreateOpen(true);
   };
   const addCustomStamp = () => {
     const lines = createText.split('\n').filter((l) => l.length);
-    if (!lines.length) { setCreateOpen(false); return; }
+    if (!lines.length) { closeCreate(); return; }
     const stamp = { id: 'custom-' + lines.join('|'), lines, color: createColor, shape: createShape, custom: true };
     setCustomStamps((prev) => [...prev, stamp]);
     addStamp(stamp);
-    setCreateOpen(false);
+    closeCreate();
   };
 
+  // Edit reuses the rich "create" dialog, pre-filled, with an Update button.
   const openEditStamp = (target) => {
+    const d = target.data || {};
     editTargetRef.current = target;
-    setEditLines(((target.data && target.data.lines) || []).join('\n'));
-    setEditStampOpen(true);
+    setCreateText(((d.lines) || []).join('\n'));
+    setCreateColor(d.color || '#ef4444');
+    setCreateShape(d.shape || 'rect');
+    setCreateEditing(true);
+    setCreateOpen(true);
   };
   openEditStampRef.current = openEditStamp;
 
-  const saveEditStamp = () => {
+  const updateStamp = () => {
     const fc = fcRef.current;
     const target = editTargetRef.current;
-    if (!target || !target.data) { setEditStampOpen(false); return; }
-    const lines = editLines.split('\n').filter((l) => l.length);
-    if (!lines.length) { setEditStampOpen(false); return; }
+    const lines = createText.split('\n').filter((l) => l.length);
+    if (!target || !target.data || !lines.length) { closeCreate(); return; }
     const pos = { left: target.left, top: target.top, angle: target.angle, scaleX: target.scaleX, scaleY: target.scaleY };
     fc.remove(target);
-    const g = makeStampGroup(lines, target.data.color, target.data.shape);
+    const g = makeStampGroup(lines, createColor, createShape);
     g.set(pos);
-    fc.add(g); fc.setActiveObject(g); fc.requestRenderAll(); snapshot();
-    setEditStampOpen(false);
+    fc.add(g); fc.setActiveObject(g); fc.requestRenderAll(); setSelectedObj(g); snapshot();
+    closeCreate();
   };
 
   const deleteSelected = () => {
@@ -475,7 +612,14 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
     setMenu(null);
     if (o && o.data && o.data.type === 'stamp') openEditStamp(o);
   };
-  const menuTargetIsStamp = !!(menu && menuTargetRef.current && menuTargetRef.current.data && menuTargetRef.current.data.type === 'stamp');
+  const menuEditSign = () => {
+    const o = menuTargetRef.current;
+    setMenu(null);
+    if (o && o.data && o.data.type === 'signature') openEditSign(o);
+  };
+  const menuTargetType = (menu && menuTargetRef.current && menuTargetRef.current.data && menuTargetRef.current.data.type) || null;
+  const menuTargetIsStamp = menuTargetType === 'stamp';
+  const menuTargetIsSign = menuTargetType === 'signature';
 
   const applyZoom = (z) => {
     const clamped = Math.min(3, Math.max(0.25, z));
@@ -484,17 +628,31 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
     if (fc && w) { fc.setZoom(clamped); fc.setDimensions({ width: w * clamped, height: h * clamped }); }
   };
 
+  // Summarise the annotations on the canvas (for the history log).
+  const annotationSummary = () => {
+    const objs = fcRef.current.getObjects();
+    const t = (x) => x.data && x.data.type;
+    const parts = [];
+    if (objs.some((o) => t(o) === 'stamp')) parts.push('stamp');
+    if (objs.some((o) => t(o) === 'signature')) parts.push('signature');
+    if (objs.some((o) => t(o) === 'qr')) parts.push('QR');
+    if (objs.some((o) => t(o) === 'image')) parts.push('image');
+    if (objs.some((o) => isTextObj(o))) parts.push('text');
+    if (objs.some((o) => ['line', 'rect', 'circle', 'path', 'ellipse', 'polygon'].includes(o.type))) parts.push('drawing');
+    return parts.length ? parts.join(', ') : 'annotations';
+  };
+
   const save = async () => {
     setSaving(true);
     try {
       const dataUrl = fcRef.current.toDataURL({ format: 'png' });
       const blob = await (await fetch(dataUrl)).blob();
       const base = (doc?.name || 'drawing').replace(/\.[^.]+$/, '');
-      await uploadAnnotated(blob, `${base}_markup_${Date.now()}.png`);
+      await uploadAnnotated(blob, `${base}_markup_${Date.now()}.png`, annotationSummary());
+      alertSaved('Saved successfully!');
       onSaved && onSaved();
     } catch (err) {
-      // eslint-disable-next-line no-alert
-      alert('Save failed: ' + err.message + '\n(If the image is cross-origin, CORS must allow it.)');
+      alertError(err.message + '\n(If the image is cross-origin, CORS must allow it.)');
     } finally {
       setSaving(false);
     }
@@ -506,7 +664,20 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
     const o = fcRef.current && fcRef.current.getActiveObject();
     if (o) { mutate(o); fcRef.current.requestRenderAll(); snapshot(); }
   };
-  const onColor = (c) => { setColor(c); applyToSel((o) => o.set(isTextObj(o) ? 'fill' : 'stroke', c)); };
+  // Recolor an object, recursing into groups/stamps so the text fills and the
+  // shape/border strokes all follow the chosen colour.
+  const recolorObj = (o, c) => {
+    if (!o) return;
+    if (o.type === 'group' && typeof o.getObjects === 'function') {
+      o.getObjects().forEach((child) => recolorObj(child, c));
+      if (o.stroke) o.set('stroke', c);
+    } else if (isTextObj(o)) {
+      o.set('fill', c);
+    } else {
+      o.set('stroke', c);
+    }
+  };
+  const onColor = (c) => { setColor(c); applyToSel((o) => recolorObj(o, c)); };
   const onThickness = (w) => { setThickness(w); applyToSel((o) => { if (!isTextObj(o)) o.set('strokeWidth', w); }); };
   const onOpacity = (op) => { setOpacity(op); applyToSel((o) => o.set('opacity', op)); };
   const onFontSize = (s) => { setFontSize(s); applyToSel((o) => { if (isTextObj(o)) o.set('fontSize', s); }); };
@@ -643,10 +814,65 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
 
       <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={addImageFromFile} />
 
+      {/* Signature pad */}
+      <Dialog open={signOpen} onClose={closeSign} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>{signEditing ? 'Edit signature' : 'Draw signature'}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ border: '1px dashed #cbd5e1', borderRadius: 1, bgcolor: '#fff' }}>
+            <canvas
+              ref={signCanvasRef}
+              width={440}
+              height={180}
+              style={{ width: '100%', height: 180, touchAction: 'none', cursor: signErase ? 'cell' : 'crosshair', display: 'block' }}
+              onMouseDown={signStart} onMouseMove={signMove} onMouseUp={signEnd} onMouseLeave={signEnd}
+              onTouchStart={signStart} onTouchMove={signMove} onTouchEnd={signEnd}
+            />
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+            <Button size="small" variant={!signErase ? 'contained' : 'outlined'} startIcon={<CreateIcon sx={{ fontSize: 16 }} />}
+              onClick={() => setSignErase(false)}
+              sx={{ textTransform: 'none', bgcolor: !signErase ? '#ec6e17' : undefined }}>Pen</Button>
+            <Button size="small" variant={signErase ? 'contained' : 'outlined'} startIcon={<DeleteOutlineIcon sx={{ fontSize: 16 }} />}
+              onClick={() => setSignErase(true)}
+              sx={{ textTransform: 'none', bgcolor: signErase ? '#ec6e17' : undefined }}>Eraser</Button>
+          </Box>
+
+          <Typography sx={{ fontSize: 12, color: '#64748b', mt: 1.5, mb: 0.5 }}>Color</Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+            {COLORS.filter((c) => c !== '#ffffff').map((c) => (
+              <Box key={c} onClick={() => setSignColor(c)} sx={{
+                width: 26, height: 26, borderRadius: '4px', bgcolor: c, cursor: 'pointer',
+                border: signColor === c ? '2px solid #ec6e17' : '1px solid #cbd5e1',
+              }} />
+            ))}
+            <Box component="label" sx={{
+              width: 26, height: 26, borderRadius: '4px', position: 'relative', overflow: 'hidden',
+              border: '1px solid #cbd5e1', cursor: 'pointer',
+              background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)',
+            }}>
+              <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(signColor) ? signColor : '#000000'}
+                onChange={(e) => setSignColor(e.target.value)}
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+            </Box>
+          </Box>
+          <Typography sx={{ fontSize: 11, color: '#94a3b8', mt: 1 }}>
+            Use <b>Pen</b> to sign and <b>Eraser</b> to rub out a part (e.g. one letter). <b>Clear</b> wipes everything. New strokes use the chosen colour.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={signClear}>Clear</Button>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button onClick={closeSign}>Cancel</Button>
+          <Button variant="contained" sx={{ bgcolor: '#ec6e17' }} onClick={insertSignature}>{signEditing ? 'Update' : 'Insert'}</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Per-object ≡ menu */}
       <Menu open={!!menu} onClose={() => setMenu(null)} anchorReference="anchorPosition"
         anchorPosition={menu ? { top: menu.top, left: menu.left } : undefined}>
-        {menuTargetIsStamp && <MenuItem onClick={menuEditStamp}>Edit text</MenuItem>}
+        {menuTargetIsStamp && <MenuItem onClick={menuEditStamp}>Edit</MenuItem>}
+        {menuTargetIsSign && <MenuItem onClick={menuEditSign}>Edit</MenuItem>}
         <MenuItem onClick={menuDuplicate}>Duplicate</MenuItem>
         <MenuItem onClick={menuRemove} sx={{ color: '#ef4444' }}>Remove</MenuItem>
       </Menu>
@@ -687,23 +913,9 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
         </DialogActions>
       </Dialog>
 
-      {/* Edit stamp dialog */}
-      <Dialog open={editStampOpen} onClose={() => setEditStampOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Edit stamp</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontSize: 12, color: '#64748b', mt: 1, mb: 0.5 }}>Stamp text (one line each)</Typography>
-          <TextField multiline minRows={3} size="small" fullWidth value={editLines}
-            onChange={(e) => setEditLines(e.target.value)} />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditStampOpen(false)}>Cancel</Button>
-          <Button variant="contained" sx={{ bgcolor: '#ec6e17' }} onClick={saveEditStamp}>Save</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Create custom stamp dialog */}
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Create your own stamp</DialogTitle>
+      {/* Create / edit stamp dialog */}
+      <Dialog open={createOpen} onClose={closeCreate} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>{createEditing ? 'Edit stamp' : 'Create your own stamp'}</DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: 12, color: '#64748b', mt: 1, mb: 0.5 }}>Stamp text (one line each)</Typography>
           <TextField multiline minRows={3} size="small" fullWidth value={createText}
@@ -754,8 +966,10 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button variant="contained" sx={{ bgcolor: '#ec6e17' }} onClick={addCustomStamp}>Add to drawing</Button>
+          <Button onClick={closeCreate}>Cancel</Button>
+          <Button variant="contained" sx={{ bgcolor: '#ec6e17' }} onClick={createEditing ? updateStamp : addCustomStamp}>
+            {createEditing ? 'Update' : 'Add to drawing'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

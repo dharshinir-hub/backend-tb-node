@@ -5,10 +5,12 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import { useDocUrl } from '../../../Services/app/zumendocservice';
+import { useDocPreview } from '../../../Services/app/zumendocservice';
 
-// three.js + occt are heavy — only pulled in when a 3D file is actually opened.
+// three.js + occt and SheetJS are heavy — only pulled in when actually opened.
 const Model3DViewer = React.lazy(() => import('./Model3DViewer'));
+const SheetPreview = React.lazy(() => import('./SheetPreview'));
+const WordEditor = React.lazy(() => import('./WordEditor'));
 
 const ext = (name = '') => (name.split('.').pop() || '').toLowerCase();
 
@@ -16,7 +18,9 @@ const IMAGE = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
 const VIDEO = ['mp4', 'webm', 'ogg', 'mov'];
 const AUDIO = ['mp3', 'wav'];
 const THREED = ['step', 'stp', 'stl', 'iges', 'igs', 'brep'];
-const TEXT = ['txt', 'csv', 'json', 'md', 'log', 'xml', 'yaml', 'yml', 'js', 'html',
+const SHEET = ['xlsx', 'xls', 'csv', 'ods'];
+const WORD = ['docx', 'doc'];
+const TEXT = ['txt', 'json', 'md', 'log', 'xml', 'yaml', 'yml', 'js', 'html',
   'nc', 'gcode', 'scad', 'dxf'];
 
 export const kindOf = (name) => {
@@ -26,6 +30,8 @@ export const kindOf = (name) => {
   if (VIDEO.includes(e)) return 'video';
   if (AUDIO.includes(e)) return 'audio';
   if (THREED.includes(e)) return '3d';
+  if (SHEET.includes(e)) return 'sheet';
+  if (WORD.includes(e)) return 'word';
   if (TEXT.includes(e)) return 'text';
   return 'other';
 };
@@ -37,8 +43,9 @@ const DocumentPreview = ({ doc, onClose }) => {
   const [text, setText] = useState(null);
   const [loadingText, setLoadingText] = useState(false);
   const open = !!doc;
-  const url = useDocUrl(doc);
-  const kind = doc ? kindOf(doc.name) : 'other';
+  const { url, kind: detectedKind } = useDocPreview(doc);
+  // Prefer the REAL content type (magic-byte sniff); fall back to the extension.
+  const kind = doc ? (detectedKind || kindOf(doc.name)) : 'other';
 
   useEffect(() => {
     if (!doc || kind !== 'text' || !url) { setText(null); return; }
@@ -55,7 +62,7 @@ const DocumentPreview = ({ doc, onClose }) => {
   if (!open) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+    <Dialog open={open} onClose={onClose} fullScreen>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1 }}>
         <Typography sx={{ fontWeight: 600, flexGrow: 1 }} noWrap>{doc.name}</Typography>
         <Button size="small" startIcon={<DownloadIcon />} component="a" href={url || undefined}
@@ -64,47 +71,63 @@ const DocumentPreview = ({ doc, onClose }) => {
         </Button>
         <IconButton onClick={onClose}><CloseIcon /></IconButton>
       </DialogTitle>
-      <DialogContent dividers sx={{ minHeight: 360, bgcolor: '#0f172a08' }}>
+      <DialogContent dividers sx={{ p: 0, bgcolor: '#0f172a', display: 'flex', flexDirection: 'column' }}>
         {!url && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}><CircularProgress /></Box>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1 }}><CircularProgress /></Box>
         )}
         {url && kind === 'image' && (
-          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-            <img src={url} alt={doc.name} style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain' }} />
+          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto', p: 2 }}>
+            <img src={url} alt={doc.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
           </Box>
         )}
         {url && kind === 'pdf' && (
-          <iframe title={doc.name} src={url} style={{ width: '100%', height: '72vh', border: 'none' }} />
+          <iframe title={doc.name} src={url} style={{ width: '100%', height: '100%', flexGrow: 1, border: 'none' }} />
         )}
         {url && kind === '3d' && (
-          <Suspense fallback={(
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '72vh' }}>
-              <CircularProgress />
-            </Box>
-          )}>
-            <Model3DViewer url={url} name={doc.name} />
-          </Suspense>
+          <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+            <Suspense fallback={(
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <CircularProgress />
+              </Box>
+            )}>
+              <Model3DViewer url={url} name={doc.name} />
+            </Suspense>
+          </Box>
+        )}
+        {url && kind === 'sheet' && (
+          <Box sx={{ flexGrow: 1, minHeight: 0, bgcolor: '#fff' }}>
+            <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><CircularProgress /></Box>}>
+              <SheetPreview doc={doc} />
+            </Suspense>
+          </Box>
+        )}
+        {url && kind === 'word' && (
+          <Box sx={{ flexGrow: 1, minHeight: 0, bgcolor: '#fff' }}>
+            <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><CircularProgress /></Box>}>
+              <WordEditor doc={doc} editable={false} />
+            </Suspense>
+          </Box>
         )}
         {url && kind === 'video' && (
-          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-            <video src={url} controls style={{ maxWidth: '100%', maxHeight: '72vh' }} />
+          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <video src={url} controls style={{ maxWidth: '100%', maxHeight: '100%' }} />
           </Box>
         )}
         {url && kind === 'audio' && (
-          <Box sx={{ py: 4, textAlign: 'center' }}><audio src={url} controls /></Box>
+          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><audio src={url} controls /></Box>
         )}
         {url && kind === 'text' && (
           loadingText
-            ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
+            ? <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><CircularProgress /></Box>
             : <Box component="pre" sx={{
-                m: 0, p: 2, bgcolor: '#0b1020', color: '#e2e8f0', borderRadius: 1,
-                fontSize: 12, lineHeight: 1.5, overflow: 'auto', maxHeight: '72vh',
+                m: 0, p: 2, flexGrow: 1, bgcolor: '#0b1020', color: '#e2e8f0',
+                fontSize: 12, lineHeight: 1.5, overflow: 'auto',
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               }}>{text}</Box>
         )}
         {url && kind === 'other' && (
-          <Box sx={{ textAlign: 'center', py: 8, color: '#475569' }}>
-            <InsertDriveFileIcon sx={{ fontSize: 64, mb: 1 }} />
+          <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center', color: '#cbd5e1' }}>
+            <InsertDriveFileIcon sx={{ fontSize: 64, mb: 1, mx: 'auto' }} />
             <Typography sx={{ mb: 0.5 }}>
               In-app preview isn’t available for <b>.{ext(doc.name)}</b> files.
             </Typography>

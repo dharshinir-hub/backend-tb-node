@@ -55,6 +55,7 @@ export default function PersistentDrawerLeft({ children }) {
   const [qualityOpen, setQualityOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [paperlessOpen, setPaperlessOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -209,7 +210,14 @@ export default function PersistentDrawerLeft({ children }) {
           { path: "/quality", name: "Quality Entry", icon: <MdVerifiedUser /> },
         ]
       },
-      { path: "/paperless-factory/drawings", name: "Paperless Factory", icon: <TbFolders size={20} /> },
+      {
+        name: "Paperless Factory",
+        icon: <TbFolders size={20} />,
+        children: [
+          { path: "/paperless-factory/drawings", name: "Drawings", icon: <TbFolders size={18} /> },
+          { path: "/paperless-factory/orders", name: "Projects / Orders", icon: <TbReportAnalytics size={18} /> },
+        ]
+      },
       ...(showReportChildren ?
         [
           {
@@ -444,7 +452,8 @@ export default function PersistentDrawerLeft({ children }) {
                       item.name === "Operation" ? renderDropdown(item, operationOpen, setOperationOpen) :
                         item.name === "Analytics" ? renderDropdown(item, analyticsOpen, setAnalyticsOpen) :
                           item.name === "Leaderboard" ? renderDropdown(item, leaderboardOpen, setLeaderboardOpen) :
-                            null
+                            item.name === "Paperless Factory" ? renderDropdown(item, paperlessOpen, setPaperlessOpen) :
+                              null
           ) : (
             <NavLink
               to={item.path}

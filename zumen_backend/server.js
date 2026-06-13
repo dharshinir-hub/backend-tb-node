@@ -1,134 +1,23 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 const ZumenAIService = require('./services/aiService');
 
 const app = express();
 const PORT = 5000;
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${file.originalname}`;
-    cb(null, uniqueName);
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
-  fileFilter: (req, file, cb) => {
-    const allowedFormats = ['.pdf', '.dwg', '.step', '.iges', '.dxf'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowedFormats.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`Only ${allowedFormats.join(', ')} files are allowed`));
-    }
-  }
-});
-
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-// Serve uploaded files under /uploads (matches the fileUrl stored on documents).
-app.use('/uploads', express.static(uploadsDir));
 
-// ==================== ZUMEN DOCUMENT STORE ====================
-// File store for the per-drawing document tabs. ThingsBoard holds the drawing
-// entity + metadata; binary files live here, keyed by TB assetId + docType.
-// Metadata is persisted to documents.json so it survives restarts.
-
-const ZUMEN_DOC_TYPES = [
-  'drawing', 'assembly-drawing', 'work-instruction-video', 'work-instruction-details',
-  '2d-cad', '3d-cad', 'customer-list', 'quotation', 'purchase-order', 'video',
-  'inspection-report', 'tools', 'product-sample', 'defect-report', 'program', 'packing-std',
-];
-
-const docsMetaFile = path.join(__dirname, 'documents.json');
-let zumenDocs = [];
-try {
-  if (fs.existsSync(docsMetaFile)) zumenDocs = JSON.parse(fs.readFileSync(docsMetaFile, 'utf8'));
-} catch (e) { console.error('Could not load documents.json:', e.message); }
-const saveDocs = () => {
-  try { fs.writeFileSync(docsMetaFile, JSON.stringify(zumenDocs, null, 2)); }
-  catch (e) { console.error('Could not save documents.json:', e.message); }
-};
-
-// Permissive uploader for documents (any file type, 100MB).
-const docUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-  }),
-  limits: { fileSize: 100 * 1024 * 1024 },
-});
-
-// List documents for a drawing, plus per-type counts (used for the tab badges).
-app.get('/api/zumen/documents/:drawingId', (req, res) => {
-  const docs = zumenDocs.filter((d) => d.drawingId === req.params.drawingId);
-  const counts = {};
-  ZUMEN_DOC_TYPES.forEach((t) => { counts[t] = 0; });
-  docs.forEach((d) => { counts[d.docType] = (counts[d.docType] || 0) + 1; });
-  res.json({ documents: docs, counts });
-});
-
-// Upload a document of a given type to a drawing.
-app.post('/api/zumen/documents/:drawingId/:docType', docUpload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  if (!ZUMEN_DOC_TYPES.includes(req.params.docType)) {
-    return res.status(400).json({ error: `Unknown docType: ${req.params.docType}` });
-  }
-  const doc = {
-    id: uuidv4(),
-    drawingId: req.params.drawingId,
-    docType: req.params.docType,
-    name: req.body.name || req.file.originalname,
-    originalName: req.file.originalname,
-    size: req.file.size,
-    sizeLabel: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
-    fileUrl: `/uploads/${req.file.filename}`,
-    filePath: req.file.filename,
-    uploadedBy: req.body.uploadedBy || 'Current User',
-    uploadedAt: new Date().toISOString(),
-  };
-  zumenDocs.push(doc);
-  saveDocs();
-  res.status(201).json(doc);
-});
-
-// Update a document's editable fields (rename / remarks).
-app.patch('/api/zumen/documents/:docId', (req, res) => {
-  const doc = zumenDocs.find((d) => d.id === req.params.docId);
-  if (!doc) return res.status(404).json({ error: 'Document not found' });
-  if (req.body.name !== undefined) doc.name = req.body.name;
-  if (req.body.remarks !== undefined) doc.remarks = req.body.remarks;
-  saveDocs();
-  res.json(doc);
-});
-
-// Delete a document (removes metadata + the file on disk).
-app.delete('/api/zumen/documents/:docId', (req, res) => {
-  const idx = zumenDocs.findIndex((d) => d.id === req.params.docId);
-  if (idx === -1) return res.status(404).json({ error: 'Document not found' });
-  const [removed] = zumenDocs.splice(idx, 1);
-  saveDocs();
-  try { fs.unlinkSync(path.join(uploadsDir, removed.filePath)); } catch (e) { /* file may be gone */ }
-  res.json(removed);
-});
+// ==================== DOCUMENT STORAGE: ThingsBoard ONLY ====================
+// Documents (file bytes + metadata + change history) are stored ENTIRELY in
+// ThingsBoard by the frontend (react2024/src/app/Services/app/zumendocservice.js):
+//   - file bytes        -> TB resource library
+//   - immutable metadata -> drawing asset SERVER_SCOPE "documents" attribute
+//   - mutable state      -> TB telemetry (per-doc snapshots, full history)
+// NO files are written to disk here. The old multer/disk upload routes and the
+// /uploads static server were removed so nothing can ever land on the file system.
 
 // ==================== DATABASE / MOCK DATA ====================
 
@@ -243,28 +132,12 @@ app.put('/api/drawings/:id', (req, res) => {
   res.json(drawing);
 });
 
-// FILE UPLOAD ENDPOINT
-app.post('/api/drawings/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-
-  const fileSize = (req.file.size / (1024 * 1024)).toFixed(2);
-  const newDrawing = {
-    id: Math.max(...db.drawings.map(d => d.id), 0) + 1,
-    name: req.body.name || req.file.originalname.split('.')[0],
-    format: path.extname(req.file.originalname).toUpperCase().slice(1),
-    status: 'Pending',
-    date: new Date().toISOString().split('T')[0],
-    projectId: req.body.projectId || 1,
-    size: `${fileSize} MB`,
-    filePath: req.file.filename,
-    uploadedBy: req.body.uploadedBy || 'System',
-    fileUrl: `/uploads/${req.file.filename}`
-  };
-
-  db.drawings.push(newDrawing);
-  res.status(201).json(newDrawing);
+// FILE UPLOAD: disabled. Drawings/documents are uploaded directly to ThingsBoard
+// by the frontend (TB resource library + asset attributes/telemetry). No disk path.
+app.post('/api/drawings/upload', (req, res) => {
+  res.status(410).json({
+    error: 'Disk upload removed. Files are stored in ThingsBoard via the frontend (zumendocservice).',
+  });
 });
 
 // ==================== WORK INSTRUCTIONS ====================
