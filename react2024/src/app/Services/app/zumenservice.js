@@ -115,7 +115,7 @@ export const getDrawingProfileId = async () => {
     // Not present yet -> create it.
     const { data: created } = await zumenApi.post(`${zBase()}/api/assetProfile`, {
       name: DRAWING_ASSET_PROFILE,
-      description: 'ZUMEN drawing / part record',
+      description: 'Drawing / part record',
       default: false,
     });
     _drawingProfileIdCache = created.id.id;
@@ -360,15 +360,24 @@ export const saveOperations = async (drawingId, ops) => {
 
 // ---- clients (customers) ---------------------------------------------------
 
-// Tenant customers = ZUMEN clients. Returns [{ id, title }].
-export const getClients = async ({ pageSize = 200, page = 0, textSearch = '' } = {}) => {
+// Clients come from the CURRENT customer's `zumen_client` SERVER_SCOPE attribute
+// (added in Settings > Client info), NOT tenant customers. Returns [{ id, title }]
+// where `title` is the company name — so every client picker lists companies.
+export const getClients = async () => {
   try {
-    const params = new URLSearchParams({ pageSize: String(pageSize), page: String(page) });
-    if (textSearch) params.set('textSearch', textSearch);
+    let cid = null;
+    try { cid = JSON.parse(localStorage.getItem('CustomerID')); } catch (e) { cid = localStorage.getItem('CustomerID'); }
+    if (!cid) return [];
     const { data } = await zumenApi.get(
-      `${zBase()}/api/customers?${params.toString()}`
+      `${zBase()}/api/plugins/telemetry/CUSTOMER/${cid}/values/attributes/SERVER_SCOPE?keys=zumen_client`
     );
-    return (data?.data || []).map((c) => ({ id: c.id.id, title: c.title }));
+    const attr = (data || []).find((a) => a.key === 'zumen_client');
+    let arr = [];
+    try { arr = attr ? (typeof attr.value === 'string' ? JSON.parse(attr.value) : attr.value) : []; } catch (e) { arr = []; }
+    if (!Array.isArray(arr)) arr = [];
+    return arr
+      .map((c) => ({ id: c.id, title: (c.company || c.name || '').trim() }))
+      .filter((c) => c.title);
   } catch (error) {
     console.error('getClients failed:', error?.response?.data || error.message);
     return [];

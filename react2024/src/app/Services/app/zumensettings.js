@@ -39,9 +39,48 @@ export const getAssetCount = async (type) => {
   } catch (e) { return null; }
 };
 
-export const listClients = async () => {
-  try { const { data } = await zumenApi.get(`${zBase()}/api/customers?pageSize=200&page=0`); return (data && data.data) || []; }
-  catch (e) { return []; }
+// ---- Per-customer client directory --------------------------------------
+// Clients are NOT tenant customers. Each customer keeps its own client list in
+// its `zumen_client` SERVER_SCOPE attribute (a JSON array). Read it back from
+// anywhere clients need to be listed, scoped to that customer.
+const CLIENT_KEY = 'zumen_client';
+
+export const listClients = async (customerId) => {
+  if (!customerId) return [];
+  try {
+    const { data } = await zumenApi.get(
+      `${zBase()}/api/plugins/telemetry/CUSTOMER/${customerId}/values/attributes/SERVER_SCOPE?keys=${CLIENT_KEY}`
+    );
+    const attr = (data || []).find((a) => a.key === CLIENT_KEY);
+    const arr = attr ? parseJson(attr.value) : null;
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+};
+
+export const saveClients = async (customerId, list) => {
+  if (!customerId) throw new Error('No customer selected.');
+  await zumenApi.post(`${zBase()}/api/plugins/telemetry/CUSTOMER/${customerId}/SERVER_SCOPE`, {
+    [CLIENT_KEY]: JSON.stringify(Array.isArray(list) ? list : []),
+  });
+};
+
+// Add one client to this customer's `zumen_client` list. Returns the new list.
+export const createClient = async (customerId, client = {}) => {
+  if (!customerId) throw new Error('No customer selected.');
+  const list = await listClients(customerId);
+  const t = (s) => (s || '').trim();
+  const entry = {
+    id: `c${Date.now()}`,
+    name: t(client.name),
+    company: t(client.company),
+    email: t(client.email),
+    address: t(client.address),
+    city: t(client.city),
+    phone: t(client.phone),
+  };
+  const next = [...list, entry];
+  await saveClients(customerId, next);
+  return next;
 };
 
 export const getAuditLogs = async ({ pageSize = 100, page = 0, startTime, endTime } = {}) => {

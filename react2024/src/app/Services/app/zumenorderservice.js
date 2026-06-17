@@ -70,7 +70,7 @@ export const getOrderProfileId = async () => {
     if (found) { _orderProfileIdCache = found.id.id; return _orderProfileIdCache; }
     const { data: created } = await zumenApi.post(`${zBase()}/api/assetProfile`, {
       name: ORDER_ASSET_PROFILE,
-      description: 'ZUMEN project / order record',
+      description: 'Project / order record',
       default: false,
     });
     _orderProfileIdCache = created.id.id;

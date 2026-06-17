@@ -162,8 +162,9 @@ const InlinePreview = ({ doc, rotation = 0 }) => {
   }
   if (kind === 'text') {
     return <Box component="pre" sx={{
-      m: 0, p: 2, height: '100%', overflow: 'auto', bgcolor: '#0b1020', color: '#e2e8f0',
-      fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+      m: 0, p: 2, height: '100%', overflow: 'auto', bgcolor: '#ffffff', color: '#1e293b',
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      fontSize: 12.5, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
     }}>{text ?? 'Loading…'}</Box>;
   }
   return (

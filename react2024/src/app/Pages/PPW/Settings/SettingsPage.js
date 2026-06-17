@@ -149,7 +149,7 @@ const SettingsPage = () => {
       try {
         const [u, c, d, o] = await Promise.all([
           getCustomerUsers(cid).catch(() => ({ data: [] })),
-          listClients(), getAssetCount('Drawing'), getAssetCount('Order'),
+          listClients(cid), getAssetCount('Drawing'), getAssetCount('Order'),
         ]);
         setKpi({
           users: ((u && u.data) || []).length, clients: (c || []).length,
@@ -188,7 +188,7 @@ const SettingsPage = () => {
           <SettingsOutlinedIcon sx={{ color: '#ec6e17', fontSize: 30 }} />
           <Box>
             <Typography sx={{ fontSize: 26, fontWeight: 800, color: '#0f172a', lineHeight: 1.1 }}>Settings</Typography>
-            <Typography sx={{ color: '#64748b', fontSize: 13.5 }}>Configure your ZUMEN workspace — everything in one place.</Typography>
+            <Typography sx={{ color: '#64748b', fontSize: 13.5 }}>Configure your Paperless Factory workspace — everything in one place.</Typography>
           </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#fff', border: '1px solid #e2e8f0', borderRadius: 2, px: 1.5, py: 0.75, width: { xs: '100%', sm: 320 } }}>

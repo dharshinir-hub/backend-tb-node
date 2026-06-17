@@ -120,8 +120,9 @@ const DocumentPreview = ({ doc, onClose }) => {
           loadingText
             ? <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><CircularProgress /></Box>
             : <Box component="pre" sx={{
-                m: 0, p: 2, flexGrow: 1, bgcolor: '#0b1020', color: '#e2e8f0',
-                fontSize: 12, lineHeight: 1.5, overflow: 'auto',
+                m: 0, p: 2, flexGrow: 1, bgcolor: '#ffffff', color: '#1e293b',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                fontSize: 12.5, lineHeight: 1.6, overflow: 'auto',
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               }}>{text}</Box>
         )}

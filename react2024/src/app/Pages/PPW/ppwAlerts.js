@@ -5,6 +5,16 @@
 // (.swal2-confirm -> orange), so we don't set colours here.
 import Swal from 'sweetalert2';
 
+// Make SweetAlert popups render above the Settings drawer / other MUI overlays
+// (MUI Drawer sits at z-index ~1200-1300; Swal's default container is 1060, so
+// without this the popup appears *behind* the drawer). Injected once.
+if (typeof document !== 'undefined' && !document.getElementById('ppw-swal-z')) {
+  const s = document.createElement('style');
+  s.id = 'ppw-swal-z';
+  s.textContent = '.swal2-container{z-index:20000 !important;}';
+  document.head.appendChild(s);
+}
+
 // Created a new record (green check + OK).
 export const alertCreated = (msg) => Swal.fire(msg || 'Created successfully!', '', 'success');
 

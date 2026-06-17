@@ -2,13 +2,19 @@ import React, { useEffect, useState } from 'react';
 import {
   Box, Typography, Button, TextField, Switch, IconButton, Chip,
   Table, TableHead, TableRow, TableCell, TableBody, CircularProgress,
+  Dialog, DialogTitle, DialogContent, DialogActions, Checkbox,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
+import SendIcon from '@mui/icons-material/Send';
 import { getSetting, setSetting } from '../../../Services/app/zumensettings';
-import { alertSaved, alertError } from '../ppwAlerts';
+import { getCustomerUsers } from '../../../Services/app/operatorservice';
+import { sendNotification } from '../../../Services/app/zumennotify';
+import { ROLES } from '../../../Shared/constants/role';
+import { alertSaved, alertError, alertWarning } from '../ppwAlerts';
 
 const oSwitch = { '& .Mui-checked': { color: '#ec6e17' }, '& .Mui-checked+.MuiSwitch-track': { bgcolor: '#ec6e17' } };
 const thStyle = { '& th': { fontWeight: 700, color: '#475569', bgcolor: '#f8fafc' } };
@@ -277,7 +283,7 @@ export const IpAddressSettings = () => {
   const set = (i, p) => setRows(rows.map((r, idx) => (idx === i ? { ...r, ...p } : r)));
   return (
     <Box>
-      <Header title="Settings for applicable IP address" note="Restrict ZUMEN access to allow-listed IP address groups (e.g. head office, sales)." onSave={save} saving={saving} />
+      <Header title="Settings for applicable IP address" note="Restrict Paperless Factory access to allow-listed IP address groups (e.g. head office, sales)." onSave={save} saving={saving} />
       <Table size="small" sx={{ maxWidth: 820 }}>
         <TableHead><TableRow sx={thStyle}>
           <TableCell>Group name</TableCell><TableCell>Allowed IPs / CIDR</TableCell><TableCell align="center">Active</TableCell><TableCell />
@@ -310,33 +316,167 @@ export const NotificationSettings = () => {
     { key: 'stockLow', label: 'Stock low', hint: 'Inventory drops below threshold' },
     { key: 'delivery', label: 'Delivery due', hint: 'An order nears its delivery date' },
   ];
-  const def = EVENTS.reduce((a, e) => ({ ...a, [e.key]: { inApp: true, email: false } }), {});
+  const def = EVENTS.reduce((a, e) => ({ ...a, [e.key]: { inApp: true, roles: [] } }), {});
   const [v, setV, save, saving] = useSetting('zumenNotifications', def);
+  const [users, setUsers] = useState([]);   // { id, name, email, mode }
+  const [dlg, setDlg] = useState(null);      // event key whose dialog is open
+  const [testing, setTesting] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getCustomerUsers(localStorage.getItem('CustomerID'));
+        const list = (res && res.data) || [];
+        setUsers(list.map((u) => {
+          let d = {};
+          try { d = u.additionalInfo && u.additionalInfo.description ? JSON.parse(u.additionalInfo.description) : {}; } catch (e) { d = {}; }
+          return {
+            id: u.id && u.id.id,
+            name: [u.firstName, u.lastName].filter(Boolean).join(' ') || (u.email || '').split('@')[0],
+            email: u.email,
+            mode: (d && d.mode) || '',
+          };
+        }).filter((u) => u.id));
+      } catch (e) { /* keep empty */ }
+    })();
+  }, []);
+
   if (!v) return <Loading />;
-  const set = (k, p) => setV({ ...v, [k]: { ...(v[k] || { inApp: false, email: false }), ...p } });
+  const ev = (k) => v[k] || { inApp: true, roles: [] };
+  const set = (k, p) => setV({ ...v, [k]: { ...ev(k), ...p } });
+
+  const sameRole = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+  const usersInRole = (role) => users.filter((u) => sameRole(u.mode, role));
+  const countInRole = (role) => usersInRole(role).length;
+  const idsForRoles = (roles) => {
+    const out = new Set();
+    (roles || []).forEach((role) => usersInRole(role).forEach((u) => out.add(u.id)));
+    return Array.from(out);
+  };
+  const toggleRole = (k, role) => {
+    const r = ev(k).roles || [];
+    set(k, { roles: r.includes(role) ? r.filter((x) => x !== role) : [...r, role] });
+  };
+
+  const sendTest = async (e) => {
+    const roles = ev(e.key).roles || [];
+    if (!roles.length) { alertWarning('No recipients', 'Click “Recipients” and choose at least one role.'); return; }
+    const ids = idsForRoles(roles);
+    if (!ids.length) { alertWarning('No users in those roles', 'The selected role(s) have no users yet.'); return; }
+    setTesting(e.key);
+    try {
+      await sendNotification(ids, `Paperless Factory · ${e.label}`, e.hint);
+      alertSaved(`Notification sent to ${ids.length} user${ids.length === 1 ? '' : 's'} — check the bell 🔔`);
+    } catch (err) {
+      alertError((err && err.response && err.response.status === 403)
+        ? 'Not allowed to send (403). The tenant token needs notification permission.'
+        : (err && err.message) || 'Could not send notification.');
+    } finally { setTesting(''); }
+  };
+
+  const openEv = dlg ? ev(dlg) : null;
+  const dlgEvent = dlg ? EVENTS.find((e) => e.key === dlg) : null;
+
   return (
     <Box>
-      <Header title="Notification Settings" note="Choose which events send notifications and through which channel." onSave={save} saving={saving} />
-      <Table size="small" sx={{ maxWidth: 700 }}>
+      <Header
+        title="Notification Settings"
+        note="Pick which events notify, then choose which roles receive each one. Everyone whose account role matches is notified in-app on the bell — tick your own role to notify yourself."
+        onSave={save}
+        saving={saving}
+      />
+      <Table size="small" sx={{ maxWidth: 920 }}>
         <TableHead><TableRow sx={thStyle}>
-          <TableCell>Event</TableCell><TableCell align="center">In-app</TableCell><TableCell align="center">Email</TableCell>
+          <TableCell>Event</TableCell>
+          <TableCell align="center">In-app</TableCell>
+          <TableCell>Recipients (by role)</TableCell>
+          <TableCell align="center">Test</TableCell>
         </TableRow></TableHead>
         <TableBody>
           {EVENTS.map((e) => {
-            const row = v[e.key] || { inApp: false, email: false };
+            const row = ev(e.key);
+            const roles = row.roles || [];
             return (
               <TableRow key={e.key} hover>
                 <TableCell>
                   <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{e.label}</Typography>
                   <Typography sx={{ fontSize: 12, color: '#94a3b8' }}>{e.hint}</Typography>
                 </TableCell>
-                <TableCell align="center"><Switch checked={!!row.inApp} onChange={(ev) => set(e.key, { inApp: ev.target.checked })} sx={oSwitch} /></TableCell>
-                <TableCell align="center"><Switch checked={!!row.email} onChange={(ev) => set(e.key, { email: ev.target.checked })} sx={oSwitch} /></TableCell>
+                <TableCell align="center">
+                  <Switch checked={!!row.inApp} onChange={(x) => set(e.key, { inApp: x.target.checked })} sx={oSwitch} />
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', opacity: row.inApp ? 1 : 0.4 }}>
+                    {roles.map((r) => (
+                      <Chip key={r} size="small" label={`${r} · ${countInRole(r)}`} sx={{ bgcolor: '#fff7ed', color: '#c2410c', fontSize: 11, fontWeight: 600 }} />
+                    ))}
+                    {!roles.length && <Typography sx={{ color: '#cbd5e1', fontSize: 12 }}>no one yet</Typography>}
+                    <Button
+                      size="small"
+                      startIcon={<PersonAddAltIcon sx={{ fontSize: 16 }} />}
+                      disabled={!row.inApp}
+                      onClick={() => setDlg(e.key)}
+                      sx={{ textTransform: 'none', color: '#ec6e17', minWidth: 0 }}
+                    >
+                      Recipients
+                    </Button>
+                  </Box>
+                </TableCell>
+                <TableCell align="center">
+                  <Button
+                    size="small"
+                    startIcon={<SendIcon sx={{ fontSize: 15 }} />}
+                    disabled={!row.inApp || testing === e.key}
+                    onClick={() => sendTest(e)}
+                    sx={{ textTransform: 'none', color: '#0f766e' }}
+                  >
+                    {testing === e.key ? 'Sending…' : 'Send'}
+                  </Button>
+                </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
+
+      <Dialog open={!!dlg} onClose={() => setDlg(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, pb: 0.5 }}>
+          Choose recipients
+          {dlgEvent && <Typography sx={{ fontSize: 13, color: '#64748b', fontWeight: 400 }}>{dlgEvent.label}</Typography>}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography sx={{ fontSize: 12.5, color: '#64748b', mb: 1.5 }}>
+            Tick the roles that should be notified. Everyone whose account role matches a ticked role receives it.
+          </Typography>
+          {ROLES.map((role) => {
+            const cnt = countInRole(role.value);
+            const checked = !!openEv && (openEv.roles || []).includes(role.value);
+            return (
+              <Box
+                key={role.value}
+                onClick={() => dlg && toggleRole(dlg, role.value)}
+                sx={{ display: 'flex', alignItems: 'center', py: 0.25, px: 0.5, borderRadius: 1, cursor: 'pointer', '&:hover': { bgcolor: '#f8fafc' } }}
+              >
+                <Checkbox size="small" checked={checked} sx={{ p: 0.5, mr: 1, '&.Mui-checked': { color: '#ec6e17' } }} />
+                <Typography sx={{ flexGrow: 1, fontSize: 14, fontWeight: 600, color: '#334155' }}>{role.label}</Typography>
+                <Chip
+                  size="small"
+                  label={`${cnt} user${cnt === 1 ? '' : 's'}`}
+                  sx={{ bgcolor: cnt ? '#ecfdf5' : '#f1f5f9', color: cnt ? '#047857' : '#94a3b8', fontSize: 11 }}
+                />
+              </Box>
+            );
+          })}
+          {openEv && idsForRoles(openEv.roles).length > 0 && (
+            <Typography sx={{ mt: 1.5, fontSize: 12.5, color: '#0f766e', fontWeight: 600 }}>
+              {idsForRoles(openEv.roles).length} user{idsForRoles(openEv.roles).length === 1 ? '' : 's'} will be notified.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDlg(null)} sx={{ textTransform: 'none', color: '#ec6e17', fontWeight: 600 }}>Done</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

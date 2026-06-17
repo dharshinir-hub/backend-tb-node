@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Box, Typography, CircularProgress, Table, TableHead, TableRow, TableCell, TableBody, Chip, TextField, InputAdornment, Tabs, Tab, IconButton,
+  Box, Typography, CircularProgress, Table, TableHead, TableRow, TableCell, TableBody, Chip, TextField, InputAdornment, Tabs, Tab, IconButton, Button,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import { getTenant } from '../../../Services/app/zumensettings';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import { getTenant, getSetting, setSetting } from '../../../Services/app/zumensettings';
 import { getCustomerUsers } from '../../../Services/app/operatorservice';
 import { ROLE_HIERARCHY } from '../../../Shared/constants/role';
 import { decryptText } from '../../../Shared/utils/cryptoUtils';
+import { alertSaved, alertError } from '../ppwAlerts';
 
 const ROLE_TABS = ['All', ...[...ROLE_HIERARCHY].reverse()];
 
@@ -65,11 +67,28 @@ const AccountCompany = ({ view = 'account' }) => {
   const [q, setQ] = useState('');
   const [activeRole, setActiveRole] = useState('All');
   const [showPwd, setShowPwd] = useState(false);
+  const [company, setCompany] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        if (view === 'company') setTenant(await getTenant());
+        if (view === 'company') {
+          const [tn, saved] = await Promise.all([getTenant(), getSetting('zumenCompany').catch(() => null)]);
+          setTenant(tn);
+          const s = saved || {};
+          setCompany({
+            company: s.company || (tn && tn.title) || localStorage.getItem('customerTitle') || '',
+            email: s.email || (tn && tn.email) || '',
+            country: s.country || (tn && tn.country) || '',
+            state: s.state || (tn && tn.state) || '',
+            city: s.city || (tn && tn.city) || '',
+            address: s.address || (tn && tn.address) || '',
+            phone: s.phone || (tn && tn.phone) || '',
+          });
+        }
         else if (view === 'users') {
           const res = await getCustomerUsers(customerId());
           const list = (res && res.data) || [];
@@ -137,17 +156,59 @@ const AccountCompany = ({ view = 'account' }) => {
   if (loading) return <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress sx={{ color: '#ec6e17' }} /></Box>;
 
   if (view === 'company') {
+    const c = company || {};
+    const FIELDS = [
+      ['company', 'Company'], ['email', 'Email'], ['country', 'Country'],
+      ['state', 'State'], ['city', 'City'], ['address', 'Address'], ['phone', 'Phone'],
+    ];
+    const startEdit = () => { setForm({ ...c }); setEditing(true); };
+    const setF = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+    const save = async () => {
+      setSaving(true);
+      try {
+        await setSetting('zumenCompany', form);
+        setCompany({ ...form });
+        setEditing(false);
+        alertSaved('Company info saved.');
+      } catch (e) { alertError((e && e.message) || 'Could not save company info.'); }
+      finally { setSaving(false); }
+    };
     return (
       <Box>
-        <Typography sx={{ fontSize: 22, fontWeight: 700, mb: 2 }}>Company info</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Typography sx={{ fontSize: 22, fontWeight: 700, flexGrow: 1 }}>Company info</Typography>
+          {!editing ? (
+            <Button
+              variant="outlined"
+              startIcon={<EditOutlinedIcon />}
+              onClick={startEdit}
+              sx={{ textTransform: 'none', borderColor: '#ec6e17', color: '#ec6e17', '&:hover': { borderColor: '#d65f0e', bgcolor: '#fff7ed' } }}
+            >
+              Edit
+            </Button>
+          ) : (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button onClick={() => setEditing(false)} disabled={saving} sx={{ textTransform: 'none', color: '#64748b' }}>Cancel</Button>
+              <Button
+                variant="contained"
+                onClick={save}
+                disabled={saving}
+                sx={{ textTransform: 'none', bgcolor: '#ec6e17', '&:hover': { bgcolor: '#d65f0e' } }}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+            </Box>
+          )}
+        </Box>
         <Box sx={{ maxWidth: 760 }}>
-          <Field label="Company" value={(tenant && tenant.title) || localStorage.getItem('customerTitle')} />
-          <Field label="Email" value={tenant && tenant.email} />
-          <Field label="Country" value={tenant && tenant.country} />
-          <Field label="State" value={tenant && tenant.state} />
-          <Field label="City" value={tenant && tenant.city} />
-          <Field label="Address" value={tenant && tenant.address} />
-          <Field label="Phone" value={tenant && tenant.phone} />
+          {editing
+            ? FIELDS.map(([k, label]) => (
+                <Box key={k} sx={{ display: 'flex', alignItems: 'center', py: 1, borderBottom: '1px solid #eef2f7' }}>
+                  <Typography sx={{ width: 220, color: '#64748b', fontSize: 14 }}>{label}</Typography>
+                  <TextField size="small" value={form[k] || ''} onChange={setF(k)} sx={{ flexGrow: 1, maxWidth: 380 }} />
+                </Box>
+              ))
+            : FIELDS.map(([k, label]) => <Field key={k} label={label} value={c[k]} />)}
         </Box>
       </Box>
     );
