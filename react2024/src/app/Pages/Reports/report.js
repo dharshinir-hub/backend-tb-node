@@ -325,8 +325,10 @@ export default function MachineReport() {
       { key: "actual_run", formatter: (row, idx, isChild) => {
         const seq = isChild ? row : row.sequence_detail?.[0];
         const val = seq?.actual_run;
-        if (val === null || val === undefined || val === "") return "---";
-        return Math.round(Number(val));
+        if (val === null || val === undefined || val === "" || val === "-") return "-";
+        const num = Number(val);
+        if (isNaN(num)) return "-";
+        return Math.round(num);
       } },
       { key: "operation_status", formatter: (row, idx, isChild) => {
         let status;

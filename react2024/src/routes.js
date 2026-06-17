@@ -48,6 +48,7 @@ import AssemblyTree from './app/Pages/PPW/Drawings/AssemblyTree';
 import OperationSequence from './app/Pages/PPW/Drawings/OperationSequence';
 import ProjectsOrders from './app/Pages/PPW/Orders/ProjectsOrders';
 import OrderDetail from './app/Pages/PPW/Orders/OrderDetail';
+import SettingsPage from './app/Pages/PPW/Settings/SettingsPage';
 
 
 // Import other components for your routes
@@ -114,6 +115,7 @@ const AppRoutes = () => {
         <Route path="/paperless-factory/drawings/:id/operations" element={<OperationSequence />} />
         <Route path="/paperless-factory/orders" element={<ProjectsOrders />} />
         <Route path="/paperless-factory/orders/:id" element={<OrderDetail />} />
+        <Route path="/paperless-factory/settings" element={<SettingsPage />} />
         <Route path="/operator-performance" element={<OperatorPerformanceDashboard />} />
 
         {/* Direct Sub-routes */}

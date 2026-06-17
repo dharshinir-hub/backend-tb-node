@@ -216,6 +216,10 @@ export default function PersistentDrawerLeft({ children }) {
         children: [
           { path: "/paperless-factory/drawings", name: "Drawings", icon: <TbFolders size={18} /> },
           { path: "/paperless-factory/orders", name: "Projects / Orders", icon: <TbReportAnalytics size={18} /> },
+          // Settings is admin-only (Admin / Super Admin).
+          ...(["admin", "superadmin"].includes(normalizedMode)
+            ? [{ path: "/paperless-factory/settings", name: "Settings", icon: <TbSettings size={18} /> }]
+            : []),
         ]
       },
       ...(showReportChildren ?
