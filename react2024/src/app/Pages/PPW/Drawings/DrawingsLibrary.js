@@ -24,7 +24,7 @@ import {
   deleteDrawing, saveDrawingAttributes,
 } from '../../../Services/app/zumenservice';
 import { alertCreated, alertUpdated, alertDeleted, confirmDelete, alertError, alertWarning } from '../ppwAlerts';
-import { useT, LangToggle } from '../../../Shared/i18n/zumeni18n';
+import { useT } from '../../../Shared/i18n/zumeni18n';
 
 const PAGE_SIZE = 24;
 const STATUS_COLORS = {
@@ -170,10 +170,9 @@ const DrawingsLibrary = () => {
           <Typography sx={{ color: '#64748b', fontSize: 13 }}>{t('ppw.subtitle')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <LangToggle />
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog}
             sx={{ bgcolor: '#ec6e17', textTransform: 'none', fontWeight: 600, '&:hover': { bgcolor: '#d65f0e' } }}>
-            {t('drawings.add')}
+            Add new drawings
           </Button>
         </Box>
       </Box>

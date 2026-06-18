@@ -26,7 +26,6 @@ export const DOCUMENT_TYPES = [
   { key: 'customer-list', label: 'Customer List' },
   { key: 'quotation', label: 'Quotation' },
   { key: 'purchase-order', label: 'Purchase order' },
-  { key: 'video', label: 'Video' },
   { key: 'inspection-report', label: 'Inspection report' },
   { key: 'tools', label: 'Tools' },
   { key: 'product-sample', label: 'Product sample' },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Box, Typography, Button, Chip, CircularProgress, Tabs, Tab, IconButton,
@@ -33,6 +33,7 @@ import {
 } from '../../../Services/app/zumendocservice';
 import DocumentPreview, { kindOf } from './DocumentPreview';
 import { alertCreated, alertUpdated, alertSaved, alertDeleted, confirmDelete, alertError } from '../ppwAlerts';
+import BrandLoader from '../BrandLoader';
 
 const Model3DViewer = React.lazy(() => import('./Model3DViewer'));
 const MarkupEditor = React.lazy(() => import('./MarkupEditor'));
@@ -47,7 +48,7 @@ const STATUS_COLORS = {
 const statusColor = (s) => STATUS_COLORS[s] || '#6b7280';
 
 // Document types that offer "Create" (Excel / Word document) authoring.
-const CREATE_TABS = ['customer-list', 'quotation', 'purchase-order', 'inspection-report', 'packing-std', 'defect-report', 'program'];
+const CREATE_TABS = ['customer-list', 'quotation', 'purchase-order', 'inspection-report', 'packing-std', 'defect-report', 'program', 'tools'];
 const SHEET6 = ['customer-list', 'quotation', 'purchase-order', 'inspection-report', 'packing-std', 'defect-report'];
 const SHEET_FORMATS = ['xlsx', 'xls', 'csv', 'pdf', 'png', 'jpg', 'jpeg', 'docx', 'doc'];
 
@@ -88,10 +89,6 @@ const fileIsImage = (file) => new Promise((resolve) => {
 
 // Right-hand metadata form fields (mirrors demo.zume-n.com side panel).
 const META_FIELDS = [
-  { key: 'qualityCheckNo', label: 'Quality Check No.' },
-  { key: 'inspectionSheet', label: 'Inspection report spread sheet' },
-  { key: 'ecNo', label: 'EC NO.' },
-  { key: 'excelSheet', label: 'Excel Spread sheet' },
   { key: 'inventory', label: 'Inventory / 在庫' },
   { key: 'project', label: 'Project' },
   { key: 'assemblyNo', label: 'Assembly No.' },
@@ -101,10 +98,37 @@ const META_FIELDS = [
 // Center preview for the selected file (inline; no modal).
 const InlinePreview = ({ doc, rotation = 0 }) => {
   const [text, setText] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const dragRef = useRef(null);
   const { url, kind: detectedKind } = useDocPreview(doc);
   // Prefer the REAL content type (magic-byte sniff); fall back to the extension.
   const kind = doc ? (detectedKind || kindOf(doc.name)) : null;
   const rot = { transform: `rotate(${rotation}deg)`, transition: 'transform 0.2s' };
+
+  // Reset zoom/pan whenever the previewed file changes.
+  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, [doc]);
+  // Scroll the mouse wheel to zoom toward the cursor; drag to pan when zoomed in.
+  const onWheel = (e) => {
+    if (kind !== 'image') return;
+    // Only zoom when the cursor is over the image itself; over the surrounding
+    // whitespace, do nothing so the page scrolls normally.
+    if (!e.target || e.target.tagName !== 'IMG') return;
+    e.preventDefault();
+    const r = e.currentTarget.getBoundingClientRect();
+    const cx = e.clientX - r.left - r.width / 2;
+    const cy = e.clientY - r.top - r.height / 2;
+    const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    setZoom((z) => {
+      const nz = Math.min(8, Math.max(1, z * f));
+      setPan((p) => (nz <= 1 ? { x: 0, y: 0 } : { x: cx - (cx - p.x) * (nz / z), y: cy - (cy - p.y) * (nz / z) }));
+      return nz;
+    });
+  };
+  const onDown = (e) => { if (zoom > 1) { dragRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }; } };
+  const onMove = (e) => { if (dragRef.current) setPan({ x: e.clientX - dragRef.current.x, y: e.clientY - dragRef.current.y }); };
+  const endDrag = () => { dragRef.current = null; };
+  const resetZoom = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   useEffect(() => {
     if (!doc || kind !== 'text' || !url) { setText(null); return undefined; }
@@ -127,8 +151,17 @@ const InlinePreview = ({ doc, rotation = 0 }) => {
     return <Box sx={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><CircularProgress /></Box>;
   }
   if (kind === 'image') {
-    return <Box sx={{ height: '100%', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', p: 1 }}>
-      <img src={url} alt={doc.name} style={{ width: '100%', height: '100%', objectFit: 'contain', ...rot }} />
+    return <Box
+      onWheel={onWheel} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={endDrag} onMouseLeave={endDrag} onDoubleClick={resetZoom}
+      sx={{ height: '100%', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', p: 1, overflow: 'hidden', position: 'relative', cursor: zoom > 1 ? (dragRef.current ? 'grabbing' : 'grab') : 'default' }}>
+      <img src={url} alt={doc.name} draggable={false} style={{
+        maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
+        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+        transition: dragRef.current ? 'none' : 'transform 0.12s', transformOrigin: 'center center',
+      }} />
+      {zoom > 1 && <Box sx={{ position: 'absolute', bottom: 8, right: 12, bgcolor: 'rgba(15,23,42,0.78)', color: '#fff', fontSize: 11, px: 1, py: 0.25, borderRadius: 1, pointerEvents: 'none' }}>
+        {Math.round(zoom * 100)}% · scroll to zoom · drag to pan · double-click reset
+      </Box>}
     </Box>;
   }
   if (kind === 'pdf') {
@@ -181,17 +214,25 @@ const DrawingDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  // If we arrived here via "View" from an assembly tree, go back there; else the library.
-  const backTarget = (location.state && location.state.from) || '/paperless-factory/drawings';
 
   const [drawing, setDrawing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState([]);
   const [counts, setCounts] = useState({});
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = Math.max(0, DOCUMENT_TYPES.findIndex((t) => t.key === searchParams.get('tab')));
+  // When opened from an operation (?op=1), this asset is an operation, not the
+  // assembly — hide the "Assembly drawing" tab (an operation has no sub-assembly).
+  const isOperation = searchParams.get('op') === '1';
+  const visibleTypes = isOperation ? DOCUMENT_TYPES.filter((t) => t.key !== 'assembly-drawing') : DOCUMENT_TYPES;
+  // Back: for an operation, return to its parent's Operations page (the parent id
+  // is carried in the URL so it survives a refresh and never falls back to home).
+  const opParent = searchParams.get('parent');
+  const backTarget = (isOperation && opParent)
+    ? `/paperless-factory/drawings/${opParent}/operations`
+    : ((location.state && location.state.from) || '/paperless-factory/drawings');
+  const initialTab = Math.max(0, visibleTypes.findIndex((t) => t.key === searchParams.get('tab')));
   const [activeTab, setActiveTab] = useState(initialTab);
-  const changeTab = (v) => { setActiveTab(v); setSearchParams((p) => { p.set('tab', DOCUMENT_TYPES[v].key); return p; }, { replace: true }); };
+  const changeTab = (v) => { setActiveTab(v); setSearchParams((p) => { p.set('tab', visibleTypes[v].key); return p; }, { replace: true }); };
   const [selectedDocId, setSelectedDocId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -221,7 +262,7 @@ const DrawingDetail = () => {
   const [snack, setSnack] = useState('');
   const notify = (msg) => setSnack(msg);
 
-  const activeType = DOCUMENT_TYPES[activeTab];
+  const activeType = visibleTypes[activeTab] || visibleTypes[0];
   const tabDocs = documents.filter((d) => d.docType === activeType.key);
   const selectedDoc = tabDocs.find((d) => d.id === selectedDocId) || tabDocs[0] || null;
   // Real (sniffed) content kind of the selected file — drives the Write button so
@@ -248,6 +289,10 @@ const DrawingDetail = () => {
         setDrawing(detail);
         setMeta({ productName: detail.label || detail.attributes?.productName || '', ...detail.attributes });
         setClients(cl);
+      } catch (e) {
+        // Drawing/asset doesn't exist (e.g. a stale URL after it was deleted) →
+        // show the friendly "Drawing not found" screen instead of crashing.
+        if (alive) setDrawing(null);
       } finally {
         if (alive) setLoading(false);
       }
@@ -442,7 +487,7 @@ const DrawingDetail = () => {
     finally { setBumpingRev(false); }
   };
 
-  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>;
+  if (loading) return <BrandLoader height="calc(100vh - 96px)" />;
   if (!drawing) {
     return (
       <Box sx={{ p: 4 }}>
@@ -457,7 +502,7 @@ const DrawingDetail = () => {
       {/* Breadcrumb */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate(backTarget)}
-          sx={{ textTransform: 'none', color: '#475569' }}>{location.state && location.state.from ? 'Back to assembly' : 'Drawings'}</Button>
+          sx={{ textTransform: 'none', color: '#475569' }}>{isOperation ? 'Back to operations' : (location.state && location.state.from ? 'Back to assembly' : 'Drawings')}</Button>
         <ChevronRightIcon sx={{ fontSize: 16, color: '#cbd5e1' }} />
         <Typography sx={{ fontWeight: 700 }}>{drawing.name}</Typography>
         {meta.status && <Chip size="small" label={meta.status} sx={{ bgcolor: statusColor(meta.status), color: '#fff' }} />}
@@ -466,17 +511,19 @@ const DrawingDetail = () => {
         <Box sx={{ flexGrow: 1 }} />
         <Button size="small" variant="outlined" startIcon={<HistoryIcon />} onClick={openRevisions}
           sx={{ textTransform: 'none' }}>Revisions</Button>
-        <Button size="small" variant="outlined" startIcon={<FormatListNumberedIcon />}
-          onClick={() => navigate(`/paperless-factory/drawings/${id}/operations`)} sx={{ textTransform: 'none' }}>
-          Operations
-        </Button>
+        {!isOperation && (
+          <Button size="small" variant="outlined" startIcon={<FormatListNumberedIcon />}
+            onClick={() => navigate(`/paperless-factory/drawings/${id}/operations`)} sx={{ textTransform: 'none' }}>
+            Operations
+          </Button>
+        )}
       </Box>
 
       {/* Document-type tabs */}
       <Box sx={{ bgcolor: '#fff', border: '1px solid #e5e7eb', borderRadius: 1 }}>
         <Tabs value={activeTab} onChange={(e, v) => changeTab(v)} variant="scrollable" scrollButtons="auto"
           sx={{ borderBottom: '1px solid #e5e7eb', minHeight: 44 }}>
-          {DOCUMENT_TYPES.map((t) => {
+          {visibleTypes.map((t) => {
             const c = counts[t.key] || 0;
             return (
               <Tab key={t.key} sx={{ textTransform: 'none', minHeight: 44, py: 0, fontWeight: 500 }}

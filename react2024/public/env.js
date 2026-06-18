@@ -37,27 +37,11 @@ window._env_ = {
     TENANT_PASSWORD: "pmspms",
     LOGO: "hvLm7vcg5L9Kd56WP18gVIjFHMvUdA3X",
     BG_IMAGE: "wS6A4Yz8vYSjv5shILNHjVQfwUm3INWw",
-
-    // ===== ZUMEN module config (reuses ThingsBoard as backend) =====
-    // Drawings are stored as TB assets of this profile; BOM uses TB "Contains" relations.
     ZUMEN_DRAWING_PROFILE: "Drawing",
     ZUMEN_BOM_RELATION: "Contains",
-    // Document/file store for the per-drawing tabs (zumen_backend, blobs TB can't hold).
     ZUMEN_DOC_URL: "http://localhost:5000/",
-    // ZUMEN talks to this TB with its OWN tenant token, independent of the app's
-    // logged-in (customer) user — so drawing/asset operations have tenant permission
-    // and the rest of the app's SERVER_URL is left untouched.
-    //ZUMEN_TB_URL: "http://192.168.0.97:8080/",
     ZUMEN_TB_URL: "http://yantra24x7.cloud:8080/",
 
     ZUMEN_TB_USER: "pms@gmail.com",
     ZUMEN_TB_PASS: "pmspms"
 };
-
-// ===== LOCAL ThingsBoard (192.168.0.97) — uncomment to point the app at the
-// on-prem TB used by the ZUMEN build. Keep the cloud block above commented when active.
-// window._env_ = {
-//     ...window._env_,
-//     SERVER_URL: "http://192.168.0.97:8080/",
-//     GRAFANA_URL: "http://192.168.0.97:9097/"
-// };

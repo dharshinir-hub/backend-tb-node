@@ -65,6 +65,9 @@ zumenApi.interceptors.response.use(
 // ---- constants -------------------------------------------------------------
 
 export const DRAWING_ASSET_PROFILE = 'Drawing';
+// Operations are assets too, but under their OWN profile so they never show up
+// in the Drawings library (which lists only type === 'Drawing').
+export const OPERATION_ASSET_PROFILE = 'Operation';
 export const BOM_RELATION_TYPE = 'Contains';
 export const BOM_RELATION_GROUP = 'COMMON';
 
@@ -124,6 +127,21 @@ export const getDrawingProfileId = async () => {
     console.error('getDrawingProfileId failed:', error?.response?.data || error.message);
     throw error;
   }
+};
+
+let _operationProfileIdCache = null;
+// Find (or create) the "Operation" asset profile. Operations live under this so
+// they are NOT returned by getDrawings (which filters type === 'Drawing').
+export const getOperationProfileId = async () => {
+  if (_operationProfileIdCache) return _operationProfileIdCache;
+  const { data } = await zumenApi.get(`${zBase()}/api/assetProfiles?pageSize=200&page=0`);
+  const found = (data?.data || []).find((p) => p.name === OPERATION_ASSET_PROFILE);
+  if (found) { _operationProfileIdCache = found.id.id; return _operationProfileIdCache; }
+  const { data: created } = await zumenApi.post(`${zBase()}/api/assetProfile`, {
+    name: OPERATION_ASSET_PROFILE, description: 'Operation / routing step', default: false,
+  });
+  _operationProfileIdCache = created.id.id;
+  return _operationProfileIdCache;
 };
 
 // ---- drawings (assets) -----------------------------------------------------
@@ -200,6 +218,26 @@ export const createDrawing = async (meta = {}) => {
 
   await saveDrawingAttributes(asset.id.id, meta);
   return asset;
+};
+
+// Create a backing child asset for an operation and link it under the parent
+// drawing (Contains relation) so operations appear as the assembly's connected
+// children. Reuses the Drawing profile so the operation gets the same per-asset
+// document tabs. Returns the new asset id.
+export const createOperationAsset = async (parentDrawingId, { no, name, parentName } = {}) => {
+  const profileId = await getOperationProfileId();
+  const opName = (name || '').trim();
+  const base = [parentName || 'DRW', `OP${no != null ? no : ''}`, opName].filter(Boolean).join(' · ').slice(0, 240);
+  const make = (nm) => zumenApi.post(`${zBase()}/api/asset`, {
+    name: nm,
+    label: opName || `Operation ${no || ''}`.trim(),
+    assetProfileId: { entityType: 'ASSET_PROFILE', id: profileId },
+  });
+  let asset;
+  try { ({ data: asset } = await make(base || `OP-${Date.now()}`)); }
+  catch (e) { ({ data: asset } = await make(`${base} #${String(Date.now()).slice(-5)}`.slice(0, 250))); }
+  await addBomLink(parentDrawingId, asset.id.id);
+  return asset.id.id;
 };
 
 // Upsert SERVER_SCOPE attributes for a drawing. Only known keys are written.

@@ -13,7 +13,7 @@ import {
 } from '../../../Services/app/zumenorderservice';
 import { getDrawings, getClients } from '../../../Services/app/zumenservice';
 import { alertCreated, alertWarning, alertError } from '../ppwAlerts';
-import { useT, LangToggle } from '../../../Shared/i18n/zumeni18n';
+import { useT } from '../../../Shared/i18n/zumeni18n';
 
 const stageColor = (s) => STAGE_COLORS[s] || '#6b7280';
 const fmtDate = (v) => { if (!v) return '—'; const d = new Date(v); return isNaN(d) ? v : d.toLocaleDateString(); };
@@ -109,6 +109,25 @@ const ProjectsOrders = () => {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Export the currently-visible orders (respects the active stage tab + search) to CSV.
+  const exportReport = () => {
+    const rows = visible;
+    if (!rows.length) { setSnack('No orders to export.'); return; }
+    const headers = ['Status', 'Client name', 'Drawing number', 'Product', 'Delivery date', 'Quotation Number', 'Quotation Volume', 'Unit', 'Quot. unit price', 'PO number', 'Remarks'];
+    const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const lines = [headers.join(',')];
+    const dt = (v) => { if (!v) return ''; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleDateString(); };
+    rows.forEach((o) => lines.push([o.status, o.clientName, o.drawingNumber, o.productName || o.label, dt(o.deliveryDate), o.quotationNumber || o.name, o.quotationVolume, o.unit, o.unitPrice, o.poNumber, o.notes].map(esc).join(',')));
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `projects-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    setSnack(`Exported ${rows.length} order(s).`);
+  };
+
   return (
     <Box sx={{ pt: 3, px: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -117,10 +136,9 @@ const ProjectsOrders = () => {
           <Typography sx={{ color: '#64748b', fontSize: 13, mb: 2 }}>{t('orders.subtitle')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <LangToggle />
           <Button variant="outlined" startIcon={<DescriptionOutlinedIcon />} sx={{ textTransform: 'none' }}
-            onClick={() => setSnack(`${orders.length} order(s) — report export coming soon`)}>
-            {t('orders.reportList')}
+            onClick={exportReport}>
+            Export report
           </Button>
           <Button variant="contained" startIcon={<AddIcon />} sx={{ textTransform: 'none', bgcolor: '#ec6e17' }}
             onClick={openDialog}>
@@ -176,11 +194,10 @@ const ProjectsOrders = () => {
                   {visible.length === 0 ? (
                     <TableRow><TableCell colSpan={cols.length + 1} align="center" sx={{ color: '#94a3b8', py: 5 }}>No orders in this stage.</TableCell></TableRow>
                   ) : visible.map((o) => (
-                    <TableRow key={o.id} hover sx={{ cursor: 'pointer', '&:nth-of-type(even)': { bgcolor: '#fcfdfe' } }}
-                      onClick={() => navigate(`/paperless-factory/orders/${o.id}`)}>
+                    <TableRow key={o.id} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#fcfdfe' } }}>
                       {cols.map((k) => (<TableCell key={k} align={COLUMNS[k].align || 'left'} sx={{ whiteSpace: 'nowrap' }}>{COLUMNS[k].render(o)}</TableCell>))}
                       <TableCell align="right">
-                        <Button size="small" sx={{ textTransform: 'none' }} onClick={(e) => { e.stopPropagation(); navigate(`/paperless-factory/orders/${o.id}`); }}>Detail</Button>
+                        <Button size="small" sx={{ textTransform: 'none' }} onClick={() => navigate(`/paperless-factory/orders/${o.id}`)}>Detail</Button>
                       </TableCell>
                     </TableRow>
                   ))}

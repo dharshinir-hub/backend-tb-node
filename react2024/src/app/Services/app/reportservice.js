@@ -123,7 +123,7 @@ export const getOperatorReport = async (machine, operators, shiftNo, fromTime, t
 export const getSequenceReport = async (machine, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
   try {
     const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
-    const url = `http://localhost:6006/api/v1/sequence-report/${encodeURIComponent(machine)}/${encodeURIComponent(shiftNo)}/${fromTime}/${toTime}/${page + 1}/${limit}`;
+    const url = `${baseUrl}/api/v1/sequence-report/${encodeURIComponent(machine)}/${encodeURIComponent(shiftNo)}/${fromTime}/${toTime}/${page + 1}/${limit}`;
     const response = await axiosInstance.get(url);
     console.log('Sequence Report response', response.data);
     return response.data;

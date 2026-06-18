@@ -10,7 +10,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { getDrawingDetail, getOperations, saveOperations } from '../../../Services/app/zumenservice';
+import LaunchIcon from '@mui/icons-material/Launch';
+import { getDrawingDetail, getOperations, saveOperations, createOperationAsset, removeBomLink, deleteDrawing } from '../../../Services/app/zumenservice';
+import BrandLoader from '../BrandLoader';
 import { alertCreated, alertUpdated, alertDeleted, confirmDelete, alertError, alertWarning } from '../ppwAlerts';
 import '../../Componentregistration/componentreg.css'; // reuse the shared registration-page styles
 
@@ -46,6 +48,7 @@ const OperationSequence = () => {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [opening, setOpening] = useState(null); // op id whose document page is being opened
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +63,7 @@ const OperationSequence = () => {
         handling: o.handling || '',
         setup: o.setup || (o.setupTime ? secToHms((Number(o.setupTime) || 0) * 60) : ''),
         remarks: o.remarks || '',
+        assetId: o.assetId || null,
       });
       setOps((Array.isArray(list) ? list : []).map(norm));
     } finally { setLoading(false); }
@@ -77,6 +81,7 @@ const OperationSequence = () => {
 
   const saveDialog = async () => {
     if (!String(form.no).trim() || !form.name.trim()) { alertWarning('Missing fields', 'Operation number and name are required.'); return; }
+    const existing = editingId ? ops.find((o) => o.id === editingId) : null;
     const op = {
       id: editingId || uid(),
       no: String(form.no).trim(),
@@ -85,8 +90,16 @@ const OperationSequence = () => {
       handling: normHms(form.handling),
       setup: normHms(form.setup),
       remarks: form.remarks.trim(),
+      assetId: existing ? (existing.assetId || null) : null,
     };
     const wasEdit = !!editingId;
+    // New operation → create its backing child asset + link it under this drawing,
+    // so it shows as a connected node in the main drawing's Assembly drawing.
+    // Non-fatal: if it fails, the asset is created lazily when its documents open.
+    if (!wasEdit) {
+      try { op.assetId = await createOperationAsset(id, { no: op.no, name: op.name, parentName: name }); }
+      catch (e) { /* lazy-create on first open */ }
+    }
     const newOps = editingId ? ops.map((o) => (o.id === editingId ? op : o)) : [...ops, op];
     setDialogOpen(false);
     const ok = await persist(newOps);
@@ -94,8 +107,27 @@ const OperationSequence = () => {
   };
   const removeOp = async (opId) => {
     if (!(await confirmDelete())) return;
+    const op = ops.find((o) => o.id === opId);
     const ok = await persist(ops.filter((o) => o.id !== opId));
-    if (ok) alertDeleted('Operation deleted successfully.');
+    if (ok) {
+      if (op && op.assetId) { try { await removeBomLink(id, op.assetId); await deleteDrawing(op.assetId); } catch (e) { /* best-effort cleanup */ } }
+      alertDeleted('Operation deleted successfully.');
+    }
+  };
+
+  // Redirect to this operation's own document page (all tabs except Assembly
+  // drawing). Lazily creates + links the backing asset if it doesn't exist yet.
+  const openDocs = async (op) => {
+    let assetId = op.assetId;
+    if (!assetId) {
+      setOpening(op.id);
+      try {
+        assetId = await createOperationAsset(id, { no: op.no, name: op.name, parentName: name });
+        await persist(ops.map((o) => (o.id === op.id ? { ...o, assetId } : o)));
+      } catch (e) { alertError(e?.response?.data?.message || e.message); setOpening(null); return; }
+      setOpening(null);
+    }
+    navigate(`/paperless-factory/drawings/${assetId}?op=1&parent=${id}`, { state: { from: `/paperless-factory/drawings/${id}/operations` } });
   };
 
   const sorted = [...ops].sort((a, b) => (parseFloat(a.no) || 0) - (parseFloat(b.no) || 0));
@@ -153,7 +185,7 @@ const OperationSequence = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" style={{ padding: '30px' }}><CircularProgress size={28} /></TableCell>
+                    <TableCell colSpan={7} align="center" style={{ padding: 0 }}><BrandLoader height={260} label="Loading operations…" /></TableCell>
                   </TableRow>
                 ) : paged.length > 0 ? (
                   paged.map((o, index) => (
@@ -165,6 +197,11 @@ const OperationSequence = () => {
                       <TableCell className={zebra(index)}>{o.setup || '---'}</TableCell>
                       <TableCell className={zebra(index)}>{o.remarks || '---'}</TableCell>
                       <TableCell className={zebra(index)}>
+                        <Tooltip title="Open documents (drawing, work instructions, CAD…)">
+                          <span><IconButton onClick={() => openDocs(o)} disabled={opening === o.id}>
+                            {opening === o.id ? <CircularProgress size={18} /> : <LaunchIcon sx={{ color: '#ec6e17' }} />}
+                          </IconButton></span>
+                        </Tooltip>
                         <Tooltip title="Edit"><IconButton onClick={() => openEdit(o)}><EditIcon sx={{ color: 'black' }} /></IconButton></Tooltip>
                         <Tooltip title="Delete"><IconButton onClick={() => removeOp(o.id)}><DeleteIcon sx={{ color: 'black' }} /></IconButton></Tooltip>
                       </TableCell>

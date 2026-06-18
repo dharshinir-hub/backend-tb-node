@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python make_video.py)",
+      "Bash(node /c/tmp/upload_video.cjs)",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const a=JSON.parse\\(s\\);const m={};a.forEach\\(x=>m[x.key]=x.value\\);const tabs=['drawing','assembly-drawing','work-instruction-video','work-instruction-details','2d-cad','3d-cad','customer-list','quotation','purchase-order','video','inspection-report','tools','product-sample','defect-report','program','packing-std'];tabs.forEach\\(k=>{let v;try{v=JSON.parse\\(m[k]||'[]'\\)}catch\\(e\\){v=[]}console.log\\('  '+\\(v.length?'✓':'·'\\)+' '+k+' \\('+v.length+'\\)'\\)}\\);const ops=JSON.parse\\(m.operations||'[]'\\);console.log\\('  operations:',ops.length\\);}\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/DrawingDetail.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK DrawingDetail.js'\\)\")",
+      "Bash(node /c/tmp/fill_ops.cjs)",
+      "Bash(node -e ' *)",
+      "Bash(node /c/tmp/trim_ops.cjs)",
+      "Bash(curl -s -m 20 -X POST __TRACKED_VAR__/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"pms@gmail.com\",\"password\":\"pmspms\"}')",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const a=JSON.parse\\(s\\);const m={};a.forEach\\(x=>m[x.key]=x.value\\);let n=0;'drawing 2d-cad 3d-cad customer-list quotation purchase-order inspection-report tools product-sample defect-report program packing-std work-instruction-video work-instruction-details'.split\\(' '\\).forEach\\(k=>{let v;try{v=JSON.parse\\(m[k]||'[]'\\)}catch\\(e\\){v=[]}if\\(v.length\\)n++}\\);console.log\\('  main filled tabs:',n,'/ 14'\\)}\\)\")",
+      "Bash(node /c/tmp/fill_all_ops.cjs)",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const a=JSON.parse\\(s\\);const m={};a.forEach\\(x=>m[x.key]=x.value\\);let n=0;'drawing work-instruction-video work-instruction-details 2d-cad 3d-cad customer-list quotation purchase-order inspection-report tools product-sample defect-report program packing-std'.split\\(' '\\).forEach\\(k=>{let v;try{v=JSON.parse\\(m[k]||'[]'\\)}catch\\(e\\){v=[]}console.log\\('  '+\\(v.length?'✓':'·'\\)+' '+k+' \\('+v.length+'\\)'\\);if\\(v.length\\)n++}\\);console.log\\('  TOTAL filled:',n,'/ 14'\\)}\\)\")",
+      "Bash(cd /c/Users/yantra/Downloads/Zumen_PPW/react2024/src && ls -1 assets/ 2>/dev/null | head -60; echo \"--- any loader/gear/spinner images ---\"; ls -1 assets/ 2>/dev/null | grep -iE \"load|spin|gear|logo|symbol|wifi|signal|preload\" )",
+      "Read(//c/c/Users/yantra/Downloads/Zumen_PPW/react2024/src/**)",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/BrandLoader.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK BrandLoader.js'\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/DrawingDetail.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Orders/ProjectsOrders.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK ProjectsOrders.js'\\)\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const a=JSON.parse\\(s\\);a.forEach\\(x=>console.log\\('  -',x.key\\)\\)}\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/DrawingsLibrary.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK'\\)\")"
+    ]
+  }
+}
