@@ -22,7 +22,9 @@ import GestureIcon from '@mui/icons-material/Gesture';
 import NearMeIcon from '@mui/icons-material/NearMe';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
+import FitScreenIcon from '@mui/icons-material/FitScreen';
 import { alertSaved, alertError } from '../ppwAlerts';
+import { getSetting } from '../../../Services/app/zumensettings';
 
 const COLORS = ['#000000', '#6b7280', '#ffffff', '#ef4444', '#2563eb', '#22c55e', '#f59e0b', '#ec6e17', '#d946ef'];
 const FONTS = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Courier New', 'Verdana', 'Tahoma', 'Comic Sans MS'];
@@ -80,7 +82,7 @@ const drawRotateIcon = (ctx, left, top) => {
   ctx.restore();
 };
 
-const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
+const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData }) => {
   const canvasElRef = useRef(null);
   const fcRef = useRef(null);
   const toolRef = useRef('select');
@@ -94,6 +96,9 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
   const openEditStampRef = useRef(() => {});
   const editTargetRef = useRef(null);
 
+  const canvasContainerRef = useRef(null);
+  const imgNaturalRef = useRef(null); // { w, h } natural size of the loaded image
+  const [stampDefs, setStampDefs] = useState(null);
   const [tool, setTool] = useState('select');
   const [color, setColor] = useState('#ef4444');
   const [thickness, setThickness] = useState(3);
@@ -129,6 +134,31 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
   useEffect(() => { toolRef.current = tool; }, [tool]);
   useEffect(() => { styleRef.current = { color, thickness, opacity, fontSize, bold, italic, fontFamily }; }, [color, thickness, opacity, fontSize, bold, italic, fontFamily]);
 
+  // Load stamp definitions from settings (respects enabled/disabled from Stamp Settings page).
+  useEffect(() => {
+    getSetting('zumenStamps').then((s) => setStampDefs(s || null)).catch(() => {});
+  }, []);
+
+  // Wheel: plain scroll NAVIGATES the document (native overflow scroll, like a PDF
+  // viewer); Ctrl/⌘ + scroll ZOOMS. This stops scrolling from shrinking the page.
+  useEffect(() => {
+    const el = canvasContainerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return; // let the container scroll normally
+      e.preventDefault();
+      const f = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      setZoom((z) => {
+        const clamped = Math.min(4, Math.max(0.1, z * f));
+        const fc = fcRef.current; const { w, h } = baseDimsRef.current;
+        if (fc && w) { fc.setZoom(clamped); fc.setDimensions({ width: w * clamped, height: h * clamped }); }
+        return clamped;
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   const snapshot = useCallback(() => {
     const fc = fcRef.current;
     if (!fc) return;
@@ -154,6 +184,8 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
     }
 
     const fc = new fabric.Canvas(canvasElRef.current, { selection: true, preserveObjectStacking: true });
+    // Make the background image follow the viewport zoom/pan so zooming scales it too.
+    fc.backgroundVpt = true;
     fcRef.current = fc;
 
     // Keep the right "Selected object" panel in sync with the active object.
@@ -185,22 +217,28 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
       }
     });
 
-    fabric.Image.fromURL(imageUrl, (img) => {
-      // StrictMode double-mounts this effect; the first canvas is disposed before
-      // this async callback fires, so bail if it's gone.
+    // Rasterise first (SVG/PDF-image sources size unreliably in Fabric → the canvas
+    // wouldn't match and the page got cropped). The raster is a PNG of EXACT pixel
+    // size, so Fabric's width/height are correct and the whole document fits.
+    rasterizeImage(imageUrl).then(({ dataUrl, w: rw, h: rh }) => {
       if (disposed || !fc.lowerCanvasEl) return;
-      const maxW = window.innerWidth - 360;
-      const maxH = window.innerHeight - 170;
-      const scale = Math.min(maxW / img.width, maxH / img.height, 1);
-      const w = img.width * scale;
-      const h = img.height * scale;
-      fc.setWidth(w);
-      fc.setHeight(h);
-      baseDimsRef.current = { w, h };
-      img.set({ scaleX: scale, scaleY: scale, selectable: false, evented: false });
-      fc.setBackgroundImage(img, fc.renderAll.bind(fc));
-      undoStack.current = [JSON.stringify(fc.toJSON())];
-    }, { crossOrigin: 'anonymous' });
+      fabric.Image.fromURL(dataUrl, (img) => {
+        if (disposed || !fc.lowerCanvasEl) return;
+        // Scale the IMAGE ITSELF to fit and size the canvas to match (zoom stays 1),
+        // so the WHOLE document shows. baseDims = fitted size; +/- zoom multiplies it.
+        imgNaturalRef.current = { w: rw, h: rh };
+        const fitScale = computeFitScale(rw, rh);
+        const dispW = rw * fitScale;
+        const dispH = rh * fitScale;
+        fc.setZoom(1);
+        fc.setDimensions({ width: dispW, height: dispH });
+        baseDimsRef.current = { w: dispW, h: dispH };
+        img.set({ scaleX: fitScale, scaleY: fitScale, left: 0, top: 0, originX: 'left', originY: 'top', selectable: false, evented: false });
+        fc.setBackgroundImage(img, fc.renderAll.bind(fc));
+        setZoom(1);
+        undoStack.current = [JSON.stringify(fc.toJSON())];
+      });
+    }).catch(() => {});
 
     // shape drawing handlers
     fc.on('mouse:down', (o) => {
@@ -387,9 +425,13 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
 
   const addQr = async () => {
     try {
-      const url = await QRCode.toDataURL(doc?.name || window.location.href, { margin: 1, width: 200 });
+      // Encode the component's details so scanning the QR shows them. Use 'L' error
+      // correction + a wide quiet zone so the QR stays LOW-DENSITY, and place it LARGE
+      // so it's still big enough to scan even when the drawing is viewed zoomed-out.
+      const payload = qrData || doc?.name || window.location.href;
+      const url = await QRCode.toDataURL(payload, { margin: 4, width: 840, errorCorrectionLevel: 'L' });
       fabric.Image.fromURL(url, (img) => {
-        img.scaleToWidth(120);
+        img.scaleToWidth(280);
         img.set({ left: 40, top: 40 });
         img.data = { type: 'qr' };
         fcRef.current.add(img); fcRef.current.setActiveObject(img); snapshot();
@@ -622,10 +664,37 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
   const menuTargetIsSign = menuTargetType === 'signature';
 
   const applyZoom = (z) => {
-    const clamped = Math.min(3, Math.max(0.25, z));
+    // baseDims is the image's NATURAL size; zoom is a uniform viewport scale, so the
+    // WHOLE image is always shown scaled to fit — it can never crop. (1 = 100% pixels.)
+    const clamped = Math.min(4, Math.max(0.1, z));
     setZoom(clamped);
     const fc = fcRef.current; const { w, h } = baseDimsRef.current;
     if (fc && w) { fc.setZoom(clamped); fc.setDimensions({ width: w * clamped, height: h * clamped }); }
+  };
+
+  // Zoom level that fits the WHOLE image inside the editing area. Window dimensions
+  // (deterministic) minus the fixed chrome — right panel (240) + toolbar/bottom bar.
+  const computeFitScale = (iw, ih) => {
+    const availW = window.innerWidth - 320;
+    const availH = window.innerHeight - 180;
+    return Math.min(availW / iw, availH / ih);
+  };
+
+  // Snap the page to a full-page fit (whole document visible, centred). Used by the
+  // toolbar "Fit page" button — re-scales the image and resets zoom to 1 (= fit).
+  const fitToPage = () => {
+    const img = imgNaturalRef.current;
+    const fc = fcRef.current;
+    if (!img || !fc) return;
+    const fitScale = computeFitScale(img.w, img.h);
+    const dispW = img.w * fitScale;
+    const dispH = img.h * fitScale;
+    baseDimsRef.current = { w: dispW, h: dispH };
+    if (fc.backgroundImage) fc.backgroundImage.set({ scaleX: fitScale, scaleY: fitScale, left: 0, top: 0 });
+    fc.setZoom(1);
+    fc.setDimensions({ width: dispW, height: dispH });
+    fc.requestRenderAll();
+    setZoom(1);
   };
 
   // Summarise the annotations on the canvas (for the history log).
@@ -645,7 +714,16 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
   const save = async () => {
     setSaving(true);
     try {
-      const dataUrl = fcRef.current.toDataURL({ format: 'png' });
+      // Export at FULL natural resolution regardless of the current view zoom:
+      // reset to the fit view (zoom 1), then capture with a multiplier that scales
+      // the fitted canvas back up to the image's natural pixels.
+      const fc = fcRef.current;
+      const prevZoom = zoom;
+      const { w, h } = baseDimsRef.current; // fitted display size
+      fc.setZoom(1); fc.setDimensions({ width: w, height: h });
+      const mult = imgNaturalRef.current && w ? imgNaturalRef.current.w / w : 1;
+      const dataUrl = fc.toDataURL({ format: 'png', multiplier: mult });
+      fc.setZoom(prevZoom); fc.setDimensions({ width: w * prevZoom, height: h * prevZoom });
       const blob = await (await fetch(dataUrl)).blob();
       const base = (doc?.name || 'drawing').replace(/\.[^.]+$/, '');
       await uploadAnnotated(blob, `${base}_markup_${Date.now()}.png`, annotationSummary());
@@ -705,9 +783,13 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
         <TextField select size="small" variant="standard" value={Math.round(zoom * 100)}
           onChange={(e) => applyZoom(Number(e.target.value) / 100)}
           sx={{ width: 64 }} InputProps={{ disableUnderline: true, sx: { fontSize: 13, textAlign: 'center' } }}>
-          {[25, 50, 75, 100, 125, 150, 200, 300].map((p) => <MenuItem key={p} value={p}>{p}%</MenuItem>)}
+          {/* Always include the current zoom (e.g. the fit %) so it shows, not blank. */}
+          {Array.from(new Set([25, 50, 75, 100, 125, 150, 200, 300, Math.round(zoom * 100)]))
+            .sort((a, b) => a - b)
+            .map((p) => <MenuItem key={p} value={p}>{p}%</MenuItem>)}
         </TextField>
         <Tooltip title="Zoom in"><IconButton size="small" onClick={() => applyZoom(zoom + 0.25)}><AddIcon fontSize="small" /></IconButton></Tooltip>
+        <Tooltip title="Fit to page"><IconButton size="small" onClick={fitToPage}><FitScreenIcon fontSize="small" /></IconButton></Tooltip>
         <VDivider />
 
         {/* Tool groups */}
@@ -734,8 +816,10 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
 
       {/* Body: canvas + right panel */}
       <Box sx={{ flexGrow: 1, display: 'flex', minHeight: 0 }}>
-        <Box sx={{ flexGrow: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2 }}>
-          <Box sx={{ boxShadow: 4, bgcolor: '#fff' }}><canvas ref={canvasElRef} /></Box>
+        {/* margin:auto centers the page when it fits, but still lets you scroll to
+            every edge when the page is taller than the viewport (an A4 document). */}
+        <Box ref={canvasContainerRef} sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: 'auto', display: 'flex', p: 2, bgcolor: '#e5e7eb' }}>
+          <Box sx={{ boxShadow: 4, bgcolor: '#fff', m: 'auto' }}><canvas ref={canvasElRef} /></Box>
         </Box>
 
         {/* Right options panel */}
@@ -877,7 +961,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
         <MenuItem onClick={menuRemove} sx={{ color: '#ef4444' }}>Remove</MenuItem>
       </Menu>
 
-      {/* Stamp gallery */}
+      {/* Stamp gallery — shows only stamps enabled in Stamp Settings */}
       <Dialog open={stampOpen} onClose={() => { setStampOpen(false); setTool('select'); }} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           Select Stamp
@@ -887,7 +971,14 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, pt: 1 }}>
-            {[...STAMPS, ...customStamps].map((s) => (
+            {[...(stampDefs
+              ? stampDefs.filter((s) => s.enabled).map((s) => ({
+                  id: s.name.toLowerCase().replace(/\s+/g, '-'),
+                  shape: 'rect',
+                  color: s.color,
+                  lines: [s.name, '{date}'],
+                }))
+              : STAMPS), ...customStamps].map((s) => (
               <Box key={s.id} onClick={() => addStamp(s)} sx={{
                 border: '1px solid', p: 1.5, cursor: 'pointer', textAlign: 'center',
                 minHeight: 76, display: 'flex', flexDirection: 'column', justifyContent: 'center',
@@ -975,6 +1066,31 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated }) => {
     </Box>
   );
 };
+
+// Rasterise any image URL (incl. SVG, which Fabric sizes unreliably) to a PNG with
+// EXACT pixel dimensions, on a white background. The editor canvas is then sized to
+// match this raster exactly, so the whole document fits and nothing gets cropped.
+const rasterizeImage = (url) => new Promise((resolve, reject) => {
+  const im = new Image();
+  im.crossOrigin = 'anonymous';
+  im.onload = () => {
+    let w = im.naturalWidth || im.width || 0;
+    let h = im.naturalHeight || im.height || 0;
+    if (!w || !h) { w = 1000; h = 1414; } // fallback A4 portrait for a dimensionless SVG
+    const target = 1600; // render vectors crisply; cap the raster's long edge
+    const s = Math.min(target / w, target / h);
+    const cw = Math.max(1, Math.round(w * s));
+    const ch = Math.max(1, Math.round(h * s));
+    const c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+    try { ctx.drawImage(im, 0, 0, cw, ch); } catch (e) { reject(e); return; }
+    resolve({ dataUrl: c.toDataURL('image/png'), w: cw, h: ch });
+  };
+  im.onerror = reject;
+  im.src = url;
+});
 
 // hex + alpha -> rgba string
 function hexA(hex, a) {

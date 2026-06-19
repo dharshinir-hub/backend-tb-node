@@ -12,10 +12,16 @@ import {
   ORDER_STAGES, STAGE_COLORS, getOrders, createOrder,
 } from '../../../Services/app/zumenorderservice';
 import { getDrawings, getClients } from '../../../Services/app/zumenservice';
+import { getSetting } from '../../../Services/app/zumensettings';
+import PfAccessGuard from '../PfAccessGuard';
 import { alertCreated, alertWarning, alertError } from '../ppwAlerts';
 import { useT } from '../../../Shared/i18n/zumeni18n';
 
-const stageColor = (s) => STAGE_COLORS[s] || '#6b7280';
+// Stable colour for any stage — known stages keep their colour; custom stages
+// (added in "Project info" settings) get a consistent palette colour by name.
+const PALETTE = ['#6366f1', '#0ea5e9', '#06b6d4', '#f59e0b', '#8b5cf6', '#10b981', '#3b82f6', '#eab308', '#14b8a6', '#22c55e', '#ef4444', '#64748b'];
+const hashColor = (s) => PALETTE[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
+const stageColor = (s) => STAGE_COLORS[s] || hashColor(s);
 const fmtDate = (v) => { if (!v) return '—'; const d = new Date(v); return isNaN(d) ? v : d.toLocaleDateString(); };
 const txt = (v) => (v != null && String(v).trim() !== '' ? v : '—');
 const num = (v) => (v != null && String(v).trim() !== '' ? Number(v).toLocaleString() : '—');
@@ -66,6 +72,11 @@ const ProjectsOrders = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [clients, setClients] = useState([]);
   const [drawings, setDrawings] = useState([]);
+  // Pipeline stages from "Project info" settings (falls back to the built-in list).
+  const [stages, setStages] = useState(ORDER_STAGES);
+  useEffect(() => {
+    getSetting('zumenProjectStages').then((s) => { if (Array.isArray(s) && s.length) setStages(s); }).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,7 +85,7 @@ const ProjectsOrders = () => {
   useEffect(() => { load(); }, [load]);
 
   // Counts per stage for the filter-tab badges.
-  const counts = ORDER_STAGES.reduce((a, s) => ({ ...a, [s]: 0 }), {});
+  const counts = stages.reduce((a, s) => ({ ...a, [s]: 0 }), {});
   orders.forEach((o) => { counts[o.status] = (counts[o.status] || 0) + 1; });
 
   const visible = orders.filter((o) => {
@@ -129,6 +140,7 @@ const ProjectsOrders = () => {
   };
 
   return (
+    <PfAccessGuard pageKey="projects" label="Projects / Orders">
     <Box sx={{ pt: 3, px: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <Box>
@@ -156,7 +168,7 @@ const ProjectsOrders = () => {
       <Tabs value={stage} onChange={(_, v) => setStage(v)} variant="scrollable" scrollButtons="auto"
         sx={{ borderBottom: '1px solid #e5e7eb', minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontSize: 13 } }}>
         <Tab value="All" label={`All (${orders.length})`} />
-        {ORDER_STAGES.map((s) => (
+        {stages.map((s) => (
           <Tab key={s} value={s} label={`${s} (${counts[s] || 0})`} />
         ))}
       </Tabs>
@@ -224,7 +236,7 @@ const ProjectsOrders = () => {
               {drawings.map((d) => (<MenuItem key={d.id} value={d.id}>{d.number} — {d.product}</MenuItem>))}
             </TextField>
             <TextField select label="Status" size="small" value={form.status} onChange={set('status')}>
-              {ORDER_STAGES.map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+              {Array.from(new Set([...stages, form.status].filter(Boolean))).map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
             </TextField>
             <TextField label="Delivery date" type="date" size="small" InputLabelProps={{ shrink: true }} value={form.deliveryDate} onChange={set('deliveryDate')} />
             <TextField label="Volume (qty)" type="number" size="small" value={form.quotationVolume} onChange={set('quotationVolume')} />
@@ -248,6 +260,7 @@ const ProjectsOrders = () => {
       <Snackbar open={!!snack} autoHideDuration={2500} onClose={() => setSnack('')} message={snack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
     </Box>
+    </PfAccessGuard>
   );
 };
 

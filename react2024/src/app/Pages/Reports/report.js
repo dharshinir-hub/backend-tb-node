@@ -478,7 +478,7 @@ export default function MachineReport() {
         );
       } else if (tab === "sequence_report") {
         response = await getSequenceReport(
-          Array.isArray(machinesParam) ? machinesParam[0] : machinesParam,
+          Array.isArray(machinesParam) ? machinesParam.join(",") : machinesParam,
           "all",
           dateStr, dateEnd, pageNum, limit
         );

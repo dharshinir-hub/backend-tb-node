@@ -18,6 +18,7 @@ import {
   getAssemblyTree, getDrawings, addBomLink, removeBomLink,
 } from '../../../Services/app/zumenservice';
 import { AuthImg } from '../../../Services/app/zumendocservice';
+import { getSetting } from '../../../Services/app/zumensettings';
 import { alertCreated, alertDeleted, alertWarning, alertError } from '../ppwAlerts';
 
 // Module-level bridge so the custom edge badge can call back into the component.
@@ -53,17 +54,20 @@ const Y_GAP = 104;
 
 // Flatten the nested assembly tree into React Flow nodes + edges with a tidy
 // left-to-right layered layout (x = depth, y = balanced over children).
-const toFlow = (root) => {
+const toFlow = (root, opts = {}) => {
+  const { autoNumber = true, showQuantity = true, showThumbnails = true } = opts;
   const nodes = [];
   const edges = [];
   let leaf = 0;
-  const place = (node, depth) => {
-    const childYs = node.children.map((c) => {
+  // `number` is the hierarchical BOM number (root = '', children 1, 1.1, 1.2…).
+  const place = (node, depth, number) => {
+    const childYs = node.children.map((c, idx) => {
       edges.push({
         id: `${node.id}-${c.id}`, source: node.id, target: c.id,
         type: 'connector', animated: false,
       });
-      return place(c, depth + 1);
+      const childNo = number ? `${number}.${idx + 1}` : `${idx + 1}`;
+      return place(c, depth + 1, childNo);
     });
     const y = childYs.length
       ? childYs.reduce((a, b) => a + b, 0) / childYs.length
@@ -72,11 +76,16 @@ const toFlow = (root) => {
       id: node.id,
       type: 'drawingNode',
       position: { x: depth * X_GAP, y },
-      data: { name: node.name, label: node.label, status: node.status, material: node.material, inventory: node.inventory, thumb: node.thumbnailResourceId, hasChildren: (node.children || []).length > 0, root: depth === 0 },
+      data: {
+        name: node.name, label: node.label, status: node.status, material: node.material,
+        inventory: node.inventory, thumb: node.thumbnailResourceId,
+        hasChildren: (node.children || []).length > 0, root: depth === 0,
+        number: autoNumber ? number : '', showQuantity, showThumbnails,
+      },
     });
     return y;
   };
-  place(root, 0);
+  place(root, 0, '');
   return { nodes, edges };
 };
 
@@ -90,25 +99,33 @@ const DrawingNode = ({ id, data }) => {
       borderRadius: 1.5, boxShadow: 1, p: 1, display: 'flex', gap: 1, position: 'relative',
     }}>
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
-      {/* Thumbnail */}
-      <Box sx={{ width: 64, height: 56, flexShrink: 0, border: '1px solid #eef1f4', borderRadius: 1, bgcolor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        {data.thumb
-          ? <AuthImg doc={{ resourceId: data.thumb }} alt={data.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} fallback={<InsertDriveFileIcon sx={{ fontSize: 28, color: '#cbd5e1' }} />} />
-          : <InsertDriveFileIcon sx={{ fontSize: 28, color: '#cbd5e1' }} />}
-      </Box>
+      {/* Thumbnail (hidden when "Show child thumbnails" is off in Assembly settings) */}
+      {data.showThumbnails !== false && (
+        <Box sx={{ width: 64, height: 56, flexShrink: 0, border: '1px solid #eef1f4', borderRadius: 1, bgcolor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {data.thumb
+            ? <AuthImg doc={{ resourceId: data.thumb }} alt={data.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} fallback={<InsertDriveFileIcon sx={{ fontSize: 28, color: '#cbd5e1' }} />} />
+            : <InsertDriveFileIcon sx={{ fontSize: 28, color: '#cbd5e1' }} />}
+        </Box>
+      )}
       {/* Details */}
       <Box sx={{ minWidth: 0, flexGrow: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 0.5 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 13 }} noWrap>{data.name}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+            {data.number && (
+              <Chip size="small" label={data.number}
+                sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: '#eef2ff', color: '#4338ca', flexShrink: 0 }} />
+            )}
+            <Typography sx={{ fontWeight: 700, fontSize: 13 }} noWrap>{data.name}</Typography>
+          </Box>
           {data.status && (
             <Chip size="small" label={data.status}
               sx={{ height: 18, fontSize: 10, bgcolor: statusColor(data.status), color: '#fff', flexShrink: 0 }} />
           )}
         </Box>
         <Typography sx={{ fontSize: 12, color: '#475569' }} noWrap>{data.label || '—'}</Typography>
-        {(data.material || data.inventory) && (
+        {(data.material || (data.showQuantity !== false && data.inventory)) && (
           <Typography sx={{ fontSize: 10, color: '#94a3b8' }} noWrap>
-            {data.material || ''}{data.material && data.inventory ? ' · ' : ''}{data.inventory ? `stock: ${data.inventory}` : ''}
+            {data.material || ''}{data.material && data.showQuantity !== false && data.inventory ? ' · ' : ''}{data.showQuantity !== false && data.inventory ? `stock: ${data.inventory}` : ''}
           </Typography>
         )}
         <Button size="small" startIcon={<VisibilityOutlinedIcon sx={{ fontSize: 14 }} />}
@@ -140,21 +157,24 @@ const AssemblyTree = ({ embedded = false, drawingId: propId }) => {
   const [allDrawings, setAllDrawings] = useState([]);
   const [badgeMenu, setBadgeMenu] = useState(null); // { anchorEl, source, target }
   const [nodeMenu, setNodeMenu] = useState(null); // { x, y, nodeId }
+  // Assembly settings (depth / numbering / quantity / thumbnails) from Settings.
+  const [asmCfg, setAsmCfg] = useState({ relationType: 'Contains', maxDepth: 5, autoNumber: true, showQuantity: true, showThumbnails: true });
+  useEffect(() => { getSetting('zumenAssemblySettings').then((s) => s && setAsmCfg((c) => ({ ...c, ...s }))).catch(() => {}); }, []);
   const editModeRef = useRef(false);
   editModeRef.current = editMode;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const tree = await getAssemblyTree(id);
+      const tree = await getAssemblyTree(id, Number(asmCfg.maxDepth) || 8);
       setRootName(tree.name);
-      const { nodes: n, edges: e } = toFlow(tree);
+      const { nodes: n, edges: e } = toFlow(tree, asmCfg);
       setNodes(n);
       setEdges(e.map((ed) => ({ ...ed, data: { editMode: editModeRef.current } })));
     } finally {
       setLoading(false);
     }
-  }, [id, setNodes, setEdges]);
+  }, [id, setNodes, setEdges, asmCfg]);
 
   useEffect(() => { load(); }, [load]);
   // Show/hide the "›" badges when edit mode toggles.

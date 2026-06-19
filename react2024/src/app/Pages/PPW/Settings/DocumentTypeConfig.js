@@ -51,7 +51,7 @@ const DocumentTypeConfig = () => {
         </Button>
       </Box>
       <Typography sx={{ color: '#64748b', fontSize: 13, mb: 2 }}>
-        Rename a document tab or hide it from drawings. Saved to ThingsBoard (live hide/show wiring into the drawing tabs is a follow-up).
+        Rename a document tab or hide it from drawings. Applied live to every drawing’s document tabs.
       </Typography>
       <Table size="small" sx={{ maxWidth: 820 }}>
         <TableHead>

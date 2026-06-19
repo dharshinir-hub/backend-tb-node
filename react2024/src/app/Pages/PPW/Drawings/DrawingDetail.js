@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Box, Typography, Button, Chip, CircularProgress, Tabs, Tab, IconButton,
@@ -8,6 +8,10 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AddIcon from '@mui/icons-material/Add';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
+import FitScreenIcon from '@mui/icons-material/FitScreen';
+import CropFreeIcon from '@mui/icons-material/CropFree';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DownloadIcon from '@mui/icons-material/Download';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -17,7 +21,6 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import Rotate90DegreesCwIcon from '@mui/icons-material/Rotate90DegreesCw';
 import FindInPageOutlinedIcon from '@mui/icons-material/FindInPageOutlined';
-import LinkIcon from '@mui/icons-material/Link';
 import BorderColorOutlinedIcon from '@mui/icons-material/BorderColorOutlined';
 import PrintIcon from '@mui/icons-material/Print';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
@@ -32,7 +35,8 @@ import {
   getDocumentHistory, getDocUrl, useDocPreview, AuthImg, replaceDocumentFile,
 } from '../../../Services/app/zumendocservice';
 import DocumentPreview, { kindOf } from './DocumentPreview';
-import { alertCreated, alertUpdated, alertSaved, alertDeleted, confirmDelete, alertError } from '../ppwAlerts';
+import { alertCreated, alertUpdated, alertSaved, alertDeleted, confirmDelete, alertError, alertWarning } from '../ppwAlerts';
+import { getSetting, getConfig } from '../../../Services/app/zumensettings';
 import BrandLoader from '../BrandLoader';
 
 const Model3DViewer = React.lazy(() => import('./Model3DViewer'));
@@ -87,40 +91,64 @@ const fileIsImage = (file) => new Promise((resolve) => {
   r.readAsArrayBuffer(file.slice(0, 16));
 });
 
-// Right-hand metadata form fields (mirrors demo.zume-n.com side panel).
-const META_FIELDS = [
-  { key: 'inventory', label: 'Inventory / 在庫' },
-  { key: 'project', label: 'Project' },
-  { key: 'assemblyNo', label: 'Assembly No.' },
-  { key: 'deliveryDate', label: 'Delivery date' },
-];
+// Registry of every field the right-hand info panel can show, and HOW to render it.
+// Which of these appear (and their labels / required flags) is driven by the
+// "Drawing info settings" + "Drawing detail info" Settings screens.
+const PANEL_FIELDS = {
+  drawingNumber: { label: 'Drawing number', kind: 'readonly' },
+  productName: { label: 'Product name', kind: 'text' },
+  clientName: { label: 'Client name', kind: 'client' },
+  revision: { label: 'Revision', kind: 'text' },
+  status: { label: 'Status', kind: 'status' },
+  material: { label: 'Material', kind: 'text' },
+  processType: { label: 'Process type', kind: 'text' },
+  inventory: { label: 'Inventory / 在庫', kind: 'text' },
+  project: { label: 'Project', kind: 'text' },
+  assemblyNo: { label: 'Assembly No.', kind: 'text' },
+  deliveryDate: { label: 'Delivery date', kind: 'text' },
+};
+// Fallbacks when the Settings screens haven't been saved yet (mirror their defaults).
+const DEFAULT_INFO_FIELDS = ['drawingNumber', 'productName', 'clientName', 'revision', 'status', 'material', 'processType']
+  .map((key) => ({ key, label: PANEL_FIELDS[key].label, visible: true, required: false }));
+const DEFAULT_DETAIL_FIELDS = ['inventory', 'project', 'assemblyNo', 'deliveryDate']
+  .map((key) => ({ key, label: PANEL_FIELDS[key].label, visible: true, required: false }));
 
 // Center preview for the selected file (inline; no modal).
 const InlinePreview = ({ doc, rotation = 0 }) => {
   const [text, setText] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [natural, setNatural] = useState(null); // { w, h } of the loaded image
+  const [fitOverride, setFitOverride] = useState(null); // null = auto, else 'contain' | 'cover'
   const dragRef = useRef(null);
   const { url, kind: detectedKind } = useDocPreview(doc);
   // Prefer the REAL content type (magic-byte sniff); fall back to the extension.
   const kind = doc ? (detectedKind || kindOf(doc.name)) : null;
   const rot = { transform: `rotate(${rotation}deg)`, transition: 'transform 0.2s' };
 
-  // Reset zoom/pan whenever the previewed file changes.
-  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, [doc]);
+  // Auto fit: DOCUMENT-type tabs (quotation, tool list, inspection report, …) must
+  // never crop — a sheet with its header cut off is useless — so they use "contain".
+  // Visual tabs (the main drawing photo, CAD) fill the box when the image is roughly
+  // square (a centred product shot), else "contain". The user can override below.
+  const DOC_TYPES = ['customer-list', 'quotation', 'purchase-order', 'inspection-report',
+    'packing-std', 'defect-report', 'tools', 'program', 'work-instruction-details'];
+  const isDocType = doc && DOC_TYPES.includes(doc.docType);
+  const aspect = natural && natural.h ? natural.w / natural.h : 1;
+  const autoFit = isDocType ? 'contain' : (aspect >= 0.78 && aspect <= 1.4 ? 'cover' : 'contain');
+  const fit = fitOverride || autoFit;
+
+  // Reset zoom/pan and fit whenever the previewed file changes.
+  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setNatural(null); setFitOverride(null); }, [doc]);
   // Scroll the mouse wheel to zoom toward the cursor; drag to pan when zoomed in.
   const onWheel = (e) => {
     if (kind !== 'image') return;
-    // Only zoom when the cursor is over the image itself; over the surrounding
-    // whitespace, do nothing so the page scrolls normally.
-    if (!e.target || e.target.tagName !== 'IMG') return;
     e.preventDefault();
     const r = e.currentTarget.getBoundingClientRect();
     const cx = e.clientX - r.left - r.width / 2;
     const cy = e.clientY - r.top - r.height / 2;
     const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
     setZoom((z) => {
-      const nz = Math.min(8, Math.max(1, z * f));
+      const nz = Math.min(8, Math.max(0.25, z * f));
       setPan((p) => (nz <= 1 ? { x: 0, y: 0 } : { x: cx - (cx - p.x) * (nz / z), y: cy - (cy - p.y) * (nz / z) }));
       return nz;
     });
@@ -153,12 +181,25 @@ const InlinePreview = ({ doc, rotation = 0 }) => {
   if (kind === 'image') {
     return <Box
       onWheel={onWheel} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={endDrag} onMouseLeave={endDrag} onDoubleClick={resetZoom}
-      sx={{ height: '100%', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', p: 1, overflow: 'hidden', position: 'relative', cursor: zoom > 1 ? (dragRef.current ? 'grabbing' : 'grab') : 'default' }}>
-      <img src={url} alt={doc.name} draggable={false} style={{
-        maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
-        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
-        transition: dragRef.current ? 'none' : 'transform 0.12s', transformOrigin: 'center center',
-      }} />
+      sx={{ height: '100%', width: '100%', overflow: 'hidden', position: 'relative', cursor: zoom > 1 ? (dragRef.current ? 'grabbing' : 'grab') : 'default' }}>
+      <img src={url} alt={doc.name} draggable={false}
+        onLoad={(e) => setNatural({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
+        style={{
+          width: '100%', height: '100%', objectFit: fit,
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+          transition: dragRef.current ? 'none' : 'transform 0.12s', transformOrigin: 'center center',
+        }} />
+      {/* Fit / Fill toggle — Fit shows the whole image (no crop); Fill stretches it
+          to cover the box (crops the edges). Auto-picks per image; user can override. */}
+      <Tooltip title={fit === 'cover' ? 'Showing filled (edges cropped) — click to fit whole image' : 'Showing whole image — click to fill the box'}>
+        <Button size="small" onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); setFitOverride(fit === 'cover' ? 'contain' : 'cover'); }}
+          startIcon={fit === 'cover' ? <FitScreenIcon sx={{ fontSize: 15 }} /> : <CropFreeIcon sx={{ fontSize: 15 }} />}
+          sx={{ position: 'absolute', top: 8, right: 8, minWidth: 0, textTransform: 'none', fontSize: 11,
+            bgcolor: 'rgba(255,255,255,0.9)', color: '#475569', px: 1, py: 0.25, '&:hover': { bgcolor: '#fff' } }}>
+          {fit === 'cover' ? 'Fit' : 'Fill'}
+        </Button>
+      </Tooltip>
       {zoom > 1 && <Box sx={{ position: 'absolute', bottom: 8, right: 12, bgcolor: 'rgba(15,23,42,0.78)', color: '#fff', fontSize: 11, px: 1, py: 0.25, borderRadius: 1, pointerEvents: 'none' }}>
         {Math.round(zoom * 100)}% · scroll to zoom · drag to pan · double-click reset
       </Box>}
@@ -223,7 +264,17 @@ const DrawingDetail = () => {
   // When opened from an operation (?op=1), this asset is an operation, not the
   // assembly — hide the "Assembly drawing" tab (an operation has no sub-assembly).
   const isOperation = searchParams.get('op') === '1';
-  const visibleTypes = isOperation ? DOCUMENT_TYPES.filter((t) => t.key !== 'assembly-drawing') : DOCUMENT_TYPES;
+  // Document tabs honour the "Document type" Settings screen (hide / rename).
+  const [docTypeCfg, setDocTypeCfg] = useState(null);
+  const visibleTypes = useMemo(() => {
+    let types = DOCUMENT_TYPES.map((t) => {
+      const ov = docTypeCfg ? docTypeCfg.find((c) => c.key === t.key) : null;
+      return ov ? { ...t, label: ov.label || t.label, _hide: ov.visible === false } : t;
+    }).filter((t) => !t._hide);
+    if (isOperation) types = types.filter((t) => t.key !== 'assembly-drawing');
+    // Never end up with zero tabs (e.g. everything hidden) — fall back to all.
+    return types.length ? types : (isOperation ? DOCUMENT_TYPES.filter((t) => t.key !== 'assembly-drawing') : DOCUMENT_TYPES);
+  }, [docTypeCfg, isOperation]);
   // Back: for an operation, return to its parent's Operations page (the parent id
   // is carried in the URL so it survives a refresh and never falls back to home).
   const opParent = searchParams.get('parent');
@@ -239,6 +290,11 @@ const DrawingDetail = () => {
   const [clients, setClients] = useState([]);
   const [meta, setMeta] = useState({});
   const [savingMeta, setSavingMeta] = useState(false);
+  // Info-panel field config from the Settings screens (null until loaded → defaults).
+  const [infoFieldCfg, setInfoFieldCfg] = useState(null);
+  const [detailFieldCfg, setDetailFieldCfg] = useState(null);
+  // Reusable form templates (Settings → Form templates) shown in the Create menu.
+  const [formTemplates, setFormTemplates] = useState([]);
   const [rotation, setRotation] = useState(0);
   const [remarksOpen, setRemarksOpen] = useState(false);
   const [remarksText, setRemarksText] = useState('');
@@ -273,11 +329,43 @@ const DrawingDetail = () => {
   const selectedIsSheet = effKind === 'sheet';
   const selectedIsWord = effKind === 'word';
 
+  // Component details encoded into the QR. Kept VERY COMPACT on purpose: a dense QR
+  // (lots of text) won't scan from a screen once it's scaled down on the drawing and
+  // re-saved. These few core fields keep it a low-density v5 (~37x37) that scans.
+  const qrInfo = useMemo(() => {
+    if (!drawing) return '';
+    const m = meta || {};
+    const parts = [
+      drawing.name,
+      m.productName,
+      m.clientName,
+      `${m.status || '-'} | Rev ${m.revision || 'A'}`,
+      [m.inventory, m.project].filter(Boolean).join(' · '),
+    ].filter(Boolean);
+    return parts.join('\n');
+  }, [drawing, meta]);
+
+  // Which fields the info panel shows (+ labels / required) — driven by Settings.
+  const visibleFields = useMemo(() => {
+    const info = infoFieldCfg || DEFAULT_INFO_FIELDS;
+    const detail = detailFieldCfg || DEFAULT_DETAIL_FIELDS;
+    return [...info, ...detail]
+      .filter((f) => PANEL_FIELDS[f.key] && f.visible !== false);
+  }, [infoFieldCfg, detailFieldCfg]);
+
   const loadDocs = useCallback(async () => {
     const { documents: docs, counts: c } = await getDocuments(id);
     setDocuments(docs);
     setCounts(c);
   }, [id]);
+
+  // Load the panel field config + form templates from the Settings screens.
+  useEffect(() => {
+    getSetting('zumenDrawingInfoFields').then((s) => { if (Array.isArray(s)) setInfoFieldCfg(s); }).catch(() => {});
+    getSetting('zumenDrawingDetailFields').then((s) => { if (Array.isArray(s)) setDetailFieldCfg(s); }).catch(() => {});
+    getSetting('zumenFormTemplates').then((s) => { if (Array.isArray(s)) setFormTemplates(s); }).catch(() => {});
+    getConfig().then((c) => { if (c && Array.isArray(c.docTypes)) setDocTypeCfg(c.docTypes); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -314,13 +402,22 @@ const DrawingDetail = () => {
 
   // Auto-set the card thumbnail if this drawing has an image but none saved yet
   // (heals drawings whose image was uploaded with a non-image extension).
+  // Skipped when the user has explicitly pinned a file (thumbnailPinned = true).
   useEffect(() => {
-    if (selectedIsImage && selectedDoc?.resourceId && !meta.thumbnailResourceId) {
+    if (selectedIsImage && selectedDoc?.resourceId && !meta.thumbnailResourceId && !meta.thumbnailPinned) {
       saveDrawingAttributes(id, { thumbnailResourceId: selectedDoc.resourceId })
         .then(() => setMeta((m) => ({ ...m, thumbnailResourceId: selectedDoc.resourceId })))
         .catch(() => {});
     }
-  }, [selectedIsImage, selectedDoc, meta.thumbnailResourceId, id]);
+  }, [selectedIsImage, selectedDoc, meta.thumbnailResourceId, meta.thumbnailPinned, id]);
+
+  // Pin a specific file as the fixed cover image for the Drawings library card.
+  const pinThumbnail = async (doc) => {
+    try {
+      await saveDrawingAttributes(id, { thumbnailResourceId: doc.resourceId, thumbnailPinned: true });
+      setMeta((m) => ({ ...m, thumbnailResourceId: doc.resourceId, thumbnailPinned: true }));
+    } catch (e) { alertError('Could not pin thumbnail'); }
+  };
 
   // Reset selected file when switching tabs.
   useEffect(() => { setSelectedDocId(null); }, [activeTab]);
@@ -453,7 +550,23 @@ const DrawingDetail = () => {
     if (e.dataTransfer?.files?.length) await uploadFiles(e.dataTransfer.files);
   };
 
+  // Value currently held for a panel field (used by both render and validation).
+  const fieldValue = (key) => {
+    if (key === 'drawingNumber') return drawing?.name || '';
+    if (key === 'clientName') return meta.clientName || (meta.clientId ? 'set' : '');
+    return meta[key] || '';
+  };
+
   const saveMeta = async () => {
+    // Enforce fields the Settings screens marked Required.
+    const missing = visibleFields
+      .filter((f) => f.required)
+      .filter((f) => !String(fieldValue(f.key)).trim())
+      .map((f) => f.label || PANEL_FIELDS[f.key].label);
+    if (missing.length) {
+      alertWarning('Required fields', `Please fill: ${missing.join(', ')}`);
+      return;
+    }
     setSavingMeta(true);
     try {
       await saveDrawingAttributes(id, meta);
@@ -462,6 +575,46 @@ const DrawingDetail = () => {
     finally {
       setSavingMeta(false);
     }
+  };
+
+  // Render one info-panel field according to the registry + its Settings config.
+  const renderPanelField = (f) => {
+    const reg = PANEL_FIELDS[f.key];
+    if (!reg) return null;
+    const lbl = (
+      <Typography sx={{ fontSize: 12, color: '#64748b' }}>
+        {f.label || reg.label}{f.required && <Box component="span" sx={{ color: '#ef4444' }}> *</Box>}
+      </Typography>
+    );
+    if (reg.kind === 'readonly') {
+      return <Box key={f.key} sx={{ mb: 1.5 }}>{lbl}<TextField fullWidth size="small" value={drawing.name} disabled /></Box>;
+    }
+    if (reg.kind === 'client') {
+      return (
+        <Box key={f.key} sx={{ mb: 1.5 }}>{lbl}
+          <TextField select fullWidth size="small" value={meta.clientId || ''}
+            onChange={(e) => { const c = clients.find((x) => x.id === e.target.value); setMeta({ ...meta, clientId: e.target.value, clientName: c ? c.title : meta.clientName }); }}>
+            {clients.map((c) => (<MenuItem key={c.id} value={c.id}>{c.title}</MenuItem>))}
+          </TextField>
+        </Box>
+      );
+    }
+    if (reg.kind === 'status') {
+      return (
+        <Box key={f.key} sx={{ mb: 1.5 }}>{lbl}
+          <TextField select fullWidth size="small" value={meta.status || ''}
+            onChange={(e) => setMeta({ ...meta, status: e.target.value })}>
+            {Object.keys(STATUS_COLORS).map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+          </TextField>
+        </Box>
+      );
+    }
+    return (
+      <Box key={f.key} sx={{ mb: 1.5 }}>{lbl}
+        <TextField fullWidth size="small" value={meta[f.key] || ''}
+          onChange={(e) => setMeta({ ...meta, [f.key]: e.target.value })} />
+      </Box>
+    );
   };
 
   // ---- revision / version control ----
@@ -578,6 +731,14 @@ const DrawingDetail = () => {
               <MenuItem onClick={() => { setCreateAnchor(null); setWordEditDoc({ drawingId: id, docType: activeType.key, name: 'New Document.docx', isNew: true }); setWordEditOpen(true); }}>
                 📝 Word document
               </MenuItem>
+              {/* Enabled form templates (Settings → Form templates) for this tab. */}
+              {formTemplates.some((tpl) => tpl.enabled && tpl.docType === activeType.key) && <Divider />}
+              {formTemplates.filter((tpl) => tpl.enabled && tpl.docType === activeType.key).map((tpl) => (
+                <MenuItem key={tpl.name}
+                  onClick={() => { setCreateAnchor(null); setSheetEditDoc({ drawingId: id, docType: activeType.key, name: `${tpl.name}.xlsx`, isNew: true }); setSheetEditOpen(true); }}>
+                  📄 {tpl.name}
+                </MenuItem>
+              ))}
             </Menu>
             <Typography sx={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', mb: 1 }}>{formatsLabel(activeType.key)} · drag &amp; drop</Typography>
             {tabDocs.map((d) => {
@@ -585,18 +746,29 @@ const DrawingDetail = () => {
               // Try to render a thumbnail for image- or pdf-named files (AuthImg
               // falls back to the icon if the bytes aren't a real image).
               const img = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'pdf'].includes(extOf(d.name));
+              const isPinned = !!(meta.thumbnailResourceId && d.resourceId && meta.thumbnailResourceId === d.resourceId);
               return (
                 <Box key={d.id} onClick={() => setSelectedDocId(d.id)}
                   sx={{
                     border: '1px solid', borderColor: sel ? '#ec6e17' : '#e5e7eb', borderRadius: 1,
                     p: 0.5, mb: 1, cursor: 'pointer', bgcolor: sel ? '#eff6ff' : '#fff',
                   }}>
-                  <Box sx={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', bgcolor: '#f8fafc' }}>
+                  <Box sx={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', bgcolor: '#f8fafc', position: 'relative' }}>
                     {img
                       ? <AuthImg doc={d} alt={d.name}
                           style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
                           fallback={<InsertDriveFileIcon sx={{ fontSize: 32, color: '#cbd5e1' }} />} />
                       : <InsertDriveFileIcon sx={{ fontSize: 32, color: '#cbd5e1' }} />}
+                    {img && d.resourceId && (
+                      <Tooltip title={isPinned ? 'Cover image (pinned)' : 'Set as cover image'}>
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); pinThumbnail(d); }}
+                          sx={{ position: 'absolute', top: 1, right: 1, padding: '2px', bgcolor: 'rgba(255,255,255,0.85)', '&:hover': { bgcolor: '#fff7ed' } }}>
+                          {isPinned
+                            ? <StarIcon sx={{ fontSize: 13, color: '#ec6e17' }} />
+                            : <StarBorderIcon sx={{ fontSize: 13, color: '#94a3b8' }} />}
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </Box>
                   <Typography sx={{ fontSize: 10, mt: 0.5, color: '#64748b' }} noWrap>{d.name}</Typography>
                   <Typography sx={{ fontSize: 9, color: '#94a3b8' }}>
@@ -642,10 +814,6 @@ const DrawingDetail = () => {
                     Similar drawings
                   </Button>
                   <Box sx={{ flexGrow: 1 }} />
-                  <Button size="small" startIcon={<LinkIcon sx={{ fontSize: 16 }} />}
-                    onClick={() => notify('Project linking — coming soon')} sx={{ textTransform: 'none', color: '#475569' }}>
-                    Project for this file
-                  </Button>
                   <Button size="small" color="error" startIcon={<DeleteOutlineIcon sx={{ fontSize: 16 }} />}
                     onClick={() => doDelete(selectedDoc.id)} sx={{ textTransform: 'none' }}>
                     Delete
@@ -686,36 +854,7 @@ const DrawingDetail = () => {
           {/* RIGHT: metadata form — only on the Drawing tab */}
           {activeType.key === 'drawing' && (
           <Box sx={{ width: 300, flexShrink: 0, borderLeft: '1px solid #e5e7eb', p: 2, overflowY: 'auto' }}>
-            <Typography sx={{ fontSize: 12, color: '#64748b' }}>Drawing number</Typography>
-            <TextField fullWidth size="small" value={drawing.name} disabled sx={{ mb: 1.5 }} />
-
-            <Typography sx={{ fontSize: 12, color: '#64748b' }}>Product name</Typography>
-            <TextField fullWidth size="small" value={meta.productName || ''} sx={{ mb: 1.5 }}
-              onChange={(e) => setMeta({ ...meta, productName: e.target.value })} />
-
-            <Typography sx={{ fontSize: 12, color: '#64748b' }}>Client name</Typography>
-            <TextField select fullWidth size="small" value={meta.clientId || ''} sx={{ mb: 1.5 }}
-              onChange={(e) => {
-                const c = clients.find((x) => x.id === e.target.value);
-                setMeta({ ...meta, clientId: e.target.value, clientName: c ? c.title : meta.clientName });
-              }}>
-              {clients.map((c) => (<MenuItem key={c.id} value={c.id}>{c.title}</MenuItem>))}
-            </TextField>
-
-            <Typography sx={{ fontSize: 12, color: '#64748b' }}>Status</Typography>
-            <TextField select fullWidth size="small" value={meta.status || ''} sx={{ mb: 1.5 }}
-              onChange={(e) => setMeta({ ...meta, status: e.target.value })}>
-              {Object.keys(STATUS_COLORS).map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
-            </TextField>
-
-            {META_FIELDS.map((f) => (
-              <Box key={f.key} sx={{ mb: 1.5 }}>
-                <Typography sx={{ fontSize: 12, color: '#64748b' }}>{f.label}</Typography>
-                <TextField fullWidth size="small" value={meta[f.key] || ''}
-                  onChange={(e) => setMeta({ ...meta, [f.key]: e.target.value })} />
-              </Box>
-            ))}
-
+            {visibleFields.map(renderPanelField)}
             <Divider sx={{ my: 1.5 }} />
             <Button fullWidth variant="contained" onClick={saveMeta} disabled={savingMeta}
               sx={{ bgcolor: '#ec6e17', textTransform: 'none' }}>
@@ -747,6 +886,7 @@ const DrawingDetail = () => {
           <MarkupEditor
             doc={selectedDoc}
             imageUrl={writeImageUrl}
+            qrData={qrInfo}
             onClose={() => setWriteOpen(false)}
             onSaved={async () => { setWriteOpen(false); await loadDocs(); }}
             uploadAnnotated={async (blob, name, summary) => {

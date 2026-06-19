@@ -24,6 +24,8 @@ import {
   deleteDrawing, saveDrawingAttributes,
 } from '../../../Services/app/zumenservice';
 import { alertCreated, alertUpdated, alertDeleted, confirmDelete, alertError, alertWarning } from '../ppwAlerts';
+import { getSetting } from '../../../Services/app/zumensettings';
+import PfAccessGuard from '../PfAccessGuard';
 import { useT } from '../../../Shared/i18n/zumeni18n';
 
 const PAGE_SIZE = 24;
@@ -37,7 +39,7 @@ const STATUS_TABS = ['All', 'New Model', 'In Production', 'Approved', 'Hold', 'C
 
 const EMPTY_FORM = {
   drawingNumber: '', productName: '', clientId: '', clientName: '',
-  status: 'New Model', material: '', processType: '', notes: '',
+  status: 'New Model', revision: 'A', material: '', processType: '', notes: '',
 };
 
 const DrawingsLibrary = () => {
@@ -63,6 +65,9 @@ const DrawingsLibrary = () => {
   const [clients, setClients] = useState([]);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  // "New drawing registration" defaults (prefix/digits/default status & revision/required).
+  const [newDefaults, setNewDefaults] = useState(null);
+  useEffect(() => { getSetting('zumenNewDrawingDefaults').then((s) => s && setNewDefaults(s)).catch(() => {}); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -143,11 +148,29 @@ const DrawingsLibrary = () => {
 
   // ---- create ----
   const openCreateDialog = async () => {
+    // Prefill from "New drawing registration settings": auto-number with prefix +
+    // zero-padded sequence, and apply the default status / revision.
+    const d = newDefaults || {};
+    const digits = Number(d.numberDigits) || 5;
+    const seq = String((totalElements || 0) + 1).padStart(digits, '0');
+    setForm({
+      ...EMPTY_FORM,
+      drawingNumber: d.prefix ? `${d.prefix}${seq}` : '',
+      status: d.defaultStatus || EMPTY_FORM.status,
+      revision: d.defaultRevision || EMPTY_FORM.revision,
+    });
     setOpenCreate(true);
     if (clients.length === 0) setClients(await getClients());
   };
   const handleCreate = async () => {
     if (!form.drawingNumber && !form.productName) { alertWarning('Missing fields', 'Enter a drawing number or product name.'); return; }
+    // Enforce the fields marked Required in the settings.
+    const d = newDefaults || {};
+    const missing = [];
+    if (d.requireProduct && !form.productName.trim()) missing.push('Product name');
+    if (d.requireClient && !form.clientId) missing.push('Client');
+    if (d.requireMaterial && !form.material.trim()) missing.push('Material');
+    if (missing.length) { alertWarning('Required fields', `Please fill: ${missing.join(', ')}`); return; }
     setSaving(true);
     try {
       await createDrawing(form);
@@ -162,6 +185,7 @@ const DrawingsLibrary = () => {
   };
 
   return (
+    <PfAccessGuard pageKey="drawings" label="Drawings">
     <Box sx={{ p: 3, bgcolor: '#f6f7f9', minHeight: '100%' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2.5, flexWrap: 'wrap', rowGap: 1 }}>
@@ -348,7 +372,8 @@ const DrawingsLibrary = () => {
             </Grid>
             <Grid item xs={6}>
               <TextField select fullWidth size="small" label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                {Object.keys(STATUS_COLORS).map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+                {Array.from(new Set([...Object.keys(STATUS_COLORS), form.status].filter(Boolean)))
+                  .map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
               </TextField>
             </Grid>
             <Grid item xs={6}><TextField fullWidth size="small" label="Material" value={form.material} onChange={(e) => setForm({ ...form, material: e.target.value })} /></Grid>
@@ -368,6 +393,7 @@ const DrawingsLibrary = () => {
         </DialogActions>
       </Dialog>
     </Box>
+    </PfAccessGuard>
   );
 };
 

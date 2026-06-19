@@ -106,10 +106,6 @@ export const DrawingInfoSettings = () => (
 );
 
 const DETAIL_FIELDS = [
-  { key: 'qualityCheckNo', label: 'Quality Check No.', example: 'QC-2026-001' },
-  { key: 'inspectionSheet', label: 'Inspection report spread sheet', example: 'INS-2026-014.xlsx' },
-  { key: 'ecNo', label: 'EC NO.', example: 'EC-2026-017' },
-  { key: 'excelSheet', label: 'Excel Spread sheet', example: 'BOM-9114.xlsx' },
   { key: 'inventory', label: 'Inventory / 在庫', example: '120 pcs' },
   { key: 'project', label: 'Project', example: '20260331' },
   { key: 'assemblyNo', label: 'Assembly No.', example: 'ASM-2026-44' },
@@ -117,7 +113,7 @@ const DETAIL_FIELDS = [
 ];
 export const DrawingDetailSettings = () => (
   <FieldConfig title="Drawing detail info" storeKey="zumenDrawingDetailFields" base={DETAIL_FIELDS}
-    note="Configure the secondary detail fields shown on a drawing." />
+    note="Configure the secondary detail fields shown on a drawing’s info panel — show/hide them, rename, or mark required." />
 );
 
 export const StampSettings = () => {
@@ -283,7 +279,7 @@ export const IpAddressSettings = () => {
   const set = (i, p) => setRows(rows.map((r, idx) => (idx === i ? { ...r, ...p } : r)));
   return (
     <Box>
-      <Header title="Settings for applicable IP address" note="Restrict Paperless Factory access to allow-listed IP address groups (e.g. head office, sales)." onSave={save} saving={saving} />
+      <Header title="Settings for applicable IP address" note="Allow-listed IP address groups for Paperless Factory access. Saved here as the policy — actual blocking must be enforced at the server / reverse-proxy (a browser can’t reliably restrict by IP)." onSave={save} saving={saving} />
       <Table size="small" sx={{ maxWidth: 820 }}>
         <TableHead><TableRow sx={thStyle}>
           <TableCell>Group name</TableCell><TableCell>Allowed IPs / CIDR</TableCell><TableCell align="center">Active</TableCell><TableCell />

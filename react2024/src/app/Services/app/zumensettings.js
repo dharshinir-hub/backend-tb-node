@@ -141,3 +141,20 @@ export const getSetting = async (key) => {
 export const setSetting = async (key, value) => {
   await writeAttrs({ [key]: JSON.stringify(value) });
 };
+
+// Per-user Paperless Factory page access, set in "User management".
+// SAFE BY DEFAULT — never locks anyone out unintentionally:
+//   • Admin / Super Admin are always allowed (so they can fix the policy).
+//   • No saved policy, or no entry for this user → allowed.
+//   • Only an explicit `false` for the page denies access.
+export const isPfPageAllowed = async (pageKey) => {
+  try {
+    let mode = '';
+    try { mode = (JSON.parse(localStorage.getItem('userDetails')) || {}).mode || ''; } catch (e) { mode = ''; }
+    if (['Admin', 'Super Admin'].includes(mode)) return true;
+    const email = localStorage.getItem('email') || '';
+    const access = await getSetting('zumenUserPfAccess');
+    if (!access || !email || !access[email]) return true;
+    return access[email][pageKey] !== false;
+  } catch (e) { return true; }
+};

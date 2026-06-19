@@ -18,7 +18,16 @@
       "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/DrawingDetail.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK'\\)\")",
       "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Orders/ProjectsOrders.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK ProjectsOrders.js'\\)\")",
       "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const a=JSON.parse\\(s\\);a.forEach\\(x=>console.log\\('  -',x.key\\)\\)}\\)\")",
-      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/DrawingsLibrary.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK'\\)\")"
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/DrawingsLibrary.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/DrawingDetail.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('DrawingDetail OK'\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/MarkupEditor.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('MarkupEditor OK'\\)\")",
+      "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./package.json'\\).scripts,null,2\\)\\)\")",
+      "Bash(node_modules/.bin/react-scripts build *)",
+      "Bash(grep -iE \"^jsqr|^qrcode-reader|^jimp|^canvas$|^pngjs|^sharp\")",
+      "Bash(node -e \"console.log\\(require\\('qrcode/package.json'\\).version\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/DrawingsLibrary.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('DrawingsLibrary OK'\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Orders/ProjectsOrders.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('ProjectsOrders OK'\\)\")",
+      "Bash(node -e \"require\\('@babel/parser'\\).parse\\(require\\('fs'\\).readFileSync\\('src/app/Pages/PPW/Drawings/AssemblyTree.js','utf8'\\),{sourceType:'module',plugins:['jsx']}\\); console.log\\('AssemblyTree OK'\\)\")"
     ]
   }
 }
