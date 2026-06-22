@@ -118,32 +118,49 @@ const InlinePreview = ({ doc, rotation = 0 }) => {
   const [text, setText] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [natural, setNatural] = useState(null); // { w, h } of the loaded image
-  const [fitOverride, setFitOverride] = useState(null); // null = auto, else 'contain' | 'cover'
+  const [fitOverride, setFitOverride] = useState(null); // null = default, else 'contain' | 'cover'
+  const [natural, setNatural] = useState(null); // { w, h } natural image size — for the "over the sheet" hit test
   const dragRef = useRef(null);
   const { url, kind: detectedKind } = useDocPreview(doc);
   // Prefer the REAL content type (magic-byte sniff); fall back to the extension.
   const kind = doc ? (detectedKind || kindOf(doc.name)) : null;
   const rot = { transform: `rotate(${rotation}deg)`, transition: 'transform 0.2s' };
 
-  // Auto fit: DOCUMENT-type tabs (quotation, tool list, inspection report, …) must
-  // never crop — a sheet with its header cut off is useless — so they use "contain".
-  // Visual tabs (the main drawing photo, CAD) fill the box when the image is roughly
-  // square (a centred product shot), else "contain". The user can override below.
-  const DOC_TYPES = ['customer-list', 'quotation', 'purchase-order', 'inspection-report',
-    'packing-std', 'defect-report', 'tools', 'program', 'work-instruction-details'];
-  const isDocType = doc && DOC_TYPES.includes(doc.docType);
-  const aspect = natural && natural.h ? natural.w / natural.h : 1;
-  const autoFit = isDocType ? 'contain' : (aspect >= 0.78 && aspect <= 1.4 ? 'cover' : 'contain');
-  const fit = fitOverride || autoFit;
+  // Default to "contain" (unfilled) so the whole image/sheet is always shown
+  // without cropping. The Fit/Fill toggle below lets the user fill the box on
+  // demand (which crops the edges).
+  const fit = fitOverride || 'contain';
 
   // Reset zoom/pan and fit whenever the previewed file changes.
-  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setNatural(null); setFitOverride(null); }, [doc]);
-  // Scroll the mouse wheel to zoom toward the cursor; drag to pan when zoomed in.
+  useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setFitOverride(null); setNatural(null); }, [doc]);
+  // Scroll the mouse wheel to zoom toward the cursor — but ONLY when the cursor is
+  // over the sheet itself. Over the grey margins around it, nothing happens (and the
+  // page behind never scrolls).
   const onWheel = (e) => {
     if (kind !== 'image') return;
-    e.preventDefault();
+    e.preventDefault(); // never let the page behind scroll from inside the preview
     const r = e.currentTarget.getBoundingClientRect();
+    // Rendered (object-fit: contain) image rectangle, centred and including the
+    // current zoom/pan, so we can tell "over the sheet" from "over the margin".
+    let dispW = r.width;
+    let dispH = r.height;
+    if (natural && natural.w && natural.h) {
+      const rot = Math.abs(rotation % 360);
+      const swap = rot === 90 || rot === 270;
+      const nw = swap ? natural.h : natural.w;
+      const nh = swap ? natural.w : natural.h;
+      const a = nw / nh;
+      if (a > r.width / r.height) { dispW = r.width; dispH = r.width / a; }
+      else { dispH = r.height; dispW = r.height * a; }
+    }
+    const px = e.clientX - r.left;
+    const py = e.clientY - r.top;
+    const cx0 = r.width / 2 + pan.x;
+    const cy0 = r.height / 2 + pan.y;
+    const halfW = (dispW * zoom) / 2;
+    const halfH = (dispH * zoom) / 2;
+    const overSheet = px >= cx0 - halfW && px <= cx0 + halfW && py >= cy0 - halfH && py <= cy0 + halfH;
+    if (!overSheet) return; // outside the sheet → do nothing
     const cx = e.clientX - r.left - r.width / 2;
     const cy = e.clientY - r.top - r.height / 2;
     const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
@@ -179,28 +196,43 @@ const InlinePreview = ({ doc, rotation = 0 }) => {
     return <Box sx={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><CircularProgress /></Box>;
   }
   if (kind === 'image') {
-    return <Box
-      onWheel={onWheel} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={endDrag} onMouseLeave={endDrag} onDoubleClick={resetZoom}
-      sx={{ height: '100%', width: '100%', overflow: 'hidden', position: 'relative', cursor: zoom > 1 ? (dragRef.current ? 'grabbing' : 'grab') : 'default' }}>
-      <img src={url} alt={doc.name} draggable={false}
-        onLoad={(e) => setNatural({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
-        style={{
-          width: '100%', height: '100%', objectFit: fit,
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
-          transition: dragRef.current ? 'none' : 'transform 0.12s', transformOrigin: 'center center',
-        }} />
-      {/* Fit / Fill toggle — Fit shows the whole image (no crop); Fill stretches it
-          to cover the box (crops the edges). Auto-picks per image; user can override. */}
-      <Tooltip title={fit === 'cover' ? 'Showing filled (edges cropped) — click to fit whole image' : 'Showing whole image — click to fill the box'}>
+    // Fill mode = fit the image to the box WIDTH and scroll vertically, so the
+    // hidden top/bottom can be viewed (instead of being permanently cropped).
+    const filled = fit === 'cover';
+    return <Box sx={{ height: '100%', width: '100%', overflow: 'hidden', position: 'relative' }}>
+      {/* Scroll/zoom viewport */}
+      <Box
+        onWheel={filled ? undefined : onWheel}
+        onMouseDown={onDown} onMouseMove={onMove} onMouseUp={endDrag} onMouseLeave={endDrag}
+        onDoubleClick={filled ? undefined : resetZoom}
+        sx={{
+          height: '100%', width: '100%',
+          overflowX: 'hidden', overflowY: filled ? 'auto' : 'hidden',
+          cursor: !filled && zoom > 1 ? (dragRef.current ? 'grabbing' : 'grab') : 'default',
+        }}>
+        <img src={url} alt={doc.name} draggable={false}
+          onLoad={(e) => setNatural({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
+          style={filled
+            ? { display: 'block', width: '100%', height: 'auto', transform: `rotate(${rotation}deg)`, transformOrigin: 'center center' }
+            : {
+              width: '100%', height: '100%', objectFit: 'contain',
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+              transition: dragRef.current ? 'none' : 'transform 0.12s', transformOrigin: 'center center',
+            }} />
+      </Box>
+      {/* Fit / Fill toggle — Fit shows the whole image (no crop); Fill fits it to
+          the width so you can scroll vertically through the hidden top/bottom.
+          Kept outside the scroll viewport so it never scrolls out of reach. */}
+      <Tooltip title={filled ? 'Filled to width — scroll to see hidden top/bottom; click to fit whole image' : 'Showing whole image — click to fill the width'}>
         <Button size="small" onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); setFitOverride(fit === 'cover' ? 'contain' : 'cover'); }}
-          startIcon={fit === 'cover' ? <FitScreenIcon sx={{ fontSize: 15 }} /> : <CropFreeIcon sx={{ fontSize: 15 }} />}
-          sx={{ position: 'absolute', top: 8, right: 8, minWidth: 0, textTransform: 'none', fontSize: 11,
+          onClick={(e) => { e.stopPropagation(); setZoom(1); setPan({ x: 0, y: 0 }); setFitOverride(filled ? 'contain' : 'cover'); }}
+          startIcon={filled ? <FitScreenIcon sx={{ fontSize: 15 }} /> : <CropFreeIcon sx={{ fontSize: 15 }} />}
+          sx={{ position: 'absolute', top: 8, right: 8, minWidth: 0, textTransform: 'none', fontSize: 11, zIndex: 2,
             bgcolor: 'rgba(255,255,255,0.9)', color: '#475569', px: 1, py: 0.25, '&:hover': { bgcolor: '#fff' } }}>
-          {fit === 'cover' ? 'Fit' : 'Fill'}
+          {filled ? 'Fit' : 'Fill'}
         </Button>
       </Tooltip>
-      {zoom > 1 && <Box sx={{ position: 'absolute', bottom: 8, right: 12, bgcolor: 'rgba(15,23,42,0.78)', color: '#fff', fontSize: 11, px: 1, py: 0.25, borderRadius: 1, pointerEvents: 'none' }}>
+      {!filled && zoom > 1 && <Box sx={{ position: 'absolute', bottom: 8, right: 12, bgcolor: 'rgba(15,23,42,0.78)', color: '#fff', fontSize: 11, px: 1, py: 0.25, borderRadius: 1, pointerEvents: 'none' }}>
         {Math.round(zoom * 100)}% · scroll to zoom · drag to pan · double-click reset
       </Box>}
     </Box>;
@@ -640,6 +672,21 @@ const DrawingDetail = () => {
     finally { setBumpingRev(false); }
   };
 
+  // Record a revision from a markup-save note. Best-effort: a failure here must
+  // never block the actual file save. Bases the next label on the freshest history.
+  const recordMarkupRevision = async (note) => {
+    if (!note || !note.trim()) return;
+    try {
+      const history = await getRevisionHistory(id);
+      const latest = (history[0] && history[0].revision) || meta.revision || '';
+      const next = nextRevision(latest);
+      if (history.some((r) => r.revision === next)) return;
+      await saveRevision(id, next, note.trim());
+      setMeta((m) => ({ ...m, revision: next }));
+      setRevRows(await getRevisionHistory(id));
+    } catch (e) { /* revision logging is non-critical */ }
+  };
+
   if (loading) return <BrandLoader height="calc(100vh - 96px)" />;
   if (!drawing) {
     return (
@@ -889,10 +936,19 @@ const DrawingDetail = () => {
             qrData={qrInfo}
             onClose={() => setWriteOpen(false)}
             onSaved={async () => { setWriteOpen(false); await loadDocs(); }}
-            uploadAnnotated={async (blob, name, summary) => {
-              // Replace the current file in place so its history stays continuous,
-              // logging exactly what was added (stamp / signature / QR / …).
-              await replaceDocumentFile(id, selectedDoc.id, blob, name, `Markup edited: ${summary}`);
+            uploadAnnotated={async (blob, name, summary, note) => {
+              // "Save to existing file": replace the current file in place so its
+              // history stays continuous, logging what was added (stamp / QR / …).
+              await replaceDocumentFile(id, selectedDoc.id, blob, name, `Markup edited: ${summary}${note ? ` — ${note}` : ''}`);
+              await recordMarkupRevision(note);
+              await loadDocs();
+            }}
+            saveAnnotatedAsNew={async (blob, name, summary, note) => {
+              // "Save as new file": add a separate file in the same document tab,
+              // leaving the original untouched.
+              const file = new File([blob], name, { type: 'image/png' });
+              await uploadDocument(id, selectedDoc.docType || activeType?.key, file, name, `Markup (new file): ${summary}${note ? ` — ${note}` : ''}`);
+              await recordMarkupRevision(note);
               await loadDocs();
             }}
           />

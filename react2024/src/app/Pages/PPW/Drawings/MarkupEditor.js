@@ -23,6 +23,7 @@ import NearMeIcon from '@mui/icons-material/NearMe';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import FitScreenIcon from '@mui/icons-material/FitScreen';
+import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import { alertSaved, alertError } from '../ppwAlerts';
 import { getSetting } from '../../../Services/app/zumensettings';
 
@@ -82,7 +83,7 @@ const drawRotateIcon = (ctx, left, top) => {
   ctx.restore();
 };
 
-const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData }) => {
+const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, saveAnnotatedAsNew, qrData }) => {
   const canvasElRef = useRef(null);
   const fcRef = useRef(null);
   const toolRef = useRef('select');
@@ -94,6 +95,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
   const redoStack = useRef([]);
   const snapshotRef = useRef(() => {});
   const openEditStampRef = useRef(() => {});
+  const renumberSeqRef = useRef(() => {});
   const editTargetRef = useRef(null);
 
   const canvasContainerRef = useRef(null);
@@ -108,6 +110,8 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
   const [italic, setItalic] = useState(false);
   const [fontFamily, setFontFamily] = useState('Arial');
   const [saving, setSaving] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false); // Save dialog (existing vs new file)
+  const [revNote, setRevNote] = useState(''); // "what changed" note recorded with the save
   const [stampOpen, setStampOpen] = useState(false);
   const [stampDate, setStampDate] = useState(new Date().toISOString().slice(0, 10));
   const [customStamps, setCustomStamps] = useState([]);
@@ -162,7 +166,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
   const snapshot = useCallback(() => {
     const fc = fcRef.current;
     if (!fc) return;
-    undoStack.current.push(JSON.stringify(fc.toJSON()));
+    undoStack.current.push(JSON.stringify(fc.toJSON(['data'])));
     if (undoStack.current.length > 40) undoStack.current.shift();
     redoStack.current = [];
   }, []);
@@ -173,7 +177,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
     snapshotRef.current = snapshot;
 
     // Objects keep Fabric's default resize handles + rotation (mtr). The
-    // Remove/Duplicate menu opens on double-click (see mouse:dblclick below).
+    // Edit/Duplicate/Remove menu opens on right-click (see onCanvasContextMenu).
     delete fabric.Object.prototype.controls.deleteControl;
     delete fabric.Object.prototype.controls.editControl;
     delete fabric.Object.prototype.controls.menuControl;
@@ -208,14 +212,8 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
     fc.on('selection:created', syncSel);
     fc.on('selection:updated', syncSel);
     fc.on('selection:cleared', () => setSelectedObj(null));
-    // Double-click an object to open its Remove / Duplicate menu.
-    fc.on('mouse:dblclick', (o) => {
-      if (o.target) {
-        fc.setActiveObject(o.target);
-        menuTargetRef.current = o.target;
-        setMenu({ top: (o.e && o.e.clientY) || 200, left: (o.e && o.e.clientX) || 200 });
-      }
-    });
+    // The Edit / Duplicate / Remove menu opens on RIGHT-CLICK (see onCanvasContextMenu
+    // wired to the canvas container below). Double-click is left free for text editing.
 
     // Rasterise first (SVG/PDF-image sources size unreliably in Fabric → the canvas
     // wouldn't match and the page got cropped). The raster is a PNG of EXACT pixel
@@ -236,7 +234,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
         img.set({ scaleX: fitScale, scaleY: fitScale, left: 0, top: 0, originX: 'left', originY: 'top', selectable: false, evented: false });
         fc.setBackgroundImage(img, fc.renderAll.bind(fc));
         setZoom(1);
-        undoStack.current = [JSON.stringify(fc.toJSON())];
+        undoStack.current = [JSON.stringify(fc.toJSON(['data']))];
       });
     }).catch(() => {});
 
@@ -263,6 +261,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
         const circle = new fabric.Circle({ radius: r, fill: 'transparent', stroke: s.color, strokeWidth: s.thickness, originX: 'center', originY: 'center' });
         const txt = new fabric.Text(String(n), { fontSize: r, fill: s.color, originX: 'center', originY: 'center' });
         const g = new fabric.Group([circle, txt], { left: p.x, top: p.y, originX: 'center', originY: 'center' });
+        g.data = { type: 'seq', n }; // tagged so the markers can be renumbered after a delete
         fc.add(g); fc.setActiveObject(g); setSelectedObj(g); snapshot();
         return;
       }
@@ -337,9 +336,36 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
     });
 
     const onKey = (e) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && fc.getActiveObject() && !fc.getActiveObject().isEditing) {
+      const active = fc.getActiveObject();
+      const typing = active && active.isEditing; // don't hijack keys while editing text
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+        return;
+      }
+      if (mod && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault(); redo(); return;
+      }
+      // Ctrl/⌘+B bold, Ctrl/⌘+I italic — toggle the active text (selected or being
+      // edited). Reads the object's own state so the toggle never goes stale.
+      if (mod && (e.key === 'b' || e.key === 'B') && active && isTextObj(active)) {
+        e.preventDefault();
+        const nb = active.fontWeight !== 'bold';
+        active.set('fontWeight', nb ? 'bold' : 'normal');
+        setBold(nb); fc.requestRenderAll(); snapshot();
+        return;
+      }
+      if (mod && (e.key === 'i' || e.key === 'I') && active && isTextObj(active)) {
+        e.preventDefault();
+        const ni = active.fontStyle !== 'italic';
+        active.set('fontStyle', ni ? 'italic' : 'normal');
+        setItalic(ni); fc.requestRenderAll(); snapshot();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && active && !typing) {
         fc.getActiveObjects().forEach((ob) => fc.remove(ob));
-        fc.discardActiveObject(); fc.renderAll(); snapshot();
+        fc.discardActiveObject(); renumberSeqRef.current(); fc.renderAll(); snapshot();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -626,16 +652,35 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
     closeCreate();
   };
 
+  // Keep sequence markers numbered 1..N. After one is deleted (say #5 of 1..6),
+  // the rest close the gap so they read 1..5 again.
+  const renumberSeq = () => {
+    const fc = fcRef.current;
+    if (!fc) return;
+    const seqs = fc.getObjects().filter((o) => o.data && o.data.type === 'seq');
+    seqs.sort((a, b) => (a.data.n || 0) - (b.data.n || 0));
+    seqs.forEach((g, i) => {
+      const n = i + 1;
+      g.data.n = n;
+      const txt = (g.getObjects ? g.getObjects() : []).find((o) => o.type === 'text');
+      if (txt) txt.set({ text: String(n) });
+      g.dirty = true; // re-render the cached group with the new number
+    });
+    seqRef.current = seqs.length + 1;
+    fc.requestRenderAll();
+  };
+  renumberSeqRef.current = renumberSeq;
+
   const deleteSelected = () => {
     const fc = fcRef.current;
     fc.getActiveObjects().forEach((o) => fc.remove(o));
-    fc.discardActiveObject(); fc.renderAll(); setSelectedObj(null); snapshot();
+    fc.discardActiveObject(); renumberSeq(); fc.renderAll(); setSelectedObj(null); snapshot();
   };
 
   // ≡ menu actions
   const menuRemove = () => {
     const fc = fcRef.current; const o = menuTargetRef.current;
-    if (fc && o) { fc.remove(o); fc.discardActiveObject(); fc.requestRenderAll(); setSelectedObj(null); snapshot(); }
+    if (fc && o) { fc.remove(o); fc.discardActiveObject(); renumberSeq(); fc.requestRenderAll(); setSelectedObj(null); snapshot(); }
     setMenu(null);
   };
   const menuDuplicate = () => {
@@ -644,10 +689,29 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
       o.clone((cloned) => {
         cloned.set({ left: (o.left || 0) + 24, top: (o.top || 0) + 24 });
         if (o.data) cloned.data = { ...o.data };
-        fc.add(cloned); fc.setActiveObject(cloned); fc.requestRenderAll(); setSelectedObj(cloned); snapshot();
+        fc.add(cloned); fc.setActiveObject(cloned); setSelectedObj(cloned);
+        renumberSeq(); // a duplicated marker gets the next number; no-op otherwise
+        fc.requestRenderAll(); snapshot();
       });
     }
     setMenu(null);
+  };
+
+  // Right-click an annotation to open its Edit / Duplicate / Remove menu (instead
+  // of double-clicking, which is reserved for editing text). Suppresses the
+  // browser's own context menu while inside the editor canvas.
+  const onCanvasContextMenu = (e) => {
+    const fc = fcRef.current;
+    if (!fc) return;
+    e.preventDefault();
+    let target = null;
+    try { target = fc.findTarget(e.nativeEvent, false); } catch (err) { target = null; }
+    if (!target) { setMenu(null); return; } // empty canvas → just suppress the native menu
+    fc.setActiveObject(target);
+    fc.requestRenderAll();
+    menuTargetRef.current = target;
+    setSelectedObj(target);
+    setMenu({ top: e.clientY, left: e.clientX });
   };
   const menuEditStamp = () => {
     const o = menuTargetRef.current;
@@ -697,6 +761,27 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
     setZoom(1);
   };
 
+  // Fill the editing area WIDTH and let the page scroll vertically (like the
+  // drawing preview's "Fill"). Useful for tall A4 sheets — you read top-to-bottom
+  // by scrolling instead of squeezing the whole page into view.
+  const fitToWidth = () => {
+    const img = imgNaturalRef.current;
+    const fc = fcRef.current;
+    const el = canvasContainerRef.current;
+    if (!img || !fc || !el) return;
+    const fitScale = computeFitScale(img.w, img.h);
+    const dispW = img.w * fitScale;
+    const dispH = img.h * fitScale;
+    baseDimsRef.current = { w: dispW, h: dispH };
+    if (fc.backgroundImage) fc.backgroundImage.set({ scaleX: fitScale, scaleY: fitScale, left: 0, top: 0 });
+    const availW = el.clientWidth - 32; // container padding (p:2 → 16px each side)
+    const z = Math.min(4, Math.max(0.1, availW / dispW));
+    fc.setZoom(z);
+    fc.setDimensions({ width: dispW * z, height: dispH * z });
+    fc.requestRenderAll();
+    setZoom(z);
+  };
+
   // Summarise the annotations on the canvas (for the history log).
   const annotationSummary = () => {
     const objs = fcRef.current.getObjects();
@@ -711,7 +796,9 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
     return parts.length ? parts.join(', ') : 'annotations';
   };
 
-  const save = async () => {
+  // mode: 'existing' replaces the current file in place; 'new' adds a separate file.
+  // The optional revision note is recorded with the save (history + revision entry).
+  const save = async (mode) => {
     setSaving(true);
     try {
       // Export at FULL natural resolution regardless of the current view zoom:
@@ -726,8 +813,15 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
       fc.setZoom(prevZoom); fc.setDimensions({ width: w * prevZoom, height: h * prevZoom });
       const blob = await (await fetch(dataUrl)).blob();
       const base = (doc?.name || 'drawing').replace(/\.[^.]+$/, '');
-      await uploadAnnotated(blob, `${base}_markup_${Date.now()}.png`, annotationSummary());
+      const name = `${base}_markup_${Date.now()}.png`;
+      const note = revNote.trim();
+      if (mode === 'new' && saveAnnotatedAsNew) {
+        await saveAnnotatedAsNew(blob, name, annotationSummary(), note);
+      } else {
+        await uploadAnnotated(blob, name, annotationSummary(), note);
+      }
       alertSaved('Saved successfully!');
+      setSaveOpen(false); setRevNote('');
       onSaved && onSaved();
     } catch (err) {
       alertError(err.message + '\n(If the image is cross-origin, CORS must allow it.)');
@@ -789,7 +883,8 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
             .map((p) => <MenuItem key={p} value={p}>{p}%</MenuItem>)}
         </TextField>
         <Tooltip title="Zoom in"><IconButton size="small" onClick={() => applyZoom(zoom + 0.25)}><AddIcon fontSize="small" /></IconButton></Tooltip>
-        <Tooltip title="Fit to page"><IconButton size="small" onClick={fitToPage}><FitScreenIcon fontSize="small" /></IconButton></Tooltip>
+        <Tooltip title="Fit to page (whole document)"><IconButton size="small" onClick={fitToPage}><FitScreenIcon fontSize="small" /></IconButton></Tooltip>
+        <Tooltip title="Fit width (scroll up/down)"><IconButton size="small" onClick={fitToWidth}><UnfoldMoreIcon fontSize="small" /></IconButton></Tooltip>
         <VDivider />
 
         {/* Tool groups */}
@@ -818,7 +913,7 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
       <Box sx={{ flexGrow: 1, display: 'flex', minHeight: 0 }}>
         {/* margin:auto centers the page when it fits, but still lets you scroll to
             every edge when the page is taller than the viewport (an A4 document). */}
-        <Box ref={canvasContainerRef} sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: 'auto', display: 'flex', p: 2, bgcolor: '#e5e7eb' }}>
+        <Box ref={canvasContainerRef} onContextMenu={onCanvasContextMenu} sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: 'auto', display: 'flex', p: 2, bgcolor: '#e5e7eb' }}>
           <Box sx={{ boxShadow: 4, bgcolor: '#fff', m: 'auto' }}><canvas ref={canvasElRef} /></Box>
         </Box>
 
@@ -891,10 +986,34 @@ const MarkupEditor = ({ doc, imageUrl, onClose, onSaved, uploadAnnotated, qrData
       {/* Bottom bar */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, bgcolor: '#fff', px: 2, py: 1, borderTop: '1px solid #e5e7eb' }}>
         <Button onClick={onClose} sx={{ textTransform: 'none' }}>Cancel</Button>
-        <Button variant="contained" onClick={save} disabled={saving} sx={{ textTransform: 'none', bgcolor: '#ec6e17' }}>
-          {saving ? 'Saving…' : 'Save as new file'}
+        <Button variant="contained" onClick={() => { setRevNote(''); setSaveOpen(true); }} disabled={saving} sx={{ textTransform: 'none', bgcolor: '#ec6e17' }}>
+          Save
         </Button>
       </Box>
+
+      {/* Save dialog — choose where to save and note the revision/changes made. */}
+      <Dialog open={saveOpen} onClose={() => !saving && setSaveOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>Save markup</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 12, color: '#64748b', mt: 0.5, mb: 0.5 }}>Revision note — what did you change?</Typography>
+          <TextField fullWidth multiline minRows={2} size="small" placeholder="e.g. Added approval stamp and circled dimensions"
+            value={revNote} onChange={(e) => setRevNote(e.target.value)} />
+          <Typography sx={{ fontSize: 11, color: '#94a3b8', mt: 0.75 }}>
+            Filling this records a new revision for the drawing. Leave blank to save without a revision.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, flexWrap: 'wrap', gap: 1 }}>
+          <Button onClick={() => setSaveOpen(false)} disabled={saving} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={() => save('existing')} disabled={saving} variant="outlined"
+            sx={{ textTransform: 'none', borderColor: '#ec6e17', color: '#ec6e17' }}>
+            {saving ? 'Saving…' : 'Save to existing file'}
+          </Button>
+          <Button onClick={() => save('new')} disabled={saving || !saveAnnotatedAsNew} variant="contained"
+            sx={{ textTransform: 'none', bgcolor: '#ec6e17' }}>
+            {saving ? 'Saving…' : 'Save as new file'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={addImageFromFile} />
 
