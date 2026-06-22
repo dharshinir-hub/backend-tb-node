@@ -255,9 +255,9 @@ export default function MachineReport() {
       { key: "operator_name", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.operator_name) },
       { key: "component_no", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.component_no) },
       { key: "component_name", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.component_name) },
-      { key: "serial_no", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.serial_no) },
+      { key: "serial_no", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.serial_number) },
       { key: "program_number", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.program_number) },
-      { key: "revision_number", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.revision_number) },
+      { key: "revision_no", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.revision_no) },
       { key: "part_number", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.part_number) },
       { key: "run_time", formatter: (row, idx, isChild) => isChild ? "" : formatTimeWithFallback(row.run_time) },
       { key: "idle_time", formatter: (row, idx, isChild) => isChild ? "" : formatTimeWithFallback(row.idle_time) },
@@ -484,7 +484,7 @@ export default function MachineReport() {
         );
       }
       setReportData(response.data || response);
-      setTotalCount(response.total1 || response.total || response.totalCount || response.total_count || 0);
+      setTotalCount(response.total1 || response.total || response.totalCount || response.totalReports || response.total_count || 0);
     } catch (err) {
       console.error(`Failed to fetch ${tab} report`, err);
     }
@@ -629,12 +629,25 @@ export default function MachineReport() {
   const downloadCSV = async () => {
     const dateStr = startDate.format("YYYY-MM-DD");
     const dateEnd = endDate.format("YYYY-MM-DD");
-    const validTabs = ["part", "idle_reason", "general", "oee", "alarm", "operator_wise", "sequence_report"];
-    if (!validTabs.includes(selectedTab)) {
+
+    // Only allow export for sequence_report tab
+    if (selectedTab !== "sequence_report") {
       Swal.fire({
         icon: "warning",
-        title: "Invalid Tab",
-        text: "Please select a valid report type before downloading.",
+        title: "Not Available",
+        text: "CSV export is only available for Sequence Report.",
+        confirmButtonColor: "#f47803"
+      });
+      return;
+    }
+
+    // Check if customer is Surin (case-insensitive)
+    const customerName = localStorage.getItem('customerTitle') || '';
+    if (!customerName.toLowerCase().includes('surin')) {
+      Swal.fire({
+        icon: "warning",
+        title: "Access Denied",
+        text: "CSV export is only available for Surin customer.",
         confirmButtonColor: "#f47803"
       });
       return;
@@ -684,7 +697,10 @@ export default function MachineReport() {
         <Tab label="Idle Reason Report" value="idle_reason" />
         <Tab label="Alarm Report" value="alarm" />
         <Tab label="Part Wise Report" value="part" />
-        <Tab label="Sequence Report" value="sequence_report" />
+
+        {(localStorage.getItem('customerTitle') || '').toLowerCase().includes('surin') && (
+          <Tab label="Sequence Report" value="sequence_report" />
+        )}
 
         {cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && (
           <Tab label="Operator Wise Report" value="operator_wise" />
@@ -1092,7 +1108,7 @@ export default function MachineReport() {
           )}
         </Button>
 
-        {selectedTab !== "operator_wise" && reportData.length > 0 && (
+        {selectedTab === "sequence_report" && reportData.length > 0 && (localStorage.getItem('customerTitle') || '').toLowerCase().includes('surin') && (
           <Button
             variant="outlined"
             startIcon={<DownloadIcon />}
@@ -1594,7 +1610,14 @@ export default function MachineReport() {
               </TableHead>
               <TableBody>
                 {reportData.map((row, index) => {
-                  const globalIndex = (page) * rowsPerPage + index;
+                  // Calculate global row offset for sequence_report (sum of all sequence items from previous records)
+                  let globalRowOffset = 0;
+                  if (selectedTab === 'sequence_report') {
+                    for (let i = 0; i < index; i++) {
+                      globalRowOffset += (reportData[i].sequence_detail?.length || 0);
+                    }
+                  }
+
                   return (
                     <React.Fragment key={index}>
                       <TableRow
@@ -1608,10 +1631,7 @@ export default function MachineReport() {
                         onClick={() => selectedTab === 'operator_wise' && row.machine_breakdown?.length > 1 && toggleRowExpansion(index)}
                       >
                         {columns[selectedTab].map((col, i) => {
-                          let bgColor = index % 2 === 0 ? '#efefef' : '#f8f8f8';
-                          if (selectedTab === 'sequence_report') {
-                            bgColor = index % 2 === 0 ? '#d9d9d9' : '#a3a3a3';
-                          }
+                          let bgColor = selectedTab === 'sequence_report' ? (globalRowOffset % 2 === 0 ? '#d9d9d9' : '#a3a3a3') : (index % 2 === 0 ? '#d9d9d9' : '#a3a3a3');
                           return (
                             <TableCell
                               key={i}
@@ -1623,6 +1643,7 @@ export default function MachineReport() {
                                 maxWidth: "200px",
                                 textOverflow: "ellipsis",
                                 overflow: "hidden",
+                                border: 'none',
                               }}
                             >
                               {i === 0 && selectedTab === 'operator_wise' && row.machine_breakdown?.length > 1 && (
@@ -1683,13 +1704,13 @@ export default function MachineReport() {
                         </TableRow>
                       ))}
                       {selectedTab === 'sequence_report' && row.sequence_detail?.slice(1).map((seq, sIdx) => {
-                        const childBgColor = (index + sIdx + 1) % 2 === 0 ? '#d9d9d9' : '#a3a3a3';
+                        const childGlobalRowIndex = globalRowOffset + 1 + sIdx;
+                        const childBgColor = childGlobalRowIndex % 2 === 0 ? '#d9d9d9' : '#a3a3a3';
                         return (
                           <TableRow
                             key={`sequence-${index}-${sIdx + 1}`}
                             style={{
                               backgroundColor: childBgColor,
-                              borderLeft: '4px solid #f47803',
                             }}
                           >
                             {columns[selectedTab].map((col, i) => {
@@ -1714,7 +1735,7 @@ export default function MachineReport() {
                                     overflow: "hidden",
                                     fontSize: '0.75rem',
                                     color: '#000',
-                                    borderBottom: '1px dashed #e2e8f0',
+                                    border: 'none',
                                   }}
                                 >
                                   <span>{displayData}</span>
