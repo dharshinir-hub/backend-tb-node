@@ -5,6 +5,8 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { MobileTimePicker, LocalizationProvider, TimePicker } from '@mui/x-date-pickers';
 import { DemoItem } from '@mui/x-date-pickers/internals/demo';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -13,7 +15,7 @@ import './componentreg.css';
 import { useForm } from 'react-hook-form';
 import { CustomDaySelect, convertTo24Hour } from '../Inputfield/inputfield';
 import Swal from 'sweetalert2';
-import { Tooltip } from '@mui/material';
+import { Tooltip, Box, Typography } from '@mui/material';
 import { customerbasedshift, shiftadd } from '../../Services/app/masterservice';
 import { cleanCustomerId } from '../../Services/app/operatorservice';
 
@@ -153,6 +155,65 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
 
   };
   const [shiftForm, setShiftForm] = useState(defaultShiftForm);
+  // Sequence Numbers -> Balloon Sequences (stored as sequences[].balloon_seq[])
+  const [sequences, setSequences] = useState([]);
+
+  const seqLabelSx = { color: 'black', '&.Mui-focused': { color: 'orange' } };
+  const seqFieldSx = {
+    background: '#fff',
+    '& .MuiOutlinedInput-root': {
+      '& fieldset': { borderColor: 'black' },
+      '&:hover fieldset': { borderColor: 'black' },
+      '&.Mui-focused fieldset': { borderColor: 'orange' },
+    },
+  };
+  const blankBalloon = () => ({ sequence: '', touch_time: dayjs('00:00:00', 'HH:mm:ss') });
+  const blankSequence = () => ({ sequence: '', touch_time: dayjs('00:00:00', 'HH:mm:ss'), balloon_seq: [blankBalloon()] });
+
+  const addSequence = () => setSequences((p) => [...p, blankSequence()]);
+  const removeSequence = (i) => setSequences((p) => p.filter((_, idx) => idx !== i));
+  const updateSequence = (i, key, value) =>
+    setSequences((p) => p.map((s, idx) => (idx === i ? { ...s, [key]: value } : s)));
+  const addBalloon = (i) =>
+    setSequences((p) => p.map((s, idx) => (idx === i ? { ...s, balloon_seq: [...s.balloon_seq, blankBalloon()] } : s)));
+  const removeBalloon = (i, j) =>
+    setSequences((p) => p.map((s, idx) => (idx === i ? { ...s, balloon_seq: s.balloon_seq.filter((_, bIdx) => bIdx !== j) } : s)));
+  const updateBalloon = (i, j, key, value) =>
+    setSequences((p) =>
+      p.map((s, idx) =>
+        idx === i ? { ...s, balloon_seq: s.balloon_seq.map((b, bIdx) => (bIdx === j ? { ...b, [key]: value } : b)) } : s
+      )
+    );
+
+  // Load stored sequences (touch_time strings) into the picker-friendly state.
+  const hydrateSequences = (stored) =>
+    (Array.isArray(stored) ? stored : []).map((s) => {
+      const balloons = (Array.isArray(s.balloon_seq) ? s.balloon_seq : []).map((b) => ({
+        sequence: b.sequence != null ? String(b.sequence) : '',
+        touch_time: parseTime24(b.touch_time) || dayjs('00:00:00', 'HH:mm:ss'),
+      }));
+      return {
+        sequence: s.sequence != null ? String(s.sequence) : '',
+        touch_time: parseTime24(s.touch_time) || dayjs('00:00:00', 'HH:mm:ss'),
+        balloon_seq: balloons.length ? balloons : [blankBalloon()],
+      };
+    });
+
+  // Convert the sequences UI state into the stored JSON shape.
+  const buildSequencesPayload = () =>
+    sequences
+      .filter((s) => String(s.sequence).trim() !== '')
+      .map((s) => ({
+        sequence: String(s.sequence).trim(),
+        touch_time: dayjs(s.touch_time).isValid() ? dayjs(s.touch_time).format('HH:mm:ss') : '00:00:00',
+        balloon_seq: (s.balloon_seq || [])
+          .filter((b) => String(b.sequence).trim() !== '')
+          .map((b) => ({
+            sequence: String(b.sequence).trim(),
+            touch_time: dayjs(b.touch_time).isValid() ? dayjs(b.touch_time).format('HH:mm:ss') : '00:00:00',
+          })),
+      }));
+
   const onSubmit = async (data) => {
 
     try {
@@ -278,6 +339,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
         cycle_time: cycle_time,
         handling_time: handling_time,
         setupTime: setupTime,
+        sequences: buildSequencesPayload(),
         ...(cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && {
           item_code: data.item_code,
           process_name: data.process_name,
@@ -362,6 +424,7 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
     if (!open) {
       reset(defaultShiftForm);
       setShiftForm(defaultShiftForm);
+      setSequences([]);
     } else {
       if (cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID) {
         fetchProcessGroups();
@@ -397,9 +460,12 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
 
         setShiftForm(initialFormState);
         reset(initialFormState);
+        const hs = hydrateSequences(dialogData.sequences);
+        setSequences(hs.length ? hs : [blankSequence()]);
       } else {
         setShiftForm(defaultShiftForm);
         reset(defaultShiftForm);
+        setSequences([blankSequence()]);
       }
     }
   }, [open, reset, defaultShiftForm, dialogData, shiftsmodule]);
@@ -1104,6 +1170,85 @@ export default function ComponentEdit({ open, handleClose, handleAdd, dialogOpen
                 </div>  */}
 
 
+
+                {/* ===== Sequence Numbers / Balloon Sequences ===== */}
+                <Box sx={{ gridColumn: '1 / -1', flexBasis: '100%', width: '100%', mt: 1 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 18, color: '#000', mb: 1.5 }}>Sequence Numbers</Typography>
+
+                  {sequences.map((seq, i) => (
+                    <Box key={i} sx={{ mb: 1 }}>
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <TextField
+                          label="Sequence"
+                          required
+                          value={seq.sequence}
+                          onChange={(e) => updateSequence(i, 'sequence', e.target.value)}
+                          InputLabelProps={{ required: true, sx: seqLabelSx }}
+                          sx={{ flex: 1, minWidth: 220, ...seqFieldSx }}
+                        />
+                        <TimePicker
+                          label="Touch Time *"
+                          value={seq.touch_time}
+                          onChange={(v) => updateSequence(i, 'touch_time', v)}
+                          views={['hours', 'minutes', 'seconds']}
+                          format="HH:mm:ss"
+                          ampm={false}
+                          slotProps={{ textField: { sx: { flex: 1, minWidth: 220, ...seqFieldSx } } }}
+                        />
+                        <Tooltip title="Add sequence">
+                          <IconButton onClick={addSequence} sx={{ color: '#ec6e17' }}>
+                            <AddCircleOutlineIcon />
+                          </IconButton>
+                        </Tooltip>
+                        {i > 0 && (
+                          <Tooltip title="Remove sequence">
+                            <IconButton onClick={() => removeSequence(i)} sx={{ color: '#b00020' }}>
+                              <DeleteOutlineIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
+
+                      {/* Balloon Sequences */}
+                      <Box sx={{ borderLeft: '3px solid #ec6e17', pl: 2, ml: 1, mt: 1.5, mb: 1.5 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: 16, color: '#000', mb: 1.5 }}>Balloon Sequences</Typography>
+                        {seq.balloon_seq.map((b, j) => (
+                          <Box key={j} sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+                            <TextField
+                              label="Sequence"
+                              required
+                              value={b.sequence}
+                              onChange={(e) => updateBalloon(i, j, 'sequence', e.target.value)}
+                              InputLabelProps={{ required: true, sx: seqLabelSx }}
+                              sx={{ flex: 1, minWidth: 200, ...seqFieldSx }}
+                            />
+                            <TimePicker
+                              label="Touch Time *"
+                              value={b.touch_time}
+                              onChange={(v) => updateBalloon(i, j, 'touch_time', v)}
+                              views={['hours', 'minutes', 'seconds']}
+                              format="HH:mm:ss"
+                              ampm={false}
+                              slotProps={{ textField: { sx: { flex: 1, minWidth: 200, ...seqFieldSx } } }}
+                            />
+                            <Tooltip title="Add balloon sequence">
+                              <IconButton onClick={() => addBalloon(i)} sx={{ color: '#ec6e17' }}>
+                                <AddCircleOutlineIcon />
+                              </IconButton>
+                            </Tooltip>
+                            {j > 0 && (
+                              <Tooltip title="Remove balloon sequence">
+                                <IconButton onClick={() => removeBalloon(i, j)} sx={{ color: '#b00020' }}>
+                                  <DeleteOutlineIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
 
                 {/* Rest of the form fields remain the same */}
               </div>

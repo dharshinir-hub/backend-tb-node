@@ -255,9 +255,9 @@ export default function MachineReport() {
       { key: "operator_name", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.operator_name) },
       { key: "component_no", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.component_no) },
       { key: "component_name", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.component_name) },
-      { key: "serial_no", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.serial_no) },
+      { key: "serial_no", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.serial_number) },
       { key: "program_number", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.program_number) },
-      { key: "revision_number", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.revision_number) },
+      { key: "revision_no", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.revision_no) },
       { key: "part_number", formatter: (row, idx, isChild) => isChild ? "" : formatWithFallback(row.part_number) },
       { key: "run_time", formatter: (row, idx, isChild) => isChild ? "" : formatTimeWithFallback(row.run_time) },
       { key: "idle_time", formatter: (row, idx, isChild) => isChild ? "" : formatTimeWithFallback(row.idle_time) },
@@ -282,11 +282,13 @@ export default function MachineReport() {
       } },
       { key: "operation_sequence", formatter: (row, idx, isChild) => {
         const seq = isChild ? row : row.sequence_detail?.[0];
-        const opSeq = seq?.operation_sequence;
+        let opSeq = seq?.operation_sequence;
         if (typeof opSeq === 'object' && opSeq !== null) {
-          return formatWithFallback(opSeq.sequence_number || opSeq.number || opSeq.id || '---');
+          opSeq = opSeq.sequence_number || opSeq.number || opSeq.id;
         }
-        return formatWithFallback(opSeq);
+        if (opSeq === null || opSeq === undefined || opSeq === '') return '---';
+        // Mark sequences as S{n} (no indent arrow — that's reserved for balloons).
+        return `S${opSeq}`;
       } },
       { key: "planed_touch_time", formatter: (row, idx, isChild) => {
         const seq = isChild ? row : row.sequence_detail?.[0];
@@ -366,6 +368,78 @@ export default function MachineReport() {
     return Number.isInteger(num) ? num : Number(num.toFixed(2));
   };
 
+  // Balloon = 3rd level (part -> sequence -> balloon). Balloons are flattened
+  // into the main table as child rows, the same way sequences are flattened
+  // under parts: balloon fields map onto the sequence/timing columns and the
+  // part-level columns are left blank.
+  const sequenceHasBalloons = (seq) =>
+    Array.isArray(seq?.balloon_seq) && seq.balloon_seq.length > 0;
+
+  const balloonCellValue = (colKey, b) => {
+    switch (colKey) {
+      case "operation_sequence":
+        return `↳ B${formatWithFallback(b.balloon_seq)}`;
+      case "planed_touch_time":
+        return formatWithFallback(b.planned_touch_time);
+      case "seq_start":
+        return formatClockTime(b.start);
+      case "seq_end":
+        return formatClockTime(b.end);
+      case "operation_status":
+        return formatStatusBadge(b.balloon_status);
+      case "actual_run":
+        return formatNumberSmart(b.actual_run);
+      case "message":
+        return formatWithFallback(b.message);
+      default:
+        return "";
+    }
+  };
+
+  const renderBalloonRows = (seq, keyPrefix) => {
+    if (!sequenceHasBalloons(seq)) return null;
+    return seq.balloon_seq.map((b, bi) => {
+      const bg = bi % 2 === 0 ? "#efefef" : "#e2e2e2";
+      return (
+        <TableRow
+          key={`balloon-${keyPrefix}-${bi}`}
+          style={{ backgroundColor: bg }}
+        >
+          {columns.sequence_report.map((col, i) => {
+            const val = balloonCellValue(col.key, b);
+            const isJSX = val !== null && typeof val === "object" && val.$$typeof;
+            const display = isJSX
+              ? val
+              : (val !== null && val !== undefined ? String(val) : "");
+            return (
+              <TableCell
+                key={`bcell-${i}`}
+                align="center"
+                style={{
+                  backgroundColor: bg,
+                  paddingTop: "6px",
+                  paddingBottom: "6px",
+                }}
+                sx={{
+                  whiteSpace: "nowrap",
+                  minWidth: "fit-content",
+                  maxWidth: "200px",
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                  fontSize: "0.72rem",
+                  color: "#000",
+                  border: "none",
+                }}
+              >
+                <span>{display}</span>
+              </TableCell>
+            );
+          })}
+        </TableRow>
+      );
+    });
+  };
+
   const handleOperatorChange = (event) => {
     const value = event.target.value;
     if (value.includes("all")) {
@@ -384,6 +458,28 @@ export default function MachineReport() {
       ...prev,
       [index]: !prev[index],
     }));
+  };
+
+  // Display a clock-style time. Accepts epoch ms/ISO strings (formatted to HH:mm:ss)
+  // or already-formatted strings like "8:02" (shown as-is).
+  const formatClockTime = (val) => {
+    if (val === null || val === undefined || val === "" || val === "-") return "-";
+    const date = new Date(val);
+    if (!isNaN(date.getTime())) {
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const seconds = String(date.getSeconds()).padStart(2, "0");
+      return `${hours}:${minutes}:${seconds}`;
+    }
+    return String(val);
+  };
+
+  const getOpSeqLabel = (seq) => {
+    const opSeq = seq?.operation_sequence;
+    if (typeof opSeq === "object" && opSeq !== null) {
+      return opSeq.sequence_number || opSeq.number || opSeq.id || "---";
+    }
+    return formatWithFallback(opSeq);
   };
 
   useEffect(() => {
@@ -484,7 +580,7 @@ export default function MachineReport() {
         );
       }
       setReportData(response.data || response);
-      setTotalCount(response.total1 || response.total || response.totalCount || response.total_count || 0);
+      setTotalCount(response.total1 || response.total || response.totalCount || response.totalReports || response.total_count || 0);
     } catch (err) {
       console.error(`Failed to fetch ${tab} report`, err);
     }
@@ -626,6 +722,117 @@ export default function MachineReport() {
     URL.revokeObjectURL(url);
   };
 
+  // Sequence CSV is built on the client because the export must include the
+  // 3rd level (balloon) data: part -> sequence -> balloon, flattened one row per balloon.
+  const buildSequenceCSV = (rows) => {
+    const headers = [
+      "S.no", "Date & Time", "Machine Name", "Operator No", "Operator Name",
+      "Comp. Drawing No", "Comp. Description", "Comp. Serial No", "Program No",
+      "Revision No", "Actual Part Count", "Run Time", "Idle Time", "Disconnect Time",
+      "Alarm Time", "Component Status", "Operation Sequence", "Planned Touch Time",
+      "Seq Start Time", "Seq End Time", "Actual Run Time", "Operation Status",
+      "Alarm", "Message",
+      "Balloon Seq", "Balloon Start", "Balloon End", "Balloon Duration",
+      "Balloon Status", "Balloon Planned Touch Time", "Balloon Actual Run",
+      "Balloon Actual Idle", "Balloon Actual Disconnect", "Balloon Actual Alarm"
+    ];
+
+    const esc = (v) => {
+      const s = v === null || v === undefined ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const lines = [headers.join(",")];
+    let sno = 0;
+
+    (Array.isArray(rows) ? rows : []).forEach((part) => {
+      sno += 1;
+      const partCells = [
+        sno,
+        part.start_time ? formatDateTime(part.start_time) : "",
+        part.machine_name,
+        part.operator_no,
+        part.operator_name,
+        part.component_no,
+        part.component_name,
+        part.serial_number ?? part.serial_no,
+        part.program_number,
+        part.revision_no ?? part.revision_number,
+        part.part_number,
+        formatTimeWithFallback(part.run_time, ""),
+        formatTimeWithFallback(part.idle_time, ""),
+        formatTimeWithFallback(part.disconnect_time, ""),
+        formatTimeWithFallback(part.alarm_time, ""),
+        part.component_status,
+      ];
+
+      const seqList = Array.isArray(part.sequence_detail) && part.sequence_detail.length
+        ? part.sequence_detail
+        : [null];
+
+      seqList.forEach((seq) => {
+        const seqCells = seq
+          ? [
+              getOpSeqLabel(seq),
+              seq.planed_touch_time,
+              formatClockTime(seq.start),
+              formatClockTime(seq.end),
+              seq.actual_run,
+              seq.operation_status,
+              seq.alarm,
+              seq.message,
+            ]
+          : ["", "", "", "", "", "", "", ""];
+
+        const balloons = Array.isArray(seq?.balloon_seq) && seq.balloon_seq.length
+          ? seq.balloon_seq
+          : [null];
+
+        balloons.forEach((b) => {
+          const balloonCells = b
+            ? [
+                b.balloon_seq,
+                formatClockTime(b.start),
+                formatClockTime(b.end),
+                b.duration,
+                b.balloon_status,
+                b.planned_touch_time,
+                b.actual_run,
+                b.actual_idle,
+                b.actual_disconnect,
+                b.actual_alarm,
+              ]
+            : ["", "", "", "", "", "", "", "", "", ""];
+
+          lines.push([...partCells, ...seqCells, ...balloonCells].map(esc).join(","));
+        });
+      });
+    });
+
+    return lines.join("\n");
+  };
+
+  const downloadSequenceCSVClient = async (dateStr, dateEnd) => {
+    const machineParam = Array.isArray(groupedMachines)
+      ? groupedMachines.join(",")
+      : groupedMachines;
+    // Pull the full result set (not just the current page) for export.
+    const response = await getSequenceReport(
+      machineParam, "all", dateStr, dateEnd, 0, totalCount || 100000
+    );
+    const rows = response?.data || response || [];
+    const csv = buildSequenceCSV(rows);
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sequence_report_${dateStr}_${dateEnd}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const downloadCSV = async () => {
     const dateStr = startDate.format("YYYY-MM-DD");
     const dateEnd = endDate.format("YYYY-MM-DD");
@@ -641,6 +848,11 @@ export default function MachineReport() {
     }
     try {
       setIsDownloading(true);
+      // Sequence report includes balloon-level data, so build the CSV client-side.
+      if (selectedTab === "sequence_report") {
+        await downloadSequenceCSVClient(dateStr, dateEnd);
+        return;
+      }
       const response = await getReportDownloadLink(
         selectedTab,
         Array.isArray(groupedMachines) ? groupedMachines.join(",") : groupedMachines,
@@ -1594,7 +1806,14 @@ export default function MachineReport() {
               </TableHead>
               <TableBody>
                 {reportData.map((row, index) => {
-                  const globalIndex = (page) * rowsPerPage + index;
+                  // Calculate global row offset for sequence_report (sum of all sequence items from previous records)
+                  let globalRowOffset = 0;
+                  if (selectedTab === 'sequence_report') {
+                    for (let i = 0; i < index; i++) {
+                      globalRowOffset += (reportData[i].sequence_detail?.length || 0);
+                    }
+                  }
+
                   return (
                     <React.Fragment key={index}>
                       <TableRow
@@ -1608,10 +1827,7 @@ export default function MachineReport() {
                         onClick={() => selectedTab === 'operator_wise' && row.machine_breakdown?.length > 1 && toggleRowExpansion(index)}
                       >
                         {columns[selectedTab].map((col, i) => {
-                          let bgColor = index % 2 === 0 ? '#efefef' : '#f8f8f8';
-                          if (selectedTab === 'sequence_report') {
-                            bgColor = index % 2 === 0 ? '#d9d9d9' : '#a3a3a3';
-                          }
+                          let bgColor = selectedTab === 'sequence_report' ? (globalRowOffset % 2 === 0 ? '#d9d9d9' : '#a3a3a3') : (index % 2 === 0 ? '#d9d9d9' : '#a3a3a3');
                           return (
                             <TableCell
                               key={i}
@@ -1623,6 +1839,7 @@ export default function MachineReport() {
                                 maxWidth: "200px",
                                 textOverflow: "ellipsis",
                                 overflow: "hidden",
+                                border: 'none',
                               }}
                             >
                               {i === 0 && selectedTab === 'operator_wise' && row.machine_breakdown?.length > 1 && (
@@ -1654,6 +1871,7 @@ export default function MachineReport() {
                           );
                         })}
                       </TableRow>
+                      {selectedTab === 'sequence_report' && renderBalloonRows(row.sequence_detail?.[0], `${index}-0`)}
                       {selectedTab === 'operator_wise' && expandedRows[index] && row.machine_breakdown?.map((breakdown, bIdx) => (
                         <TableRow
                           key={`breakdown-${index}-${bIdx}`}
@@ -1683,45 +1901,48 @@ export default function MachineReport() {
                         </TableRow>
                       ))}
                       {selectedTab === 'sequence_report' && row.sequence_detail?.slice(1).map((seq, sIdx) => {
-                        const childBgColor = (index + sIdx + 1) % 2 === 0 ? '#d9d9d9' : '#a3a3a3';
+                        const seqKey = `${index}-${sIdx + 1}`;
+                        const childGlobalRowIndex = globalRowOffset + 1 + sIdx;
+                        const childBgColor = childGlobalRowIndex % 2 === 0 ? '#d9d9d9' : '#a3a3a3';
                         return (
-                          <TableRow
-                            key={`sequence-${index}-${sIdx + 1}`}
-                            style={{
-                              backgroundColor: childBgColor,
-                              borderLeft: '4px solid #f47803',
-                            }}
-                          >
-                            {columns[selectedTab].map((col, i) => {
-                              const rawData = col.formatter(seq, sIdx + 1, true);
-                              const isJSX = rawData !== null && typeof rawData === 'object' && rawData.$$typeof;
-                              const displayData = isJSX ? rawData : (rawData !== null && rawData !== undefined ? String(rawData) : "---");
-                              return (
-                                <TableCell
-                                  key={`scell-${i}`}
-                                  align="center"
-                                  style={{
-                                    backgroundColor: childBgColor,
-                                    paddingTop: '8px',
-                                    paddingBottom: '8px',
-                                    minHeight: '40px',
-                                  }}
-                                  sx={{
-                                    whiteSpace: "nowrap",
-                                    minWidth: "fit-content",
-                                    maxWidth: "200px",
-                                    textOverflow: "ellipsis",
-                                    overflow: "hidden",
-                                    fontSize: '0.75rem',
-                                    color: '#000',
-                                    borderBottom: '1px dashed #e2e8f0',
-                                  }}
-                                >
-                                  <span>{displayData}</span>
-                                </TableCell>
-                              );
-                            })}
-                          </TableRow>
+                          <React.Fragment key={`sequence-${index}-${sIdx + 1}`}>
+                            <TableRow
+                              style={{
+                                backgroundColor: childBgColor,
+                              }}
+                            >
+                              {columns[selectedTab].map((col, i) => {
+                                const rawData = col.formatter(seq, sIdx + 1, true);
+                                const isJSX = rawData !== null && typeof rawData === 'object' && rawData.$$typeof;
+                                const displayData = isJSX ? rawData : (rawData !== null && rawData !== undefined ? String(rawData) : "---");
+                                return (
+                                  <TableCell
+                                    key={`scell-${i}`}
+                                    align="center"
+                                    style={{
+                                      backgroundColor: childBgColor,
+                                      paddingTop: '8px',
+                                      paddingBottom: '8px',
+                                      minHeight: '40px',
+                                    }}
+                                    sx={{
+                                      whiteSpace: "nowrap",
+                                      minWidth: "fit-content",
+                                      maxWidth: "200px",
+                                      textOverflow: "ellipsis",
+                                      overflow: "hidden",
+                                      fontSize: '0.75rem',
+                                      color: '#000',
+                                      border: 'none',
+                                    }}
+                                  >
+                                    <span>{displayData}</span>
+                                  </TableCell>
+                                );
+                              })}
+                            </TableRow>
+                            {renderBalloonRows(seq, seqKey)}
+                          </React.Fragment>
                         );
                       })}
                     </React.Fragment>
