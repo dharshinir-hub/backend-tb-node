@@ -50,6 +50,10 @@ export default function MachineReport() {
   const [expandedRows, setExpandedRows] = useState({});
 
   const customerId = localStorage.getItem("CustomerID");
+  // Sequence Report is only available for the "surin" customer (name may have a
+  // prefix/suffix and any casing, e.g. "SURIN", "abc-surin", "Surin Industries").
+  const customerName = localStorage.getItem("customerTitle") || "";
+  const isSurinCustomer = customerName.toLowerCase().includes("surin");
   const {
     machineGroups,
     availableMachines,
@@ -896,7 +900,7 @@ export default function MachineReport() {
         <Tab label="Idle Reason Report" value="idle_reason" />
         <Tab label="Alarm Report" value="alarm" />
         <Tab label="Part Wise Report" value="part" />
-        <Tab label="Sequence Report" value="sequence_report" />
+        {isSurinCustomer && <Tab label="Sequence Report" value="sequence_report" />}
 
         {cleanCustomerId(customerId) === window._env_.GPLAST_CUSTOMER_ID && (
           <Tab label="Operator Wise Report" value="operator_wise" />
