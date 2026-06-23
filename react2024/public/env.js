@@ -24,7 +24,9 @@
 // window._env_ = {
 //     SERVER_URL: "http://yantra24x7.cloud:8080/",
 //     // SERVER_URL: "http://103.5.112.46:8080/",
-//     SERVER_URL2: "http://localhost:6006/",
+    //SERVER_URL2: "http://192.168.0.62:5000/",
+        //SERVER_URL3: "http://192.168.0.62:6006/",
+
 //     GRAFANA_URL: "http://yantra24x7.cloud:9097/",
 //     QUALITY_PMI_URL_1: "http://yantra24x7.cloud:3005/",
 //     CUSTOMER_ID: "792c73b0-08c2-11f1-8455-abee652bb51c",
@@ -49,11 +51,12 @@
 //192.168.0.97:8080
 window._env_ = {
     SERVER_URL: "http://192.168.0.97:8080/",
-    SERVER_URL2: "http://192.168.0.62:6006/",
+    SERVER_URL2: "http://192.168.0.62:5000/",
+    SERVER_URL3: "http://192.168.0.62:6006/",
     GRAFANA_URL: "http://yantra24x7.cloud:9097/",
     QUALITY_PMI_URL_1: "http://yantra24x7.cloud:3005/",
     CUSTOMER_ID: "792c73b0-08c2-11f1-8455-abee652bb51c",
-   GPLAST_CUSTOMER_ID: "9e435d50-e0b6-11f0-915f-9f39a11b7cf8",
+    GPLAST_CUSTOMER_ID: "9e435d50-e0b6-11f0-915f-9f39a11b7cf8",
     SURIN_CUSTOMER_ID: "f853c6f0-3d3f-11f1-b077-e5ef75b0e368",
     SMC_CUSTOMER_ID: "527951c0-c50b-11f0-878e-073dc60e4f9a",
     MARKS_CUSTOMER_ID: "350fbc30-0257-11f1-bde9-cfe8e705bf7a",

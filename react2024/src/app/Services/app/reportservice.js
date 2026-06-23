@@ -122,7 +122,8 @@ export const getOperatorReport = async (machine, operators, shiftNo, fromTime, t
 
 export const getSequenceReport = async (machine, shiftNo, fromTime, toTime, page = 0, limit = 10) => {
   try {
-    const baseUrl = window._env_.SERVER_URL2.replace(/\/$/, '');
+    // Sequence report runs on its own backend (SERVER_URL3); other reports use SERVER_URL2.
+    const baseUrl = window._env_.SERVER_URL3.replace(/\/$/, '');
     const url = `${baseUrl}/api/v1/sequence-report/${machine}/${shiftNo}/${fromTime}/${toTime}/${page + 1}/${limit}`;
     const response = await axiosInstance.get(url);
     console.log('Sequence Report response', response.data);
@@ -152,7 +153,9 @@ export const getReportDownloadLink = async (type, machine, shiftNo, fromTime, to
     url = `${baseUrl}/report/${endpoint}/${machine}/${shiftNo}/${operators}/${fromTime}/${toTime}`;
   }
   if (type === "sequence_report") {
-    url = `${baseUrl}/api/v1/sequence-report/download/${encodeURIComponent(machine)}/${encodeURIComponent(shiftNo)}/${fromTime}/${toTime}`;
+    // Sequence report runs on its own backend (SERVER_URL3).
+    const seqBase = window._env_.SERVER_URL3.replace(/\/$/, '');
+    url = `${seqBase}/api/v1/sequence-report/download/${encodeURIComponent(machine)}/${encodeURIComponent(shiftNo)}/${fromTime}/${toTime}`;
   }
 
   return await axiosInstance.get(url, { responseType: "blob" });

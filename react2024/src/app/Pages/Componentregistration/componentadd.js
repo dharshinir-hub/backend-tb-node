@@ -71,10 +71,10 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
       setSequences([]);
     } else {
       setShiftForm(defaultShiftForm);
-      // Start with one sequence containing one balloon row (matches the design).
+      // Start with one empty sequence and no balloons (balloons are added on demand).
       setSequences([{
         sequence: '', touch_time: dayjs('00:00:00', 'HH:mm:ss'),
-        balloon_seq: [{ sequence: '', touch_time: dayjs('00:00:00', 'HH:mm:ss') }],
+        balloon_seq: [],
       }]);
     }
   }, [open, reset, defaultShiftForm]);
@@ -152,7 +152,7 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
     },
   };
   const blankBalloon = () => ({ sequence: '', touch_time: dayjs('00:00:00', 'HH:mm:ss') });
-  const blankSequence = () => ({ sequence: '', touch_time: dayjs('00:00:00', 'HH:mm:ss'), balloon_seq: [blankBalloon()] });
+  const blankSequence = () => ({ sequence: '', touch_time: dayjs('00:00:00', 'HH:mm:ss'), balloon_seq: [] });
 
   const addSequence = () => setSequences((p) => [...p, blankSequence()]);
   const removeSequence = (i) => setSequences((p) => p.filter((_, idx) => idx !== i));
@@ -1024,12 +1024,13 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                   {errors.drawingcode && <div className="mat-error">{errors.drawingcode.message}</div>}
                 </div>  */}
 
-                {/* ===== Sequence Numbers / Balloon Sequences ===== */}
+                {/* ===== Sequence Numbers / Balloon Sequences (Surin customer only) ===== */}
+                {cleanCustomerId(customerId) === window._env_.SURIN_CUSTOMER_ID && (
                 <Box sx={{ gridColumn: '1 / -1', flexBasis: '100%', width: '100%', mt: 1 }}>
                   <Typography sx={{ fontWeight: 700, fontSize: 18, color: '#000', mb: 1.5 }}>Sequence Numbers</Typography>
 
                   {sequences.map((seq, i) => (
-                    <Box key={i} sx={{ mb: 1 }}>
+                    <Box key={i} sx={{ mb: 2 }}>
                       <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
                         <TextField
                           label="Sequence"
@@ -1048,11 +1049,6 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                           ampm={false}
                           slotProps={{ textField: { sx: { flex: 1, minWidth: 220, ...seqFieldSx } } }}
                         />
-                        <Tooltip title="Add sequence">
-                          <IconButton onClick={addSequence} sx={{ color: '#ec6e17' }}>
-                            <AddCircleOutlineIcon />
-                          </IconButton>
-                        </Tooltip>
                         {i > 0 && (
                           <Tooltip title="Remove sequence">
                             <IconButton onClick={() => removeSequence(i)} sx={{ color: '#b00020' }}>
@@ -1062,46 +1058,64 @@ export default function ComponentAdd({ open, handleClose, handleAdd, dialogOpenC
                         )}
                       </Box>
 
-                      {/* Balloon Sequences */}
-                      <Box sx={{ borderLeft: '3px solid #ec6e17', pl: 2, ml: 1, mt: 1.5, mb: 1.5 }}>
-                        <Typography sx={{ fontWeight: 700, fontSize: 16, color: '#000', mb: 1.5 }}>Balloon Sequences</Typography>
-                        {seq.balloon_seq.map((b, j) => (
-                          <Box key={j} sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
-                            <TextField
-                              label="Sequence"
-                              required
-                              value={b.sequence}
-                              onChange={(e) => updateBalloon(i, j, 'sequence', e.target.value)}
-                              InputLabelProps={{ required: true, sx: seqLabelSx }}
-                              sx={{ flex: 1, minWidth: 200, ...seqFieldSx }}
-                            />
-                            <TimePicker
-                              label="Touch Time *"
-                              value={b.touch_time}
-                              onChange={(v) => updateBalloon(i, j, 'touch_time', v)}
-                              views={['hours', 'minutes', 'seconds']}
-                              format="HH:mm:ss"
-                              ampm={false}
-                              slotProps={{ textField: { sx: { flex: 1, minWidth: 200, ...seqFieldSx } } }}
-                            />
-                            <Tooltip title="Add balloon sequence">
-                              <IconButton onClick={() => addBalloon(i)} sx={{ color: '#ec6e17' }}>
-                                <AddCircleOutlineIcon />
-                              </IconButton>
-                            </Tooltip>
-                            {j > 0 && (
+                      {/* Balloon Sequences — only shown once a balloon is added */}
+                      {seq.balloon_seq.length > 0 && (
+                        <Box sx={{ borderLeft: '3px solid #ec6e17', pl: 2, ml: 1, mt: 1.5 }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: 16, color: '#000', mb: 1.5 }}>Balloon Sequences</Typography>
+                          {seq.balloon_seq.map((b, j) => (
+                            <Box key={j} sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
+                              <TextField
+                                label="Sequence"
+                                required
+                                value={b.sequence}
+                                onChange={(e) => updateBalloon(i, j, 'sequence', e.target.value)}
+                                InputLabelProps={{ required: true, sx: seqLabelSx }}
+                                sx={{ flex: 1, minWidth: 200, ...seqFieldSx }}
+                              />
+                              <TimePicker
+                                label="Touch Time *"
+                                value={b.touch_time}
+                                onChange={(v) => updateBalloon(i, j, 'touch_time', v)}
+                                views={['hours', 'minutes', 'seconds']}
+                                format="HH:mm:ss"
+                                ampm={false}
+                                slotProps={{ textField: { sx: { flex: 1, minWidth: 200, ...seqFieldSx } } }}
+                              />
                               <Tooltip title="Remove balloon sequence">
                                 <IconButton onClick={() => removeBalloon(i, j)} sx={{ color: '#b00020' }}>
                                   <DeleteOutlineIcon />
                                 </IconButton>
                               </Tooltip>
-                            )}
-                          </Box>
-                        ))}
+                            </Box>
+                          ))}
+                        </Box>
+                      )}
+
+                      {/* Two actions under each sequence */}
+                      <Box sx={{ display: 'flex', gap: 2, mt: 1, ml: 1, flexWrap: 'wrap' }}>
+                        <Button
+                          onClick={() => addBalloon(i)}
+                          startIcon={<AddCircleOutlineIcon />}
+                          size="small"
+                          sx={{ textTransform: 'none', color: '#ec6e17', fontWeight: 600 }}
+                        >
+                          Add Balloon
+                        </Button>
+                        {i === sequences.length - 1 && (
+                          <Button
+                            onClick={addSequence}
+                            startIcon={<AddCircleOutlineIcon />}
+                            size="small"
+                            sx={{ textTransform: 'none', color: '#ec6e17', fontWeight: 600 }}
+                          >
+                            Add Sequence
+                          </Button>
+                        )}
                       </Box>
                     </Box>
                   ))}
                 </Box>
+                )}
 
               </div>
             </LocalizationProvider>

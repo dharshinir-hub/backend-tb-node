@@ -729,16 +729,18 @@ export default function MachineReport() {
   // Sequence CSV is built on the client because the export must include the
   // 3rd level (balloon) data: part -> sequence -> balloon, flattened one row per balloon.
   const buildSequenceCSV = (rows) => {
+    // Mirror the on-screen sequence table exactly:
+    //   - the 16 part-level columns (S.no .. Component Status) appear ONCE per
+    //     part, on its first row, and are blank on every child row;
+    //   - each sequence is an "S<n>" row, each balloon a nested "B<n>" row,
+    //     both using the same 8 sequence/timing columns (no separate balloon
+    //     columns). This matches part -> sequence -> balloon in the table.
     const headers = [
       "S.no", "Date & Time", "Machine Name", "Operator No", "Operator Name",
       "Comp. Drawing No", "Comp. Description", "Comp. Serial No", "Program No",
       "Revision No", "Actual Part Count", "Run Time", "Idle Time", "Disconnect Time",
       "Alarm Time", "Component Status", "Operation Sequence", "Planned Touch Time",
-      "Seq Start Time", "Seq End Time", "Actual Run Time", "Operation Status",
-      "Alarm", "Message",
-      "Balloon Seq", "Balloon Start", "Balloon End", "Balloon Duration",
-      "Balloon Status", "Balloon Planned Touch Time", "Balloon Actual Run",
-      "Balloon Actual Idle", "Balloon Actual Disconnect", "Balloon Actual Alarm"
+      "Start Time", "End Time", "Actual Run Time", "Operation Status", "Alarm", "Message"
     ];
 
     const esc = (v) => {
@@ -769,46 +771,50 @@ export default function MachineReport() {
         formatTimeWithFallback(part.alarm_time, ""),
         part.component_status,
       ];
+      const blankPart = partCells.map(() => "");
 
       const seqList = Array.isArray(part.sequence_detail) && part.sequence_detail.length
         ? part.sequence_detail
-        : [null];
+        : [];
 
+      if (seqList.length === 0) {
+        lines.push([...partCells, "", "", "", "", "", "", "", ""].map(esc).join(","));
+        return;
+      }
+
+      let firstRow = true;
       seqList.forEach((seq) => {
-        const seqCells = seq
-          ? [
-              getOpSeqLabel(seq),
-              seq.planed_touch_time,
-              formatClockTime(seq.start),
-              formatClockTime(seq.end),
-              seq.actual_run,
-              seq.operation_status,
-              seq.alarm,
-              seq.message,
-            ]
-          : ["", "", "", "", "", "", "", ""];
+        // part columns only on the very first row of the part; blank afterwards
+        const base = firstRow ? partCells : blankPart;
+        firstRow = false;
 
-        const balloons = Array.isArray(seq?.balloon_seq) && seq.balloon_seq.length
-          ? seq.balloon_seq
-          : [null];
+        // sequence row -> "S<n>"
+        lines.push([
+          ...base,
+          `S${getOpSeqLabel(seq)}`,
+          seq.planed_touch_time,
+          formatClockTime(seq.start),
+          formatClockTime(seq.end),
+          seq.actual_run,
+          seq.operation_status,
+          seq.alarm,
+          seq.message,
+        ].map(esc).join(","));
 
+        // nested balloon rows -> "B<n>" (part columns blank; Alarm blank as in table)
+        const balloons = Array.isArray(seq.balloon_seq) ? seq.balloon_seq : [];
         balloons.forEach((b) => {
-          const balloonCells = b
-            ? [
-                b.balloon_seq,
-                formatClockTime(b.start),
-                formatClockTime(b.end),
-                b.duration,
-                b.balloon_status,
-                b.planned_touch_time,
-                b.actual_run,
-                b.actual_idle,
-                b.actual_disconnect,
-                b.actual_alarm,
-              ]
-            : ["", "", "", "", "", "", "", "", "", ""];
-
-          lines.push([...partCells, ...seqCells, ...balloonCells].map(esc).join(","));
+          lines.push([
+            ...blankPart,
+            `B${b.balloon_seq}`,
+            b.planned_touch_time,
+            formatClockTime(b.start),
+            formatClockTime(b.end),
+            b.actual_run,
+            b.balloon_status,
+            "",
+            b.message,
+          ].map(esc).join(","));
         });
       });
     });
