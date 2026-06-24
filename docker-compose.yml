@@ -1,5 +1,9 @@
 version: '3.8'
 
+# Explicit project name so this does not collide with the unrelated
+# backend-tb-node project (the directory basename is also "backend-tb-node").
+name: status-threshold
+
 services:
   status-threshold:
     build:
