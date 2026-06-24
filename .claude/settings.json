@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Program Files/mosquitto/**)",
+      "PowerShell(& \"C:\\\\Program Files\\\\mosquitto\\\\mosquitto.exe\" -c \"C:\\\\tmp\\\\tb-broker.conf\" -v)",
+      "Bash(\"/c/Program Files/mosquitto/mosquitto_sub.exe\" -h 127.0.0.1 -p 1884 -t '#' -v)",
+      "Bash(timeout 10 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 pms@192.168.0.97 \"echo 'SSH connected'\")",
+      "Bash(sshpass -p 'pmspms' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 yantra@192.168.0.97 'uname -a')",
+      "Bash(cat)",
+      "Bash(chmod +x /tmp/install_mosquitto.sh)",
+      "Read(//tmp/**)",
+      "Bash(bash)",
+      "Bash([ -s \"$f\" ])",
+      "Bash(ssh -o StrictHostKeyChecking=no yantra@192.168.0.97 bash)",
+      "PowerShell(node \"C:\\\\tmp\\\\repoint.js\" 192.168.0.97)",
+      "PowerShell(& \"C:\\\\Program Files\\\\mosquitto\\\\mosquitto_sub.exe\" -h 192.168.0.97 -p 1884 -t 'test/#' -v -C 1 2>&1)"
+    ]
+  }
+}

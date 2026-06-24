@@ -124,15 +124,27 @@ function splitByShifts(startTs, endTs, shifts) {
 }
 
 function buildLiveComponent(component, startTs, endTs, wasShiftEnd = false) {
-  // Build sequences array from component data
+  // Build sequences array from component data, preserving nested balloon_seq
   let sequences = [];
   if (Array.isArray(component.sequences)) {
     sequences = component.sequences
       .filter(seq => seq && typeof seq === "object")
-      .map(seq => ({
-        sequence: String(seq.sequence || ""),
-        touch_time: String(seq.touch_time || "00:00:00")
-      }));
+      .map(seq => {
+        const s = {
+          sequence: String(seq.sequence || ""),
+          touch_time: String(seq.touch_time || "00:00:00")
+        };
+        // Preserve nested balloon_seq if present
+        if (Array.isArray(seq.balloon_seq)) {
+          s.balloon_seq = seq.balloon_seq
+            .filter(bs => bs && typeof bs === "object")
+            .map(bs => ({
+              sequence: String(bs.sequence || ""),
+              touch_time: String(bs.touch_time || "00:00:00")
+            }));
+        }
+        return s;
+      });
   }
 
   console.log(`[DEBUG COMPONENT] Building live component: code=${component.component_number}, sequences.length=${sequences.length}, raw=${JSON.stringify(component.sequences)}`);

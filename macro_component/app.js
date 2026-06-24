@@ -96,6 +96,12 @@ async function getCustomerAttributes(jwt, customerId) {
   return res.data;
 }
 
+function roundToSecond(ts) {
+  const n = Number(ts);
+  if (!Number.isFinite(n)) return n;
+  return Math.round(n / 1000) * 1000;
+}
+
 function parseAttr(attributes, key) {
   if (!Array.isArray(attributes)) return null;
   const entry = attributes.find((a) => a.key === key);
@@ -367,7 +373,7 @@ async function processEvent(deviceName, payload, ts) {
         : [{ value: payload.route_card, ts }];
 
       for (const rcEvent of routecardEvents) {
-        const rcTs = Number(rcEvent.ts) || ts;
+        const rcTs = roundToSecond(Number(rcEvent.ts) || ts);
         const rcValue = rcEvent.value || rcEvent;
         if (DEBUG) console.log(`[${deviceName}] route_card: ${rcValue}, ts: ${rcTs}`);
 
@@ -445,7 +451,7 @@ async function processEvent(deviceName, payload, ts) {
         : [{ value: payload.operator_id, ts }];
 
       for (const opEvent of operatorEvents) {
-        const opTs = Number(opEvent.ts) || ts;
+        const opTs = roundToSecond(Number(opEvent.ts) || ts);
         const opValue = opEvent.value || opEvent;
         if (DEBUG) console.log(`[${deviceName}] operator_id: ${opValue}, ts: ${opTs}`);
 
@@ -483,7 +489,7 @@ async function processEvent(deviceName, payload, ts) {
         : [{ value: payload.idle_reason, ts }];
 
       for (const rEvent of reasonEvents) {
-        const rTs = Number(rEvent.ts) || ts;
+        const rTs = roundToSecond(Number(rEvent.ts) || ts);
         const rValue = rEvent.value || rEvent;
         if (DEBUG) console.log(`[${deviceName}] idle_reason: ${rValue}, ts: ${rTs}`);
 
@@ -616,7 +622,7 @@ async function connectMQTT() {
 
         // Extract device name and timestamp
         let deviceName = data.deviceName;
-        let ts = Number(data.ts) || Date.now();
+        let ts = roundToSecond(Number(data.ts) || Date.now());
         let payload = { ...data };
 
         // If deviceName not in message, try to extract from topic
