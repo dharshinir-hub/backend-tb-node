@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(npm init *)",
-      "PowerShell(npm init -y)",
-      "PowerShell(npm install ws axios dotenv)"
-    ]
-  }
-}
