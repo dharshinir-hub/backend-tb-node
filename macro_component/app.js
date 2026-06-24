@@ -23,6 +23,15 @@ const MQTT_TOPIC = process.env.MQTT_TOPIC || "test/#";  // Use wildcard to captu
 const DEBUG = String(process.env.MACRO_DEBUG || "") === "1";
 const TB_INSECURE_TLS = String(process.env.TB_INSECURE_TLS || "") === "1";
 
+// Optional allowlist of customer IDs the macro is allowed to process.
+// Comma-separated. If empty/unset, all customers are processed (backward compatible).
+const MACRO_CUSTOMER_IDS = new Set(
+  String(process.env.macro_customer || process.env.MACRO_CUSTOMER || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
+
 if (!TB_BASE_URL || !TB_USERNAME || !TB_PASSWORD) {
   console.error(
     "Missing config. Set TB_BASE_URL, TB_USERNAME, and TB_PASSWORD in tb-code/.env"
@@ -311,6 +320,11 @@ async function initializeDeviceCache() {
       const customerId = customer.id?.id;
       if (!customerId) continue;
 
+      // Skip customers not in the allowlist (when one is configured)
+      if (MACRO_CUSTOMER_IDS.size > 0 && !MACRO_CUSTOMER_IDS.has(customerId)) {
+        continue;
+      }
+
       const devices = await listAllDevicesForCustomer(token, customerId);
       for (const device of devices) {
         const deviceId = device.id?.id;
@@ -321,9 +335,14 @@ async function initializeDeviceCache() {
       }
     }
 
-    if (DEBUG) {
-      console.log(`[INIT] Cached ${deviceNameToId.size} devices`);
+    if (MACRO_CUSTOMER_IDS.size > 0) {
+      console.log(
+        `[INIT] Customer allowlist active (${MACRO_CUSTOMER_IDS.size}): ${[...MACRO_CUSTOMER_IDS].join(", ")}`
+      );
+    } else {
+      console.log("[INIT] No customer allowlist set — processing ALL customers");
     }
+    console.log(`[INIT] Cached ${deviceNameToId.size} devices`);
     isInitialized = true;
   } catch (err) {
     console.error("Error initializing device cache:", err.message);
@@ -341,6 +360,13 @@ async function processEvent(deviceName, payload, ts) {
     }
 
     const { deviceId, customerId } = deviceInfo;
+
+    // Defensive: never process a device outside the allowlist
+    if (MACRO_CUSTOMER_IDS.size > 0 && !MACRO_CUSTOMER_IDS.has(customerId)) {
+      if (DEBUG) console.log(`[${deviceName}] Customer ${customerId} not in allowlist, skipping`);
+      return;
+    }
+
     const out = [];
     let state = deviceState.get(deviceId);
     const now = Date.now();
