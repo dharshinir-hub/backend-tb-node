@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  backend-tb-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backend-tb-node
+    image: dharshiniradhakrishnan/backend-tb-node:v0.1
+    restart: unless-stopped
+
+    # NOTE: this service is an MQTT consumer — it does not expose any HTTP port.
+    environment:
+      - TB_BASE_URL=http://yantra24x7.cloud:8080
+      - TB_USERNAME=pms@gmail.com
+      - TB_PASSWORD=pmspms
+      - TB_INSECURE_TLS=1
+      - MQTT_BROKER=mqtt://yantra24x7.cloud:1884
+      - MQTT_TOPIC=test/#
+      - macro_customer=ca71d920-4d2a-11f1-9352-592ed2a7210c
+      - NODE_ENV=development

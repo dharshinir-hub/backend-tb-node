@@ -4,9 +4,8 @@
   "description": "ThingsBoard monitoring and macro processing services",
   "main": "index.js",
   "scripts": {
-    "start": "concurrently \"npm start --prefix macro_component\" \"node status_threshold/status_monitor/monitor.js\"",
-    "macro": "npm start --prefix macro_component",
-    "status": "node status_threshold/status_monitor/monitor.js"
+    "start": "npm start --prefix macro_component",
+    "macro": "npm start --prefix macro_component"
   },
   "keywords": [],
   "author": "",
