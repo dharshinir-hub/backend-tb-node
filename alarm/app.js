@@ -9,7 +9,7 @@ const mqtt = require("mqtt");
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
-const { AlarmProcessor, parseAlarmsTelemetry } = require("./index");
+const { AlarmProcessor, parseAlarmsTelemetry, parseSeparateAlarmKeys } = require("./index");
 
 const TB_BASE_URL = process.env.TB_BASE_URL;
 const TB_USERNAME = process.env.TB_USERNAME;
@@ -19,6 +19,14 @@ const MQTT_TOPIC = process.env.MQTT_TOPIC || "test/#";
 const DEBUG = String(process.env.MACRO_DEBUG || "") === "1";
 const TB_INSECURE_TLS = String(process.env.TB_INSECURE_TLS || "") === "1";
 const ALARMS_LIMIT = Number(process.env.ALARMS_LIMIT || 20);
+
+// --- live_alarm -> device-alarm MQTT redirect ---
+// Every live_alarm we post to ThingsBoard is also mirrored onto a second MQTT
+// broker on the device's alarm topic, matching:
+//   mosquitto_pub -q 1 -h yantra24x7.cloud -p 1885 \
+//     -t machine/<deviceName>/alarm -i "<deviceName>" -m '{"live_alarm":{...}}'
+const STATUS_MQTT_URL = process.env.STATUS_MQTT_URL || "mqtt://yantra24x7.cloud:1885";
+const STATUS_REDIRECT = String(process.env.STATUS_REDIRECT || "1") !== "0"; // on by default
 
 if (!TB_BASE_URL || !TB_USERNAME || !TB_PASSWORD) {
   console.error("Missing config. Set TB_BASE_URL, TB_USERNAME, and TB_PASSWORD in tb-code/.env");
@@ -112,15 +120,60 @@ async function getAlarmsTelemetry(jwt, deviceId, limit = ALARMS_LIMIT) {
   const res = await axiosTb.get(url, {
     headers: { "X-Authorization": `Bearer ${jwt}` },
     params: {
-      keys: "alarms",
+      // Accept both the `alarms` array AND separate alarm_message/_number/_type keys.
+      keys: "alarms,alarm_message,alarm_number,alarm_type",
       startTs: now - 7 * 24 * 60 * 60 * 1000, // last 7 days window
       endTs: now,
       limit,
       useStrictDataTypes: false,
     },
   });
-  const list = res.data?.alarms || [];
-  return parseAlarmsTelemetry(Array.isArray(list) ? list : []);
+  const data = res.data || {};
+  const fromAlarms = parseAlarmsTelemetry(Array.isArray(data.alarms) ? data.alarms : []);
+  const fromSeparate = parseSeparateAlarmKeys({
+    alarm_message: data.alarm_message,
+    alarm_number: data.alarm_number,
+    alarm_type: data.alarm_type,
+  });
+  return [...fromAlarms, ...fromSeparate];
+}
+
+// Build an array of raw alarm objects from a values bag that may carry an
+// `alarms` array AND/OR separate alarm_message/alarm_number/alarm_type keys.
+// Returns null when neither form is present.
+function extractAlarmObjs(values) {
+  if (!values || typeof values !== "object") return null;
+  const objs = [];
+  // (a) `alarms` array form — items may be plain objects, telemetry {ts,value},
+  //     or JSON strings.
+  if (Array.isArray(values.alarms)) {
+    for (const raw of values.alarms) {
+      const v = raw && raw.value !== undefined ? raw.value : raw;
+      if (typeof v === "string") {
+        try {
+          const p = JSON.parse(v);
+          (Array.isArray(p) ? p : [p]).forEach((o) => o && typeof o === "object" && objs.push(o));
+        } catch {
+          /* ignore unparseable */
+        }
+      } else if (v && typeof v === "object") {
+        objs.push(v);
+      }
+    }
+  }
+  // (b) separate flat keys form.
+  if (
+    values.alarm_message !== undefined ||
+    values.alarm_number !== undefined ||
+    values.alarm_type !== undefined
+  ) {
+    const o = {};
+    if (values.alarm_message !== undefined) o.alarm_message = values.alarm_message;
+    if (values.alarm_number !== undefined) o.alarm_number = values.alarm_number;
+    if (values.alarm_type !== undefined) o.alarm_type = values.alarm_type;
+    objs.push(o);
+  }
+  return objs.length ? objs : null;
 }
 
 async function getLatestLiveAlarm(jwt, deviceId) {
@@ -157,10 +210,79 @@ async function postTelemetry(jwt, deviceId, records) {
     });
   }
   await axiosTb.post(url, records, { headers: { "X-Authorization": `Bearer ${jwt}` } });
+
+  // Mirror each posted live_alarm onto the device-alarm MQTT broker (best-effort;
+  // never lets a redirect failure affect the TB write above).
+  if (STATUS_REDIRECT) {
+    const deviceName = deviceIdToName.get(deviceId);
+    const liveAlarms = records
+      .map((r) => r?.values?.live_alarm)
+      .filter((v) => v !== undefined && v !== null);
+    if (deviceName && liveAlarms.length) {
+      await publishLiveAlarmStatuses(deviceName, liveAlarms);
+    } else if (!deviceName && DEBUG) {
+      console.log(`[alarm MQTT] no deviceName cached for ${deviceId}; skip redirect`);
+    }
+  }
+}
+
+// Publish each live_alarm to `machine/<deviceName>/alarm` on the redirect MQTT
+// broker, connecting as the device itself (clientId = deviceName, QoS 1) — the
+// Node equivalent of the mosquitto_pub sample. One short-lived connection per
+// batch; all records for the device share it so the same clientId is never
+// connected twice concurrently. Never throws.
+function publishLiveAlarmStatuses(deviceName, liveAlarms) {
+  return new Promise((resolve) => {
+    if (!STATUS_REDIRECT || !deviceName || !liveAlarms.length) return resolve();
+    const topic = `machine/${deviceName}/alarm`;
+    let settled = false;
+    let client;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      try { client && client.end(true); } catch {}
+      resolve();
+    };
+    const guard = setTimeout(() => {
+      console.error(`[${deviceName}] alarm MQTT publish timed out`);
+      finish();
+    }, 15000);
+    try {
+      client = mqtt.connect(STATUS_MQTT_URL, {
+        clientId: deviceName, // -i "<deviceName>"
+        reconnectPeriod: 0,   // fire-and-forget; do not loop on failure
+        connectTimeout: 10000,
+      });
+    } catch (err) {
+      clearTimeout(guard);
+      console.error(`[${deviceName}] alarm MQTT connect failed:`, err.message);
+      return finish();
+    }
+    client.on("connect", async () => {
+      for (const la of liveAlarms) {
+        const message = JSON.stringify({ live_alarm: la });
+        await new Promise((res) =>
+          client.publish(topic, message, { qos: 1 }, (err) => {
+            if (err) console.error(`[${deviceName}] alarm MQTT publish error:`, err.message);
+            else if (DEBUG) console.log(`[${deviceName}] alarm -> ${STATUS_MQTT_URL} ${topic} ${message}`);
+            res();
+          })
+        );
+      }
+      clearTimeout(guard);
+      finish();
+    });
+    client.on("error", (err) => {
+      clearTimeout(guard);
+      console.error(`[${deviceName}] alarm MQTT error:`, err.message);
+      finish();
+    });
+  });
 }
 
 const deviceState = new Map(); // deviceId -> { processor }
 const deviceNameToId = new Map(); // deviceName -> { deviceId, customerId }
+const deviceIdToName = new Map(); // deviceId -> deviceName (for the alarm MQTT redirect)
 let cachedToken = null;
 let mqttClient = null;
 
@@ -180,7 +302,10 @@ async function initializeDeviceCache() {
       for (const device of devices) {
         const deviceId = device.id?.id;
         const deviceName = device.name;
-        if (deviceId && deviceName) deviceNameToId.set(deviceName, { deviceId, customerId });
+        if (deviceId && deviceName) {
+          deviceNameToId.set(deviceName, { deviceId, customerId });
+          deviceIdToName.set(deviceId, deviceName);
+        }
       }
     }
     console.log(`[INIT] Cached ${deviceNameToId.size} devices`);
@@ -238,6 +363,11 @@ async function processEvent(deviceName, payload, ts, alarmsObjs) {
       // Only need telemetry when an alarm may OPEN (4/5 with no open episode).
       if (state.processor.isAlarmStatus(code) && !state.processor.open) {
         alarmsTelemetry = await getAlarmsTelemetry(token, deviceId);
+        // Inline details in THIS message (alarms array OR separate keys) take
+        // precedence so openAlarm matches at this exact ts instead of UNKNOWN.
+        if (Array.isArray(alarmsObjs) && alarmsObjs.length > 0) {
+          alarmsTelemetry = [{ ts: statusTs, objs: alarmsObjs }, ...alarmsTelemetry];
+        }
       }
       out.push(...state.processor.handleMachineStatus({ value: code, ts: statusTs }, alarmsTelemetry));
     }
@@ -291,38 +421,22 @@ async function connectMQTT() {
         if (Array.isArray(data.timeseries)) {
           for (const entry of data.timeseries) {
             const ts = Number(entry?.ts) || Date.now();
-            const alarmsObjs = entry?.values?.alarms;
+            const alarmsObjs = extractAlarmObjs(entry?.values);
             const machineStatus = entry?.values?.machine_status;
             const payload = machineStatus !== undefined ? { machine_status: machineStatus } : null;
-            if (Array.isArray(alarmsObjs) || payload) {
-              await processEvent(deviceName, payload, ts, Array.isArray(alarmsObjs) ? alarmsObjs : null);
+            if (alarmsObjs || payload) {
+              await processEvent(deviceName, payload, ts, alarmsObjs);
             }
           }
           return;
         }
 
-        // Flat form: { deviceName, ts, machine_status, alarms }
+        // Flat form: { deviceName, ts, machine_status, alarms | alarm_message,... }
         const ts = Number(data.ts) || Date.now();
         const payload = {};
         if (data.machine_status !== undefined) payload.machine_status = data.machine_status;
-        // Flat "alarms" may be already-parsed objects or telemetry [{ts,value}].
-        let alarmsObjs = null;
-        if (Array.isArray(data.alarms)) {
-          alarmsObjs = data.alarms
-            .map((a) => (a && a.value !== undefined ? a.value : a))
-            .flatMap((v) => {
-              if (typeof v === "string") {
-                try {
-                  const p = JSON.parse(v);
-                  return Array.isArray(p) ? p : [p];
-                } catch {
-                  return [];
-                }
-              }
-              return [v];
-            })
-            .filter((o) => o && typeof o === "object");
-        }
+        // Accepts the `alarms` array AND/OR separate alarm_message/_number/_type keys.
+        const alarmsObjs = extractAlarmObjs(data);
 
         if (Object.keys(payload).length === 0 && !alarmsObjs) return;
         await processEvent(deviceName, payload, ts, alarmsObjs);

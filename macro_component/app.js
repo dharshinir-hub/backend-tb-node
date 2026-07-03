@@ -399,7 +399,7 @@ async function processEvent(deviceName, payload, ts) {
         : [{ value: payload.route_card, ts }];
 
       for (const rcEvent of routecardEvents) {
-        const rcTs = roundToSecond(Number(rcEvent.ts) || ts);
+        const rcTs = Number(rcEvent.ts) || ts;  // exact route_card ts (no rounding)
         const rcValue = rcEvent.value || rcEvent;
         if (DEBUG) console.log(`[${deviceName}] route_card: ${rcValue}, ts: ${rcTs}`);
 
@@ -477,7 +477,7 @@ async function processEvent(deviceName, payload, ts) {
         : [{ value: payload.operator_id, ts }];
 
       for (const opEvent of operatorEvents) {
-        const opTs = roundToSecond(Number(opEvent.ts) || ts);
+        const opTs = Number(opEvent.ts) || ts;  // exact operator_id ts (no rounding)
         const opValue = opEvent.value || opEvent;
         if (DEBUG) console.log(`[${deviceName}] operator_id: ${opValue}, ts: ${opTs}`);
 

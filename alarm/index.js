@@ -129,6 +129,32 @@ function parseAlarmsTelemetry(list) {
   return out;
 }
 
+// Build alarm-telemetry entries from SEPARATE flat keys (alarm_message /
+// alarm_number / alarm_type), each a TB timeseries list [{ ts, value }]. Values
+// that share a ts are merged into one alarm object at that ts, producing the
+// same shape as parseAlarmsTelemetry so findAlarmByTs works unchanged.
+function parseSeparateAlarmKeys({ alarm_message, alarm_number, alarm_type } = {}) {
+  const byTs = new Map(); // ts -> { alarm_message, alarm_number, alarm_type }
+  const add = (list, field) => {
+    if (!Array.isArray(list)) return;
+    for (const e of list) {
+      const ts = Number(e?.ts);
+      if (!Number.isFinite(ts)) continue;
+      const v = e?.value;
+      if (v === undefined || v === null || v === "") continue;
+      const cur = byTs.get(ts) || {};
+      cur[field] = v;
+      byTs.set(ts, cur);
+    }
+  };
+  add(alarm_message, "alarm_message");
+  add(alarm_number, "alarm_number");
+  add(alarm_type, "alarm_type");
+  const out = [];
+  for (const [ts, obj] of byTs) out.push({ ts, objs: [obj] });
+  return out;
+}
+
 // Normalize a raw alarm object (from telemetry or MQTT) to message/number/type.
 function normalizeAlarmObject(obj) {
   if (!obj || typeof obj !== "object") return null;
@@ -440,6 +466,7 @@ class AlarmProcessor {
 module.exports = {
   AlarmProcessor,
   parseAlarmsTelemetry,
+  parseSeparateAlarmKeys,
   normalizeAlarmObject,
   findAlarmByTs,
   findShiftEndTime,

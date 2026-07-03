@@ -1,4 +1,6 @@
-# Macro component service for ThingsBoard monitoring
+# Macro + Alarm services for ThingsBoard monitoring.
+# One image, two entrypoints: macro_component/app.js (default) and alarm/app.js
+# (selected per-service via the compose `command:` override).
 FROM node:20-alpine
 
 WORKDIR /app
@@ -11,6 +13,8 @@ RUN npm ci --omit=dev
 
 # Application source
 COPY macro_component ./macro_component
+COPY alarm ./alarm
+COPY alarm_bridge ./alarm_bridge
 
 ENV NODE_ENV=production
 
