@@ -361,21 +361,19 @@ const DrawingDetail = () => {
   const selectedIsSheet = effKind === 'sheet';
   const selectedIsWord = effKind === 'word';
 
-  // Component details encoded into the QR. Kept VERY COMPACT on purpose: a dense QR
-  // (lots of text) won't scan from a screen once it's scaled down on the drawing and
-  // re-saved. These few core fields keep it a low-density v5 (~37x37) that scans.
+  // QR payload = a LINK to this drawing's page, so scanning it opens the drawing
+  // with all its document tabs (Drawing / CAD / Quotation / PO / …). A bare URL
+  // stays low-density so it still scans after being scaled down on the sheet.
+  // window.location.origin resolves to whatever domain the app is served from
+  // (the real public URL in production); falls back to the drawing id if missing.
   const qrInfo = useMemo(() => {
     if (!drawing) return '';
-    const m = meta || {};
-    const parts = [
-      drawing.name,
-      m.productName,
-      m.clientName,
-      `${m.status || '-'} | Rev ${m.revision || 'A'}`,
-      [m.inventory, m.project].filter(Boolean).join(' · '),
-    ].filter(Boolean);
-    return parts.join('\n');
-  }, [drawing, meta]);
+    const env = (typeof window !== 'undefined' && window._env_) || {};
+    // Prefer the configured public/LAN base (PPW_APP_URL) — "localhost" won't open
+    // from a scanning phone. Fall back to the current origin if it isn't set.
+    const base = (env.PPW_APP_URL || (typeof window !== 'undefined' && window.location && window.location.origin) || '').replace(/\/+$/, '');
+    return `${base}/paperless-factory/drawings/${id}`;
+  }, [drawing, id]);
 
   // Which fields the info panel shows (+ labels / required) — driven by Settings.
   const visibleFields = useMemo(() => {

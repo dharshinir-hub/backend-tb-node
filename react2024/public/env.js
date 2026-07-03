@@ -52,6 +52,11 @@ window._env_ = {
     SERVER_URL2: "http://192.168.0.62:6006/",
     GRAFANA_URL: "http://yantra24x7.cloud:9097/",
     QUALITY_PMI_URL_1: "http://yantra24x7.cloud:3005/",
+    // Base URL used for QR links on drawings. MUST be a host reachable from a
+    // phone — NOT "localhost". Set to your PC's LAN IP (e.g. http://192.168.0.97:3002)
+    // for same-WiFi testing, or the public domain in production. Leave empty to use
+    // the browser's current origin.
+    PPW_APP_URL: "http://192.168.0.97:3002",
     CUSTOMER_ID: "792c73b0-08c2-11f1-8455-abee652bb51c",
    GPLAST_CUSTOMER_ID: "9e435d50-e0b6-11f0-915f-9f39a11b7cf8",
     SURIN_CUSTOMER_ID: "f853c6f0-3d3f-11f1-b077-e5ef75b0e368",
