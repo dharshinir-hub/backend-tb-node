@@ -39,6 +39,8 @@ services:
       - MQTT_BROKER=mqtt://yantra24x7.cloud:1884
       - MQTT_TOPIC=test/#
       - ALARMS_LIMIT=20
+      # Do NOT write live_alarm for these customers (Surin ca71d920).
+      - ALARM_SKIP_CUSTOMERS=ca71d920-4d2a-11f1-9352-592ed2a7210c
       # Mirror every live_alarm onto the device-alarm broker (machine/<device>/alarm).
       - STATUS_MQTT_URL=mqtt://yantra24x7.cloud:1885
       - STATUS_REDIRECT=1

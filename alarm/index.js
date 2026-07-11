@@ -207,6 +207,10 @@ function toRecord(liveAlarm) {
   return { ts: liveAlarm.alarm_start, values: { live_alarm: liveAlarm } };
 }
 
+// Max gap between an early "alarms" message and the machine_status 5 that opens
+// its episode, for a buffered (out-of-order, arrived-first) alarm to still apply.
+const PENDING_ALARM_WINDOW_MS = 120000; // 2 minutes
+
 // ---------------------------------------------------------------------------
 // AlarmProcessor
 // ---------------------------------------------------------------------------
@@ -228,6 +232,10 @@ class AlarmProcessor {
     this.episodeClosedSegments = [];
     this.pendingEvents = [];
     this.shiftEndTimer = null;
+    // Buffer for an "alarms" message that arrived with NO open episode — i.e. the
+    // alarm details came BEFORE machine_status opened the episode (out of order).
+    // The next status-5 open within PENDING_ALARM_WINDOW_MS uses it (not UNKNOWN).
+    this.pendingAlarm = null;
   }
 
   setShifts(shifts) {
@@ -274,7 +282,14 @@ class AlarmProcessor {
   }
 
   openAlarm(ts, alarmsTelemetry) {
-    const match = findAlarmByTs(alarmsTelemetry, ts);
+    let match = findAlarmByTs(alarmsTelemetry, ts);
+    // Fall back to a recently-buffered early alarm (details that arrived shortly
+    // BEFORE this machine_status 5, out of order) when there's no exact-ts match.
+    if (!match && this.pendingAlarm &&
+        Math.abs(ts - this.pendingAlarm.ts) <= PENDING_ALARM_WINDOW_MS) {
+      match = this.pendingAlarm;
+    }
+    this.pendingAlarm = null; // consume (or discard if too old / already matched)
     const shiftEnd = findShiftEndTime(ts, this.shifts);
     // Brand-new episode: reset episode tracking.
     this.episodeStart = ts;
@@ -357,9 +372,21 @@ class AlarmProcessor {
     }
     if (!norm) return events;
 
-    // Only attribute this alarm to the current episode if the ts matches its
-    // original start. No match => ignore (do not overwrite anything).
-    if (this.episodeStart === null || Number(alarmsTs) !== Number(this.episodeStart)) {
+    // Attribute this alarm to the currently-OPEN episode. A separately-arriving
+    // alarm message (e.g. machine_status 5 opens an UNKNOWN episode at 5:00, then
+    // the "alarms" / alarm_message+alarm_number arrives later at 5:10) overwrites
+    // that open record IN PLACE at its original start_time — regardless of the
+    // alarm message's own ts. Ignore only when nothing is open, or the alarm
+    // predates the current episode (stale / out-of-order from a previous one).
+    // No open episode yet: the alarm details arrived BEFORE machine_status
+    // opened the episode (out of order). Buffer them so the NEXT status-5 open
+    // uses the real message instead of UNKNOWN.
+    if (!this.open) {
+      this.pendingAlarm = { message: norm.message, number: norm.number, type: norm.type, ts: Number(alarmsTs) };
+      return events;
+    }
+    // A stale alarm predating the current open episode: ignore.
+    if (Number(alarmsTs) < Number(this.episodeStart)) {
       return events;
     }
 

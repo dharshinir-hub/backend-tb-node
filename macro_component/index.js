@@ -291,18 +291,26 @@ class MacroComponentProcessor {
 
   findShiftEndTime(ts, shifts) {
     const d = new Date(ts);
-    const intervals = buildShiftIntervalsForDay(shifts, d);
+    // Build intervals across the PREVIOUS, current AND next day so an overnight
+    // shift (e.g. 20:00->08:00, end_day=2) that STARTED the previous day still
+    // covers this day's early-morning hours. Return the end of the interval that
+    // CONTAINS ts; if ts is in a gap, the end of the next interval to start.
+    const prev = new Date(d.getTime() - 24 * 60 * 60 * 1000);
+    const next = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+    const intervals = [
+      ...buildShiftIntervalsForDay(shifts, prev),
+      ...buildShiftIntervalsForDay(shifts, d),
+      ...buildShiftIntervalsForDay(shifts, next),
+    ].sort((a, b) => a.start.getTime() - b.start.getTime());
     for (const interval of intervals) {
-      const startMs = interval.start.getTime();
-      const endMs = interval.end.getTime();
-      if (ts >= startMs && ts < endMs) {
-        return endMs;
+      if (ts >= interval.start.getTime() && ts < interval.end.getTime()) {
+        return interval.end.getTime();
       }
     }
-    // Try next day
-    const nextDay = new Date(d.getTime() + 24 * 60 * 60 * 1000);
-    const nextIntervals = buildShiftIntervalsForDay(shifts, nextDay);
-    return nextIntervals.length > 0 ? nextIntervals[0].end.getTime() : ts + 8 * 60 * 60 * 1000;
+    for (const interval of intervals) {
+      if (interval.start.getTime() > ts) return interval.end.getTime();
+    }
+    return ts + 8 * 60 * 60 * 1000;
   }
 
   scheduleShiftEndTimer() {
@@ -548,18 +556,26 @@ class MacroReasonProcessor {
 
   findShiftEndTime(ts, shifts) {
     const d = new Date(ts);
-    const intervals = buildShiftIntervalsForDay(shifts, d);
+    // Build intervals across the PREVIOUS, current AND next day so an overnight
+    // shift (e.g. 20:00->08:00, end_day=2) that STARTED the previous day still
+    // covers this day's early-morning hours. Return the end of the interval that
+    // CONTAINS ts; if ts is in a gap, the end of the next interval to start.
+    const prev = new Date(d.getTime() - 24 * 60 * 60 * 1000);
+    const next = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+    const intervals = [
+      ...buildShiftIntervalsForDay(shifts, prev),
+      ...buildShiftIntervalsForDay(shifts, d),
+      ...buildShiftIntervalsForDay(shifts, next),
+    ].sort((a, b) => a.start.getTime() - b.start.getTime());
     for (const interval of intervals) {
-      const startMs = interval.start.getTime();
-      const endMs = interval.end.getTime();
-      if (ts >= startMs && ts < endMs) {
-        return endMs;
+      if (ts >= interval.start.getTime() && ts < interval.end.getTime()) {
+        return interval.end.getTime();
       }
     }
-    // Try next day
-    const nextDay = new Date(d.getTime() + 24 * 60 * 60 * 1000);
-    const nextIntervals = buildShiftIntervalsForDay(shifts, nextDay);
-    return nextIntervals.length > 0 ? nextIntervals[0].end.getTime() : ts + 8 * 60 * 60 * 1000;
+    for (const interval of intervals) {
+      if (interval.start.getTime() > ts) return interval.end.getTime();
+    }
+    return ts + 8 * 60 * 60 * 1000;
   }
 
   handleReason(reasonEvent, machineStatusArray) {
@@ -936,17 +952,26 @@ class MacroOperatorProcessor {
 
   findShiftEndTime(ts, shifts) {
     const d = new Date(ts);
-    const intervals = buildShiftIntervalsForDay(shifts, d);
+    // Build intervals across the PREVIOUS, current AND next day so an overnight
+    // shift (e.g. 20:00->08:00, end_day=2) that STARTED the previous day still
+    // covers this day's early-morning hours. Return the end of the interval that
+    // CONTAINS ts; if ts is in a gap, the end of the next interval to start.
+    const prev = new Date(d.getTime() - 24 * 60 * 60 * 1000);
+    const next = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+    const intervals = [
+      ...buildShiftIntervalsForDay(shifts, prev),
+      ...buildShiftIntervalsForDay(shifts, d),
+      ...buildShiftIntervalsForDay(shifts, next),
+    ].sort((a, b) => a.start.getTime() - b.start.getTime());
     for (const interval of intervals) {
-      const startMs = interval.start.getTime();
-      const endMs = interval.end.getTime();
-      if (ts >= startMs && ts < endMs) {
-        return endMs;
+      if (ts >= interval.start.getTime() && ts < interval.end.getTime()) {
+        return interval.end.getTime();
       }
     }
-    const nextDay = new Date(d.getTime() + 24 * 60 * 60 * 1000);
-    const nextIntervals = buildShiftIntervalsForDay(shifts, nextDay);
-    return nextIntervals.length > 0 ? nextIntervals[0].end.getTime() : ts + 8 * 60 * 60 * 1000;
+    for (const interval of intervals) {
+      if (interval.start.getTime() > ts) return interval.end.getTime();
+    }
+    return ts + 8 * 60 * 60 * 1000;
   }
 
   handleOperator(operatorEvent) {

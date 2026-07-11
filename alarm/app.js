@@ -19,6 +19,10 @@ const MQTT_TOPIC = process.env.MQTT_TOPIC || "test/#";
 const DEBUG = String(process.env.MACRO_DEBUG || "") === "1";
 const TB_INSECURE_TLS = String(process.env.TB_INSECURE_TLS || "") === "1";
 const ALARMS_LIMIT = Number(process.env.ALARMS_LIMIT || 20);
+// Customer IDs to EXCLUDE — no live_alarm is written or mirrored for their devices.
+const ALARM_SKIP_CUSTOMERS = new Set(
+  String(process.env.ALARM_SKIP_CUSTOMERS || "").split(",").map((s) => s.trim()).filter(Boolean)
+);
 
 // --- live_alarm -> device-alarm MQTT redirect ---
 // Every live_alarm we post to ThingsBoard is also mirrored onto a second MQTT
@@ -345,6 +349,11 @@ async function processEvent(deviceName, payload, ts, alarmsObjs) {
       return;
     }
     const { deviceId, customerId } = deviceInfo;
+    // Skip excluded customers entirely — do not write/mirror live_alarm for them.
+    if (ALARM_SKIP_CUSTOMERS.has(customerId)) {
+      if (DEBUG) console.log(`[${deviceName}] customer ${customerId} excluded — skipping live_alarm`);
+      return;
+    }
     const state = await ensureState(token, deviceId, customerId);
     const out = [];
 
