@@ -10,6 +10,7 @@ const WebSocket = require("ws");
 const axios = require("axios");
 const https = require("https");
 const path = require("path");
+const nodemailer = require("nodemailer");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const TB_BASE_URL = process.env.TB_BASE_URL;
@@ -17,6 +18,22 @@ const TB_USERNAME = process.env.TB_USERNAME;
 const TB_PASSWORD = process.env.TB_PASSWORD;
 const TB_INSECURE_TLS = String(process.env.TB_INSECURE_TLS || "") === "1";
 const TB_INSTANCE = process.env.TB_INSTANCE || "TB1";
+
+// Email and customer configuration
+const CUSTOMER_NAME_CONFIG = (process.env.customer_name || "").trim();
+const EMAIL_FROM = process.env.email_from || "";
+const EMAIL_PASS = process.env.email_pass || "";
+const EMAIL_TO_RAW = process.env.email_to || "";
+const EMAIL_TO_LIST = EMAIL_TO_RAW.split(",").map(e => e.trim()).filter(e => e.length > 0);
+const SMART_SERVER_ENABLED = TB_BASE_URL && TB_BASE_URL.includes("smart.yantra");
+
+let emailTransporter = null;
+if (SMART_SERVER_ENABLED && EMAIL_FROM && EMAIL_PASS && EMAIL_TO_LIST.length > 0) {
+  emailTransporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: EMAIL_FROM, pass: EMAIL_PASS },
+  });
+}
 
 const WS_BASE = TB_BASE_URL.replace(/^http/, "ws");
 
@@ -62,6 +79,34 @@ function safeJsonParse(str) {
 }
 
 function ts() { return new Date().toISOString(); }
+
+// ── Customer filtering ─────────────────────────────────────────────────────────
+
+function shouldSendEmailForCustomer(customerTitle) {
+  if (!SMART_SERVER_ENABLED || !emailTransporter || !CUSTOMER_NAME_CONFIG) return false;
+
+  if (CUSTOMER_NAME_CONFIG.toLowerCase() === "all") return true;
+
+  const configuredCustomers = CUSTOMER_NAME_CONFIG.split(",").map(c => c.trim().toLowerCase());
+  return configuredCustomers.includes(customerTitle.toLowerCase());
+}
+
+async function sendEmail(subject, body) {
+  if (!emailTransporter || !EMAIL_TO_LIST.length) return;
+
+  try {
+    const toList = EMAIL_TO_LIST.join(", ");
+    await emailTransporter.sendMail({
+      from: EMAIL_FROM,
+      to: toList,
+      subject,
+      html: body,
+    });
+    console.log(`  [${TB_INSTANCE}] Email sent to ${EMAIL_TO_LIST.length} recipient(s) — "${subject}"`);
+  } catch (err) {
+    console.error(`  [${TB_INSTANCE}] Email error:`, err.message);
+  }
+}
 
 // ── ThingsBoard REST ───────────────────────────────────────────────────────────
 
@@ -260,15 +305,51 @@ function formatMs(ms) {
 // ── Alert / Resolution config ─────────────────────────────────────────────────
 
 const ALERT_CFG = {
-  [CAT.IDLE]:       { subject: "Machine Idle",       body: (n, t, time) => `Machine – "${n}" is Idle for more than ${t} (at ${time})`,        icon: "info",    color: "#F59E0B" },
-  [CAT.ALARM]:      { subject: "Machine Alarm",      body: (n, t, time) => `Machine – "${n}" alarm active for more than ${t} (at ${time})`,   icon: "warning", color: "#DC2626" },
-  [CAT.DISCONNECT]: { subject: "Machine Disconnect", body: (n, t, time) => `Machine – "${n}" disconnected for more than ${t} (at ${time})`,   icon: "warning", color: "#B91C1C" },
+  [CAT.IDLE]:       {
+    subject: "Machine Idle",
+    body: (n, t, time) => `Machine – "${n}" is Idle for more than ${t} (at ${time})`,
+    emailBody: (n, t, time) => `<p>Machine <strong>"${n}"</strong> is Idle for more than ${t}</p><p>Time: ${time}</p>`,
+    icon: "info",
+    color: "#F59E0B"
+  },
+  [CAT.ALARM]:      {
+    subject: "Machine Alarm",
+    body: (n, t, time) => `Machine – "${n}" alarm active for more than ${t} (at ${time})`,
+    emailBody: null,
+    icon: "warning",
+    color: "#DC2626"
+  },
+  [CAT.DISCONNECT]: {
+    subject: "Machine Disconnect",
+    body: (n, t, time) => `Machine – "${n}" disconnected for more than ${t} (at ${time})`,
+    emailBody: null,
+    icon: "warning",
+    color: "#B91C1C"
+  },
 };
 
 const RESOLVE_CFG = {
-  [CAT.IDLE]:       { subject: "Machine Idle Resolved",       body: (n) => `Machine – "${n}" idle condition resolved. Machine is running`,   icon: "check", color: "#16A34A" },
-  [CAT.ALARM]:      { subject: "Machine Alarm Resolved",      body: (n) => `Machine – "${n}" alarm resolved. Machine is ready for operation`, icon: "check", color: "#16A34A" },
-  [CAT.DISCONNECT]: { subject: "Machine Disconnect Resolved", body: (n) => `Machine – "${n}" disconnection resolved`,                        icon: "check", color: "#16A34A" },
+  [CAT.IDLE]:       {
+    subject: "Machine Idle Resolved",
+    body: (n) => `Machine – "${n}" idle condition resolved. Machine is running`,
+    emailBody: (n) => `<p>Machine <strong>"${n}"</strong> idle condition resolved.</p><p>Machine is now running.</p>`,
+    icon: "check",
+    color: "#16A34A"
+  },
+  [CAT.ALARM]:      {
+    subject: "Machine Alarm Resolved",
+    body: (n) => `Machine – "${n}" alarm resolved. Machine is ready for operation`,
+    emailBody: null,
+    icon: "check",
+    color: "#16A34A"
+  },
+  [CAT.DISCONNECT]: {
+    subject: "Machine Disconnect Resolved",
+    body: (n) => `Machine – "${n}" disconnection resolved`,
+    emailBody: null,
+    icon: "check",
+    color: "#16A34A"
+  },
 };
 
 // ── Alert fire ────────────────────────────────────────────────────────────────
@@ -279,8 +360,14 @@ async function fireAlert(deviceId) {
   state.timer = null;
 
   const category = state.pendingCategory;
-  if (!category || !ALERT_CATS.has(category)) return;
-  if (state.alertSent === category) return;
+  if (!category || !ALERT_CATS.has(category)) {
+    console.log(`[${ts()}] [${TB_INSTANCE}] ${state.name} fireAlert skipped: invalid category ${category}`);
+    return;
+  }
+  if (state.alertSent === category) {
+    console.log(`[${ts()}] [${TB_INSTANCE}] ${state.name} fireAlert skipped: alert already sent for ${category}`);
+    return;
+  }
 
   const cfg = ALERT_CFG[category];
   const thresholdMs =
@@ -294,6 +381,11 @@ async function fireAlert(deviceId) {
 
   const fireTime = new Date().toLocaleTimeString();
   await sendNotification(state.customerId, cfg.subject, cfg.body(state.name, thresholdStr, fireTime), cfg.icon, cfg.color);
+
+  // Send email only for IDLE alerts to configured customers
+  if (category === CAT.IDLE && shouldSendEmailForCustomer(state.customerTitle) && cfg.emailBody) {
+    await sendEmail(cfg.subject, cfg.emailBody(state.name, thresholdStr, fireTime));
+  }
 }
 
 // ── Resolution ────────────────────────────────────────────────────────────────
@@ -393,7 +485,7 @@ async function onMachineStatus(deviceId, value, eventTs) {
   const delay = Math.max(0, triggerTs - Date.now());
   state.pendingCategory = category;
   state.timer = setTimeout(() => fireAlert(deviceId), delay);
-  console.log(`[${ts()}] [${TB_INSTANCE}] ${state.customerTitle}/${state.name}: ${category} — alert fires in ${Math.round(delay / 1000)}s`);
+  console.log(`[${ts()}] [${TB_INSTANCE}] ${state.customerTitle}/${state.name}: ${category} — alert scheduled in ${Math.round(delay / 1000)}s (threshold: ${formatMs(thresholdMs)})`);
 }
 
 // ── Startup timer seeding ─────────────────────────────────────────────────────

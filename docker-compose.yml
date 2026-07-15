@@ -10,15 +10,23 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: status-threshold
-    image: dharshiniradhakrishnan/status-threshold:v0.1
+    image: dharshiniradhakrishnan/status-threshold:v0.2
     restart: unless-stopped
 
     environment:
-      - TB_BASE_URL=http://yantra24x7.cloud:8080
-      - TB_USERNAME=pms@gmail.com
-      - TB_PASSWORD=pmspms
-      - TB_INSECURE_TLS=1
-      - MQTT_BROKER=mqtt://yantra24x7.cloud:1884
-      - MQTT_TOPIC=test/#
-      - macro_customer=ca71d920-4d2a-11f1-9352-592ed2a7210c
-      - NODE_ENV=development
+      # Shifts in ThingsBoard are defined in IST; the monitor's shift math uses
+      # local time, so the container must run in IST or alerts get wrongly
+      # skipped as "crosses shift boundary".
+      - TZ=Asia/Kolkata
+      - NODE_ENV=production
+
+    env_file:
+      - .env
+
+    # Optional: override specific env vars if needed
+    # environment:
+    #   - TB_BASE_URL=http://smart.yantra24x7.com:8080
+    #   - customer_name=Precicraft CNC Works
+    #   - email_from=your-email@gmail.com
+    #   - email_pass=your-app-password
+    #   - email_to=recipient1@example.com,recipient2@example.com
