@@ -15,7 +15,7 @@ const TB_PASSWORD = process.env.TB_PASSWORD;
 const TB_INSECURE_TLS = String(process.env.TB_INSECURE_TLS || "") === "1";
 const TB_INSTANCE = process.env.TB_INSTANCE || "TB1";
 
-const CUSTOMER_NAME_CONFIG = (process.env.customer_name || "").trim();
+const CUSTOMER_ID_CONFIG = (process.env.customer_id || "").trim();
 const EMAIL_FROM = process.env.email_from || "";
 const EMAIL_PASS = process.env.email_pass || "";
 const EMAIL_TO_RAW = process.env.email_to || "";
@@ -55,11 +55,11 @@ function auth(extra = {}) {
   return { "X-Authorization": `Bearer ${token}`, ...extra };
 }
 
-function shouldSendEmailForCustomer(customerTitle) {
-  if (!SMART_SERVER_ENABLED || !emailTransporter || !CUSTOMER_NAME_CONFIG) return false;
-  if (CUSTOMER_NAME_CONFIG.toLowerCase() === "all") return true;
-  const configuredCustomers = CUSTOMER_NAME_CONFIG.split(",").map(c => c.trim().toLowerCase());
-  return configuredCustomers.includes(customerTitle.toLowerCase());
+function shouldSendEmailForCustomer(customerId) {
+  if (!SMART_SERVER_ENABLED || !emailTransporter || !CUSTOMER_ID_CONFIG) return false;
+  if (CUSTOMER_ID_CONFIG.toLowerCase() === "all") return true;
+  const configuredCustomerIds = CUSTOMER_ID_CONFIG.split(",").map(c => c.trim());
+  return configuredCustomerIds.includes(customerId);
 }
 
 async function sendEmail(subject, body) {
@@ -260,7 +260,7 @@ async function triggerTestAlert() {
         const webSent = await sendNotification(customerId, subject, body, "info", "#F59E0B");
 
         // Send email if customer is configured
-        const shouldEmail = shouldSendEmailForCustomer(customer.title);
+        const shouldEmail = shouldSendEmailForCustomer(customerId);
         console.log(`    Email eligible for customer "${customer.title}": ${shouldEmail ? "✓ Yes" : "✗ No"}`);
         if (shouldEmail) {
           await sendEmail(subject, emailBody);

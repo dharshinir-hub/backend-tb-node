@@ -20,7 +20,7 @@ const TB_INSECURE_TLS = String(process.env.TB_INSECURE_TLS || "") === "1";
 const TB_INSTANCE = process.env.TB_INSTANCE || "TB1";
 
 // Email and customer configuration
-const CUSTOMER_NAME_CONFIG = (process.env.customer_name || "").trim();
+const CUSTOMER_ID_CONFIG = (process.env.customer_id || "").trim();
 const EMAIL_FROM = process.env.email_from || "";
 const EMAIL_PASS = process.env.email_pass || "";
 const EMAIL_TO_RAW = process.env.email_to || "";
@@ -82,13 +82,13 @@ function ts() { return new Date().toISOString(); }
 
 // ── Customer filtering ─────────────────────────────────────────────────────────
 
-function shouldSendEmailForCustomer(customerTitle) {
-  if (!SMART_SERVER_ENABLED || !emailTransporter || !CUSTOMER_NAME_CONFIG) return false;
+function shouldSendEmailForCustomer(customerId) {
+  if (!SMART_SERVER_ENABLED || !emailTransporter || !CUSTOMER_ID_CONFIG) return false;
 
-  if (CUSTOMER_NAME_CONFIG.toLowerCase() === "all") return true;
+  if (CUSTOMER_ID_CONFIG.toLowerCase() === "all") return true;
 
-  const configuredCustomers = CUSTOMER_NAME_CONFIG.split(",").map(c => c.trim().toLowerCase());
-  return configuredCustomers.includes(customerTitle.toLowerCase());
+  const configuredCustomerIds = CUSTOMER_ID_CONFIG.split(",").map(c => c.trim());
+  return configuredCustomerIds.includes(customerId);
 }
 
 async function sendEmail(subject, body) {
@@ -233,7 +233,12 @@ function parseThresholdMs(attrValue) {
   let obj = attrValue;
   if (typeof obj === "string") obj = safeJsonParse(obj);
   if (!obj || typeof obj !== "object") return null;
-  if ((obj.mode || "").toLowerCase() !== "enabled") return null;
+
+  // Check if explicitly disabled
+  const mode = (obj.mode || "").toLowerCase().trim();
+  if (mode === "disabled") return null;
+  if (mode !== "enabled") return null;
+
   const sec = Number(obj.threshold);
   if (!isFinite(sec) || sec <= 0) return null;
   return sec * 1000;
@@ -380,11 +385,16 @@ async function fireAlert(deviceId) {
   state.alertSent = category;
 
   const fireTime = new Date().toLocaleTimeString();
-  await sendNotification(state.customerId, cfg.subject, cfg.body(state.name, thresholdStr, fireTime), cfg.icon, cfg.color);
 
-  // Send email only for IDLE alerts to configured customers
-  if (category === CAT.IDLE && shouldSendEmailForCustomer(state.customerTitle) && cfg.emailBody) {
-    await sendEmail(cfg.subject, cfg.emailBody(state.name, thresholdStr, fireTime));
+  // Send notifications ONLY to configured customers
+  if (shouldSendEmailForCustomer(state.customerId)) {
+    // Send web notification
+    await sendNotification(state.customerId, cfg.subject, cfg.body(state.name, thresholdStr, fireTime), cfg.icon, cfg.color);
+
+    // Send email only for IDLE alerts
+    if (category === CAT.IDLE && cfg.emailBody) {
+      await sendEmail(cfg.subject, cfg.emailBody(state.name, thresholdStr, fireTime));
+    }
   }
 }
 
@@ -401,7 +411,10 @@ async function sendResolution(deviceId, prevCategory, newCategory) {
   console.log(`[${ts()}] [${TB_INSTANCE}] RESOLVED — ${state.customerTitle}/${state.name}: ${cfg.subject}`);
   state.alertSent = null;
 
-  await sendNotification(state.customerId, cfg.subject, cfg.body(state.name), cfg.icon, cfg.color);
+  // Send resolution notifications ONLY to configured customers
+  if (shouldSendEmailForCustomer(state.customerId)) {
+    await sendNotification(state.customerId, cfg.subject, cfg.body(state.name), cfg.icon, cfg.color);
+  }
 }
 
 // ── Core status handler ───────────────────────────────────────────────────────
@@ -426,9 +439,24 @@ async function onMachineStatus(deviceId, value, eventTs) {
     state.allShift = Array.isArray(raw) ? raw : [];
 
     const attrMap = Object.fromEntries(devAttrs.map((a) => [a.key, a.value]));
-    state.idleThresholdMs       = parseThresholdMs(attrMap.idle_threshold)       ?? state.idleThresholdMs;
-    state.alarmThresholdMs      = parseThresholdMs(attrMap.alarm_threshold)      ?? state.alarmThresholdMs;
-    state.disconnectThresholdMs = parseThresholdMs(attrMap.disconnect_threshold) ?? state.disconnectThresholdMs;
+
+    // Dynamically load threshold based on CURRENT status only
+    if (category === CAT.IDLE) {
+      const idleThreshold = parseThresholdMs(attrMap.idle_threshold);
+      if (idleThreshold !== null) {
+        state.idleThresholdMs = idleThreshold;
+      }
+    } else if (category === CAT.ALARM) {
+      const alarmThreshold = parseThresholdMs(attrMap.alarm_threshold);
+      if (alarmThreshold !== null) {
+        state.alarmThresholdMs = alarmThreshold;
+      }
+    } else if (category === CAT.DISCONNECT) {
+      const disconnectThreshold = parseThresholdMs(attrMap.disconnect_threshold);
+      if (disconnectThreshold !== null) {
+        state.disconnectThresholdMs = disconnectThreshold;
+      }
+    }
   } catch { }
 
   const prevCategory = state.currentCategory;

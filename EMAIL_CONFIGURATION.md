@@ -6,7 +6,9 @@ The system now supports sending email notifications for **IDLE alerts only** to 
 ## Features
 - **Web Notifications**: idle, alarm, disconnect (always sent)
 - **Email Notifications**: idle only (optional, customer-specific)
-- **Customer Filtering**: Configure which customers receive email notifications
+- **Customer Filtering**: Use `customer_id` to configure which customers receive email notifications
+- **Single or Multiple Customers**: Configure 1, 2, 3+ customer IDs or "all"
+- **Single or Multiple Recipients**: Send to 1, 2, 3+ email addresses
 - **Smart Server Check**: Email feature only activates when using `smart.yantra` server
 
 ## Environment Configuration
@@ -32,8 +34,8 @@ customer_name=Precicraft CNC Works
 |----------|----------|-------------|---------|
 | `email_from` | Yes* | Gmail sender address (Gmail only) | `dharshini.r@yantra24x7.com` |
 | `email_pass` | Yes* | Gmail app password (not regular password) | `najcywkebsmjnyjb` |
-| `email_to` | Yes* | Recipient email(s) - supports multiple emails | `email@example.com` or `email1@example.com,email2@example.com,email3@example.com` |
-| `customer_name` | Yes* | Customer(s) to receive emails. Use "all" for all customers, or comma-separated list | `"all"` or `"Precicraft CNC Works,Another Customer"` |
+| `email_to` | Yes* | Recipient email(s) - supports multiple emails | `email@example.com` or `email1@example.com,email2@example.com` |
+| `customer_id` | Yes* | Customer ID(s) to receive emails. Use "all" for all customers, or comma-separated list of customer IDs | `"all"` or `"3715db10-7f4b-11f1-888d-a10fa2470882,5280e020-1a3c-40a2-b123-cd1234567890"` |
 | `TB_BASE_URL` | Auto | Must contain "smart.yantra" for email feature to activate | Must be `http://smart.yantra...` |
 
 **\* Only required if you want email notifications enabled**
@@ -71,41 +73,41 @@ The email feature **only activates** if:
 
 ## Example Configurations
 
-### Example 1: Single Email Address
+### Example 1: Single Customer (Single Email)
 ```env
-email_from=dharshini.r@yantra24x7.com
-email_pass=najcywkebsmjnyjb
-email_to=anushika@yantra24x7.com
-customer_name=Precicraft CNC Works
+email_from=yantra.implementation@gmail.com
+email_pass=your-app-password
+email_to=admin@company.com
+customer_id=3715db10-7f4b-11f1-888d-a10fa2470882
 ```
-Result: Precicraft CNC Works' idle alerts send to 1 recipient
+Result: Only this customer's idle alerts send to 1 recipient
 
-### Example 2: Multiple Email Addresses
+### Example 2: Single Customer (Multiple Emails) - CURRENT
 ```env
-email_from=dharshini.r@yantra24x7.com
-email_pass=najcywkebsmjnyjb
-email_to=thooyavan.venkatachalam@yantra24x7.com,manikandan@yantra24x7.com,admin@yantra24x7.com
-customer_name=Precicraft CNC Works
+email_from=yantra.implementation@gmail.com
+email_pass=acaxcjxftvzagtou
+email_to=thooyavan.venkatachalam@yantra24x7.com,manikandan@yantra24x7.com,dharshini.r@yantra24x7.com
+customer_id=3715db10-7f4b-11f1-888d-a10fa2470882
 ```
-Result: Precicraft CNC Works' idle alerts send to 3 recipients
+Result: Only this customer's idle alerts send to 3 recipients
 
-### Example 3: All Customers + Multiple Emails
+### Example 3: Multiple Customers (Multiple Emails)
 ```env
-email_from=dharshini.r@yantra24x7.com
-email_pass=najcywkebsmjnyjb
+email_from=yantra.implementation@gmail.com
+email_pass=your-app-password
+email_to=team1@example.com,team2@example.com
+customer_id=3715db10-7f4b-11f1-888d-a10fa2470882,5280e020-1a3c-40a2-b123-cd1234567890
+```
+Result: Only these 2 customers' idle alerts send to 2 recipients
+
+### Example 4: All Customers (Multiple Emails)
+```env
+email_from=yantra.implementation@gmail.com
+email_pass=your-app-password
 email_to=email1@example.com,email2@example.com
-customer_name=all
+customer_id=all
 ```
 Result: All customers' idle alerts send to 2 recipients
-
-### Example 4: Multiple Customers + Multiple Emails
-```env
-email_from=dharshini.r@yantra24x7.com
-email_pass=najcywkebsmjnyjb
-email_to=team1@example.com,team2@example.com
-customer_name=Precicraft CNC Works,ABC Manufacturing,XYZ Factory
-```
-Result: These 3 customers' idle alerts send to 2 recipients
 
 ### Example 3: No Email (Default)
 ```env
