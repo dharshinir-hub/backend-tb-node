@@ -22,6 +22,7 @@ const TB_INSTANCE = process.env.TB_INSTANCE || "TB1";
 // Email and customer configuration
 const CUSTOMER_ID_CONFIG = (process.env.customer_id || "").trim();
 const EMAIL_FROM = process.env.email_from || "";
+const EMAIL_FROM_NAME = process.env.email_from_name || "Yantra IoT Alerts";
 const EMAIL_PASS = process.env.email_pass || "";
 const EMAIL_TO_RAW = process.env.email_to || "";
 const EMAIL_TO_LIST = EMAIL_TO_RAW.split(",").map(e => e.trim()).filter(e => e.length > 0);
@@ -97,7 +98,7 @@ async function sendEmail(subject, body) {
   try {
     const toList = EMAIL_TO_LIST.join(", ");
     await emailTransporter.sendMail({
-      from: EMAIL_FROM,
+      from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,
       to: toList,
       subject,
       html: body,
@@ -298,13 +299,21 @@ function isWithinShift(allShift, eventTimeMs, triggerTimeMs) {
 
 function formatMs(ms) {
   const totalSec = Math.round(ms / 1000);
-  if (totalSec < 60) return `${totalSec} seconds`;
+  if (totalSec < 60) return `${totalSec} second${totalSec === 1 ? "" : "s"}`;
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
-  if (min < 60) return sec ? `${min} min ${sec} sec` : `${min} minutes`;
+  if (min < 60) {
+    if (!sec) return `${min} minute${min === 1 ? "" : "s"}`;
+    return `${min} min ${sec} second${sec === 1 ? "" : "s"}`;
+  }
   const hr = Math.floor(min / 60);
   const remMin = min % 60;
-  return remMin ? `${hr} hr ${remMin} min` : `${hr} hours`;
+  if (!remMin) return `${hr} hour${hr === 1 ? "" : "s"}`;
+  return `${hr} hour${hr === 1 ? "" : "s"} ${remMin} min`;
+}
+
+function titleCase(str) {
+  return str.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ── Alert / Resolution config ─────────────────────────────────────────────────
@@ -313,7 +322,18 @@ const ALERT_CFG = {
   [CAT.IDLE]:       {
     subject: "Machine Idle",
     body: (n, t, time) => `Machine – "${n}" is Idle for more than ${t} (at ${time})`,
-    emailBody: (n, t, time) => `<p>Machine <strong>"${n}"</strong> is Idle for more than ${t}</p><p>Time: ${time}</p>`,
+    emailSubject: (n, t) => `[Machine Idle Alert] ${n} - Idle for More Than ${titleCase(t)}`,
+    emailBody: (n, t, time, date) => `<p>Dear Customer,</p>
+<p>This is an automated notification from Yantra24x7.</p>
+<p>The following machine has been in IDLE status for more than the idle threshold time.</p>
+<pre style="font-family: monospace, monospace; font-size: 14px; margin: 0;">Machine Name : ${n}
+Status       : Idle
+Idle Duration: More than ${t}
+
+Time         : ${time}
+Date         : ${date}</pre>
+<p>Please verify the machine status and take the necessary action if required.</p>
+<p>Regards,<br/>Yantra24x7 Smart Factory<br/>Automated Notification</p>`,
     icon: "info",
     color: "#F59E0B"
   },
@@ -385,6 +405,7 @@ async function fireAlert(deviceId) {
   state.alertSent = category;
 
   const fireTime = new Date().toLocaleTimeString();
+  const fireDate = new Date().toLocaleDateString();
 
   // Send notifications ONLY to configured customers
   if (shouldSendEmailForCustomer(state.customerId)) {
@@ -393,7 +414,7 @@ async function fireAlert(deviceId) {
 
     // Send email only for IDLE alerts
     if (category === CAT.IDLE && cfg.emailBody) {
-      await sendEmail(cfg.subject, cfg.emailBody(state.name, thresholdStr, fireTime));
+      await sendEmail(cfg.emailSubject(state.name, thresholdStr), cfg.emailBody(state.name, thresholdStr, fireTime, fireDate));
     }
   }
 }

@@ -18,6 +18,7 @@ Add the following to your `.env` file:
 ```env
 # Email notification settings
 email_from=your-email@gmail.com
+email_from_name=Yantra IoT Alerts
 email_pass=your-app-password
 email_to=recipient@company.com
 
@@ -33,6 +34,7 @@ customer_name=Precicraft CNC Works
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
 | `email_from` | Yes* | Gmail sender address (Gmail only) | `dharshini.r@yantra24x7.com` |
+| `email_from_name` | No | Friendly "From" name shown to recipients instead of the raw address. Defaults to `Yantra IoT Alerts` | `Yantra IoT Alerts` |
 | `email_pass` | Yes* | Gmail app password (not regular password) | `najcywkebsmjnyjb` |
 | `email_to` | Yes* | Recipient email(s) - supports multiple emails | `email@example.com` or `email1@example.com,email2@example.com` |
 | `customer_id` | Yes* | Customer ID(s) to receive emails. Use "all" for all customers, or comma-separated list of customer IDs | `"all"` or `"3715db10-7f4b-11f1-888d-a10fa2470882,5280e020-1a3c-40a2-b123-cd1234567890"` |
@@ -58,6 +60,34 @@ The email feature **only activates** if:
 #### IDLE Alerts
 - **Web**: Sent to all admin users (as before)
 - **Email**: Sent to configured recipient only if customer is in the filter
+
+**Email subject:**
+```
+[Machine Idle Alert] <Device Name> - Idle for More Than <Idle Duration>
+```
+Example: `[Machine Idle Alert] PCW-VMC-02 - Idle for More Than 10 Minutes`
+
+**Email body:**
+```
+Dear Customer,
+
+This is an automated notification from Yantra24x7.
+
+The following machine has been in IDLE status for more than the idle threshold time.
+
+Machine Name : <Device Name>
+Status       : Idle
+Idle Duration: More than <Idle Duration>
+
+Time         : <Alert Time>
+Date         : <Alert Date>
+
+Please verify the machine status and take the necessary action if required.
+
+Regards,
+Yantra24x7 Smart Factory
+Automated Notification
+```
 
 #### ALARM Alerts
 - **Web**: Sent to all admin users (as before)
