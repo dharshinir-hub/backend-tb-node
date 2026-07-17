@@ -10,6 +10,7 @@ const WebSocket = require("ws");
 const axios = require("axios");
 const https = require("https");
 const path = require("path");
+const fs = require("fs");
 const nodemailer = require("nodemailer");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
@@ -50,6 +51,33 @@ let cmdIdCounter = 1;
 
 const CAT = { IDLE: "IDLE", RUNNING: "RUNNING", ALARM: "ALARM", DISCONNECT: "DISCONNECT" };
 const ALERT_CATS = new Set([CAT.IDLE, CAT.ALARM, CAT.DISCONNECT]);
+
+// ── Alert dedup persistence ────────────────────────────────────────────────────
+// Survives process restarts (unlike state.alertSent) so a redeploy while a
+// device is already alarmed/idle/disconnected past threshold doesn't re-send
+// an alert that was already sent for the same ongoing streak.
+
+const ALERT_STATE_FILE = path.join(__dirname, "..", "data", "alert-state.json");
+
+function loadAlertHistory() {
+  try {
+    const obj = JSON.parse(fs.readFileSync(ALERT_STATE_FILE, "utf8"));
+    return new Map(Object.entries(obj));
+  } catch {
+    return new Map();
+  }
+}
+
+function saveAlertHistory() {
+  try {
+    fs.mkdirSync(path.dirname(ALERT_STATE_FILE), { recursive: true });
+    fs.writeFileSync(ALERT_STATE_FILE, JSON.stringify(Object.fromEntries(alertHistory)), "utf8");
+  } catch (err) {
+    console.error(`[${ts()}] [${TB_INSTANCE}] Failed to persist alert history:`, err.message);
+  }
+}
+
+const alertHistory = loadAlertHistory(); // deviceId → { category, enteredTs }
 
 function classifyStatus(value) {
   const v = Number(value);
@@ -323,12 +351,12 @@ const ALERT_CFG = {
     subject: "Machine Idle",
     body: (n, t, time) => `Machine – "${n}" is Idle for more than ${t} (at ${time})`,
     emailSubject: (n, t) => `[Machine Idle Alert] ${n} - Idle for More Than ${titleCase(t)}`,
-    emailBody: (n, t, time, date, idleStart, idleEnd) => `<p>Dear Customer,</p>
+    emailBody: (n, t, time, date, start, end) => `<p>Dear Customer,</p>
 <p>This is an automated notification from Yantra24x7.</p>
 <p>The following machine has been in IDLE status for more than the idle threshold time.</p>
 <pre style="font-family: monospace, monospace; font-size: 14px; margin: 0;">Machine Name : ${n}
 Status       : Idle
-Idle Duration: ${idleStart} to ${idleEnd}
+Idle Duration: ${start} to ${end} (More than ${t})
 
 Time         : ${time}
 Date         : ${date}</pre>
@@ -340,14 +368,36 @@ Date         : ${date}</pre>
   [CAT.ALARM]:      {
     subject: "Machine Alarm",
     body: (n, t, time) => `Machine – "${n}" alarm active for more than ${t} (at ${time})`,
-    emailBody: null,
+    emailSubject: (n, t) => `[Machine Alarm Alert] ${n} - Alarm for More Than ${titleCase(t)}`,
+    emailBody: (n, t, time, date, start, end) => `<p>Dear Customer,</p>
+<p>This is an automated notification from Yantra24x7.</p>
+<p>The following machine has been in ALARM status for more than the alarm threshold time.</p>
+<pre style="font-family: monospace, monospace; font-size: 14px; margin: 0;">Machine Name  : ${n}
+Status        : Alarm
+Alarm Duration: ${start} to ${end} (More than ${t})
+
+Time          : ${time}
+Date          : ${date}</pre>
+<p>Please verify the machine status and take the necessary action if required.</p>
+<p>Regards,<br/>Yantra24x7 Smart Factory<br/>Automated Notification</p>`,
     icon: "warning",
     color: "#DC2626"
   },
   [CAT.DISCONNECT]: {
     subject: "Machine Disconnect",
     body: (n, t, time) => `Machine – "${n}" disconnected for more than ${t} (at ${time})`,
-    emailBody: null,
+    emailSubject: (n, t) => `[Machine Disconnect Alert] ${n} - Disconnect for More Than ${titleCase(t)}`,
+    emailBody: (n, t, time, date, start, end) => `<p>Dear Customer,</p>
+<p>This is an automated notification from Yantra24x7.</p>
+<p>The following machine has been in DISCONNECT status for more than the disconnect threshold time.</p>
+<pre style="font-family: monospace, monospace; font-size: 14px; margin: 0;">Machine Name       : ${n}
+Status             : Disconnect
+Disconnect Duration: ${start} to ${end} (More than ${t})
+
+Time               : ${time}
+Date               : ${date}</pre>
+<p>Please verify the machine status and take the necessary action if required.</p>
+<p>Regards,<br/>Yantra24x7 Smart Factory<br/>Automated Notification</p>`,
     icon: "warning",
     color: "#B91C1C"
   },
@@ -394,6 +444,13 @@ async function fireAlert(deviceId) {
     return;
   }
 
+  const prevAlert = alertHistory.get(deviceId);
+  if (prevAlert && prevAlert.category === category && prevAlert.enteredTs === state.categoryEnteredTs) {
+    console.log(`[${ts()}] [${TB_INSTANCE}] ${state.name} fireAlert skipped: already alerted for this ${category} streak (persisted across restart)`);
+    state.alertSent = category;
+    return;
+  }
+
   const cfg = ALERT_CFG[category];
   const thresholdMs =
     category === CAT.IDLE       ? state.idleThresholdMs :
@@ -403,6 +460,8 @@ async function fireAlert(deviceId) {
 
   console.log(`[${ts()}] [${TB_INSTANCE}] ALERT — ${state.customerTitle}/${state.name}: ${cfg.subject}`);
   state.alertSent = category;
+  alertHistory.set(deviceId, { category, enteredTs: state.categoryEnteredTs });
+  saveAlertHistory();
 
   const fireTime = new Date().toLocaleTimeString();
   const fireDate = new Date().toLocaleDateString();
@@ -412,13 +471,13 @@ async function fireAlert(deviceId) {
     // Send web notification
     await sendNotification(state.customerId, cfg.subject, cfg.body(state.name, thresholdStr, fireTime), cfg.icon, cfg.color);
 
-    // Send email only for IDLE alerts
-    if (category === CAT.IDLE && cfg.emailBody) {
-      const idleStartTime = state.categoryEnteredTs ? new Date(state.categoryEnteredTs).toLocaleTimeString() : "";
-      const idleEndTime = state.categoryEnteredTs && thresholdMs
+    // Send email for any category with an email template configured
+    if (cfg.emailBody) {
+      const startTime = state.categoryEnteredTs ? new Date(state.categoryEnteredTs).toLocaleTimeString() : "";
+      const endTime = state.categoryEnteredTs && thresholdMs
         ? new Date(state.categoryEnteredTs + thresholdMs).toLocaleTimeString()
         : "";
-      await sendEmail(cfg.emailSubject(state.name, thresholdStr), cfg.emailBody(state.name, thresholdStr, fireTime, fireDate, idleStartTime, idleEndTime));
+      await sendEmail(cfg.emailSubject(state.name, thresholdStr), cfg.emailBody(state.name, thresholdStr, fireTime, fireDate, startTime, endTime));
     }
   }
 }

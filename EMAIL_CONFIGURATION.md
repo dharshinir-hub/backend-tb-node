@@ -77,7 +77,7 @@ The following machine has been in IDLE status for more than the idle threshold t
 
 Machine Name : <Device Name>
 Status       : Idle
-Idle Duration: <Idle Start Time> to <Idle End Time>
+Idle Duration: <Start Time> to <End Time> (More than <Threshold>)
 
 Time         : <Alert Time>
 Date         : <Alert Date>
@@ -91,11 +91,15 @@ Automated Notification
 
 #### ALARM Alerts
 - **Web**: Sent to all admin users (as before)
-- **Email**: NOT sent
+- **Email**: Sent to configured recipient only if customer is in the filter (same format as IDLE, with "Idle"/"Idle Duration" replaced by "Alarm"/"Alarm Duration")
+
+Example subject: `[Machine Alarm Alert] PCW-VMC-02 - Alarm for More Than 10 Minutes`
 
 #### DISCONNECT Alerts
 - **Web**: Sent to all admin users (as before)
-- **Email**: NOT sent
+- **Email**: Sent to configured recipient only if customer is in the filter (same format as IDLE, with "Idle"/"Idle Duration" replaced by "Disconnect"/"Disconnect Duration")
+
+Example subject: `[Machine Disconnect Alert] PCW-VMC-02 - Disconnect for More Than 10 Minutes`
 
 #### All Resolutions (Idle/Alarm/Disconnect Resolved)
 - **Web**: Sent to all admin users (as before)

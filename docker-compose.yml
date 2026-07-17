@@ -23,6 +23,13 @@ services:
     env_file:
       - .env
 
+    volumes:
+      # Persists alert-dedup state (data/alert-state.json) across container
+      # restarts, so a redeploy while a device is already alarmed/idle/
+      # disconnected past threshold doesn't re-send an alert for the same
+      # ongoing streak.
+      - ./data:/app/data
+
     # Optional: override specific env vars if needed
     # environment:
     #   - TB_BASE_URL=http://smart.yantra24x7.com:8080
