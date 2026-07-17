@@ -77,7 +77,7 @@ The following machine has been in IDLE status for more than the idle threshold t
 
 Machine Name : <Device Name>
 Status       : Idle
-Idle Duration: More than <Idle Duration>
+Idle Duration: <Idle Start Time> to <Idle End Time>
 
 Time         : <Alert Time>
 Date         : <Alert Date>

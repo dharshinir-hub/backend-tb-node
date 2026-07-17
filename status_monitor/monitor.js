@@ -323,12 +323,12 @@ const ALERT_CFG = {
     subject: "Machine Idle",
     body: (n, t, time) => `Machine – "${n}" is Idle for more than ${t} (at ${time})`,
     emailSubject: (n, t) => `[Machine Idle Alert] ${n} - Idle for More Than ${titleCase(t)}`,
-    emailBody: (n, t, time, date) => `<p>Dear Customer,</p>
+    emailBody: (n, t, time, date, idleStart, idleEnd) => `<p>Dear Customer,</p>
 <p>This is an automated notification from Yantra24x7.</p>
 <p>The following machine has been in IDLE status for more than the idle threshold time.</p>
 <pre style="font-family: monospace, monospace; font-size: 14px; margin: 0;">Machine Name : ${n}
 Status       : Idle
-Idle Duration: More than ${t}
+Idle Duration: ${idleStart} to ${idleEnd}
 
 Time         : ${time}
 Date         : ${date}</pre>
@@ -414,7 +414,11 @@ async function fireAlert(deviceId) {
 
     // Send email only for IDLE alerts
     if (category === CAT.IDLE && cfg.emailBody) {
-      await sendEmail(cfg.emailSubject(state.name, thresholdStr), cfg.emailBody(state.name, thresholdStr, fireTime, fireDate));
+      const idleStartTime = state.categoryEnteredTs ? new Date(state.categoryEnteredTs).toLocaleTimeString() : "";
+      const idleEndTime = state.categoryEnteredTs && thresholdMs
+        ? new Date(state.categoryEnteredTs + thresholdMs).toLocaleTimeString()
+        : "";
+      await sendEmail(cfg.emailSubject(state.name, thresholdStr), cfg.emailBody(state.name, thresholdStr, fireTime, fireDate, idleStartTime, idleEndTime));
     }
   }
 }
