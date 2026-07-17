@@ -524,22 +524,15 @@ async function onMachineStatus(deviceId, value, eventTs) {
 
     const attrMap = Object.fromEntries(devAttrs.map((a) => [a.key, a.value]));
 
-    // Dynamically load threshold based on CURRENT status only
+    // Dynamically load threshold based on CURRENT status only.
+    // Always overwrite (even with null) so disabling a threshold takes
+    // effect immediately instead of leaving the last-enabled value cached.
     if (category === CAT.IDLE) {
-      const idleThreshold = parseThresholdMs(attrMap.idle_threshold);
-      if (idleThreshold !== null) {
-        state.idleThresholdMs = idleThreshold;
-      }
+      state.idleThresholdMs = parseThresholdMs(attrMap.idle_threshold);
     } else if (category === CAT.ALARM) {
-      const alarmThreshold = parseThresholdMs(attrMap.alarm_threshold);
-      if (alarmThreshold !== null) {
-        state.alarmThresholdMs = alarmThreshold;
-      }
+      state.alarmThresholdMs = parseThresholdMs(attrMap.alarm_threshold);
     } else if (category === CAT.DISCONNECT) {
-      const disconnectThreshold = parseThresholdMs(attrMap.disconnect_threshold);
-      if (disconnectThreshold !== null) {
-        state.disconnectThresholdMs = disconnectThreshold;
-      }
+      state.disconnectThresholdMs = parseThresholdMs(attrMap.disconnect_threshold);
     }
   } catch { }
 
