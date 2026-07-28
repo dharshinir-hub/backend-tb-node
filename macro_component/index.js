@@ -22,7 +22,6 @@ function normalizeComponent(raw) {
     operation_number: raw.operation_number ?? raw.operationNumber ?? "",
     sequences: Array.isArray(raw.sequences) ? raw.sequences : [],
   };
-  console.log(`[DEBUG NORMALIZE] Component ${normalized.component_number}: has_sequences=${Array.isArray(raw.sequences)}, sequences_count=${Array.isArray(raw.sequences) ? raw.sequences.length : 0}`);
   return normalized;
 }
 
@@ -147,8 +146,6 @@ function buildLiveComponent(component, startTs, endTs, wasShiftEnd = false) {
       });
   }
 
-  console.log(`[DEBUG COMPONENT] Building live component: code=${component.component_number}, sequences.length=${sequences.length}, raw=${JSON.stringify(component.sequences)}`);
-
   return {
     name: component.component_name || "",
     code: component.component_number || "",
@@ -217,8 +214,6 @@ class MacroComponentProcessor {
     const value = routecard?.value ?? routecard?.routecard_id ?? "";
     const events = [];
 
-    console.log(`[DEBUG COMPONENT] Incoming event: ts=${ts}, value=${value}, current.startTs=${this.current?.startTs}, has_current=${!!this.current}`);
-
     // Cancel any existing shift-end timer (new event means we reschedule)
     if (this.shiftEndTimer) {
       clearTimeout(this.shiftEndTimer);
@@ -226,32 +221,14 @@ class MacroComponentProcessor {
     }
 
     if (this.current && Number.isFinite(ts) && ts > this.current.startTs) {
-      // Check if previous was closed at shift end
-      const wasClosedAtShiftEnd = this.current.wasClosedAtShiftEnd || false;
-
-      if (wasClosedAtShiftEnd) {
-        // Previous was boundary record (closed at shift end)
-        // Close the boundary record with current routecard ts
-        const lc = buildLiveComponent(
-          this.current.component,
-          this.current.startTs,
-          ts,
-          true
-        );
-        events.push(toTelemetryRecord(lc));
-      } else {
-        // Previous was still open, close with shift boundaries
-        const segments = splitByShifts(this.current.startTs, ts, this.shifts);
-        for (const seg of segments) {
-          const lc = buildLiveComponent(
-            this.current.component,
-            seg.start,
-            seg.end,
-            false
-          );
-          events.push(toTelemetryRecord(lc));
-        }
-      }
+      // Close previous record directly at the new route_card ts (no shift splitting)
+      const lc = buildLiveComponent(
+        this.current.component,
+        this.current.startTs,
+        ts,
+        false
+      );
+      events.push(toTelemetryRecord(lc));
       this.current = null;
     }
 
@@ -259,7 +236,6 @@ class MacroComponentProcessor {
 
     // If component NOT found and there's an open record, close it
     if (!comp && Number.isFinite(ts) && this.current) {
-      console.log(`[DEBUG COMPONENT] Component ${value} NOT found, closing previous record with end_time=${ts}`);
       const lc = buildLiveComponent(
         this.current.component,
         this.current.startTs,
@@ -273,7 +249,6 @@ class MacroComponentProcessor {
     else if (comp && Number.isFinite(ts)) {
       const shiftEnd = this.findShiftEndTime(ts, this.shifts);
       const open = buildLiveComponent(comp, ts, shiftEnd, false);  // Open record: end_time = shift_end
-      console.log(`[DEBUG COMPONENT] Component ${value} found, creating open record`);
       events.push(toTelemetryRecord(open));
       this.current = {
         component: comp,
@@ -622,53 +597,42 @@ class MacroReasonProcessor {
       this.current = null;
     }
 
-    console.log(`[DEBUG REASON] handleReason: value=${value}, ts=${ts}, reasons.length=${this.reasons.length}`);
 
     const reason = findReasonByCode(this.reasons, value);
-    console.log(`[DEBUG REASON] findReasonByCode(${value}) returned: ${reason ? JSON.stringify(reason) : 'NULL'}`);
 
     if (reason && Number.isFinite(ts)) {
       // FIRST CHECK: Is the machine idle at this moment?
       // Priority: Check latest machine_status in memory FIRST (from recent MQTT event)
       // Then fall back to database array if needed
-      console.log(`[DEBUG REASON] latestMachineStatus in memory: ${this.latestMachineStatus ? `ts=${this.latestMachineStatus.ts}, value=${this.latestMachineStatus.value}` : 'NULL'}`);
 
       let statusAtReasonTime = null;
 
       // Check if latestMachineStatus in memory is recent enough (at or before reason_id time)
       if (this.latestMachineStatus && this.latestMachineStatus.ts <= ts) {
         statusAtReasonTime = this.latestMachineStatus.value;
-        console.log(`[DEBUG REASON] ✓ Using latest machine_status from memory: ts=${this.latestMachineStatus.ts}, value=${statusAtReasonTime}`);
       } else if (machineStatusArray && machineStatusArray.length > 0) {
         // Fall back to database array if no recent in-memory status
-        console.log(`[DEBUG REASON] Memory status not recent enough, scanning database array:`);
         // Array is in reverse order (newest first), so scan from oldest backward
         for (let i = machineStatusArray.length - 1; i >= 0; i--) {
           const statusTs = Number(machineStatusArray[i]?.ts);
           const statusVal = Number(machineStatusArray[i]?.value ?? machineStatusArray[i]);
-          console.log(`[DEBUG REASON]   [${i}] ts=${statusTs}, value=${statusVal}`);
           if (statusTs <= ts) {
             statusAtReasonTime = statusVal;
-            console.log(`[DEBUG REASON] ✓ Found matching status from DB: ts=${statusTs}, value=${statusAtReasonTime}`);
             break;
           }
         }
       } else {
-        console.log(`[DEBUG REASON] ✗ No machine_status data available (memory or DB)`);
       }
 
       // Check if machine is idle (0, 1, or 2)
       const isIdle = statusAtReasonTime !== null && (statusAtReasonTime === 0 || statusAtReasonTime === 1 || statusAtReasonTime === 2);
-      console.log(`[DEBUG REASON] statusAtReasonTime=${statusAtReasonTime}, isIdle=${isIdle}`);
 
       if (!isIdle) {
         // Machine is NOT idle, don't create a reason record
-        console.log(`[DEBUG REASON] ✗ Machine NOT idle (status=${statusAtReasonTime}), NOT creating record`);
         return events; // Return empty
       }
 
       // Machine IS idle, proceed to create record
-      console.log(`[DEBUG REASON] ✓ Machine IS idle, creating record`);
 
       // idle_start = when the IDLE SEQUENCE started (scan backwards from latest idle)
       // Find the first idle after non-idle transition
@@ -692,7 +656,6 @@ class MacroReasonProcessor {
           const idleStartTs = Number(machineStatusArray[idleStartIdx]?.ts);
           if (Number.isFinite(idleStartTs)) {
             actualIdleStart = idleStartTs;
-            console.log(`[DEBUG REASON] Found idle sequence start at index ${idleStartIdx}: ts=${actualIdleStart}`);
           }
         }
       }
@@ -700,7 +663,6 @@ class MacroReasonProcessor {
       const shiftEnd = this.findShiftEndTime(ts, this.shifts);
 
       const open = buildLiveReason(reason, actualIdleStart, 0, false);
-      console.log(`[DEBUG REASON] Created open record: idle_start=${actualIdleStart}, idle_end=0, reason=${reason.reason}`);
       events.push({
         ts: actualIdleStart,
         values: { live_reason: open },
@@ -714,9 +676,7 @@ class MacroReasonProcessor {
       };
       // Schedule timer to trigger at shift end
       this.scheduleShiftEndTimer();
-      console.log(`[DEBUG REASON] Returning ${events.length} events`);
     } else {
-      console.log(`[DEBUG REASON] ✗ Reason not found or invalid ts. reason=${!!reason}, ts=${ts}`);
     }
 
     return events;
@@ -790,7 +750,6 @@ class MacroReasonProcessor {
     // Save latest machine_status in memory for future reason_id checks
     if (Number.isFinite(ts) && Number.isFinite(statusCode)) {
       this.latestMachineStatus = { ts, value: statusCode };
-      console.log(`[DEBUG REASON] Saved latest machine_status in memory: ts=${ts}, value=${statusCode}`);
     }
 
     if (!this.current || !Number.isFinite(ts)) return events;
@@ -860,36 +819,42 @@ class MacroReasonProcessor {
     if (!this.current || !Number.isFinite(ts) || ts <= this.current.ts) {
       return [];
     }
+    const segments = splitByShifts(this.current.idleStart, ts, this.shifts);
+    if (segments.length <= 1) return [];
 
     const events = [];
-    // Check if we've crossed shift boundary
-    if (ts >= this.current.shiftEnd) {
-      // Close current reason at shift end
+    // Close all completed segments
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const seg = segments[i];
       const liveReason = buildLiveReason(
         this.current.reason,
-        this.current.idleStart,
-        this.current.shiftEnd,
+        seg.start,
+        seg.end,
         true // Mark as shift-end boundary
       );
       events.push({
-        ts: this.current.idleStart,
+        ts: seg.start,
         values: { live_reason: liveReason },
       });
+    }
 
-      // Open NEW OPEN record for new shift (idle_end = 0, not closed)
-      const newShiftEnd = this.findShiftEndTime(this.current.shiftEnd, this.shifts);
+    // Open NEW OPEN record for the last (still in-progress) segment
+    const last = segments[segments.length - 1];
+    if (last.start !== this.current.idleStart) {
+      const newShiftEnd = this.findShiftEndTime(last.start, this.shifts);
       const newOpen = buildLiveReason(
         this.current.reason,
-        this.current.shiftEnd,
+        last.start,
         0,  // OPEN record - idle_end = 0
         true // Mark that this was created by shift end
       );
       events.push({
-        ts: this.current.shiftEnd,
+        ts: last.start,
         values: { live_reason: newOpen },
       });
 
-      this.current.idleStart = this.current.shiftEnd;
+      this.current.idleStart = last.start;
+      this.current.ts = last.start;
       this.current.shiftEnd = newShiftEnd;
       this.current.wasClosedAtShiftEnd = true; // Mark that this was created by shift end
     }
@@ -979,25 +944,20 @@ class MacroOperatorProcessor {
     const value = operatorEvent?.value ?? operatorEvent?.operator_id ?? "";
     const events = [];
 
-    // DEBUG LOG
-    console.log(`[DEBUG OPERATOR] Incoming event: ts=${ts}, value=${value}, current.ts=${this.current?.ts}`);
 
     // Cancel any existing shift-end timer (new event means we reschedule)
     if (this.shiftEndTimer) {
       clearTimeout(this.shiftEndTimer);
       this.shiftEndTimer = null;
-      console.log(`[DEBUG OPERATOR] Cleared existing shift-end timer`);
     }
 
     // Close previous operator record when we see a newer timestamp (event arriving newest-last)
     if (this.current && Number.isFinite(ts) && ts > this.current.ts) {
-      console.log(`[DEBUG OPERATOR] Closing condition MET: ts(${ts}) > current.ts(${this.current.ts})`);
       // Check if previous was closed at shift end
       const wasClosedAtShiftEnd = this.current.wasClosedAtShiftEnd || false;
 
       if (wasClosedAtShiftEnd) {
         // Previous was boundary record, close it with current ts
-        console.log(`[DEBUG OPERATOR] Closing boundary record`);
         const liveOp = buildLiveOperator(
           this.current.operator,
           this.current.ts,
@@ -1008,10 +968,8 @@ class MacroOperatorProcessor {
           ts: this.current.ts,
           values: { live_operator: liveOp },
         });
-        console.log(`[DEBUG OPERATOR] Pushed boundary close event: start=${this.current.ts}, end=${ts}`);
       } else {
         // Previous was still open, close normally
-        console.log(`[DEBUG OPERATOR] Closing normal open record`);
         const liveOp = buildLiveOperator(
           this.current.operator,
           this.current.ts,
@@ -1022,18 +980,14 @@ class MacroOperatorProcessor {
           ts: this.current.ts,
           values: { live_operator: liveOp },
         });
-        console.log(`[DEBUG OPERATOR] Pushed normal close event: start=${this.current.ts}, end=${ts}`);
       }
       this.current = null;
     } else if (this.current && Number.isFinite(ts)) {
-      console.log(`[DEBUG OPERATOR] Closing condition NOT met: ts(${ts}) >= current.ts(${this.current.ts})`);
     } else if (!this.current) {
-      console.log(`[DEBUG OPERATOR] No current record to close`);
     }
 
     const operator = findOperatorByCode(this.operators, value);
     if (!operator && Number.isFinite(ts) && this.current) {
-      console.log(`[DEBUG OPERATOR] Operator ${value} NOT found, closing previous record with end_time=${ts}`);
       const liveOp = buildLiveOperator(this.current.operator, this.current.ts, ts, false);
       events.push({
         ts: this.current.ts,
@@ -1043,13 +997,11 @@ class MacroOperatorProcessor {
     }
     else if (operator && Number.isFinite(ts)) {
       const shiftEnd = this.findShiftEndTime(ts, this.shifts);
-      console.log(`[DEBUG OPERATOR] Creating new open record: ts=${ts}, shiftEnd=${shiftEnd}`);
       const open = buildLiveOperator(operator, ts, shiftEnd, false);  // Open record: end_time = shift_end
       events.push({
         ts,
         values: { live_operator: open },
       });
-      console.log(`[DEBUG OPERATOR] Pushed new open record: ${JSON.stringify(open)}`);
       this.current = {
         operator,
         ts,
@@ -1060,10 +1012,8 @@ class MacroOperatorProcessor {
       // Schedule timer to trigger at shift end
       this.scheduleShiftEndTimer();
     } else {
-      console.log(`[DEBUG OPERATOR] No valid operator found or ts invalid: operator=${!!operator}, ts=${ts}`);
     }
 
-    console.log(`[DEBUG OPERATOR] Returning ${events.length} events`);
     return events;
   }
 
@@ -1074,7 +1024,6 @@ class MacroOperatorProcessor {
     const timeUntilShiftEnd = this.current.shiftEnd - now;
 
     if (timeUntilShiftEnd > 0) {
-      console.log(`[DEBUG OPERATOR] Scheduling shift-end timer for ${new Date(this.current.shiftEnd).toISOString()}, in ${Math.round(timeUntilShiftEnd / 1000)}s`);
       this.shiftEndTimer = setTimeout(() => {
         this.onShiftEndTimer();
       }, timeUntilShiftEnd);
@@ -1082,9 +1031,7 @@ class MacroOperatorProcessor {
   }
 
   onShiftEndTimer() {
-    console.log(`[DEBUG OPERATOR] Shift-end timer fired!`);
     if (!this.current) {
-      console.log(`[DEBUG OPERATOR] No current record, returning empty`);
       return;
     }
 
@@ -1099,7 +1046,6 @@ class MacroOperatorProcessor {
       ts: this.current.ts,
       values: { live_operator: closedRecord },
     });
-    console.log(`[DEBUG OPERATOR] Added closed record to pending: start=${this.current.ts}, end=${this.current.shiftEnd}`);
 
     // Create new open record for next shift
     const newShiftEnd = this.findShiftEndTime(this.current.shiftEnd, this.shifts);
@@ -1113,7 +1059,6 @@ class MacroOperatorProcessor {
       ts: this.current.shiftEnd,
       values: { live_operator: newOpenRecord },
     });
-    console.log(`[DEBUG OPERATOR] Added new open record to pending: start=${this.current.shiftEnd}, end=${newShiftEnd}`);
 
     // Update current to new shift
     this.current = {
@@ -1138,36 +1083,41 @@ class MacroOperatorProcessor {
     if (!this.current || !Number.isFinite(ts) || ts <= this.current.ts) {
       return [];
     }
+    const segments = splitByShifts(this.current.ts, ts, this.shifts);
+    if (segments.length <= 1) return [];
 
     const events = [];
-    // Check if we've crossed shift boundary
-    if (ts >= this.current.shiftEnd) {
-      // Close current operator at shift end
+    // Close all completed segments
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const seg = segments[i];
       const liveOp = buildLiveOperator(
         this.current.operator,
-        this.current.ts,
-        this.current.shiftEnd,
+        seg.start,
+        seg.end,
         true // Mark as shift-end boundary
       );
       events.push({
-        ts: this.current.ts,
+        ts: seg.start,
         values: { live_operator: liveOp },
       });
+    }
 
-      // Open boundary record for new shift
-      const newShiftEnd = this.findShiftEndTime(this.current.shiftEnd, this.shifts);
+    // Open new segment at shift boundary (boundary record)
+    const last = segments[segments.length - 1];
+    if (last.start !== this.current.ts) {
+      const newShiftEnd = this.findShiftEndTime(last.start, this.shifts);
       const newOpen = buildLiveOperator(
         this.current.operator,
-        this.current.shiftEnd,
+        last.start,
         newShiftEnd,
         true // Mark as shift-end boundary record
       );
       events.push({
-        ts: this.current.shiftEnd,
+        ts: last.start,
         values: { live_operator: newOpen },
       });
 
-      this.current.ts = this.current.shiftEnd;
+      this.current.ts = last.start;
       this.current.shiftEnd = newShiftEnd;
       this.current.wasClosedAtShiftEnd = true; // Mark that this was created by shift end
     }

@@ -1,5 +1,5 @@
 // ============================================================================
-//  STANDALONE BACKFILL  —  live_component / live_operator / live_alarm
+//  STANDALONE BACKFILL  —  live_component / live_operator / live_reason / live_alarm
 // ----------------------------------------------------------------------------
 //  Separate from the live services. Reuses the SAME processor classes so the
 //  generated records are identical to what the live macro/alarm services emit.
@@ -13,8 +13,11 @@
 //    * DRY RUN by default. Nothing is deleted/posted unless you pass --execute.
 //    * Before deleting live_alarm it writes a JSON backup to backfill/backups/.
 //
-//  TO RE-RUN FOR A DIFFERENT DATE RANGE: edit START_TS / END_TS below. Nothing
-//  else needs to change.
+//  USAGE — no file editing needed:
+//    node backfill.js live_component 25/07/2026 25/07/2026 --execute
+//    node backfill.js live_component,live_reason,live_operator 25/07/2026 26/07/2026 --execute
+//    (dates are DD/MM/YYYY, whole day 00:00->23:59:59 IST i.e. all shifts covered)
+//    node backfill.js --help    for the full flag reference (custom time-of-day, customer, etc.)
 // ============================================================================
 
 const axios = require("axios");
@@ -23,29 +26,104 @@ const path = require("path");
 const fs = require("fs");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
-const { MacroComponentProcessor, MacroOperatorProcessor } = require("../macro_component/index");
+const { MacroComponentProcessor, MacroOperatorProcessor, MacroReasonProcessor } = require("../macro_component/index");
 const { AlarmProcessor, parseAlarmsTelemetry, parseSeparateAlarmKeys } = require("../alarm/index");
 
-// ==================== PARAMETERS — EDIT THESE ====================
-const END_TS   = Date.now();                   // current ts (right now)
-const START_TS = 1782585000000;                // 28/06/2026 00:00:00 IST
-const CUSTOMER_ID = "ca71d920-4d2a-11f1-9352-592ed2a7210c";  // Surin
+// ==================== CLI ARGS ====================
+function argVal(name) {
+  const eq = process.argv.find((a) => a.startsWith(`--${name}=`));
+  if (eq) return eq.slice(name.length + 3);
+  const i = process.argv.indexOf(`--${name}`);
+  if (i !== -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith("--")) return process.argv[i + 1];
+  return undefined;
+}
+function parseTs(str, fallback) {
+  if (str === undefined) return fallback;
+  if (/^\d+$/.test(str)) return Number(str); // raw epoch ms
+  const t = new Date(str).getTime();
+  if (Number.isNaN(t)) {
+    console.error(`Invalid --start/--end value: "${str}". Use e.g. 2026-07-27T00:00:00+05:30 or 2026-07-27`);
+    process.exit(1);
+  }
+  return t;
+}
+// DD/MM/YYYY (or DD-MM-YYYY) -> ts at 00:00:00 (start) or 23:59:59.999 (end) IST, so a
+// whole-day range covers every shift.
+function parseDMY(str, endOfDay) {
+  const m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(str);
+  if (!m) return undefined;
+  const [, dd, mm, yyyy] = m;
+  const time = endOfDay ? "23:59:59.999" : "00:00:00.000";
+  const t = new Date(`${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}T${time}+05:30`).getTime();
+  return Number.isNaN(t) ? undefined : t;
+}
+const CUSTOMER_ALIASES = {
+  surin: "ca71d920-4d2a-11f1-9352-592ed2a7210c",       // SURIN (main)
+  surin_pune: "f853c6f0-3d3f-11f1-b077-e5ef75b0e368",  // SURIN_PUNE
+};
+const STREAM_ALIASES = {
+  live_component: "component", component: "component",
+  live_operator: "operator", operator: "operator",
+  live_reason: "reason", reason: "reason",
+  live_alarm: "alarm", alarm: "alarm",
+};
 
-let DO_COMPONENT = true;   // regenerate live_component from route_card
-let DO_OPERATOR  = true;   // regenerate live_operator  from operator_id
-let DO_ALARM     = true;   // regenerate live_alarm     from machine_status (+ alarms)
-// ================================================================
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  console.log(`
+Usage:
+  node backfill.js <streams> <startDate> <endDate> [--execute] [--customer=<id>]
+  node backfill.js [--start <date>] [--end <date>] [--component] [--operator] [--reason] [--alarm] [--execute] [--customer <id>]
+
+  <streams>             comma list: live_component,live_operator,live_reason,live_alarm
+                         (or short names: component,operator,reason,alarm)
+  <startDate>/<endDate> DD/MM/YYYY. Whole days, 00:00:00 -> 23:59:59.999 IST (all shifts).
+
+  --start/--end <date>  ISO date/time (2026-07-27 or 2026-07-27T00:00:00+05:30) or epoch ms.
+                         Alternative to positional dates, for a custom time-of-day window.
+  --customer <id>       customer UUID, or alias: ${Object.keys(CUSTOMER_ALIASES).join(", ")}. Default: surin_pune.
+  --component/--operator/--reason/--alarm   flag form of stream selection (default: component+operator+reason).
+  --execute             actually delete + post. Without it: DRY RUN (prints counts only).
+
+Examples:
+  node backfill.js live_component 25/07/2026 25/07/2026 --execute
+  node backfill.js live_component,live_reason,live_operator 25/07/2026 26/07/2026 --execute
+  node backfill.js live_alarm 25/07/2026 25/07/2026 --customer=surin --execute
+`);
+  process.exit(0);
+}
+
+// Positional form: `node backfill.js <streams> <startDate> <endDate>`. Detected when arg[0]
+// isn't a flag and arg[1] looks like a DD/MM/YYYY date.
+const positional = process.argv.slice(2).filter((a) => !a.startsWith("-"));
+const usingPositional = positional.length >= 3 && /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(positional[1]);
+const [posStreams, posStart, posEnd] = usingPositional ? positional : [];
+
+const END_TS   = usingPositional ? parseDMY(posEnd, true)  : parseTs(argVal("end"), Date.now());
+const START_TS = usingPositional ? parseDMY(posStart, false) : parseTs(argVal("start"), END_TS - 24 * 60 * 60 * 1000);
+if (usingPositional && (START_TS === undefined || END_TS === undefined)) {
+  console.error(`Invalid date "${posStart}" or "${posEnd}". Use DD/MM/YYYY, e.g. 25/07/2026`);
+  process.exit(1);
+}
+const customerArg = argVal("customer");
+const CUSTOMER_ID = customerArg ? (CUSTOMER_ALIASES[customerArg.toLowerCase()] || customerArg) : CUSTOMER_ALIASES.surin_pune;
+
+let DO_COMPONENT, DO_OPERATOR, DO_REASON, DO_ALARM;
+if (usingPositional) {
+  const wanted = new Set(posStreams.split(",").map((s) => STREAM_ALIASES[s.trim()] || s.trim()));
+  DO_COMPONENT = wanted.has("component");
+  DO_OPERATOR  = wanted.has("operator");
+  DO_REASON    = wanted.has("reason");
+  DO_ALARM     = wanted.has("alarm");
+} else {
+  const selectedStreams = ["component", "operator", "reason", "alarm"].filter((s) => process.argv.includes(`--${s}`));
+  DO_COMPONENT = selectedStreams.length ? selectedStreams.includes("component") : true;
+  DO_OPERATOR  = selectedStreams.length ? selectedStreams.includes("operator")  : true;
+  DO_REASON    = selectedStreams.length ? selectedStreams.includes("reason")    : true;
+  DO_ALARM     = selectedStreams.length ? selectedStreams.includes("alarm")     : false;
+}
 
 const EXECUTE = process.argv.includes("--execute");  // without this flag => DRY RUN
 const DRY = !EXECUTE;
-
-// Optional per-run stream overrides (don't touch the defaults above):
-//   --skip-alarm        run component + operator only
-//   --alarm-only        run alarm only
-if (process.argv.includes("--skip-alarm")) DO_ALARM = false;
-if (process.argv.includes("--alarm-only")) { DO_COMPONENT = false; DO_OPERATOR = false; DO_ALARM = true; }
-if (process.argv.includes("--component-only")) { DO_COMPONENT = true; DO_OPERATOR = false; DO_ALARM = false; }
-if (process.argv.includes("--operator-only")) { DO_COMPONENT = false; DO_OPERATOR = true; DO_ALARM = false; }
 
 const TB_BASE_URL = process.env.TB_BASE_URL;
 const TB_USERNAME = process.env.TB_USERNAME;
@@ -147,7 +225,9 @@ function replayComponent(events, components, shifts) {
   const proc = new MacroComponentProcessor({ components, shifts });
   const out = [];
   for (const ev of events) {
-    const ts = Number(ev.ts);   // EXACT route_card ts — no rounding (start_time === route_card ts)
+    // The live MQTT processor rounds its message timestamp to whole seconds.
+    // Match that behavior so a later live update overwrites the same row.
+    const ts = roundToSecond(ev.ts);
     flushRollover(proc, ts, out);
     out.push(...proc.handleRoutecard({ value: ev.value, ts }));
   }
@@ -158,7 +238,8 @@ function replayOperator(events, operators, shifts) {
   const proc = new MacroOperatorProcessor({ operators, shifts });
   const out = [];
   for (const ev of events) {
-    const ts = Number(ev.ts);   // EXACT operator_id ts — no rounding
+    // Keep timestamps identical to the live MQTT processor (see above).
+    const ts = roundToSecond(ev.ts);
     flushRollover(proc, ts, out);
     out.push(...proc.handleOperator({ value: ev.value, ts }));
   }
@@ -175,6 +256,47 @@ function replayAlarm(msEvents, alarmsParsed, shifts) {
   }
   flushRollover(proc, END_TS, out);
   return dedupeByTs(out, "live_alarm");
+}
+
+// Newest-first window of up to `limit` machine_status readings at/before `ts`,
+// mirroring what the live service's getMachineStatus() would have returned.
+function buildStatusWindow(msEventsAsc, ts, limit) {
+  const window = [];
+  for (let i = msEventsAsc.length - 1; i >= 0; i--) {
+    if (msEventsAsc[i].ts <= ts) {
+      window.push(msEventsAsc[i]);
+      if (window.length >= limit) break;
+    }
+  }
+  return window;
+}
+
+function replayReason(reasonEvents, msEventsRaw, reasons, shifts) {
+  const proc = new MacroReasonProcessor({ reasons, shifts });
+  const out = [];
+  const msEvents = [...msEventsRaw]
+    .map((e) => ({ ts: Number(e.ts), value: Number(e.value) }))
+    .sort((a, b) => a.ts - b.ts);
+
+  // Reason (idle_reason/reason_id) and machine_status must be replayed in true
+  // chronological order — reason records only open/close relative to the
+  // machine's idle state at that exact moment.
+  const timeline = [
+    ...reasonEvents.map((e) => ({ type: "reason", ts: roundToSecond(Number(e.ts)), value: e.value })), // idle_reason/reason_id round to the second, like the live service
+    ...msEvents.map((e) => ({ type: "status", ts: e.ts, value: e.value })), // machine_status uses EXACT ts (no rounding)
+  ].sort((a, b) => a.ts - b.ts);
+
+  for (const ev of timeline) {
+    flushRollover(proc, ev.ts, out);
+    if (ev.type === "status") {
+      out.push(...proc.handleMachineStatus({ value: ev.value, ts: ev.ts }, shifts));
+    } else {
+      const statusWindow = buildStatusWindow(msEvents, ev.ts, 30);
+      out.push(...proc.handleReason({ value: ev.value, ts: ev.ts }, statusWindow));
+    }
+  }
+  flushRollover(proc, END_TS, out);
+  return dedupeByTs(out, "live_reason");
 }
 
 function backupLiveAlarm(deviceName, rows) {
@@ -199,14 +321,15 @@ function backupLiveAlarm(deviceName, rows) {
   const components  = parseAttr(attrsRaw, "component") || [];
   const alloperator = parseAttr(attrsRaw, "alloperator") || [];
   const allShift    = parseAttr(attrsRaw, "allShift") || [];
-  console.log(`Master: components=${components.length}, operators=${alloperator.length}, shifts=${allShift.length}\n`);
+  const reasonsMaster = parseAttr(attrsRaw, "reason") || [];
+  console.log(`Master: components=${components.length}, operators=${alloperator.length}, shifts=${allShift.length}, reasons=${reasonsMaster.length}\n`);
 
   const devices = await listDevices(jwt, CUSTOMER_ID);
   const summary = [];
 
   for (const d of devices) {
     const id = d.id?.id, name = d.name;
-    const row = { name, comp: { src: 0, gen: 0 }, op: { src: 0, gen: 0 }, al: { src: 0, gen: 0, del: 0, real: 0, unknown: 0, existReal: 0 } };
+    const row = { name, comp: { src: 0, gen: 0 }, op: { src: 0, gen: 0 }, reason: { src: 0, gen: 0 }, al: { src: 0, gen: 0, del: 0, real: 0, unknown: 0, existReal: 0 } };
 
     // ---- live_component ----  (route card value may be under route_card OR routecard_id)
     if (DO_COMPONENT) {
@@ -218,8 +341,12 @@ function backupLiveAlarm(deviceName, rows) {
         const recs = replayComponent(rc, components, allShift);
         row.comp.gen = recs.length;
         if (!DRY) {
-          await deleteRange(jwt, id, ["live_component"]);
-          await postTelemetry(jwt, id, recs);
+          if (recs.length) {
+            await deleteRange(jwt, id, ["live_component"]);
+            await postTelemetry(jwt, id, recs);
+          } else {
+            console.log(`[${name}] SKIPPED live_component delete: ${rc.length} source events but 0 regenerated (would have wiped existing data with nothing) — investigate before forcing.`);
+          }
         }
       }
     }
@@ -232,8 +359,33 @@ function backupLiveAlarm(deviceName, rows) {
         const recs = replayOperator(op, alloperator, allShift);
         row.op.gen = recs.length;
         if (!DRY) {
-          await deleteRange(jwt, id, ["live_operator"]);
-          await postTelemetry(jwt, id, recs);
+          if (recs.length) {
+            await deleteRange(jwt, id, ["live_operator"]);
+            await postTelemetry(jwt, id, recs);
+          } else {
+            console.log(`[${name}] SKIPPED live_operator delete: ${op.length} source events but 0 regenerated (would have wiped existing data with nothing) — investigate before forcing.`);
+          }
+        }
+      }
+    }
+
+    // ---- live_reason ----  (idle_reason OR reason_id, depending on machine, + machine_status for idle-window context)
+    if (DO_REASON) {
+      const idleA = await getSeries(jwt, id, "idle_reason");
+      const idleB = await getSeries(jwt, id, "reason_id");
+      const reasonEvents = [...idleA, ...idleB].sort((a, b) => a.ts - b.ts);
+      row.reason.src = reasonEvents.length;
+      if (reasonEvents.length) {
+        const ms = await getSeries(jwt, id, "machine_status");
+        const recs = replayReason(reasonEvents, ms, reasonsMaster, allShift);
+        row.reason.gen = recs.length;
+        if (!DRY) {
+          if (recs.length) {
+            await deleteRange(jwt, id, ["live_reason"]);
+            await postTelemetry(jwt, id, recs);
+          } else {
+            console.log(`[${name}] SKIPPED live_reason delete: ${reasonEvents.length} source events but 0 regenerated (machine wasn't idle at any of them, or would have wiped existing data with nothing) — investigate before forcing.`);
+          }
         }
       }
     }
@@ -273,8 +425,12 @@ function backupLiveAlarm(deviceName, rows) {
           console.log(`[${name}] backed up ${existing.length} live_alarm rows -> ${path.relative(process.cwd(), f)}`);
         }
         if (!DRY) {
-          await deleteRange(jwt, id, ["live_alarm"]);
-          await postTelemetry(jwt, id, recs);
+          if (recs.length) {
+            await deleteRange(jwt, id, ["live_alarm"]);
+            await postTelemetry(jwt, id, recs);
+          } else {
+            console.log(`[${name}] SKIPPED live_alarm delete: ${ms.length} source events but 0 regenerated (would have wiped existing data with nothing) — investigate before forcing.`);
+          }
         }
       }
     }
@@ -283,10 +439,10 @@ function backupLiveAlarm(deviceName, rows) {
   }
 
   console.log("\n==================== SUMMARY ====================");
-  console.log("device\tcomp(src→gen)\toper(src→gen)\talarm(src→gen, del)\treal_msgs(exist→gen, UNKNOWN)");
+  console.log("device\tcomp(src→gen)\toper(src→gen)\treason(src→gen)\talarm(src→gen, del)\treal_msgs(exist→gen, UNKNOWN)");
   for (const r of summary) {
     console.log(
-      `${r.name}\t${r.comp.src}→${r.comp.gen}\t\t${r.op.src}→${r.op.gen}\t\t${r.al.src}→${r.al.gen}, del ${r.al.del}\t${r.al.existReal}→${r.al.real}, unk ${r.al.unknown}`
+      `${r.name}\t${r.comp.src}→${r.comp.gen}\t\t${r.op.src}→${r.op.gen}\t\t${r.reason.src}→${r.reason.gen}\t\t${r.al.src}→${r.al.gen}, del ${r.al.del}\t${r.al.existReal}→${r.al.real}, unk ${r.al.unknown}`
     );
   }
   console.log(DRY ? "\nDRY RUN complete — nothing was changed. Re-run with --execute to apply."

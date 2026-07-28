@@ -1,12 +1,15 @@
 version: '3.8'
 
 services:
+  # Macro (live_component/live_operator/live_reason) + Alarm processor + Alarm
+  # bridge all run inside this ONE container under supervisord. Each is
+  # independently restarted on crash — see supervisord.conf.
   backend-tb-node:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: backend-tb-node
-    image: dharshiniradhakrishnan/backend-tb-node:v0.1
+    image: dharshiniradhakrishnan/backend-tb-node:v0.2
     restart: unless-stopped
 
     # NOTE: this service is an MQTT consumer — it does not expose any HTTP port.
@@ -14,52 +17,21 @@ services:
       # Shift math uses local time (new Date(y,m,d,hh,..)) — MUST run in IST or
       # shift boundaries land 5.5h off (e.g. 20:00 shift-end -> 01:30 IST).
       - TZ=Asia/Kolkata
-      - TB_BASE_URL=http://yantra24x7.cloud:8080
+      - TB_BASE_URL=http://smart1.yantra24x7.com:8080
       - TB_USERNAME=pms@gmail.com
       - TB_PASSWORD=pmspms
       - TB_INSECURE_TLS=1
-      - MQTT_BROKER=mqtt://yantra24x7.cloud:1884
+      - MQTT_BROKER=mqtt://smart1.yantra24x7.com:1884
       - MQTT_TOPIC=test/#
-      - macro_customer=ca71d920-4d2a-11f1-9352-592ed2a7210c
-      - NODE_ENV=development
-
-  # Alarm processor: turns machine_status 4/5 + "alarms" into live_alarm telemetry.
-  # Reuses the same image; just runs a different entrypoint.
-  alarm:
-    image: dharshiniradhakrishnan/backend-tb-node:v0.1
-    container_name: alarm
-    command: node alarm/app.js
-    restart: unless-stopped
-    environment:
-      - TZ=Asia/Kolkata
-      - TB_BASE_URL=http://yantra24x7.cloud:8080
-      - TB_USERNAME=pms@gmail.com
-      - TB_PASSWORD=pmspms
-      - TB_INSECURE_TLS=1
-      - MQTT_BROKER=mqtt://yantra24x7.cloud:1884
-      - MQTT_TOPIC=test/#
+      - macro_customer=f853c6f0-3d3f-11f1-b077-e5ef75b0e368
+      # -- alarm processor: turns machine_status 4/5 + "alarms" into live_alarm --
       - ALARMS_LIMIT=20
       # Do NOT write live_alarm for these customers (Surin ca71d920).
-      - ALARM_SKIP_CUSTOMERS=ca71d920-4d2a-11f1-9352-592ed2a7210c
+      - ALARM_SKIP_CUSTOMERS=f853c6f0-3d3f-11f1-b077-e5ef75b0e368
       # Mirror every live_alarm onto the device-alarm broker (machine/<device>/alarm).
-      - STATUS_MQTT_URL=mqtt://yantra24x7.cloud:1885
+      - STATUS_MQTT_URL=mqtt://smart1.yantra24x7.com:1885
       - STATUS_REDIRECT=1
-      - NODE_ENV=development
-
-  # Bridge: publishes live_alarm records that our alarm container did NOT write
-  # (agent/MTLinki-posted, e.g. ATECH/SMC) onto machine/<device>/alarm. Polls TB
-  # every 5s; sends each alarm's open + close once (skips records with _wasShiftEnd).
-  alarm-bridge:
-    image: dharshiniradhakrishnan/backend-tb-node:v0.1
-    container_name: alarm-bridge
-    command: node alarm_bridge/bridge.js
-    restart: unless-stopped
-    environment:
-      - TZ=Asia/Kolkata
-      - TB_BASE_URL=http://yantra24x7.cloud:8080
-      - TB_USERNAME=pms@gmail.com
-      - TB_PASSWORD=pmspms
-      - TB_INSECURE_TLS=1
-      - STATUS_MQTT_URL=mqtt://yantra24x7.cloud:1885
+      # -- alarm bridge: republishes live_alarm records our alarm processor did
+      # NOT write (agent/MTLinki-posted, e.g. ATECH/SMC) onto machine/<device>/alarm --
       - BRIDGE_POLL_MS=5000
       - NODE_ENV=development

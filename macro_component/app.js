@@ -491,7 +491,8 @@ async function processEvent(deviceName, payload, ts) {
     }
 
     // REASON EVENT: Fetch allShift + reason + machine_status from device
-    if (payload.idle_reason) {
+    // Reason value may arrive under either "idle_reason" OR "reason_id" depending on the machine.
+    if (payload.idle_reason !== undefined || payload.reason_id !== undefined) {
       const custAttrs = await getCustomerAttributes(token, customerId);
       const allShift = parseAttr(custAttrs, "allShift") || [];
       const reason = parseAttr(custAttrs, "reason") || [];
@@ -509,15 +510,20 @@ async function processEvent(deviceName, payload, ts) {
         state.reasonProcessor.setShifts(allShift);
       }
 
-      // Handle both single idle_reason and array of reason events
-      const reasonEvents = Array.isArray(payload.idle_reason)
-        ? payload.idle_reason
-        : [{ value: payload.idle_reason, ts }];
+      // Handle both single value and array of events, from either key. Merge if both present.
+      const idleReasonEvents = payload.idle_reason === undefined
+        ? []
+        : Array.isArray(payload.idle_reason) ? payload.idle_reason : [{ value: payload.idle_reason, ts }];
+      const reasonIdEvents = payload.reason_id === undefined
+        ? []
+        : Array.isArray(payload.reason_id) ? payload.reason_id : [{ value: payload.reason_id, ts }];
+      const reasonEvents = [...idleReasonEvents, ...reasonIdEvents]
+        .sort((a, b) => (Number(a.ts) || ts) - (Number(b.ts) || ts));
 
       for (const rEvent of reasonEvents) {
         const rTs = roundToSecond(Number(rEvent.ts) || ts);
         const rValue = rEvent.value || rEvent;
-        if (DEBUG) console.log(`[${deviceName}] idle_reason: ${rValue}, ts: ${rTs}`);
+        if (DEBUG) console.log(`[${deviceName}] reason: ${rValue}, ts: ${rTs}`);
 
         const events = state.reasonProcessor.handleReason(
           { value: rValue, ts: rTs },

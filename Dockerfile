@@ -1,9 +1,13 @@
-# Macro + Alarm services for ThingsBoard monitoring.
-# One image, two entrypoints: macro_component/app.js (default) and alarm/app.js
-# (selected per-service via the compose `command:` override).
+# Macro + Alarm + Alarm-bridge services for ThingsBoard monitoring.
+# All three run in this ONE container under supervisord, each independently
+# restarted on crash (one dying does not affect the other two).
 FROM node:20-alpine
 
 WORKDIR /app
+
+# supervisord: process supervisor that runs & independently restarts the 3
+# services below inside a single container.
+RUN apk add --no-cache supervisor
 
 # Install production dependencies.
 # Deps (axios, dotenv, mqtt) live in the root package.json and are resolved
@@ -15,9 +19,10 @@ RUN npm ci --omit=dev
 COPY macro_component ./macro_component
 COPY alarm ./alarm
 COPY alarm_bridge ./alarm_bridge
+COPY supervisord.conf ./supervisord.conf
 
 ENV NODE_ENV=production
 
-# app.js reads TB_* and MQTT_* config from the environment.
+# app.js/bridge.js read TB_* and MQTT_* config from the environment.
 # Pass them at runtime, e.g. `docker run --env-file .env ...`
-CMD ["node", "macro_component/app.js"]
+CMD ["supervisord", "-c", "/app/supervisord.conf"]
