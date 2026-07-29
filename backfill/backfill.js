@@ -54,6 +54,17 @@ function parseDMY(str, endOfDay) {
   const t = new Date(`${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}T${time}+05:30`).getTime();
   return Number.isNaN(t) ? undefined : t;
 }
+// End date == today (IST) -> cap at the current moment instead of
+// 23:59:59.999: today's last shift isn't over yet, so there's no telemetry
+// beyond "now" to replay. Any other (past) end date keeps the full day,
+// through its last shift's actual end.
+function endDMY(str) {
+  const dayStart = parseDMY(str, false);
+  const dayEnd = parseDMY(str, true);
+  if (dayStart === undefined || dayEnd === undefined) return dayEnd;
+  const now = Date.now();
+  return now >= dayStart && now <= dayEnd ? now : dayEnd;
+}
 const CUSTOMER_ALIASES = {
   surin: "ca71d920-4d2a-11f1-9352-592ed2a7210c",       // SURIN (main)
   surin_pune: "f853c6f0-3d3f-11f1-b077-e5ef75b0e368",  // SURIN_PUNE
@@ -93,7 +104,7 @@ const positional = process.argv.slice(2).filter((a) => !a.startsWith("-"));
 const usingPositional = positional.length >= 3 && /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(positional[1]);
 const [posStreams, posStart, posEnd] = usingPositional ? positional : [];
 
-const END_TS   = usingPositional ? parseDMY(posEnd, true)  : parseTs(argVal("end"), Date.now());
+const END_TS   = usingPositional ? endDMY(posEnd)  : parseTs(argVal("end"), Date.now());
 const START_TS = usingPositional ? parseDMY(posStart, false) : parseTs(argVal("start"), END_TS - 24 * 60 * 60 * 1000);
 if (usingPositional && (START_TS === undefined || END_TS === undefined)) {
   console.error(`Invalid date "${posStart}" or "${posEnd}". Use DD/MM/YYYY, e.g. 25/07/2026`);

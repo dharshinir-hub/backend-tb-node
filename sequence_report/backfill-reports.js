@@ -9,7 +9,7 @@ const ThingsboardReportService = require('./src/thingsboardReportService');
 const ScheduledReportUpdater = require('./src/scheduledReportUpdater');
 
 // Load .env
-const envPath = path.join(__dirname, '.env');
+const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
   fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
     const [key, value] = line.split('=');

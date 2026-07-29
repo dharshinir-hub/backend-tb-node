@@ -998,22 +998,10 @@ class ScheduledReportUpdater {
     try {
       const now = new Date();
       const customerId = process.env.CUSTOMER_ID;
-      const customerName = process.env.CUSTOMER_NAME || 'surin';
 
       console.log(`\n⏱️  [${now.toLocaleTimeString()}] Updating SURIN devices...`);
 
-      // Fetch customer attributes (for shift schedule)
-      let shifts = [];
-      try {
-        const customerAttrs = await this.reportService.getCustomerAttributes(customerId);
-        if (customerAttrs && customerAttrs.allShift) {
-          shifts = this.parseShiftSchedule(customerAttrs.allShift);
-          const shiftSummary = shifts.map(s => `${s.start}-${s.end}`).join(', ');
-          console.log(`📋 Shift Schedule: ${shiftSummary}`);
-        }
-      } catch (e) {
-        console.log(`⚠️  Could not fetch shift schedule: ${e.message}`);
-      }
+      const shifts = await this.fetchShifts(customerId);
 
       // Get all devices for SURIN customer
       const devices = await this.reportService.getDevicesByCustomer(customerId);
@@ -1023,277 +1011,24 @@ class ScheduledReportUpdater {
         return;
       }
 
-      // For each device, fetch and cache its reports
+      const nowMs = Date.now();
+      const lookbackMs = this.telemetryLookbackHours * 60 * 60 * 1000;
+      const lookbackTime = nowMs - lookbackMs;
+
+      // For each device, regenerate + POST + cache its reports for the
+      // configured lookback window
       for (const device of devices) {
         try {
-          const deviceId = device.id.id;
-          const deviceName = device.name;
+          const reports = await this.generateAndPostReports(device, shifts, lookbackTime, nowMs);
 
-          // Fetch sequence report telemetry for configured lookback period
-          const nowMs = Date.now();
-          const lookbackMs = this.telemetryLookbackHours * 60 * 60 * 1000;
-          const lookbackTime = nowMs - lookbackMs;
-
-          const telemetry = await this.reportService.getDeviceTelemetry(
-            deviceId,
-            ['sequence_report', 'parts_count', 'live_component', 'live_operator', 'machine_status', 'sequence_number',
-             'seq_no', 'balloon_seq', 'live_alarm', 'serial_number', 'job_name', 'revision_no'],
-            lookbackTime,
-            nowMs
-          );
-
-          // Support both field names: sequence_number and seq_no
-          if (!telemetry.sequence_number || telemetry.sequence_number.length === 0) {
-            telemetry.sequence_number = telemetry.seq_no || [];
-          }
-
-          // Parse and cache reports
-          const reports = [];
-
-          // ALWAYS process parts_count first (it's the source of truth)
-          // This ensures all parts are created/updated correctly
-          if (telemetry.parts_count && telemetry.parts_count.length > 0) {
-            // Sort parts_count by timestamp (ascending order)
-            const sortedParts = [...telemetry.parts_count].sort((a, b) => {
-              const tsA = Array.isArray(a) ? a[0] : a.ts;
-              const tsB = Array.isArray(b) ? b[0] : b.ts;
-              return tsA - tsB;
-            });
-
-            // Build cleanParts: one entry per distinct-value run, carrying the
-            // run's firstTs and lastTs. parts_count is a completion counter, so a
-            // part's window runs from the PREVIOUS count's last reading to THIS
-            // count's last reading:
-            //   - Skip NaN entries and shift-boundary echoes.
-            //   - Consecutive duplicate values EXTEND the current run's lastTs
-            //     (keep-last) — the last echo of a value is that part's end.
-            //   - Zero entries are resets: their ts caps the previous part
-            //     (forcedEnd) and starts the next part (startOverride).
-            const cleanParts = [];
-            let pendingZeroTs = null; // timestamp of the most recent zero seen
-            for (const entry of sortedParts) {
-              const v   = parseInt(Array.isArray(entry) ? entry[1] : entry.value);
-              const ts  = Array.isArray(entry) ? entry[0] : entry.ts;
-              if (isNaN(v)) continue;
-              if (v === 0) { pendingZeroTs = ts; continue; }          // zero → remember timestamp, skip record
-              if (this.isShiftStartTime(ts, shifts)) continue;        // shift-boundary echo → skip
-              const last = cleanParts.length > 0 ? cleanParts[cleanParts.length - 1] : null;
-              if (last && v === last.value) { last.lastTs = ts; continue; } // duplicate → extend this run's last ts
-              if (pendingZeroTs !== null && last) {                    // zero arrived before this new value
-                last.forcedEnd = pendingZeroTs;
-              }
-              cleanParts.push({
-                value: v,
-                firstTs: ts,
-                lastTs: ts,
-                startOverride: pendingZeroTs !== null ? pendingZeroTs : undefined
-              });
-              pendingZeroTs = null;
-            }
-            // Handle a trailing zero (shift-end reset after the last non-zero entry)
-            if (pendingZeroTs !== null && cleanParts.length > 0) {
-              cleanParts[cleanParts.length - 1].forcedEnd = pendingZeroTs;
-            }
-
-            console.log(`  [DEBUG] parts_count for ${deviceName}: ${sortedParts.length} raw, ${cleanParts.length} after cleaning`);
-            console.log(`  [DEBUG] cleanParts:`, cleanParts);
-            console.log(`  [DEBUG] Shift schedule:`, shifts.map(s => `${s.start}-${s.end}`).join(', '));
-
-            let previousPartIndex = -1;
-
-            // Tracks serial/program/revision signatures seen per component, to
-            // flag duplicate parts (same 3 identity values under one component)
-            const componentSignatures = new Map();
-
-            for (let i = 0; i < cleanParts.length; i++) {
-              try {
-                const entry = cleanParts[i];
-                const prev  = i > 0 ? cleanParts[i - 1] : null;
-                const partNumber = entry.value;
-
-                // start_time: the reset ts if a zero preceded this part, else the
-                //   PREVIOUS run's last reading (when the prior count was last
-                //   seen), else this run's own first ts for the very first part.
-                const startTime = entry.startOverride !== undefined
-                  ? entry.startOverride
-                  : (prev ? prev.lastTs : entry.firstTs);
-
-                // end_time priority:
-                //   1. forcedEnd  — a zero reset appeared before the next value
-                //   2. this run's last ts — the last echo of this count value
-                //   3. nowMs — last (still-active) part
-                const isPartComplete = i < cleanParts.length - 1;
-                const endTime = entry.forcedEnd !== undefined
-                  ? entry.forcedEnd
-                  : (isPartComplete ? entry.lastTs : nowMs);
-
-                console.log(`  [DEBUG] Building report for part ${partNumber}, startTime=${startTime}, endTime=${endTime}`);
-
-                // Get ALL components overlapping this part (sorted by time), and
-                // the operator, based on time-range matching
-                const componentsInPart = this.getComponentsForPartTime(
-                  telemetry.live_component,
-                  startTime,
-                  endTime
-                );
-
-                // component_no / component_name join all overlapping components
-                // (earliest first, current/latest last)
-                let componentInfo = componentsInPart.length > 0
-                  ? {
-                      code: componentsInPart.map(c => c.code).join('||'),
-                      name: componentsInPart.map(c => c.name).join('||')
-                    }
-                  : { code: '-', name: 'No component' };
-
-                const operatorInfo = this.getOperatorForPartTime(
-                  telemetry.live_operator,
-                  startTime,
-                  endTime
-                );
-
-                // Build sequence_detail across all overlapping components,
-                // tracking status against the device's sequence_number stream
-                const sequenceDetail = this.buildSequenceDetail(
-                  componentsInPart,
-                  telemetry.sequence_number,
-                  startTime,
-                  endTime,
-                  isPartComplete,
-                  telemetry.machine_status,
-                  telemetry.live_alarm,
-                  telemetry.balloon_seq
-                );
-
-                // Calculate machine status durations for this part
-                const statusDurations = this.calculateStatusDurations(
-                  telemetry.machine_status,
-                  startTime,
-                  endTime
-                );
-
-                // Collect serial_number / program_number / revision_no values
-                // posted within this part's window (joined with || if multiple)
-                const serialNumber = this.collectValuesInRange(telemetry.serial_number, startTime, endTime);
-                // job_name comes as "//CNC_MEM/USB_PRG/YANTRA/O0034" — extract the last segment only.
-                // Carry-forward the last-known job_name when none was posted in this
-                // part's window (matches old software's persistent program number).
-                let rawJobName = this.collectValuesInRange(telemetry.job_name, startTime, endTime);
-                if (rawJobName === '-') {
-                  rawJobName = this.lastValueBefore(telemetry.job_name, startTime);
-                }
-                const programNumber = rawJobName === '-'
-                  ? '-'
-                  : rawJobName.split('||').map(v => v.split('/').filter(Boolean).pop() || v).join('||');
-                const revisionNo = this.collectValuesInRange(telemetry.revision_no, startTime, endTime);
-
-                // component_status: "duplicate" when the same serial/program/
-                // revision triple already appeared under the SAME component;
-                // uniqueness is scoped per component (same values under another
-                // component are ignored).
-                let componentStatus = 'NEW';
-                const hasIdentity = serialNumber !== '-' || programNumber !== '-' || revisionNo !== '-';
-                if (componentInfo.code !== '-' && hasIdentity) {
-                  const signature = `${serialNumber}|${programNumber}|${revisionNo}`;
-                  if (!componentSignatures.has(componentInfo.code)) {
-                    componentSignatures.set(componentInfo.code, new Set());
-                  }
-                  const sigSet = componentSignatures.get(componentInfo.code);
-                  if (sigSet.has(signature)) {
-                    componentStatus = 'duplicate';
-                  } else {
-                    sigSet.add(signature);
-                  }
-                }
-
-                // Generate complete report from parts_count with component/operator from time-range matching
-                const reportObj = {
-                  actual_part: 0,
-                  part_number: partNumber,
-                  start_time: startTime,
-                  end_time: endTime,
-                  machine_name: deviceName,
-                  operator_no: operatorInfo.code,
-                  operator_name: operatorInfo.name,
-                  component_no: componentInfo.code,
-                  component_name: componentInfo.name,
-                  serial_number: serialNumber,
-                  program_number: programNumber,
-                  revision_no: revisionNo,
-                  setup_number: '-',
-                  component_status: componentStatus,
-                  part_message: '-',
-                  run_time: statusDurations.run_time,
-                  idle_time: statusDurations.idle_time,
-                  disconnect_time: statusDurations.disconnect_time,
-                  alarm_time: statusDurations.alarm_time,
-                  sequence_detail: sequenceDetail
-                };
-
-                // POST processed sequence_report back to ThingsBoard with part's start_time as ts
-                const posted = await this.reportService.postDeviceTelemetry(
-                  deviceId,
-                  'sequence_report',
-                  reportObj,
-                  startTime
-                );
-
-                if (posted) {
-                  // Log POST success
-                } else {
-                  console.log(`    ⚠️  Failed to POST part ${partNumber}`);
-                }
-
-                reports.push({
-                  ts: startTime,
-                  data: reportObj,
-                  device_id: deviceId,
-                  device_name: deviceName,
-                  date: new Date(startTime).toISOString().split('T')[0]
-                });
-                previousPartIndex = reports.length - 1; // Track this part for potential extension
-                console.log(`  [DEBUG] Created report for part ${partNumber}: start=${startTime}, end=${endTime}`);
-              } catch (e) {
-                console.log(`  [DEBUG] Error processing part: ${e.message}`);
-              }
-            }
-          }
-          // Fallback: If no parts_count, try sequence_report
-          else if (telemetry.sequence_report && telemetry.sequence_report.length > 0) {
-            telemetry.sequence_report.forEach(entry => {
-              try {
-                const ts = Array.isArray(entry) ? entry[0] : entry.ts;
-                const value = Array.isArray(entry) ? entry[1] : entry.value;
-                const reportObj = typeof value === 'string' ? JSON.parse(value) : value;
-
-                reports.push({
-                  ts,
-                  data: reportObj,
-                  device_id: deviceId,
-                  device_name: deviceName,
-                  date: new Date(ts).toISOString().split('T')[0]
-                });
-              } catch (e) {
-                // Skip malformed entries
-              }
-            });
-          }
-
-          // Cache reports for this device
-          this.cachedReports[deviceId] = {
-            device_name: deviceName,
+          this.cachedReports[device.id.id] = {
+            device_name: device.name,
             reports,
             last_updated: nowMs,
             count: reports.length
           };
 
-          // Show what data type was processed
-          let dataType = 'sequence_report';
-          if (!telemetry.sequence_report || telemetry.sequence_report.length === 0) {
-            dataType = 'parts_count (processed)';
-          }
-
-          console.log(`  ✓ ${deviceName}: ${reports.length} ${dataType}`);
+          console.log(`  ✓ ${device.name}: ${reports.length} sequence_report`);
         } catch (error) {
           console.log(`  ✗ ${device.name}: error`);
         }
@@ -1304,6 +1039,267 @@ class ScheduledReportUpdater {
     } catch (error) {
       console.error('Error:', error.message);
     }
+  }
+
+  // Fetch + parse the customer's shift schedule. Shared by the live cycle and
+  // any manual/backfill caller.
+  async fetchShifts(customerId) {
+    try {
+      const customerAttrs = await this.reportService.getCustomerAttributes(customerId);
+      if (customerAttrs && customerAttrs.allShift) {
+        const shifts = this.parseShiftSchedule(customerAttrs.allShift);
+        console.log(`📋 Shift Schedule: ${shifts.map(s => `${s.start}-${s.end}`).join(', ')}`);
+        return shifts;
+      }
+    } catch (e) {
+      console.log(`⚠️  Could not fetch shift schedule: ${e.message}`);
+    }
+    return [];
+  }
+
+  // Fetch raw telemetry for ONE device within [startTs, endTs], rebuild its
+  // sequence_report parts from parts_count (source of truth), and POST each
+  // part back to ThingsBoard. Returns the built report list (cache-ready
+  // shape). Shared by the live 2-minute cycle (updateAllReports, window =
+  // "now - lookback -> now") and any manual/on-demand caller that wants an
+  // arbitrary historical window instead — e.g. generate-report.js.
+  async generateAndPostReports(device, shifts, startTs, endTs) {
+    const deviceId = device.id.id;
+    const deviceName = device.name;
+
+    const telemetry = await this.reportService.getDeviceTelemetry(
+      deviceId,
+      ['sequence_report', 'parts_count', 'live_component', 'live_operator', 'machine_status', 'sequence_number',
+       'seq_no', 'balloon_seq', 'live_alarm', 'serial_number', 'job_name', 'revision_no'],
+      startTs,
+      endTs
+    );
+
+    // Support both field names: sequence_number and seq_no
+    if (!telemetry.sequence_number || telemetry.sequence_number.length === 0) {
+      telemetry.sequence_number = telemetry.seq_no || [];
+    }
+
+    const reports = [];
+
+    // ALWAYS process parts_count first (it's the source of truth) — this
+    // ensures all parts are created/updated correctly
+    if (telemetry.parts_count && telemetry.parts_count.length > 0) {
+      // Sort parts_count by timestamp (ascending order)
+      const sortedParts = [...telemetry.parts_count].sort((a, b) => {
+        const tsA = Array.isArray(a) ? a[0] : a.ts;
+        const tsB = Array.isArray(b) ? b[0] : b.ts;
+        return tsA - tsB;
+      });
+
+      // Build cleanParts: one entry per distinct-value run, carrying the
+      // run's firstTs and lastTs. parts_count is a completion counter, so a
+      // part's window runs from the PREVIOUS count's last reading to THIS
+      // count's last reading:
+      //   - Skip NaN entries and shift-boundary echoes.
+      //   - Consecutive duplicate values EXTEND the current run's lastTs
+      //     (keep-last) — the last echo of a value is that part's end.
+      //   - Zero entries are resets: their ts caps the previous part
+      //     (forcedEnd) and starts the next part (startOverride).
+      const cleanParts = [];
+      let pendingZeroTs = null; // timestamp of the most recent zero seen
+      for (const entry of sortedParts) {
+        const v   = parseInt(Array.isArray(entry) ? entry[1] : entry.value);
+        const ts  = Array.isArray(entry) ? entry[0] : entry.ts;
+        if (isNaN(v)) continue;
+        if (v === 0) { pendingZeroTs = ts; continue; }          // zero → remember timestamp, skip record
+        if (this.isShiftStartTime(ts, shifts)) continue;        // shift-boundary echo → skip
+        const last = cleanParts.length > 0 ? cleanParts[cleanParts.length - 1] : null;
+        if (last && v === last.value) { last.lastTs = ts; continue; } // duplicate → extend this run's last ts
+        if (pendingZeroTs !== null && last) {                    // zero arrived before this new value
+          last.forcedEnd = pendingZeroTs;
+        }
+        cleanParts.push({
+          value: v,
+          firstTs: ts,
+          lastTs: ts,
+          startOverride: pendingZeroTs !== null ? pendingZeroTs : undefined
+        });
+        pendingZeroTs = null;
+      }
+      // Handle a trailing zero (shift-end reset after the last non-zero entry)
+      if (pendingZeroTs !== null && cleanParts.length > 0) {
+        cleanParts[cleanParts.length - 1].forcedEnd = pendingZeroTs;
+      }
+
+      // Tracks serial/program/revision signatures seen per component, to
+      // flag duplicate parts (same 3 identity values under one component)
+      const componentSignatures = new Map();
+
+      for (let i = 0; i < cleanParts.length; i++) {
+        try {
+          const entry = cleanParts[i];
+          const prev  = i > 0 ? cleanParts[i - 1] : null;
+          const partNumber = entry.value;
+
+          // start_time: the reset ts if a zero preceded this part, else the
+          //   PREVIOUS run's last reading (when the prior count was last
+          //   seen), else this run's own first ts for the very first part.
+          const startTime = entry.startOverride !== undefined
+            ? entry.startOverride
+            : (prev ? prev.lastTs : entry.firstTs);
+
+          // end_time priority:
+          //   1. forcedEnd  — a zero reset appeared before the next value
+          //   2. this run's last ts — the last echo of this count value
+          //   3. endTs — last (still-active) part, capped at the window end
+          const isPartComplete = i < cleanParts.length - 1;
+          const endTime = entry.forcedEnd !== undefined
+            ? entry.forcedEnd
+            : (isPartComplete ? entry.lastTs : endTs);
+
+          // Get ALL components overlapping this part (sorted by time), and
+          // the operator, based on time-range matching
+          const componentsInPart = this.getComponentsForPartTime(
+            telemetry.live_component,
+            startTime,
+            endTime
+          );
+
+          // component_no / component_name join all overlapping components
+          // (earliest first, current/latest last)
+          let componentInfo = componentsInPart.length > 0
+            ? {
+                code: componentsInPart.map(c => c.code).join('||'),
+                name: componentsInPart.map(c => c.name).join('||')
+              }
+            : { code: '-', name: 'No component' };
+
+          const operatorInfo = this.getOperatorForPartTime(
+            telemetry.live_operator,
+            startTime,
+            endTime
+          );
+
+          // Build sequence_detail across all overlapping components,
+          // tracking status against the device's sequence_number stream
+          const sequenceDetail = this.buildSequenceDetail(
+            componentsInPart,
+            telemetry.sequence_number,
+            startTime,
+            endTime,
+            isPartComplete,
+            telemetry.machine_status,
+            telemetry.live_alarm,
+            telemetry.balloon_seq
+          );
+
+          // Calculate machine status durations for this part
+          const statusDurations = this.calculateStatusDurations(
+            telemetry.machine_status,
+            startTime,
+            endTime
+          );
+
+          // Collect serial_number / program_number / revision_no values
+          // posted within this part's window (joined with || if multiple)
+          const serialNumber = this.collectValuesInRange(telemetry.serial_number, startTime, endTime);
+          // job_name comes as "//CNC_MEM/USB_PRG/YANTRA/O0034" — extract the last segment only.
+          // Carry-forward the last-known job_name when none was posted in this
+          // part's window (matches old software's persistent program number).
+          let rawJobName = this.collectValuesInRange(telemetry.job_name, startTime, endTime);
+          if (rawJobName === '-') {
+            rawJobName = this.lastValueBefore(telemetry.job_name, startTime);
+          }
+          const programNumber = rawJobName === '-'
+            ? '-'
+            : rawJobName.split('||').map(v => v.split('/').filter(Boolean).pop() || v).join('||');
+          const revisionNo = this.collectValuesInRange(telemetry.revision_no, startTime, endTime);
+
+          // component_status: "duplicate" when the same serial/program/
+          // revision triple already appeared under the SAME component;
+          // uniqueness is scoped per component (same values under another
+          // component are ignored).
+          let componentStatus = 'NEW';
+          const hasIdentity = serialNumber !== '-' || programNumber !== '-' || revisionNo !== '-';
+          if (componentInfo.code !== '-' && hasIdentity) {
+            const signature = `${serialNumber}|${programNumber}|${revisionNo}`;
+            if (!componentSignatures.has(componentInfo.code)) {
+              componentSignatures.set(componentInfo.code, new Set());
+            }
+            const sigSet = componentSignatures.get(componentInfo.code);
+            if (sigSet.has(signature)) {
+              componentStatus = 'duplicate';
+            } else {
+              sigSet.add(signature);
+            }
+          }
+
+          // Generate complete report from parts_count with component/operator from time-range matching
+          const reportObj = {
+            actual_part: 0,
+            part_number: partNumber,
+            start_time: startTime,
+            end_time: endTime,
+            machine_name: deviceName,
+            operator_no: operatorInfo.code,
+            operator_name: operatorInfo.name,
+            component_no: componentInfo.code,
+            component_name: componentInfo.name,
+            serial_number: serialNumber,
+            program_number: programNumber,
+            revision_no: revisionNo,
+            setup_number: '-',
+            component_status: componentStatus,
+            part_message: '-',
+            run_time: statusDurations.run_time,
+            idle_time: statusDurations.idle_time,
+            disconnect_time: statusDurations.disconnect_time,
+            alarm_time: statusDurations.alarm_time,
+            sequence_detail: sequenceDetail
+          };
+
+          // POST processed sequence_report back to ThingsBoard with part's start_time as ts
+          const posted = await this.reportService.postDeviceTelemetry(
+            deviceId,
+            'sequence_report',
+            reportObj,
+            startTime
+          );
+
+          if (!posted) {
+            console.log(`    ⚠️  Failed to POST part ${partNumber}`);
+          }
+
+          reports.push({
+            ts: startTime,
+            data: reportObj,
+            device_id: deviceId,
+            device_name: deviceName,
+            date: new Date(startTime).toISOString().split('T')[0]
+          });
+        } catch (e) {
+          console.log(`  ⚠️  [${deviceName}] Error processing part: ${e.message}`);
+        }
+      }
+    }
+    // Fallback: If no parts_count, try sequence_report
+    else if (telemetry.sequence_report && telemetry.sequence_report.length > 0) {
+      telemetry.sequence_report.forEach(entry => {
+        try {
+          const ts = Array.isArray(entry) ? entry[0] : entry.ts;
+          const value = Array.isArray(entry) ? entry[1] : entry.value;
+          const reportObj = typeof value === 'string' ? JSON.parse(value) : value;
+
+          reports.push({
+            ts,
+            data: reportObj,
+            device_id: deviceId,
+            device_name: deviceName,
+            date: new Date(ts).toISOString().split('T')[0]
+          });
+        } catch (e) {
+          // Skip malformed entries
+        }
+      });
+    }
+
+    return reports;
   }
 
   // Get cached report for a machine in time range

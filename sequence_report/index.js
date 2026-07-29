@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const ScheduledReportUpdater = require('./src/scheduledReportUpdater');
 
 // Load .env file manually
-const envPath = path.join(__dirname, '.env');
+const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8');
   envContent.split('\n').forEach(line => {
