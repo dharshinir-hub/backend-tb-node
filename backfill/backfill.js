@@ -1,8 +1,8 @@
 // ============================================================================
-//  STANDALONE BACKFILL  —  live_component / live_operator / live_reason / live_alarm
+//  STANDALONE BACKFILL  —  live_component / live_operator / live_reason
 // ----------------------------------------------------------------------------
 //  Separate from the live services. Reuses the SAME processor classes so the
-//  generated records are identical to what the live macro/alarm services emit.
+//  generated records are identical to what the live macro service emits.
 //
 //  WHAT IT DOES (per device, within [START_TS, END_TS]):
 //    1. (optional) DELETE the existing live_* key in the window
@@ -11,7 +11,6 @@
 //
 //  SAFETY:
 //    * DRY RUN by default. Nothing is deleted/posted unless you pass --execute.
-//    * Before deleting live_alarm it writes a JSON backup to backfill/backups/.
 //
 //  USAGE — no file editing needed:
 //    node backfill.js live_component 25/07/2026 25/07/2026 --execute
@@ -23,11 +22,9 @@
 const axios = require("axios");
 const https = require("https");
 const path = require("path");
-const fs = require("fs");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const { MacroComponentProcessor, MacroOperatorProcessor, MacroReasonProcessor } = require("../macro_component/index");
-const { AlarmProcessor, parseAlarmsTelemetry, parseSeparateAlarmKeys } = require("../alarm/index");
 
 // ==================== CLI ARGS ====================
 function argVal(name) {
@@ -65,29 +62,27 @@ const STREAM_ALIASES = {
   live_component: "component", component: "component",
   live_operator: "operator", operator: "operator",
   live_reason: "reason", reason: "reason",
-  live_alarm: "alarm", alarm: "alarm",
 };
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   console.log(`
 Usage:
   node backfill.js <streams> <startDate> <endDate> [--execute] [--customer=<id>]
-  node backfill.js [--start <date>] [--end <date>] [--component] [--operator] [--reason] [--alarm] [--execute] [--customer <id>]
+  node backfill.js [--start <date>] [--end <date>] [--component] [--operator] [--reason] [--execute] [--customer <id>]
 
-  <streams>             comma list: live_component,live_operator,live_reason,live_alarm
-                         (or short names: component,operator,reason,alarm)
+  <streams>             comma list: live_component,live_operator,live_reason
+                         (or short names: component,operator,reason)
   <startDate>/<endDate> DD/MM/YYYY. Whole days, 00:00:00 -> 23:59:59.999 IST (all shifts).
 
   --start/--end <date>  ISO date/time (2026-07-27 or 2026-07-27T00:00:00+05:30) or epoch ms.
                          Alternative to positional dates, for a custom time-of-day window.
   --customer <id>       customer UUID, or alias: ${Object.keys(CUSTOMER_ALIASES).join(", ")}. Default: surin_pune.
-  --component/--operator/--reason/--alarm   flag form of stream selection (default: component+operator+reason).
+  --component/--operator/--reason   flag form of stream selection (default: component+operator+reason).
   --execute             actually delete + post. Without it: DRY RUN (prints counts only).
 
 Examples:
   node backfill.js live_component 25/07/2026 25/07/2026 --execute
   node backfill.js live_component,live_reason,live_operator 25/07/2026 26/07/2026 --execute
-  node backfill.js live_alarm 25/07/2026 25/07/2026 --customer=surin --execute
 `);
   process.exit(0);
 }
@@ -107,19 +102,17 @@ if (usingPositional && (START_TS === undefined || END_TS === undefined)) {
 const customerArg = argVal("customer");
 const CUSTOMER_ID = customerArg ? (CUSTOMER_ALIASES[customerArg.toLowerCase()] || customerArg) : CUSTOMER_ALIASES.surin_pune;
 
-let DO_COMPONENT, DO_OPERATOR, DO_REASON, DO_ALARM;
+let DO_COMPONENT, DO_OPERATOR, DO_REASON;
 if (usingPositional) {
   const wanted = new Set(posStreams.split(",").map((s) => STREAM_ALIASES[s.trim()] || s.trim()));
   DO_COMPONENT = wanted.has("component");
   DO_OPERATOR  = wanted.has("operator");
   DO_REASON    = wanted.has("reason");
-  DO_ALARM     = wanted.has("alarm");
 } else {
-  const selectedStreams = ["component", "operator", "reason", "alarm"].filter((s) => process.argv.includes(`--${s}`));
+  const selectedStreams = ["component", "operator", "reason"].filter((s) => process.argv.includes(`--${s}`));
   DO_COMPONENT = selectedStreams.length ? selectedStreams.includes("component") : true;
   DO_OPERATOR  = selectedStreams.length ? selectedStreams.includes("operator")  : true;
   DO_REASON    = selectedStreams.length ? selectedStreams.includes("reason")    : true;
-  DO_ALARM     = selectedStreams.length ? selectedStreams.includes("alarm")     : false;
 }
 
 const EXECUTE = process.argv.includes("--execute");  // without this flag => DRY RUN
@@ -246,18 +239,6 @@ function replayOperator(events, operators, shifts) {
   flushRollover(proc, END_TS, out);
   return dedupeByTs(out, "live_operator");
 }
-function replayAlarm(msEvents, alarmsParsed, shifts) {
-  const proc = new AlarmProcessor({ shifts });
-  const out = [];
-  for (const ev of msEvents) {
-    const ts = Number(ev.ts);  // alarms use EXACT ts (no rounding)
-    flushRollover(proc, ts, out);
-    out.push(...proc.handleMachineStatus({ value: Number(ev.value), ts }, alarmsParsed));
-  }
-  flushRollover(proc, END_TS, out);
-  return dedupeByTs(out, "live_alarm");
-}
-
 // Newest-first window of up to `limit` machine_status readings at/before `ts`,
 // mirroring what the live service's getMachineStatus() would have returned.
 function buildStatusWindow(msEventsAsc, ts, limit) {
@@ -299,14 +280,6 @@ function replayReason(reasonEvents, msEventsRaw, reasons, shifts) {
   return dedupeByTs(out, "live_reason");
 }
 
-function backupLiveAlarm(deviceName, rows) {
-  const dir = path.join(__dirname, "backups");
-  fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, `live_alarm__${deviceName}__${START_TS}_${END_TS}.json`);
-  fs.writeFileSync(file, JSON.stringify(rows, null, 2));
-  return file;
-}
-
 // ---------------- main ----------------
 (async () => {
   console.log("============================================================");
@@ -329,7 +302,7 @@ function backupLiveAlarm(deviceName, rows) {
 
   for (const d of devices) {
     const id = d.id?.id, name = d.name;
-    const row = { name, comp: { src: 0, gen: 0 }, op: { src: 0, gen: 0 }, reason: { src: 0, gen: 0 }, al: { src: 0, gen: 0, del: 0, real: 0, unknown: 0, existReal: 0 } };
+    const row = { name, comp: { src: 0, gen: 0 }, op: { src: 0, gen: 0 }, reason: { src: 0, gen: 0 } };
 
     // ---- live_component ----  (route card value may be under route_card OR routecard_id)
     if (DO_COMPONENT) {
@@ -390,59 +363,14 @@ function backupLiveAlarm(deviceName, rows) {
       }
     }
 
-    // ---- live_alarm ----  (DESTRUCTIVE: backs up first)
-    if (DO_ALARM) {
-      const ms = await getSeries(jwt, id, "machine_status");
-      row.al.src = ms.length;
-      if (ms.length) {
-        // Alarm details may live in the `alarms` array OR as separate flat keys
-        // (alarm_message / alarm_number / alarm_type). Merge both, same as the
-        // live alarm service, so real messages are recovered instead of UNKNOWN.
-        const alarmsRaw = await getSeries(jwt, id, "alarms");
-        const [amsg, anum, atype] = await Promise.all([
-          getSeries(jwt, id, "alarm_message"),
-          getSeries(jwt, id, "alarm_number"),
-          getSeries(jwt, id, "alarm_type"),
-        ]);
-        const alarmsParsed = [
-          ...parseAlarmsTelemetry(alarmsRaw),
-          ...parseSeparateAlarmKeys({ alarm_message: amsg, alarm_number: anum, alarm_type: atype }),
-        ];
-        const recs = replayAlarm(ms, alarmsParsed, allShift);
-        row.al.gen = recs.length;
-        const isReal = (m) => m !== undefined && m !== null && m !== "" && m !== "UNKNOWN";
-        row.al.real = recs.filter((r) => isReal(r.values?.live_alarm?.alarm_message)).length;
-        row.al.unknown = row.al.gen - row.al.real;
-        const existing = await getSeries(jwt, id, "live_alarm");
-        row.al.del = existing.length;
-        row.al.existReal = existing.filter((e) => {
-          let v = e.value;
-          if (typeof v === "string") { try { v = JSON.parse(v); } catch { v = {}; } }
-          return isReal(v?.alarm_message);
-        }).length;
-        if (existing.length) {
-          const f = backupLiveAlarm(name, existing);
-          console.log(`[${name}] backed up ${existing.length} live_alarm rows -> ${path.relative(process.cwd(), f)}`);
-        }
-        if (!DRY) {
-          if (recs.length) {
-            await deleteRange(jwt, id, ["live_alarm"]);
-            await postTelemetry(jwt, id, recs);
-          } else {
-            console.log(`[${name}] SKIPPED live_alarm delete: ${ms.length} source events but 0 regenerated (would have wiped existing data with nothing) — investigate before forcing.`);
-          }
-        }
-      }
-    }
-
     summary.push(row);
   }
 
   console.log("\n==================== SUMMARY ====================");
-  console.log("device\tcomp(src→gen)\toper(src→gen)\treason(src→gen)\talarm(src→gen, del)\treal_msgs(exist→gen, UNKNOWN)");
+  console.log("device\tcomp(src→gen)\toper(src→gen)\treason(src→gen)");
   for (const r of summary) {
     console.log(
-      `${r.name}\t${r.comp.src}→${r.comp.gen}\t\t${r.op.src}→${r.op.gen}\t\t${r.reason.src}→${r.reason.gen}\t\t${r.al.src}→${r.al.gen}, del ${r.al.del}\t${r.al.existReal}→${r.al.real}, unk ${r.al.unknown}`
+      `${r.name}\t${r.comp.src}→${r.comp.gen}\t\t${r.op.src}→${r.op.gen}\t\t${r.reason.src}→${r.reason.gen}`
     );
   }
   console.log(DRY ? "\nDRY RUN complete — nothing was changed. Re-run with --execute to apply."
