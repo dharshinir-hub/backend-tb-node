@@ -2,8 +2,10 @@ version: '3.8'
 
 services:
   # Macro (live_component/live_operator/live_reason) + Alarm processor + Alarm
-  # bridge all run inside this ONE container under supervisord. Each is
-  # independently restarted on crash — see supervisord.conf.
+  # bridge + Sequence report all run inside this ONE container under
+  # supervisord. Each is independently restarted on crash — see
+  # supervisord.conf. ALL env vars for all four live in the single `.env`
+  # file next to this compose file — no per-service overrides needed.
   backend-tb-node:
     build:
       context: .
@@ -12,26 +14,17 @@ services:
     image: dharshiniradhakrishnan/backend-tb-node:v0.2
     restart: unless-stopped
 
-    # NOTE: this service is an MQTT consumer — it does not expose any HTTP port.
-    environment:
-      # Shift math uses local time (new Date(y,m,d,hh,..)) — MUST run in IST or
-      # shift boundaries land 5.5h off (e.g. 20:00 shift-end -> 01:30 IST).
-      - TZ=Asia/Kolkata
-      - TB_BASE_URL=http://smart1.yantra24x7.com:8080
-      - TB_USERNAME=pms@gmail.com
-      - TB_PASSWORD=pmspms
-      - TB_INSECURE_TLS=1
-      - MQTT_BROKER=mqtt://smart1.yantra24x7.com:1884
-      - MQTT_TOPIC=test/#
-      - macro_customer=f853c6f0-3d3f-11f1-b077-e5ef75b0e368
-      # -- alarm processor: turns machine_status 4/5 + "alarms" into live_alarm --
-      - ALARMS_LIMIT=20
-      # Do NOT write live_alarm for these customers (Surin ca71d920).
-      - ALARM_SKIP_CUSTOMERS=f853c6f0-3d3f-11f1-b077-e5ef75b0e368
-      # Mirror every live_alarm onto the device-alarm broker (machine/<device>/alarm).
-      - STATUS_MQTT_URL=mqtt://smart1.yantra24x7.com:1885
-      - STATUS_REDIRECT=1
-      # -- alarm bridge: republishes live_alarm records our alarm processor did
-      # NOT write (agent/MTLinki-posted, e.g. ATECH/SMC) onto machine/<device>/alarm --
-      - BRIDGE_POLL_MS=5000
-      - NODE_ENV=development
+    ports:
+      # sequence-report's HTTP reports API (the only HTTP-exposing service
+      # of the four; macro/alarm/alarm-bridge are pure MQTT consumers).
+      - "6027:6027"
+
+    dns:
+      - 1.1.1.1
+      - 8.8.4.4
+
+    # Shift math uses local time (new Date(y,m,d,hh,..)) — MUST run in IST or
+    # shift boundaries land 5.5h off (e.g. 20:00 shift-end -> 01:30 IST). TZ
+    # itself lives in .env alongside everything else.
+    env_file:
+      - .env
