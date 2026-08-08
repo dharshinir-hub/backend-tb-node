@@ -78,9 +78,24 @@ async function main() {
   const reportService = new ThingsboardReportService();
   const updater = new ScheduledReportUpdater();
 
-  const allDevices = await reportService.getDevicesByCustomer(process.env.CUSTOMER_ID);
-  if (!allDevices || allDevices.length === 0) {
-    console.error('❌ No devices found for customer');
+  const customerIds = ScheduledReportUpdater.getCustomerIds();
+  if (customerIds.length === 0) {
+    console.error('❌ No CUSTOMER_ID configured');
+    process.exit(1);
+  }
+
+  // Devices are tagged with the customer they came from, so each one is
+  // later processed with its OWN customer's shift schedule.
+  const allDevices = [];
+  const shiftsByCustomer = new Map();
+  for (const customerId of customerIds) {
+    const devices = await reportService.getDevicesByCustomer(customerId);
+    devices.forEach(d => { d.__customerId = customerId; allDevices.push(d); });
+    shiftsByCustomer.set(customerId, await updater.fetchShifts(customerId));
+  }
+
+  if (allDevices.length === 0) {
+    console.error('❌ No devices found for any configured customer');
     process.exit(1);
   }
 
@@ -93,10 +108,9 @@ async function main() {
     process.exit(1);
   }
 
-  const shifts = await updater.fetchShifts(process.env.CUSTOMER_ID);
-
   for (const device of devices) {
     process.stdout.write(`📊 ${device.name}... `);
+    const shifts = shiftsByCustomer.get(device.__customerId) || [];
     const reports = await updater.generateAndPostReports(device, shifts, fromTs, toTs);
     console.log(`${reports.length} parts posted to ThingsBoard`);
   }

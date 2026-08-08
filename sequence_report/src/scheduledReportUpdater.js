@@ -19,6 +19,16 @@ class ScheduledReportUpdater {
     console.log(`   Lookback period: ${this.telemetryLookbackHours} hour(s)`);
   }
 
+  // CUSTOMER_ID may hold one ID or a comma-separated list (multi-customer
+  // deployments). Every caller that talks to ThingsBoard's per-customer
+  // endpoints (which take exactly one ID) parses it through here.
+  static getCustomerIds() {
+    return String(process.env.CUSTOMER_ID || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
   // Convert milliseconds to HH:MM:SS format
   msToHMS(milliseconds) {
     const seconds = Math.floor(milliseconds / 1000);
@@ -993,44 +1003,49 @@ class ScheduledReportUpdater {
     }, this.updateInterval);
   }
 
-  // Update all reports from all devices (for SURIN customer only)
+  // Update all reports from all devices, across every configured customer
   async updateAllReports() {
     try {
       const now = new Date();
-      const customerId = process.env.CUSTOMER_ID;
+      const customerIds = ScheduledReportUpdater.getCustomerIds();
 
-      console.log(`\n⏱️  [${now.toLocaleTimeString()}] Updating SURIN devices...`);
-
-      const shifts = await this.fetchShifts(customerId);
-
-      // Get all devices for SURIN customer
-      const devices = await this.reportService.getDevicesByCustomer(customerId);
-
-      if (!devices || devices.length === 0) {
-        console.log(`⚠️  No SURIN devices found`);
+      if (customerIds.length === 0) {
+        console.log(`⚠️  No CUSTOMER_ID configured`);
         return;
       }
+
+      console.log(`\n⏱️  [${now.toLocaleTimeString()}] Updating devices for ${customerIds.length} customer(s)...`);
 
       const nowMs = Date.now();
       const lookbackMs = this.telemetryLookbackHours * 60 * 60 * 1000;
       const lookbackTime = nowMs - lookbackMs;
 
-      // For each device, regenerate + POST + cache its reports for the
-      // configured lookback window
-      for (const device of devices) {
-        try {
-          const reports = await this.generateAndPostReports(device, shifts, lookbackTime, nowMs);
+      for (const customerId of customerIds) {
+        const shifts = await this.fetchShifts(customerId);
+        const devices = await this.reportService.getDevicesByCustomer(customerId);
 
-          this.cachedReports[device.id.id] = {
-            device_name: device.name,
-            reports,
-            last_updated: nowMs,
-            count: reports.length
-          };
+        if (!devices || devices.length === 0) {
+          console.log(`⚠️  No devices found for customer ${customerId}`);
+          continue;
+        }
 
-          console.log(`  ✓ ${device.name}: ${reports.length} sequence_report`);
-        } catch (error) {
-          console.log(`  ✗ ${device.name}: error`);
+        // For each device, regenerate + POST + cache its reports for the
+        // configured lookback window
+        for (const device of devices) {
+          try {
+            const reports = await this.generateAndPostReports(device, shifts, lookbackTime, nowMs);
+
+            this.cachedReports[device.id.id] = {
+              device_name: device.name,
+              reports,
+              last_updated: nowMs,
+              count: reports.length
+            };
+
+            console.log(`  ✓ ${device.name}: ${reports.length} sequence_report`);
+          } catch (error) {
+            console.log(`  ✗ ${device.name}: error`);
+          }
         }
       }
 

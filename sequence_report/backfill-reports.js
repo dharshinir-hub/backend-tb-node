@@ -43,11 +43,20 @@ async function backfill() {
   const reportService = new ThingsboardReportService();
 
   try {
-    const customerId = process.env.CUSTOMER_ID;
-    const devices = await reportService.getDevicesByCustomer(customerId);
+    const customerIds = ScheduledReportUpdater.getCustomerIds();
+    if (customerIds.length === 0) {
+      console.log('❌ No CUSTOMER_ID configured');
+      process.exit(1);
+    }
 
-    if (!devices || devices.length === 0) {
-      console.log('❌ No devices found for customer');
+    const devices = [];
+    for (const customerId of customerIds) {
+      const custDevices = await reportService.getDevicesByCustomer(customerId);
+      devices.push(...custDevices);
+    }
+
+    if (devices.length === 0) {
+      console.log('❌ No devices found for any configured customer');
       process.exit(1);
     }
 

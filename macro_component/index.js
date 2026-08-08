@@ -214,6 +214,11 @@ class MacroComponentProcessor {
     const value = routecard?.value ?? routecard?.routecard_id ?? "";
     const events = [];
 
+    // Same routecard as the one already open → leave it as-is, do nothing
+    if (this.current && String(value) === this.current.value) {
+      return events;
+    }
+
     // Cancel any existing shift-end timer (new event means we reschedule)
     if (this.shiftEndTimer) {
       clearTimeout(this.shiftEndTimer);
@@ -944,6 +949,10 @@ class MacroOperatorProcessor {
     const value = operatorEvent?.value ?? operatorEvent?.operator_id ?? "";
     const events = [];
 
+    // Same operator as the one already open → leave it as-is, do nothing
+    if (this.current && String(value) === String(this.current.operator.code)) {
+      return events;
+    }
 
     // Cancel any existing shift-end timer (new event means we reschedule)
     if (this.shiftEndTimer) {

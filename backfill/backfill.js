@@ -66,8 +66,9 @@ function endDMY(str) {
   return now >= dayStart && now <= dayEnd ? now : dayEnd;
 }
 const CUSTOMER_ALIASES = {
-  surin: "ca71d920-4d2a-11f1-9352-592ed2a7210c",       // SURIN (main)
-  surin_pune: "f853c6f0-3d3f-11f1-b077-e5ef75b0e368",  // SURIN_PUNE
+  surin: "ca71d920-4d2a-11f1-9352-592ed2a7210c",             // SURIN (main)
+  surin_pune: "f853c6f0-3d3f-11f1-b077-e5ef75b0e368",        // SURIN_PUNE
+  surin_bangalore: "1d388fb0-9249-11f1-99d3-31b416739137",   // SURIN_BANGALORE
 };
 const STREAM_ALIASES = {
   live_component: "component", component: "component",
@@ -87,7 +88,8 @@ Usage:
 
   --start/--end <date>  ISO date/time (2026-07-27 or 2026-07-27T00:00:00+05:30) or epoch ms.
                          Alternative to positional dates, for a custom time-of-day window.
-  --customer <id>       customer UUID, or alias: ${Object.keys(CUSTOMER_ALIASES).join(", ")}. Default: surin_pune.
+  --customer <id>       customer UUID, or alias: ${Object.keys(CUSTOMER_ALIASES).join(", ")}. Comma-separated
+                         list runs the backfill for each one in turn. Default: surin_pune.
   --component/--operator/--reason   flag form of stream selection (default: component+operator+reason).
   --execute             actually delete + post. Without it: DRY RUN (prints counts only).
 
@@ -111,7 +113,10 @@ if (usingPositional && (START_TS === undefined || END_TS === undefined)) {
   process.exit(1);
 }
 const customerArg = argVal("customer");
-const CUSTOMER_ID = customerArg ? (CUSTOMER_ALIASES[customerArg.toLowerCase()] || customerArg) : CUSTOMER_ALIASES.surin_pune;
+// Comma-separated list of UUIDs/aliases -> backfill each customer in turn.
+const CUSTOMER_IDS = customerArg
+  ? customerArg.split(",").map((c) => c.trim()).filter(Boolean).map((c) => CUSTOMER_ALIASES[c.toLowerCase()] || c)
+  : [CUSTOMER_ALIASES.surin_pune];
 
 let DO_COMPONENT, DO_OPERATOR, DO_REASON;
 if (usingPositional) {
@@ -298,90 +303,94 @@ function replayReason(reasonEvents, msEventsRaw, reasons, shifts) {
                   : "  EXECUTE  (will DELETE + POST to production)");
   console.log("============================================================");
   console.log("Window:", new Date(START_TS).toISOString(), "->", new Date(END_TS).toISOString());
-  console.log("Customer:", CUSTOMER_ID, "\n");
+  console.log("Customers:", CUSTOMER_IDS.join(", "), "\n");
 
   const jwt = await login();
-  const attrsRaw = await getCustomerAttributes(jwt, CUSTOMER_ID);
-  const components  = parseAttr(attrsRaw, "component") || [];
-  const alloperator = parseAttr(attrsRaw, "alloperator") || [];
-  const allShift    = parseAttr(attrsRaw, "allShift") || [];
-  const reasonsMaster = parseAttr(attrsRaw, "reason") || [];
-  console.log(`Master: components=${components.length}, operators=${alloperator.length}, shifts=${allShift.length}, reasons=${reasonsMaster.length}\n`);
-
-  const devices = await listDevices(jwt, CUSTOMER_ID);
   const summary = [];
 
-  for (const d of devices) {
-    const id = d.id?.id, name = d.name;
-    const row = { name, comp: { src: 0, gen: 0 }, op: { src: 0, gen: 0 }, reason: { src: 0, gen: 0 } };
+  for (const CUSTOMER_ID of CUSTOMER_IDS) {
+    console.log(`\n---- Customer ${CUSTOMER_ID} ----`);
+    const attrsRaw = await getCustomerAttributes(jwt, CUSTOMER_ID);
+    const components  = parseAttr(attrsRaw, "component") || [];
+    const alloperator = parseAttr(attrsRaw, "alloperator") || [];
+    const allShift    = parseAttr(attrsRaw, "allShift") || [];
+    const reasonsMaster = parseAttr(attrsRaw, "reason") || [];
+    console.log(`Master: components=${components.length}, operators=${alloperator.length}, shifts=${allShift.length}, reasons=${reasonsMaster.length}\n`);
 
-    // ---- live_component ----  (route card value may be under route_card OR routecard_id)
-    if (DO_COMPONENT) {
-      const rcA = await getSeries(jwt, id, "route_card");
-      const rcB = await getSeries(jwt, id, "routecard_id");
-      const rc = [...rcA, ...rcB].sort((a, b) => a.ts - b.ts);
-      row.comp.src = rc.length;
-      if (rc.length) {
-        const recs = replayComponent(rc, components, allShift);
-        row.comp.gen = recs.length;
-        if (!DRY) {
-          if (recs.length) {
-            await deleteRange(jwt, id, ["live_component"]);
-            await postTelemetry(jwt, id, recs);
-          } else {
-            console.log(`[${name}] SKIPPED live_component delete: ${rc.length} source events but 0 regenerated (would have wiped existing data with nothing) — investigate before forcing.`);
+    const devices = await listDevices(jwt, CUSTOMER_ID);
+
+    for (const d of devices) {
+      const id = d.id?.id, name = d.name;
+      const row = { customer: CUSTOMER_ID, name, comp: { src: 0, gen: 0 }, op: { src: 0, gen: 0 }, reason: { src: 0, gen: 0 } };
+
+      // ---- live_component ----  (route card value may be under route_card OR routecard_id)
+      if (DO_COMPONENT) {
+        const rcA = await getSeries(jwt, id, "route_card");
+        const rcB = await getSeries(jwt, id, "routecard_id");
+        const rc = [...rcA, ...rcB].sort((a, b) => a.ts - b.ts);
+        row.comp.src = rc.length;
+        if (rc.length) {
+          const recs = replayComponent(rc, components, allShift);
+          row.comp.gen = recs.length;
+          if (!DRY) {
+            if (recs.length) {
+              await deleteRange(jwt, id, ["live_component"]);
+              await postTelemetry(jwt, id, recs);
+            } else {
+              console.log(`[${name}] SKIPPED live_component delete: ${rc.length} source events but 0 regenerated (would have wiped existing data with nothing) — investigate before forcing.`);
+            }
           }
         }
       }
-    }
 
-    // ---- live_operator ----
-    if (DO_OPERATOR) {
-      const op = await getSeries(jwt, id, "operator_id");
-      row.op.src = op.length;
-      if (op.length) {
-        const recs = replayOperator(op, alloperator, allShift);
-        row.op.gen = recs.length;
-        if (!DRY) {
-          if (recs.length) {
-            await deleteRange(jwt, id, ["live_operator"]);
-            await postTelemetry(jwt, id, recs);
-          } else {
-            console.log(`[${name}] SKIPPED live_operator delete: ${op.length} source events but 0 regenerated (would have wiped existing data with nothing) — investigate before forcing.`);
+      // ---- live_operator ----
+      if (DO_OPERATOR) {
+        const op = await getSeries(jwt, id, "operator_id");
+        row.op.src = op.length;
+        if (op.length) {
+          const recs = replayOperator(op, alloperator, allShift);
+          row.op.gen = recs.length;
+          if (!DRY) {
+            if (recs.length) {
+              await deleteRange(jwt, id, ["live_operator"]);
+              await postTelemetry(jwt, id, recs);
+            } else {
+              console.log(`[${name}] SKIPPED live_operator delete: ${op.length} source events but 0 regenerated (would have wiped existing data with nothing) — investigate before forcing.`);
+            }
           }
         }
       }
-    }
 
-    // ---- live_reason ----  (idle_reason OR reason_id, depending on machine, + machine_status for idle-window context)
-    if (DO_REASON) {
-      const idleA = await getSeries(jwt, id, "idle_reason");
-      const idleB = await getSeries(jwt, id, "reason_id");
-      const reasonEvents = [...idleA, ...idleB].sort((a, b) => a.ts - b.ts);
-      row.reason.src = reasonEvents.length;
-      if (reasonEvents.length) {
-        const ms = await getSeries(jwt, id, "machine_status");
-        const recs = replayReason(reasonEvents, ms, reasonsMaster, allShift);
-        row.reason.gen = recs.length;
-        if (!DRY) {
-          if (recs.length) {
-            await deleteRange(jwt, id, ["live_reason"]);
-            await postTelemetry(jwt, id, recs);
-          } else {
-            console.log(`[${name}] SKIPPED live_reason delete: ${reasonEvents.length} source events but 0 regenerated (machine wasn't idle at any of them, or would have wiped existing data with nothing) — investigate before forcing.`);
+      // ---- live_reason ----  (idle_reason OR reason_id, depending on machine, + machine_status for idle-window context)
+      if (DO_REASON) {
+        const idleA = await getSeries(jwt, id, "idle_reason");
+        const idleB = await getSeries(jwt, id, "reason_id");
+        const reasonEvents = [...idleA, ...idleB].sort((a, b) => a.ts - b.ts);
+        row.reason.src = reasonEvents.length;
+        if (reasonEvents.length) {
+          const ms = await getSeries(jwt, id, "machine_status");
+          const recs = replayReason(reasonEvents, ms, reasonsMaster, allShift);
+          row.reason.gen = recs.length;
+          if (!DRY) {
+            if (recs.length) {
+              await deleteRange(jwt, id, ["live_reason"]);
+              await postTelemetry(jwt, id, recs);
+            } else {
+              console.log(`[${name}] SKIPPED live_reason delete: ${reasonEvents.length} source events but 0 regenerated (machine wasn't idle at any of them, or would have wiped existing data with nothing) — investigate before forcing.`);
+            }
           }
         }
       }
-    }
 
-    summary.push(row);
+      summary.push(row);
+    }
   }
 
   console.log("\n==================== SUMMARY ====================");
-  console.log("device\tcomp(src→gen)\toper(src→gen)\treason(src→gen)");
+  console.log("customer\tdevice\tcomp(src→gen)\toper(src→gen)\treason(src→gen)");
   for (const r of summary) {
     console.log(
-      `${r.name}\t${r.comp.src}→${r.comp.gen}\t\t${r.op.src}→${r.op.gen}\t\t${r.reason.src}→${r.reason.gen}`
+      `${r.customer}\t${r.name}\t${r.comp.src}→${r.comp.gen}\t\t${r.op.src}→${r.op.gen}\t\t${r.reason.src}→${r.reason.gen}`
     );
   }
   console.log(DRY ? "\nDRY RUN complete — nothing was changed. Re-run with --execute to apply."
